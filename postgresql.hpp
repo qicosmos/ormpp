@@ -545,8 +545,9 @@ namespace ormpp{
                 param_values.push_back(std::move(temp));
             }
             else if constexpr(std::is_same_v<std::string, U>){
-                std::vector<char> temp;
-                std::copy(value.begin(), value.end(), std::back_inserter(temp));
+                std::vector<char> temp = {};
+                std::copy(value.data(), value.data()+value.size()+1, std::back_inserter(temp));
+//                    std::cout<<value.size()<<std::endl;
                 param_values.push_back(std::move(temp));
             }
             else {
