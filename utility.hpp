@@ -63,17 +63,6 @@ namespace ormpp{
         return arr;
     }
 
-    template<typename T, typename U, typename V, size_t Idx, typename W>
-    inline void build_condition_by_key(std::string& result, const V& val, W key){
-//        if(key==iguana::get_name<T, Idx>().data()){
-//            if constexpr(std::is_arithmetic_v<U>){
-//                append(result, iguana::get_name<T,Idx>().data(), "=", std::to_string(val));
-//            }else if constexpr(std::is_same_v<std::string, U>){
-//                append(result, iguana::get_name<T,Idx>().data(), "=", val);
-//            }
-//        }
-    }
-
     template <typename... Args, typename Func, std::size_t... Idx>
     inline void for_each0(const std::tuple<Args...>& t, Func&& f, std::index_sequence<Idx...>) {
         (f(std::get<Idx>(t)), ...);

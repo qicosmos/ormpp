@@ -96,36 +96,6 @@ namespace ormpp{
             return insert_impl(sql, t, std::forward<Args>(args)...);
         }
 
-        template<typename  T>
-        auto generate_auto_insert_sql(bool replace){
-            std::string sql = replace?"replace into ":"insert into ";
-            constexpr auto SIZE = iguana::get_value<T>();
-            constexpr auto name = iguana::get_name<T>();
-            append(sql, name.data());
-
-            std::string fields = "(";
-            std::string values = " values(";
-            auto it = auto_key_map_.find(name.data());
-            for (auto i = 0; i < SIZE; ++i) {
-                std::string field_name = iguana::get_name<T>(i).data();
-                if(it!=auto_key_map_.end()&&it->second==field_name)
-                    continue;
-
-                values+="?";
-                fields+=field_name;
-                if(i<SIZE-1){
-                    fields+=", ";
-                    values+=", ";
-                }
-                else{
-                    fields+=")";
-                    values+=")";
-                }
-            }
-            append(sql, fields, values);
-            return sql;
-        }
-
         template<typename T, typename... Args>
         constexpr int update(const T& t, Args&&... args) {
             std::string sql = generate_insert_sql<T>(true);
@@ -544,6 +514,36 @@ namespace ormpp{
             }
             else
             return tp;
+        }
+
+        template<typename  T>
+        auto generate_auto_insert_sql(bool replace){
+            std::string sql = replace?"replace into ":"insert into ";
+            constexpr auto SIZE = iguana::get_value<T>();
+            constexpr auto name = iguana::get_name<T>();
+            append(sql, name.data());
+
+            std::string fields = "(";
+            std::string values = " values(";
+            auto it = auto_key_map_.find(name.data());
+            for (auto i = 0; i < SIZE; ++i) {
+                std::string field_name = iguana::get_name<T>(i).data();
+                if(it!=auto_key_map_.end()&&it->second==field_name)
+                    continue;
+
+                values+="?";
+                fields+=field_name;
+                if(i<SIZE-1){
+                    fields+=", ";
+                    values+=", ";
+                }
+                else{
+                    fields+=")";
+                    values+=")";
+                }
+            }
+            append(sql, fields, values);
+            return sql;
         }
 
     private:

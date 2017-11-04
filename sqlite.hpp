@@ -53,36 +53,6 @@ namespace ormpp{
             return insert_impl(false, sql, t, std::forward<Args>(args)...);
         }
 
-        template<typename  T>
-        auto generate_auto_insert_sql(bool replace){
-            std::string sql = replace?"replace into ":"insert into ";
-            constexpr auto SIZE = iguana::get_value<T>();
-            constexpr auto name = iguana::get_name<T>();
-            append(sql, name.data());
-
-            std::string fields = "(";
-            std::string values = " values(";
-            auto it = auto_key_map_.find(name.data());
-            for (auto i = 0; i < SIZE; ++i) {
-                std::string field_name = iguana::get_name<T>(i).data();
-                if(it!=auto_key_map_.end()&&it->second==field_name)
-                    continue;
-
-                values+="?";
-                fields+=field_name;
-                if(i<SIZE-1){
-                    fields+=", ";
-                    values+=", ";
-                }
-                else{
-                    fields+=")";
-                    values+=")";
-                }
-            }
-            append(sql, fields, values);
-            return sql;
-        }
-
         template<typename T, typename... Args>
         constexpr int insert(const std::vector<T>& t, Args&&... args){
             std::string sql = auto_key_map_.empty()?generate_insert_sql<T>(false):generate_auto_insert_sql<T>(false);
@@ -446,6 +416,36 @@ namespace ormpp{
             b = commit();
 
             return b?v.size():INT_MIN;
+        }
+
+        template<typename  T>
+        auto generate_auto_insert_sql(bool replace){
+            std::string sql = replace?"replace into ":"insert into ";
+            constexpr auto SIZE = iguana::get_value<T>();
+            constexpr auto name = iguana::get_name<T>();
+            append(sql, name.data());
+
+            std::string fields = "(";
+            std::string values = " values(";
+            auto it = auto_key_map_.find(name.data());
+            for (auto i = 0; i < SIZE; ++i) {
+                std::string field_name = iguana::get_name<T>(i).data();
+                if(it!=auto_key_map_.end()&&it->second==field_name)
+                    continue;
+
+                values+="?";
+                fields+=field_name;
+                if(i<SIZE-1){
+                    fields+=", ";
+                    values+=", ";
+                }
+                else{
+                    fields+=")";
+                    values+=")";
+                }
+            }
+            append(sql, fields, values);
+            return sql;
         }
 
         sqlite3* handle_ = nullptr;
