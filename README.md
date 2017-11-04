@@ -1,4 +1,5 @@
-#ormpp--一个很酷的Modern C++ ORM库
+#ormpp--一个很酷的Modern C++ ORM库#
+
 [ormpp](https://github.com/qicosmos/ormpp)是modern c++(c++11/14/17)开发的ORM库，为数据库操作提供了统一、灵活和易用的接口，目前支持了三种数据库：mysql, postgresql和sqlite。ormpp主要有以下几个特点：
 
 1. header only
@@ -57,6 +58,7 @@
     	}
 		mysql.commit();
 	}
+	
 如何你想把数据库换成postgresql或sqlite，你仅仅需要将dbng<mysql>换成dbng<postgresql>，dbng<sqlite>, 其他代码不需要做任何修改，非常简单。
 
 ormpp让数据库编程变得简单，enjoin it!
