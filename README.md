@@ -59,6 +59,6 @@
 		mysql.commit();
 	}
 	
-如何你想把数据库换成postgresql或sqlite，你仅仅需要将dbng<mysql>换成dbng<postgresql>，dbng<sqlite>, 其他代码不需要做任何修改，非常简单。
+如何你想把数据库换成postgresql或sqlite，你仅仅需要将mysql类型换成postgresql，sqlite, 其他代码不需要做任何修改，非常简单。
 
 ormpp让数据库编程变得简单，enjoin it!
