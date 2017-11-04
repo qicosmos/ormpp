@@ -63,17 +63,6 @@ namespace ormpp{
         return arr;
     }
 
-    template<typename T, typename U, typename V, size_t Idx, typename W>
-    inline void build_condition_by_key(std::string& result, const V& val, W key){
-//        if(key==iguana::get_name<T, Idx>().data()){
-//            if constexpr(std::is_arithmetic_v<U>){
-//                append(result, iguana::get_name<T,Idx>().data(), "=", std::to_string(val));
-//            }else if constexpr(std::is_same_v<std::string, U>){
-//                append(result, iguana::get_name<T,Idx>().data(), "=", val);
-//            }
-//        }
-    }
-
     template <typename... Args, typename Func, std::size_t... Idx>
     inline void for_each0(const std::tuple<Args...>& t, Func&& f, std::index_sequence<Idx...>) {
         (f(std::get<Idx>(t)), ...);
@@ -93,6 +82,36 @@ namespace ormpp{
                 sql+=");";
         }
 
+        return sql;
+    }
+
+    template<typename  T>
+    inline auto generate_auto_insert_sql(auto auto_key_map_, bool replace){
+        std::string sql = replace?"replace into ":"insert into ";
+        constexpr auto SIZE = iguana::get_value<T>();
+        constexpr auto name = iguana::get_name<T>();
+        append(sql, name.data());
+
+        std::string fields = "(";
+        std::string values = " values(";
+        auto it = auto_key_map_.find(name.data());
+        for (auto i = 0; i < SIZE; ++i) {
+            std::string field_name = iguana::get_name<T>(i).data();
+            if(it!=auto_key_map_.end()&&it->second==field_name)
+                continue;
+
+            values+="?";
+            fields+=field_name;
+            if(i<SIZE-1){
+                fields+=", ";
+                values+=", ";
+            }
+            else{
+                fields+=")";
+                values+=")";
+            }
+        }
+        append(sql, fields, values);
         return sql;
     }
 
