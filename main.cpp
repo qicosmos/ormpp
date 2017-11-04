@@ -8,14 +8,15 @@
 #include "unit_test.hpp"
 
 using namespace ormpp;
+const char* ip = "*.*.*.*"; //your database ip
 
 TEST_CASE(orm_connect){
     dbng<mysql> mysql;
     dbng<sqlite> sqlite;
     dbng<postgresql> postgres;
 
-    TEST_REQUIRE(mysql.connect("120.78.135.113", "root", "12345", "testdb"));
-    TEST_REQUIRE(postgres.connect("120.78.135.113", "root", "12345", "testdb"));
+    TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+    TEST_REQUIRE(postgres.connect(ip, "root", "12345", "testdb"));
     TEST_REQUIRE(sqlite.connect("test.db"));
 
     TEST_REQUIRE(mysql.disconnect());
@@ -23,8 +24,8 @@ TEST_CASE(orm_connect){
     TEST_REQUIRE(sqlite.disconnect());
 
     int timeout = 5;
-    TEST_REQUIRE(mysql.connect("120.78.135.113", "root", "12345", "testdb", timeout));
-    TEST_REQUIRE(postgres.connect("120.78.135.113", "root", "12345", "testdb", timeout));
+    TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb", timeout));
+    TEST_REQUIRE(postgres.connect(ip, "root", "12345", "testdb", timeout));
 }
 
 TEST_CASE(orm_create_table){
@@ -32,8 +33,8 @@ TEST_CASE(orm_create_table){
     dbng<sqlite> sqlite;
     dbng<postgresql> postgres;
 
-    TEST_REQUIRE(mysql.connect("120.78.135.113", "root", "12345", "testdb"));
-    TEST_REQUIRE(postgres.connect("120.78.135.113", "root", "12345", "testdb"));
+    TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+    TEST_REQUIRE(postgres.connect(ip, "root", "12345", "testdb"));
     TEST_REQUIRE(sqlite.connect("test.db"));
 
     ormpp_key key{"id"};
@@ -78,8 +79,8 @@ TEST_CASE(orm_insert_query){
     dbng<sqlite> sqlite;
     dbng<postgresql> postgres;
 
-    TEST_REQUIRE(mysql.connect("120.78.135.113", "root", "12345", "testdb"));
-    TEST_REQUIRE(postgres.connect("120.78.135.113", "root", "12345", "testdb"));
+    TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+    TEST_REQUIRE(postgres.connect(ip, "root", "12345", "testdb"));
     TEST_REQUIRE(sqlite.connect("test.db"));
 
     ormpp_key key{"code"};
@@ -167,8 +168,8 @@ TEST_CASE(orm_update){
     dbng<sqlite> sqlite;
     dbng<postgresql> postgres;
 
-    TEST_REQUIRE(mysql.connect("120.78.135.113", "root", "12345", "testdb"));
-    TEST_REQUIRE(postgres.connect("120.78.135.113", "root", "12345", "testdb"));
+    TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+    TEST_REQUIRE(postgres.connect(ip, "root", "12345", "testdb"));
     TEST_REQUIRE(sqlite.connect("test.db"));
 
     ormpp_key key{"code"};
@@ -212,8 +213,8 @@ TEST_CASE(orm_multi_update){
     dbng<sqlite> sqlite;
     dbng<postgresql> postgres;
 
-    TEST_REQUIRE(mysql.connect("120.78.135.113", "root", "12345", "testdb"));
-    TEST_REQUIRE(postgres.connect("120.78.135.113", "root", "12345", "testdb"));
+    TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+    TEST_REQUIRE(postgres.connect(ip, "root", "12345", "testdb"));
     TEST_REQUIRE(sqlite.connect("test.db"));
 
     ormpp_key key{"code"};
@@ -255,8 +256,8 @@ TEST_CASE(orm_delete){
     dbng<sqlite> sqlite;
     dbng<postgresql> postgres;
 
-    TEST_REQUIRE(mysql.connect("120.78.135.113", "root", "12345", "testdb"));
-    TEST_REQUIRE(postgres.connect("120.78.135.113", "root", "12345", "testdb"));
+    TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+    TEST_REQUIRE(postgres.connect(ip, "root", "12345", "testdb"));
     TEST_REQUIRE(sqlite.connect("test.db"));
 
     ormpp_key key{"code"};
@@ -300,8 +301,8 @@ TEST_CASE(orm_query){
     dbng<sqlite> sqlite;
     dbng<postgresql> postgres;
 
-    TEST_REQUIRE(mysql.connect("120.78.135.113", "root", "12345", "testdb"));
-    TEST_REQUIRE(postgres.connect("120.78.135.113", "root", "12345", "testdb"));
+    TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+    TEST_REQUIRE(postgres.connect(ip, "root", "12345", "testdb"));
     TEST_REQUIRE(sqlite.connect("test.db"));
 
     ormpp_key key{"id"};
@@ -342,8 +343,8 @@ TEST_CASE(orm_query_some){
     dbng<sqlite> sqlite;
     dbng<postgresql> postgres;
 
-    TEST_REQUIRE(mysql.connect("120.78.135.113", "root", "12345", "testdb"));
-    TEST_REQUIRE(postgres.connect("120.78.135.113", "root", "12345", "testdb"));
+    TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+    TEST_REQUIRE(postgres.connect(ip, "root", "12345", "testdb"));
     TEST_REQUIRE(sqlite.connect("test.db"));
 
     ormpp_key key{"code"};
@@ -390,8 +391,8 @@ TEST_CASE(orm_query_multi_table){
     dbng<sqlite> sqlite;
     dbng<postgresql> postgres;
 
-    TEST_REQUIRE(mysql.connect("120.78.135.113", "root", "12345", "testdb"));
-    TEST_REQUIRE(postgres.connect("120.78.135.113", "root", "12345", "testdb"));
+    TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+    TEST_REQUIRE(postgres.connect(ip, "root", "12345", "testdb"));
     TEST_REQUIRE(sqlite.connect("test.db"));
 
     ormpp_key key{"code"};
@@ -448,8 +449,8 @@ TEST_CASE(orm_transaction){
     dbng<sqlite> sqlite;
     dbng<postgresql> postgres;
 
-    TEST_REQUIRE(mysql.connect("120.78.135.113", "root", "12345", "testdb"));
-    TEST_REQUIRE(postgres.connect("120.78.135.113", "root", "12345", "testdb"));
+    TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+    TEST_REQUIRE(postgres.connect(ip, "root", "12345", "testdb"));
     TEST_REQUIRE(sqlite.connect("test.db"));
 
     ormpp_key key{"code"};
