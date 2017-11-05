@@ -55,7 +55,7 @@
 	        person s = {i, "tom" 19};
 	            if(!mysql.insert(s)){
 	                mysql.rollback();
-	                return;
+	                return -1;
 	            }
     	}
 		mysql.commit();
