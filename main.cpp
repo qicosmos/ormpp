@@ -502,3 +502,49 @@ TEST_CASE(orm_transaction){
     auto result2 = sqlite.query<student>();
     TEST_CHECK(result2.size()==10);
 }
+
+struct log{
+    template<typename... Args>
+    bool before(Args... args){
+        std::cout<<"log before"<<std::endl;
+        return true;
+    }
+
+    template<typename T, typename... Args>
+    bool after(T t, Args... args){
+        std::cout<<"log after"<<std::endl;
+        return true;
+    }
+};
+
+struct validate{
+    template<typename... Args>
+    bool before(Args... args){
+        std::cout<<"validate before"<<std::endl;
+        return true;
+    }
+
+    template<typename T, typename... Args>
+    bool after(T t, Args... args){
+        std::cout<<"validate after"<<std::endl;
+        return true;
+    }
+};
+
+TEST_CASE(orm_aop){
+    dbng<mysql> mysql;
+    auto r = mysql.warper_connect<log, validate>("127.0.0.1", "root", "12345", "testdb");
+    TEST_REQUIRE(r);
+
+    r = mysql.warper_excecute("drop table if exists person");
+    TEST_REQUIRE(r);
+
+    r = mysql.warper_excecute<log>("drop table if exists person");
+    TEST_REQUIRE(r);
+
+    r = mysql.warper_excecute<validate>("drop table if exists person");
+    TEST_REQUIRE(r);
+
+    r = mysql.warper_excecute<validate, log>("drop table if exists person");
+    TEST_REQUIRE(r);
+}

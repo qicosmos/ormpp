@@ -76,6 +76,62 @@ namespace ormpp{
         }
 
     private:
+#define HAS_MEMBER(member)\
+template<typename T, typename... Args>\
+struct has_##member\
+{\
+private:\
+    template<typename U> static auto Check(int) -> decltype(std::declval<U>().member(std::declval<Args>()...), std::true_type()); \
+	template<typename U> static std::false_type Check(...);\
+public:\
+	enum{value = std::is_same<decltype(Check<T>(0)), std::true_type>::value};\
+};
+
+        HAS_MEMBER(before)
+        HAS_MEMBER(after)
+
+#define WARPER(func)\
+    template<typename... AP, typename... Args>\
+    auto warper##_##func(Args&&... args){\
+        using result_type = decltype(std::declval<decltype(this)>()->func(std::declval<Args>()...));\
+        bool r = true;\
+        std::tuple<AP...> tp{};\
+        for_each_l(tp, [&r, &args...](auto& item){\
+            if(!r)\
+                return;\
+            if constexpr (has_before<decltype(item)>::value)\
+            r = item.before(std::forward<Args>(args)...);\
+        }, std::make_index_sequence<sizeof...(AP)>{});\
+        if(!r)\
+            return result_type{};\
+        auto lambda = [this, &args...]{ return this->func(std::forward<Args>(args)...); };\
+        result_type result = std::invoke(lambda);\
+        for_each_r(tp, [&r, &result, &args...](auto& item){\
+            if(!r)\
+                return;\
+            if constexpr (has_after<decltype(item), result_type>::value)\
+            r = item.after(result, std::forward<Args>(args)...);\
+        }, std::make_index_sequence<sizeof...(AP)>{});\
+        return result;\
+    }
+
+        template <typename... Args, typename F, std::size_t... Idx>
+        constexpr void for_each_l(std::tuple<Args...>& t, F&& f, std::index_sequence<Idx...>)
+        {
+            (std::forward<F>(f)(std::get<Idx>(t)), ...);
+        }
+
+        template <typename... Args, typename F, std::size_t... Idx>
+        constexpr void for_each_r(std::tuple<Args...>& t, F&& f, std::index_sequence<Idx...>)
+        {
+            constexpr auto size = sizeof...(Idx);
+            (std::forward<F>(f)(std::get<size-Idx-1>(t)), ...);
+        }
+
+    public:
+        WARPER(connect);
+        WARPER(excecute);
+    private:
         DB db_;
     };
 }
