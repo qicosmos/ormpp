@@ -23,42 +23,42 @@ namespace ormpp{
         }
 
         template<typename T, typename... Args>
-        constexpr auto create_datatable(Args&&... args){
+        bool create_datatable(Args&&... args){
             return db_.template create_datatable<T>(std::forward<Args>(args)...);
         }
 
         template<typename T, typename... Args>
-        constexpr int insert(const T& t,Args&&... args){
+        int insert(const T& t,Args&&... args){
             return db_.insert(t, std::forward<Args>(args)...);
         }
 
         template<typename T, typename... Args>
-        constexpr int insert(const std::vector<T>& t, Args&&... args){
+        int insert(const std::vector<T>& t, Args&&... args){
             return db_.insert(t, std::forward<Args>(args)...);
         }
 
         template<typename T, typename... Args>
-        constexpr int update(const T& t, Args&&... args) {
+        int update(const T& t, Args&&... args) {
             return db_.update(t, std::forward<Args>(args)...);
         }
 
         template<typename T, typename... Args>
-        constexpr int update(const std::vector<T>& t, Args&&... args){
+        int update(const std::vector<T>& t, Args&&... args){
             return db_.update(t, std::forward<Args>(args)...);
         }
 
         template<typename T, typename... Args>
-        constexpr bool delete_records(Args&&... where_conditon){
+        bool delete_records(Args&&... where_conditon){
             return db_.template delete_records<T>(std::forward<Args>(where_conditon)...);
         }
 
         //restriction, all the args are string, the first is the where condition, rest are append conditions
         template<typename T, typename... Args>
-        constexpr auto query(Args&&... args){
+        auto query(Args&&... args){
             return db_.template query<T>(std::forward<Args>(args)...);
         }
 
-        auto excecute(const std::string& sql){
+        int excecute(const std::string& sql){
             return db_.excecute(sql);
         }
 
