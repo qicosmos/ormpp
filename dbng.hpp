@@ -11,7 +11,6 @@ namespace ormpp{
     template<typename DB>
     class dbng{
     public:
-        //ip, user, pwd, db  the sequence must be fixed like this
         template <typename... Args>
         bool connect(Args&&... args){
             return  db_.template connect(std::forward<Args>(args)...);
