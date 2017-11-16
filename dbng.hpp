@@ -16,9 +16,8 @@ namespace ormpp{
             return  db_.template connect(std::forward<Args>(args)...);
         }
 
-        template <typename... Args>
         bool disconnect(){
-            return  db_.template disconnect();
+            return  db_.disconnect();
         }
 
         template<typename T, typename... Args>
