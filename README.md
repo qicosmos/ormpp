@@ -43,7 +43,7 @@
 		mysql.update(v);
 
 		auto result = mysql.query<person>(); //vector<person>
-		for(auot& person : result){
+		for(auto& person : result){
 			std::cout<<person.id<<" "<<person.name<<" "<<person.age<<std::endl;
 		}
 
