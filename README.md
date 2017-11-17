@@ -6,7 +6,7 @@
 * [ormpp的特点](#ormpp的特点)
 * [快速示例](#快速示例)
 * [如何编译](#如何编译)
-* [接口介绍](#接口使用)
+* [接口介绍](#接口介绍)
 * [roadmap](#roadmap)
 * [联系方式](#联系方式)
 
@@ -78,9 +78,11 @@ ormpp是modern c++(c++11/14/17)开发的ORM库，目前支持了三种数据库�
 ## 如何编译
 
 ###编译器支持
+
 需要支持C++17的编译器, 要求的编译器版本：linux gcc7.2, clang4.0; windows >vs2017 update5
 
 ###数据库的安装
+
 因为ormpp支持mysql, postgresql和sqlite，所以需要安装mysql，postgresql，postgresql官方提供的libpq以及sqlite3，安装之后，在CMakeLists.txt配置目录和库路径。
 
 上面两步完成之后就可以直接编译了。
