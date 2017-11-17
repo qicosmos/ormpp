@@ -536,15 +536,15 @@ TEST_CASE(orm_aop){
     auto r = mysql.warper_connect<log, validate>("127.0.0.1", "root", "12345", "testdb");
     TEST_REQUIRE(r);
 
-    r = mysql.warper_excecute("drop table if exists person");
+    r = mysql.warper_execute("drop table if exists person");
     TEST_REQUIRE(r);
 
-    r = mysql.warper_excecute<log>("drop table if exists person");
+    r = mysql.warper_execute<log>("drop table if exists person");
     TEST_REQUIRE(r);
 
-    r = mysql.warper_excecute<validate>("drop table if exists person");
+    r = mysql.warper_execute<validate>("drop table if exists person");
     TEST_REQUIRE(r);
 
-    r = mysql.warper_excecute<validate, log>("drop table if exists person");
+    r = mysql.warper_execute<validate, log>("drop table if exists person");
     TEST_REQUIRE(r);
 }

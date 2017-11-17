@@ -280,8 +280,8 @@ namespace ormpp{
             return v;
         }
 
-        //just support excecute string sql without placeholders
-        auto excecute(const std::string& sql){
+        //just support execute string sql without placeholders
+        auto execute(const std::string& sql){
             return mysql_query(con_, sql.data())==0;
         }
 

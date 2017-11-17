@@ -261,8 +261,8 @@ namespace ormpp{
             return true;
         }
 
-        //just support excecute string sql without placeholders
-        auto excecute(const std::string& sql){
+        //just support execute string sql without placeholders
+        auto execute(const std::string& sql){
             res_ = PQexec(con_, sql.data());
             auto guard = guard_result(res_);
             if (PQresultStatus(res_) != PGRES_COMMAND_OK){

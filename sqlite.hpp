@@ -170,8 +170,8 @@ namespace ormpp{
             return v;
         }
 
-        //just support excecute string sql without placeholders
-        auto excecute(const std::string& sql){
+        //just support execute string sql without placeholders
+        auto execute(const std::string& sql){
             if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr)!=SQLITE_OK) {
                 return false;
             }

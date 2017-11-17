@@ -56,8 +56,8 @@ namespace ormpp{
             return db_.template query<T>(std::forward<Args>(args)...);
         }
 
-        int excecute(const std::string& sql){
-            return db_.excecute(sql);
+        int execute(const std::string& sql){
+            return db_.execute(sql);
         }
 
         //transaction
@@ -128,7 +128,7 @@ public:\
 
     public:
         WARPER(connect);
-        WARPER(excecute);
+        WARPER(execute);
     private:
         DB db_;
     };
