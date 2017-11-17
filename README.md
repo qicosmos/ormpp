@@ -128,7 +128,7 @@ ormpp屏蔽了不同数据库操作接口的差异，提供了统一简单的数
 	auto query(Args&&... args);
 	
 	//执行原生的sql语句
-	int excecute(const std::string& sql);
+	int execute(const std::string& sql);
 	
 	//开始事务
 	bool begin();
@@ -381,20 +381,20 @@ multiple or some fields query example:
 
 9.执行原生sql语句
 
-	int excecute(const std::string& sql);
+	int execute(const std::string& sql);
 
-excecute example:
+execute example:
 
-	r = mysql.excecute("drop table if exists person");
+	r = mysql.execute("drop table if exists person");
     TEST_REQUIRE(r);
 
     r = postgres("drop table if exists person");
     TEST_REQUIRE(r);
 
-    r = sqlite.excecute("drop table if exists person");
+    r = sqlite.execute("drop table if exists person");
     TEST_REQUIRE(r);
 
-注意：excecute接口支持的原生sql语句是不带占位符的，是一条完整的sql语句。
+注意：execute接口支持的原生sql语句是不带占位符的，是一条完整的sql语句。
 
 返回值：int，成功返回更新数据的条数1，失败返回INT_MIN.
 
