@@ -4,9 +4,9 @@
 
 * [motiviations](#motiviations)
 * [features](#features)
-* [quick example](#quick example)
-* [how to compile](#how to compile)
-* [interface introduction](#interface introduction)
+* [example](#example)
+* [compile](#compile)
+* [interface](#interface)
 * [roadmap](#roadmap)
 * [contact us](#contact us)
 
@@ -30,7 +30,7 @@ Because ormpp is based on compile-time reflection, so it can do entity relation 
 
 Even cooler is that you can easily change the database, if you want to change mysql to postgresql or sqlite , you just need to modify the database type without modifying any other code.
 
-## a quick example
+## example
 
 This example demonstrates how to use ormpp to add, delete, update datatable and do transaction with ormpp without write any sql statement.
 
@@ -82,7 +82,7 @@ This example demonstrates how to use ormpp to add, delete, update datatable and 
 		mysql.commit();
 	}
 
-## how to compile
+## compile
 
 ### Compiler support
 
@@ -95,7 +95,7 @@ Because ormpp supports mysql, postgresql and sqlite, so you need to install mysq
 After the above two steps you can compile ormpp directly.
 
 
-## interface introduction
+## interface
 
 ormpp hides the difference of the database operation interface and provides unified and easy to use interface. ormpp provides some database operation interface, such as connecting/disconnecting a database, creating a data table, inserting data, updating data, deleting data, querying data and transaction related interface.
 
