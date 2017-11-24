@@ -2,19 +2,19 @@
 
 ## Dictionary
 
-* [the motiviation](#the motiviation)
-* [the feature](#the feature)
+* [motiviations](#motiviations)
+* [features](#features)
 * [a quick example](#a quick example)
 * [how to compile](#how to compile)
 * [interface introduction](#interface introduction)
 * [roadmap](#roadmap)
 * [contact us](#contact us)
 
-## the Motiviation
+## motiviations
 
 The most important thing of ormpp is to simplify database programming in C++. ormpp provides easy to use unified interface, supports multiple databases, and reduces the learning cost of using the database.
 
-## the Feature
+## features
 
 ormpp is an ORM library developed by modern C++(C++ 11/14/17) and currently supports three databases: mysql, postgresql and sqlite. Ormpp has the following features:
 
