@@ -1,5 +1,5 @@
 # 一个很酷的Modern C++ ORM库----ormpp
-[english wike](https://github.com/qicosmos/ormpp/blob/master/introduction_en.md)
+[english wike](https://github.com/qicosmos/ormpp/blob/master/introduction_en.md) 感谢Selina同学将中文wiki翻译为英文。
 ## 目录
 
 * [ormpp的目标](#ormpp的目标)
