@@ -8,7 +8,7 @@
 * [compile](#compile)
 * [interface](#interface)
 * [roadmap](#roadmap)
-* [contact us](#contact us)
+* [contact](#contact)
 
 ## motiviations
 
@@ -476,7 +476,7 @@ note：in an aspect，you can define the before method or after method，or both
 4. support more databases.
 
 
-## contact us
+## contact
 
 purecpp@163.com
 
