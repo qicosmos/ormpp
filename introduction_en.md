@@ -4,7 +4,7 @@
 
 * [motiviations](#motiviations)
 * [features](#features)
-* [a quick example](#a quick example)
+* [quick example](#quick example)
 * [how to compile](#how to compile)
 * [interface introduction](#interface introduction)
 * [roadmap](#roadmap)
