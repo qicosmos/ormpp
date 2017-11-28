@@ -429,32 +429,30 @@ return value：bool，success return true, failure return false.
 define aspects：
 
 	struct log{
-		//args...是业务逻辑函数的入参
+	    //args...  arguments of business function
 	    template<typename... Args>
 	    bool before(Args... args){
 	        std::cout<<"log before"<<std::endl;
 	        return true;
 	    }
 	
-		//T的类型是业务逻辑返回值，后面的参数则是业务逻辑函数的入参
+	    //result: return value of business function; args...  arguments of business function
 	    template<typename T, typename... Args>
-	    bool after(T t, Args... args){
+	    bool after(T result, Args... args){
 	        std::cout<<"log after"<<std::endl;
 	        return true;
 	    }
 	};
 	
 	struct validate{
-		//args...是业务逻辑函数的入参
 	    template<typename... Args>
 	    bool before(Args... args){
 	        std::cout<<"validate before"<<std::endl;
 	        return true;
 	    }
-	
-		//T的类型是业务逻辑返回值，后面的参数则是业务逻辑函数的入参
+
 	    template<typename T, typename... Args>
-	    bool after(T t, Args... args){
+	    bool after(T result, Args... args){
 	        std::cout<<"validate after"<<std::endl;
 	        return true;
 	    }
