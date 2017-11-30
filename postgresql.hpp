@@ -360,7 +360,7 @@ namespace ormpp{
             //auto_increment_key and key can't exist at the same time
             if constexpr (SIZE>0){
                 using U = std::tuple<std::decay_t <Args>...>;
-                static_assert(!(has_type<ormpp_key, U>::value&&has_type<ormpp_auto_increment_key, U>::value), "should only one key");
+                static_assert(!(iguana::has_type<ormpp_key, U>::value&&iguana::has_type<ormpp_auto_increment_key, U>::value), "should only one key");
             }
 
             //at first sort the args, make sure the key always in the head
@@ -492,12 +492,12 @@ namespace ormpp{
         template<typename T>
         constexpr void set_param_values(std::vector<std::vector<char>>& param_values, T&& value){
             using U = std::remove_const_t<std::remove_reference_t<T>>;
-            if constexpr(std::is_integral_v<U>&&!is_int64_v<U>){
+            if constexpr(std::is_integral_v<U>&&!iguana::is_int64_v<U>){
                 std::vector<char> temp(20, 0);
                 itoa_fwd(value, temp.data());
                 param_values.push_back(std::move(temp));
             }
-            else if constexpr (is_int64_v<U>){
+            else if constexpr (iguana::is_int64_v<U>){
                 std::vector<char> temp(65, 0);
                 xtoa(value, temp.data(), 10, std::is_signed_v<U>);
                 param_values.push_back(std::move(temp));
@@ -521,10 +521,10 @@ namespace ormpp{
         template<typename T>
         constexpr void assign(T&& value, int row, size_t i){
             using U = std::remove_const_t<std::remove_reference_t<T>>;
-            if constexpr(std::is_integral_v<U>&&!is_int64_v<U>){
+            if constexpr(std::is_integral_v<U>&&!iguana::is_int64_v<U>){
                 value = std::atoi(PQgetvalue(res_, row, i));
             }
-            else if constexpr (is_int64_v<U>){
+            else if constexpr (iguana::is_int64_v<U>){
                 value = std::atoll(PQgetvalue(res_, row, i));
             }
             else if constexpr (std::is_floating_point_v<U>){

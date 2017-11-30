@@ -8,7 +8,7 @@
 #include "unit_test.hpp"
 
 using namespace ormpp;
-const char* ip = "*.*.*.*"; //your database ip
+const char* ip = "127.0.0.1"; //your database ip
 
 TEST_CASE(orm_connect){
     dbng<mysql> mysql;

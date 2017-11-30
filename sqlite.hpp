@@ -217,7 +217,7 @@ namespace ormpp{
             //auto_increment_key and key can't exist at the same time
             if constexpr (SIZE>0){
                 using U = std::tuple<std::decay_t <Args>...>;
-                static_assert(!(has_type<ormpp_key, U>::value&&has_type<ormpp_auto_increment_key, U>::value), "should only one key");
+                static_assert(!(iguana::has_type<ormpp_key, U>::value&&iguana::has_type<ormpp_auto_increment_key, U>::value), "should only one key");
             }
 
             auto tp = sort_tuple(std::make_tuple(std::forward<Args>(args)...));
@@ -292,10 +292,10 @@ namespace ormpp{
         template<typename T>
         constexpr bool set_param_bind(T&& value, size_t i){
             using U = std::remove_const_t<std::remove_reference_t<T>>;
-            if constexpr(std::is_integral_v<U>&&!is_int64_v<U>){//double, int64
+            if constexpr(std::is_integral_v<U>&&!iguana::is_int64_v<U>){//double, int64
                 return SQLITE_OK == sqlite3_bind_int(stmt_, i, value);
             }
-            else if constexpr (is_int64_v<U>){
+            else if constexpr (iguana::is_int64_v<U>){
                 return SQLITE_OK == sqlite3_bind_int64(stmt_, i, value);
             }
             else if constexpr (std::is_floating_point_v<U>){
@@ -313,10 +313,10 @@ namespace ormpp{
         template<typename T>
         constexpr void assign(T&& value, size_t i){
             using U = std::remove_const_t<std::remove_reference_t<T>>;
-            if constexpr(std::is_integral_v<U>&&!is_int64_v<U>){//double, int64
+            if constexpr(std::is_integral_v<U>&&!iguana::is_int64_v<U>){//double, int64
                 value = sqlite3_column_int(stmt_, i);
             }
-            else if constexpr (is_int64_v<U>){
+            else if constexpr (iguana::is_int64_v<U>){
                 value = sqlite3_column_int64(stmt_, i);
             }
             else if constexpr (std::is_floating_point_v<U>){

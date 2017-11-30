@@ -264,7 +264,7 @@ namespace ormpp{
 
             while (mysql_stmt_fetch(stmt_) == 0){
                 using TP = decltype(iguana::get(std::declval<T>()));
-                if constexpr (has_type<std::string, TP>::value){
+                if constexpr (iguana::has_type<std::string, TP>::value){
                     iguana::for_each(t, [&mp, &t](auto item, auto i){
                         using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
                         if constexpr(std::is_same_v<std::string, U>){
@@ -331,7 +331,7 @@ namespace ormpp{
             //auto_increment_key and key can't exist at the same time
             if constexpr (SIZE>0){
                 using U = std::tuple<std::decay_t <Args>...>;
-                static_assert(!(has_type<ormpp_key, U>::value&&has_type<ormpp_auto_increment_key, U>::value), "should only one key");
+                static_assert(!(iguana::has_type<ormpp_key, U>::value&&iguana::has_type<ormpp_auto_increment_key, U>::value), "should only one key");
             }
             auto tp = sort_tuple(std::make_tuple(std::forward<Args>(args)...));
             const size_t arr_size = arr.size();
