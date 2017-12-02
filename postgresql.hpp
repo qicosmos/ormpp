@@ -7,7 +7,7 @@
 
 #include <string>
 #include <type_traits>
-#include <libpq-fe.h>
+#include <postgresql/libpq-fe.h>
 using namespace std::string_literals;
 
 namespace ormpp{
