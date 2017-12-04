@@ -92,7 +92,11 @@ Require compiler supporting C++ 17. gcc7.2, clang 4.0, vs2017 update5+
 
 Because ormpp supports mysql, postgresql and sqlite, so you need to install mysql, postgresql, libpq. After installation, configure the directory and the library path in CMakeLists.txt.
 
-After the above two steps you can compile ormpp directly.
+### Third part library
+
+Depend on iguana, git clone https://github.com/qicosmos/iguana.git in ormpp directory.
+
+After the above three steps you can compile ormpp directly.
 
 
 ## interface
