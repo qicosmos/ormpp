@@ -85,7 +85,11 @@ ormpp是modern c++(c++11/14/17)开发的ORM库，目前支持了三种数据库�
 
 因为ormpp支持mysql, postgresql和sqlite，所以需要安装mysql，postgresql，postgresql官方提供的libpq以及sqlite3，安装之后，在CMakeLists.txt配置目录和库路径。
 
-上面两步完成之后就可以直接编译了。
+### 依赖的第三方库
+
+序列化部分用的是iguana，所以需要下载iguana的代码，直接在ormpp目录下git clone https://github.com/qicosmos/iguana.git
+
+上面三步完成之后就可以直接编译了。
 
 ## 接口介绍
 ormpp屏蔽了不同数据库操作接口的差异，提供了统一简单的数据库操作接口，具体提供了数据库连接、断开连接、创建数据表、插入数据、更新数据、删除数据、查询数据和事务相关的接口。
