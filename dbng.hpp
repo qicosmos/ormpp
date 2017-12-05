@@ -7,6 +7,9 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
+#include <functional>
+
 namespace ormpp{
     template<typename DB>
     class dbng{
