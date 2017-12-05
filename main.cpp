@@ -7,6 +7,31 @@
 #define TEST_MAIN
 #include "unit_test.hpp"
 
+struct person
+{
+    int id;
+    std::string name;
+    int age;
+};
+REFLECTION(person, id, name, age)
+
+struct student{
+    int code;//key
+    std::string name;
+    char sex;
+    int age;
+    double dm;
+    std::string classroom;
+};
+REFLECTION(student, code, name, sex, age, dm, classroom)
+
+struct simple{
+    int id;
+    double code;
+    int age;
+};
+REFLECTION(simple, id, code, age);
+
 using namespace ormpp;
 const char* ip = "127.0.0.1"; //your database ip
 
