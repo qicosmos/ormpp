@@ -52,16 +52,16 @@ namespace ormpp{
 
         template<typename T, typename... Args>
         constexpr auto create_datatable(Args&&... args){
-            std::string droptb = "DROP TABLE IF EXISTS ";
-            droptb += iguana::get_name<T>();
-
-            res_ = PQexec(con_, droptb.data());
-            if (PQresultStatus(res_) != PGRES_COMMAND_OK){
-                PQclear(res_);
-                return false;
-            }
-
-            PQclear(res_);
+//            std::string droptb = "DROP TABLE IF EXISTS ";
+//            droptb += iguana::get_name<T>();
+//
+//            res_ = PQexec(con_, droptb.data());
+//            if (PQresultStatus(res_) != PGRES_COMMAND_OK){
+//                PQclear(res_);
+//                return false;
+//            }
+//
+//            PQclear(res_);
 
             std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
             res_ = PQexec(con_, sql.data());
@@ -351,7 +351,7 @@ namespace ormpp{
         {
             const auto type_name_arr = get_type_names<T>(DBType::postgresql);
             constexpr auto name = iguana::get_name<T>();
-            std::string sql = std::string("CREATE TABLE ") + name.data()+"(";
+            std::string sql = std::string("CREATE TABLE IF NOT EXISTS ") + name.data()+"(";
             auto arr = iguana::get_array<T>();
             constexpr auto SIZE = sizeof... (Args);
             auto_key_map_[name.data()] = "";

@@ -57,11 +57,11 @@ namespace ormpp{
 
         template<typename T, typename... Args >
         constexpr auto create_datatable(Args&&... args){
-            std::string droptb = "DROP TABLE IF EXISTS ";
-            droptb += iguana::get_name<T>();
-            if (mysql_query(con_, droptb.data())) {
-                return false;
-            }
+//            std::string droptb = "DROP TABLE IF EXISTS ";
+//            droptb += iguana::get_name<T>();
+//            if (mysql_query(con_, droptb.data())) {
+//                return false;
+//            }
 
             std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
             if (mysql_query(con_, sql.data())) {
@@ -323,7 +323,7 @@ namespace ormpp{
         {
             const auto type_name_arr = get_type_names<T>(DBType::mysql);
             constexpr auto name = iguana::get_name<T>();
-            std::string sql = std::string("CREATE TABLE ") + name.data()+"(";
+            std::string sql = std::string("CREATE TABLE IF NOT EXISTS ") + name.data()+"(";
             auto arr = iguana::get_array<T>();
             constexpr auto SIZE = sizeof... (Args);
             auto_key_map_[name.data()] = "";
