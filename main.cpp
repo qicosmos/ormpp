@@ -108,6 +108,14 @@ TEST_CASE(orm_insert_query){
     TEST_REQUIRE(postgres.connect(ip, "root", "12345", "testdb"));
     TEST_REQUIRE(sqlite.connect("test.db"));
 
+    auto vv0 = mysql.query(FID(simple::id), "<", "5");
+    auto vv = mysql.query(FID(simple::id), "<", 5);
+    auto vv3 = mysql.query(FID(person::name), "<", "5");
+    auto vv5 = mysql.query(FID(person::name), "<", 5);
+    auto r = mysql.delete_records(FID(simple::id), "=", 3);
+    auto vv1 = postgres.query(FID(simple::id), "<", "5");
+    auto vv2 = sqlite.query(FID(simple::id), "<", "5");
+
     ormpp_key key{"code"};
     ormpp_not_null not_null{{"code", "age"}};
     ormpp_auto_increment_key auto_key{"code"};

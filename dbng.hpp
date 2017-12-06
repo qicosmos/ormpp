@@ -59,6 +59,21 @@ namespace ormpp{
             return db_.template query<T>(std::forward<Args>(args)...);
         }
 
+        //support member variable, such as: query(FID(simple::id), "<", 5)
+        template<typename U>
+        auto query(auto pair, std::string_view oper, U&& val){
+            auto sql = build_condition(pair, oper, std::forward<U>(val));
+            using T = typename field_attribute<decltype(pair.second)>::type;
+            return query<T>(sql);
+        }
+
+        template<typename U>
+        auto delete_records(auto pair, std::string_view oper, U&& val){
+            auto sql = build_condition(pair, oper, std::forward<U>(val));
+            using T = typename field_attribute<decltype(pair.second)>::type;
+            return delete_records<T>(sql);
+        }
+
         int execute(const std::string& sql){
             return db_.execute(sql);
         }
@@ -77,6 +92,32 @@ namespace ormpp{
         }
 
     private:
+        template<typename U>
+        auto build_condition(auto pair, std::string_view oper, U&& val){
+            std::string sql = "";
+            using T = typename field_attribute<decltype(pair.second)>::type;
+            using V = std::remove_const_t<std::remove_reference_t<U>>;
+
+            //if field type is numeric, return type of val is numeric, to string; val is string, no change;
+            //if field type is string, return type of val is numeric, to string and add ''; val is string, add '';
+            using return_type = typename field_attribute<decltype(pair.second)>::return_type;
+
+            if constexpr(std::is_arithmetic_v<return_type>&&std::is_arithmetic_v<V>){
+                append(sql, pair.first, oper, std::to_string(std::forward<U>(val)));
+            }
+            else if constexpr(!std::is_arithmetic_v<return_type>){
+                if constexpr(std::is_arithmetic_v<V>)
+                append(sql, pair.first, oper, to_str(std::to_string(std::forward<U>(val))));
+                else
+                append(sql, pair.first, oper, to_str(std::forward<U>(val)));
+            }
+            else{
+                append(sql, pair.first, oper, std::forward<U>(val));
+            }
+
+            return sql;
+        }
+
 #define HAS_MEMBER(member)\
 template<typename T, typename... Args>\
 struct has_##member\

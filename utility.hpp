@@ -190,6 +190,23 @@ namespace ormpp{
 
         return sql;
     }
+
+    template<typename T>
+    struct field_attribute;
+
+    template<typename T, typename U>
+    struct field_attribute<U T::*>{
+        using type = T;
+        using return_type = U;
+    };
+
+    template<typename U>
+    constexpr std::string_view get_field_name(std::string_view full_name){
+        using T = typename field_attribute<U>::type;
+        return full_name.substr(iguana::get_name<T>().length()+1, full_name.length());
+    }
+
+#define FID(field) std::pair(get_field_name<decltype(&field)>(std::string_view(#field)), &field)
 }
 
 #endif //ORM_UTILITY_HPP
