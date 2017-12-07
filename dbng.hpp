@@ -60,15 +60,15 @@ namespace ormpp{
         }
 
         //support member variable, such as: query(FID(simple::id), "<", 5)
-        template<typename U>
-        auto query(auto pair, std::string_view oper, U&& val){
+        template<typename Pair, typename U>
+        auto query(Pair pair, std::string_view oper, U&& val){
             auto sql = build_condition(pair, oper, std::forward<U>(val));
             using T = typename field_attribute<decltype(pair.second)>::type;
             return query<T>(sql);
         }
 
-        template<typename U>
-        auto delete_records(auto pair, std::string_view oper, U&& val){
+        template<typename Pair, typename U>
+        auto delete_records(Pair pair, std::string_view oper, U&& val){
             auto sql = build_condition(pair, oper, std::forward<U>(val));
             using T = typename field_attribute<decltype(pair.second)>::type;
             return delete_records<T>(sql);
@@ -92,8 +92,8 @@ namespace ormpp{
         }
 
     private:
-        template<typename U>
-        auto build_condition(auto pair, std::string_view oper, U&& val){
+        template<typename Pair, typename U>
+        auto build_condition(Pair pair, std::string_view oper, U&& val){
             std::string sql = "";
             using T = typename field_attribute<decltype(pair.second)>::type;
             using V = std::remove_const_t<std::remove_reference_t<U>>;

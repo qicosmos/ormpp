@@ -86,7 +86,7 @@ namespace ormpp{
     }
 
     template<typename  T>
-    inline auto generate_auto_insert_sql(auto auto_key_map_, bool replace){
+    inline auto generate_auto_insert_sql(std::map<std::string, std::string>& auto_key_map_, bool replace){
         std::string sql = replace?"replace into ":"insert into ";
         constexpr auto SIZE = iguana::get_value<T>();
         constexpr auto name = iguana::get_name<T>();
