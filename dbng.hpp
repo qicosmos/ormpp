@@ -16,7 +16,7 @@ namespace ormpp{
     public:
         template <typename... Args>
         bool connect(Args&&... args){
-            return  db_.template connect(std::forward<Args>(args)...);
+            return  db_.connect(std::forward<Args>(args)...);
         }
 
         bool disconnect(){

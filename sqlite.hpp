@@ -225,7 +225,7 @@ namespace ormpp{
             for(size_t i=0; i< arr_size; ++i) {
                 auto field_name = arr[i];
                 bool has_add_field = false;
-                for_each0(tp, [&sql, &i, &has_add_field, field_name, type_name_arr, this](auto item){
+                for_each0(tp, [&sql, &i, &has_add_field, field_name, type_name_arr,name, this](auto item){
                     if constexpr (std::is_same_v<decltype(item), ormpp_not_null>){
                     if(item.fields.find(field_name.data())==item.fields.end())
                         return;
