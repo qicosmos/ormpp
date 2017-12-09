@@ -13,7 +13,7 @@ namespace ormpp{
 
     template <typename T>
     struct value_of<T>{
-        static const auto value = (sizeof(T));
+        static const auto value = (iguana::get_value<T>());
     };
 
     template < typename T, typename ... Rest >
