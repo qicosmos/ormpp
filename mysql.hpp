@@ -56,7 +56,7 @@ namespace ormpp{
         }
 
         template<typename T, typename... Args >
-        constexpr auto create_datatable(Args&&... args){
+        constexpr bool create_datatable(Args&&... args){
 //            std::string droptb = "DROP TABLE IF EXISTS ";
 //            droptb += iguana::get_name<T>();
 //            if (mysql_query(con_, droptb.data())) {
@@ -281,7 +281,7 @@ namespace ormpp{
         }
 
         //just support execute string sql without placeholders
-        auto execute(const std::string& sql){
+        bool execute(const std::string& sql){
             return mysql_query(con_, sql.data())==0;
         }
 
@@ -319,7 +319,7 @@ namespace ormpp{
 
     private:
         template<typename T, typename... Args >
-        auto generate_createtb_sql(Args&&... args)
+        std::string generate_createtb_sql(Args&&... args)
         {
             const auto type_name_arr = get_type_names<T>(DBType::mysql);
             constexpr auto name = iguana::get_name<T>();

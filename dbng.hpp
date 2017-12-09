@@ -55,7 +55,7 @@ namespace ormpp{
 
         //restriction, all the args are string, the first is the where condition, rest are append conditions
         template<typename T, typename... Args>
-        auto query(Args&&... args){
+        std::vector<T> query(Args&&... args){
             return db_.template query<T>(std::forward<Args>(args)...);
         }
 
@@ -68,7 +68,7 @@ namespace ormpp{
         }
 
         template<typename Pair, typename U>
-        auto delete_records(Pair pair, std::string_view oper, U&& val){
+        bool delete_records(Pair pair, std::string_view oper, U&& val){
             auto sql = build_condition(pair, oper, std::forward<U>(val));
             using T = typename field_attribute<decltype(pair.second)>::type;
             return delete_records<T>(sql);

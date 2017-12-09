@@ -8,12 +8,25 @@
 #include "type_mapping.hpp"
 
 namespace ormpp{
+    template <typename ... Args>
+    struct value_of;
+
+    template <typename T>
+    struct value_of<T>{
+        static const auto value = (sizeof(T));
+    };
+
+    template < typename T, typename ... Rest >
+    struct value_of < T, Rest ... >{
+        static const auto value = (value_of<T>::value + value_of<Rest...>::value);
+    };
+
     template<typename List>
     struct result_size;
 
     template<template<class...> class List, class... T>
     struct result_size<List<T...>> {
-        constexpr static size_t value = (iguana::get_value<T>() + ...);
+        constexpr static size_t value = value_of<T...>::value;
     };
 
     template<typename... Args>
@@ -69,7 +82,7 @@ namespace ormpp{
     }
 
     template<typename T>
-    inline auto generate_insert_sql(bool replace){
+    inline std::string generate_insert_sql(bool replace){
         std::string sql = replace?"replace into ":"insert into ";
         constexpr auto SIZE = iguana::get_value<T>();
         constexpr auto name = iguana::get_name<T>();
@@ -86,7 +99,7 @@ namespace ormpp{
     }
 
     template<typename  T>
-    inline auto generate_auto_insert_sql(std::map<std::string, std::string>& auto_key_map_, bool replace){
+    inline std::string generate_auto_insert_sql(std::map<std::string, std::string>& auto_key_map_, bool replace){
         std::string sql = replace?"replace into ":"insert into ";
         constexpr auto SIZE = iguana::get_value<T>();
         constexpr auto name = iguana::get_name<T>();
@@ -121,7 +134,7 @@ namespace ormpp{
     }
 
     template<typename T, typename... Args>
-    inline auto generate_delete_sql(Args&&... where_conditon){
+    inline std::string generate_delete_sql(Args&&... where_conditon){
         std::string sql = "delete from ";
         constexpr auto SIZE = iguana::get_value<T>();
         constexpr auto name = iguana::get_name<T>();
@@ -145,7 +158,7 @@ namespace ormpp{
     }
 
     template<typename T, typename... Args>
-    inline auto generate_query_sql(Args&&... args){
+    inline std::string generate_query_sql(Args&&... args){
         static_assert(sizeof...(Args)==0||sizeof...(Args)>0);
         std::string sql = "select * from ";
         constexpr auto SIZE = iguana::get_value<T>();
@@ -206,7 +219,7 @@ namespace ormpp{
         return full_name.substr(iguana::get_name<T>().length()+1, full_name.length());
     }
 
-#define FID(field) std::pair(get_field_name<decltype(&field)>(std::string_view(#field)), &field)
+#define FID(field) std::pair<std::string_view, decltype(&field)>(get_field_name<decltype(&field)>(std::string_view(#field)), &field)
 }
 
 #endif //ORM_UTILITY_HPP

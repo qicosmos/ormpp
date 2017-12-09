@@ -347,7 +347,7 @@ namespace ormpp{
         };
 
         template<typename T, typename... Args >
-        auto generate_createtb_sql(Args&&... args)
+        std::string generate_createtb_sql(Args&&... args)
         {
             const auto type_name_arr = get_type_names<T>(DBType::postgresql);
             constexpr auto name = iguana::get_name<T>();
@@ -437,7 +437,7 @@ namespace ormpp{
         }
 
         template<typename T>
-        auto generate_pq_insert_sql(bool replace){
+        std::string generate_pq_insert_sql(bool replace){
             std::string sql = replace?"replace into ":"insert into ";
             constexpr auto SIZE = iguana::get_value<T>();
             constexpr auto name = iguana::get_name<T>();
@@ -552,7 +552,7 @@ namespace ormpp{
         }
 
         template <typename T, typename... Args>
-        constexpr auto get_condition(const T& t, const std::string& key, Args&&... args){
+        constexpr std::string get_condition(const T& t, const std::string& key, Args&&... args){
             std::string result = "";
             constexpr auto SIZE = iguana::get_value<T>();
             iguana::for_each(t, [&](auto& item, auto i){
@@ -575,7 +575,7 @@ namespace ormpp{
         }
 
         template<typename  T>
-        auto generate_auto_insert_sql(bool replace){
+        std::string generate_auto_insert_sql(bool replace){
             std::string sql = replace?"replace into ":"insert into ";
             constexpr auto SIZE = iguana::get_value<T>();
             constexpr auto name = iguana::get_name<T>();
