@@ -26,7 +26,7 @@ namespace ormpp{
 
     template<template<class...> class List, class... T>
     struct result_size<List<T...>> {
-        constexpr static size_t value = value_of<T...>::value;
+        constexpr static const size_t value = (iguana::get_value<T>()+...);
     };
 
     template<typename... Args>
