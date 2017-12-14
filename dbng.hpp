@@ -133,9 +133,9 @@ public:\
         HAS_MEMBER(before)
         HAS_MEMBER(after)
 
-#define WARPER(func)\
+#define WRAPER(func)\
     template<typename... AP, typename... Args>\
-    auto warper##_##func(Args&&... args){\
+    auto wraper##_##func(Args&&... args){\
         using result_type = decltype(std::declval<decltype(this)>()->func(std::declval<Args>()...));\
         bool r = true;\
         std::tuple<AP...> tp{};\
@@ -172,8 +172,8 @@ public:\
         }
 
     public:
-        WARPER(connect);
-        WARPER(execute);
+        WRAPER(connect);
+        WRAPER(execute);
         void update_operate_time(){
             latest_tm_ = std::chrono::high_resolution_clock::now();
         }
