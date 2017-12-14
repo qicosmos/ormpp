@@ -61,6 +61,8 @@ namespace ormpp{
             }
         }
 
+        //todo: check idle connection, the max idle time should less than 8 hours
+
         connection_pool()= default;
         ~connection_pool()= default;
         connection_pool(const connection_pool&)= delete;
