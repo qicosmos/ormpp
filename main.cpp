@@ -37,39 +37,39 @@ REFLECTION(simple, id, code, age);
 using namespace ormpp;
 const char* ip = "127.0.0.1"; //your database ip
 
-TEST_CASE(mysql_performance){
-    dbng<mysql> mysql;
-
-    TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
-    TEST_REQUIRE(mysql.execute("DROP TABLE IF EXISTS student"));
-
-    ormpp_auto_increment_key auto_key{"code"};
-    TEST_REQUIRE(mysql.create_datatable<student>(auto_key));
-
-    using namespace std::chrono;
-    auto m_begin = high_resolution_clock::now();
-    for (int i = 0; i < 10000; ++i) {
-        mysql.insert(student{i, "tom", 0, i, 1.5, "classroom1"});
-    }
-    auto s = duration_cast<duration<double>>(high_resolution_clock::now() - m_begin).count();
-    std::cout<<s<<'\n';
-
-    m_begin = high_resolution_clock::now();
-    std::vector<student> v;
-    for (int i = 0; i < 10000; ++i) {
-        v.push_back(student{i, "tom", 0, i, 1.5, "classroom1"});
-    }
-    mysql.insert(v);
-    s = duration_cast<duration<double>>(high_resolution_clock::now() - m_begin).count();
-    std::cout<<s<<'\n';
-
-    m_begin = high_resolution_clock::now();
-    for (int j = 0; j < 100; ++j) {
-        TEST_REQUIRE(!mysql.query<student>("limit 1000").empty());
-    }
-    s = duration_cast<duration<double>>(high_resolution_clock::now() - m_begin).count();
-    std::cout<<s<<'\n';
-}
+//TEST_CASE(mysql_performance){
+//    dbng<mysql> mysql;
+//
+//    TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+//    TEST_REQUIRE(mysql.execute("DROP TABLE IF EXISTS student"));
+//
+//    ormpp_auto_increment_key auto_key{"code"};
+//    TEST_REQUIRE(mysql.create_datatable<student>(auto_key));
+//
+//    using namespace std::chrono;
+//    auto m_begin = high_resolution_clock::now();
+//    for (int i = 0; i < 10000; ++i) {
+//        mysql.insert(student{i, "tom", 0, i, 1.5, "classroom1"});
+//    }
+//    auto s = duration_cast<duration<double>>(high_resolution_clock::now() - m_begin).count();
+//    std::cout<<s<<'\n';
+//
+//    m_begin = high_resolution_clock::now();
+//    std::vector<student> v;
+//    for (int i = 0; i < 10000; ++i) {
+//        v.push_back(student{i, "tom", 0, i, 1.5, "classroom1"});
+//    }
+//    mysql.insert(v);
+//    s = duration_cast<duration<double>>(high_resolution_clock::now() - m_begin).count();
+//    std::cout<<s<<'\n';
+//
+//    m_begin = high_resolution_clock::now();
+//    for (int j = 0; j < 100; ++j) {
+//        TEST_REQUIRE(!mysql.query<student>("limit 1000").empty());
+//    }
+//    s = duration_cast<duration<double>>(high_resolution_clock::now() - m_begin).count();
+//    std::cout<<s<<'\n';
+//}
 
 TEST_CASE(mysql_pool){
     auto& pool = connection_pool<dbng<mysql>>::instance();
@@ -83,7 +83,7 @@ TEST_CASE(mysql_pool){
 
     for (int i = 0; i < 10; ++i) {
         auto conn = pool.get();
-        conn_guard guard(conn);
+//        conn_guard guard(conn);
         if(conn== nullptr){
             std::cout<<"no available conneciton"<<std::endl;
             break;

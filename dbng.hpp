@@ -9,6 +9,7 @@
 #include <string_view>
 #include <vector>
 #include <functional>
+#include <chrono>
 
 namespace ormpp{
     template<typename DB>
@@ -173,8 +174,16 @@ public:\
     public:
         WARPER(connect);
         WARPER(execute);
+        void update_operate_time(){
+            latest_tm_ = std::chrono::high_resolution_clock::now();
+        }
+
+        auto get_latest_operate_time(){
+            return latest_tm_;
+        }
     private:
         DB db_;
+        std::chrono::system_clock::time_point latest_tm_ = std::chrono::system_clock::now();
     };
 }
 
