@@ -1,8 +1,10 @@
 #include <iostream>
+#include <thread>
 #include "mysql.hpp"
 #include "sqlite.hpp"
 #include "postgresql.hpp"
 #include "dbng.hpp"
+#include "connection_pool.hpp"
 
 #define TEST_MAIN
 #include "unit_test.hpp"
@@ -34,6 +36,66 @@ REFLECTION(simple, id, code, age);
 
 using namespace ormpp;
 const char* ip = "127.0.0.1"; //your database ip
+
+TEST_CASE(mysql_pool){
+    auto& pool = connection_pool<dbng<mysql>>::instance();
+    try {
+        pool.init(3, ip, "root", "12345", "testdb");
+        pool.init(7, ip, "root", "12345", "testdb");
+    }catch(const std::exception& e){
+        std::cout<<e.what()<<std::endl;
+        return;
+    }
+
+    for (int i = 0; i < 10; ++i) {
+        auto conn = pool.get();
+        conn_guard guard(conn);
+        if(conn== nullptr){
+            std::cout<<"no available conneciton"<<std::endl;
+            break;
+        }
+
+        bool r = conn->create_datatable<person>();
+    }
+}
+
+TEST_CASE(postgres_pool){
+    auto& pool = connection_pool<dbng<postgresql>>::instance();
+    try {
+        pool.init(3, ip, "root", "12345", "testdb");
+        pool.init(7, ip, "root", "12345", "testdb");
+    }catch(const std::exception& e){
+        std::cout<<e.what()<<std::endl;
+        return;
+    }
+
+    auto conn1 = pool.get();
+    auto conn2 = pool.get();
+    auto conn3 = pool.get();
+
+    std::thread thd([conn2, &pool]{
+        std::this_thread::sleep_for(std::chrono::seconds(15));
+        pool.return_back(conn2);
+    });
+
+    auto conn4 = pool.get();  //10s later, timeout
+    TEST_CHECK(conn4 == nullptr);
+    auto conn5 = pool.get();
+    TEST_CHECK(conn5 != nullptr);
+
+    thd.join();
+
+    for (int i = 0; i < 10; ++i) {
+        auto conn = pool.get();
+        //conn_guard guard(conn);
+        if(conn== nullptr){
+            std::cout<<"no available conneciton"<<std::endl;
+            continue;
+        }
+
+        bool r = conn->create_datatable<person>();
+    }
+}
 
 TEST_CASE(orm_connect){
     dbng<mysql> mysql;
