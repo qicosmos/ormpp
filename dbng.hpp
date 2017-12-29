@@ -15,6 +15,10 @@ namespace ormpp{
     template<typename DB>
     class dbng{
     public:
+    	~dbng(){
+            disconnect();
+        }
+	
         template <typename... Args>
         bool connect(Args&&... args){
             return  db_.connect(std::forward<Args>(args)...);
