@@ -409,7 +409,7 @@ execute example:
 	//transaction
 	mysql.begin();
 	for (int i = 0; i < 10; ++i) {
-        person s = {i, "tom" 19};
+        person s = {i, "tom", 19};
             if(!mysql.insert(s)){
                 mysql.rollback();
                 return -1;
