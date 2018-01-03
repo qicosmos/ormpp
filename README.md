@@ -66,7 +66,7 @@ ormpp是modern c++(c++11/14/17)开发的ORM库，目前支持了三种数据库�
 		//transaction
 		mysql.begin();
 		for (int i = 0; i < 10; ++i) {
-	        person s = {i, "tom" 19};
+	        person s = {i, "tom", 19};
 	            if(!mysql.insert(s)){
 	                mysql.rollback();
 	                return -1;
