@@ -167,7 +167,7 @@ namespace ormpp{
     template<typename T>
     inline bool has_key(const std::string& s){
         auto arr = iguana::get_array<T>();
-        for (int i = 0; i < arr.size(); ++i) {
+        for (size_t i = 0; i < arr.size(); ++i) {
             if(s.find(arr[i].data())!=std::string::npos)
                 return true;
         }

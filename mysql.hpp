@@ -436,7 +436,7 @@ namespace ormpp{
                 return INT_MIN;
             }
 
-            int count = mysql_stmt_affected_rows(stmt_);
+            int count = (int)mysql_stmt_affected_rows(stmt_);
             if (count == 0) {
                 return INT_MIN;
             }
