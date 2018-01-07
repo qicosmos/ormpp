@@ -7,7 +7,12 @@
 
 #include <string>
 #include <type_traits>
+#ifdef _MSC_VER
+#include <include/libpq-fe.h>
+#else
 #include <postgresql/libpq-fe.h>
+#endif
+
 using namespace std::string_literals;
 
 namespace ormpp{
@@ -21,16 +26,8 @@ namespace ormpp{
         template <typename... Args>
         bool connect(Args&&... args){
             auto sql = ""s;
-            constexpr size_t SIZE = sizeof...(Args);
-            if constexpr (SIZE==4){
-                sql = generate_conn_sql(std::make_tuple("host", "user", "password", "dbname"),
-                                        std::make_tuple(std::forward<Args>(args)...), std::make_index_sequence<SIZE>{});
-            }
-            else if constexpr (SIZE==5){
-                sql = generate_conn_sql(std::make_tuple("host", "user", "password", "dbname", "connect_timeout"),
-                                        std::make_tuple(std::forward<Args>(args)...), std::make_index_sequence<SIZE>{});
-            }
-
+			sql = generate_conn_sql(std::make_tuple(std::forward<Args>(args)...));
+  
             con_ = PQconnectdb(sql.data());
             if (PQstatus(con_) != CONNECTION_OK){
                 std::cout<<PQerrorMessage(con_)<<std::endl;
@@ -316,8 +313,24 @@ namespace ormpp{
                 return t;
         }
 
+		template<typename Tuple>
+		std::string generate_conn_sql(const Tuple& tp) {
+			constexpr size_t SIZE = std::tuple_size_v<Tuple>;
+			if constexpr (SIZE == 4) {
+				return generate_conn_sql(std::make_tuple("host", "user", "password", "dbname"),
+					tp, std::make_index_sequence<SIZE>{});
+			}
+			else if constexpr (SIZE == 5) {
+				return generate_conn_sql(std::make_tuple("host", "user", "password", "dbname", "connect_timeout"),
+					tp, std::make_index_sequence<SIZE>{});
+			}
+			else {
+				return "";
+			}
+		}
+
         template<typename... Args1, typename... Args2, std::size_t... Idx>
-        constexpr auto generate_conn_sql(const std::tuple<Args1...>& tp1, const std::tuple<Args2...>& tp2, std::index_sequence<Idx...>){
+        std::string generate_conn_sql(const std::tuple<Args1...>& tp1, const std::tuple<Args2...>& tp2, std::index_sequence<Idx...>){
             std::string sql = "";
             (append(sql, std::get<Idx>(tp1), "=", to_str(std::get<Idx>(tp2)), " "), ...);
             return sql;
@@ -353,13 +366,14 @@ namespace ormpp{
             constexpr auto name = iguana::get_name<T>();
             std::string sql = std::string("CREATE TABLE IF NOT EXISTS ") + name.data()+"(";
             auto arr = iguana::get_array<T>();
-            constexpr auto SIZE = sizeof... (Args);
+            constexpr const size_t SIZE = sizeof... (Args);
             auto_key_map_[name.data()] = "";
             key_map_[name.data()] = "";
 
-            //auto_increment_key and key can't exist at the same time
+            //auto_increment_key and key can't exist at the same time			
+			using U = std::tuple<std::decay_t <Args>...>;
             if constexpr (SIZE>0){
-                using U = std::tuple<std::decay_t <Args>...>;
+				//using U = std::tuple<std::decay_t <Args>...>; //the code can't compile in vs2017, why?maybe args... in if constexpr?
                 static_assert(!(iguana::has_type<ormpp_key, U>::value&&iguana::has_type<ormpp_auto_increment_key, U>::value), "should only one key");
             }
 
@@ -538,19 +552,6 @@ namespace ormpp{
             }
         }
 
-        template<typename T, typename U, size_t Idx, typename V, typename W>
-        void build_condition_by_key(std::string& result, const V& val, W& key){
-            if(key==iguana::get_name<T, Idx>().data()){
-                if constexpr(std::is_arithmetic_v<U>){
-                    append(result, " and ");
-                    append(result, iguana::get_name<T,Idx>().data(), "=", std::to_string(val));
-                }else if constexpr(std::is_same_v<std::string, U>){
-                    append(result, " and ");
-                    append(result, iguana::get_name<T,Idx>().data(), "=", val);
-                }
-            }
-        }
-
         template <typename T, typename... Args>
         constexpr std::string get_condition(const T& t, const std::string& key, Args&&... args){
             std::string result = "";
@@ -566,13 +567,35 @@ namespace ormpp{
                     }
                 }
 
-                if constexpr (sizeof...(Args)>0){
-                (build_condition_by_key<T, U, Idx>(result, t.*item, args),...);
-            }
+                //if constexpr (sizeof...(Args)>0){
+				build_condition_by_key<T, Idx>(result, t.*item, args...);
+				//(test(args), ...);
+				//	(build_condition_by_key_impl(result, t.*item, args),...); //can't pass U in vs2017
+				//}
             });
 
             return result;
         }
+
+		template<typename T, size_t Idx, typename V, typename... Args>
+		void build_condition_by_key(std::string& result, const V& t, Args... args) {
+			(build_condition_by_key<T, Idx>(result, t, args), ...);
+		}
+
+		template<typename T, size_t Idx, typename V, typename W>
+		void build_condition_by_key_impl(std::string& result, const V& val, W& key) {
+			using U = std::remove_reference_t<decltype(iguana::get<Idx>(std::declval<T>()))>;
+			if (key == iguana::get_name<T, Idx>().data()) {
+				if constexpr(std::is_arithmetic_v<U>) {
+					append(result, " and ");
+					append(result, iguana::get_name<T, Idx>().data(), "=", std::to_string(val));
+				}
+				else if constexpr(std::is_same_v<std::string, U>) {
+					append(result, " and ");
+					append(result, iguana::get_name<T, Idx>().data(), "=", val);
+				}
+			}
+		}
 
         template<typename  T>
         std::string generate_auto_insert_sql(bool replace){

@@ -26,12 +26,29 @@ namespace ormpp{
 
     template<template<class...> class List, class... T>
     struct result_size<List<T...>> {
-        constexpr static const size_t value = (iguana::get_value<T>()+...);
+		constexpr static const size_t value = value_of<T...>::value;// (iguana::get_value<T>() + ...);
     };
+
+	template<typename T>
+	inline void append_impl(std::string& sql, const T& str) {
+		if constexpr(std::is_same_v<std::string, T>|| std::is_same_v<std::string_view, T>) {
+			if (str.empty())
+				return;
+		}
+		else {
+			if (sizeof(str) == 0) {
+				return;
+			}
+		}
+
+		sql += str;
+		sql += " ";
+	}
 
     template<typename... Args>
     inline void append(std::string& sql, Args&&... args) {
-        ((sql+=std::forward<Args>(args), sql+=" "),...);
+		(append_impl(sql, std::forward<Args>(args)),...);
+        //((sql+=std::forward<Args>(args), sql+=" "),...);
     }
 
     template<typename... Args>
@@ -139,9 +156,10 @@ namespace ormpp{
         constexpr auto SIZE = iguana::get_value<T>();
         constexpr auto name = iguana::get_name<T>();
         append(sql, name.data());
-        if constexpr (sizeof...(Args)>0)
-        if(!is_empty(std::forward<Args>(where_conditon)...))
-            append(sql, " where ", std::forward<Args>(where_conditon)...);
+		//if constexpr (sizeof...(Args) > 0) {
+			//if (!is_empty(std::forward<Args>(where_conditon)...))//fix for vs2017
+				append(sql, " where ", std::forward<Args>(where_conditon)...);
+		//}        
 
         return sql;
     }
@@ -165,9 +183,10 @@ namespace ormpp{
         constexpr auto name = iguana::get_name<T>();
         append(sql, name.data());
 
+		auto tp = std::make_tuple(std::forward<Args>(args)...);
         if constexpr (sizeof...(Args)>0){
             int i = 0;
-            for_each0(std::tuple(std::forward<Args>(args)...), [&i, &sql](const auto& item){
+            for_each0(tp, [&i, &sql](const auto& item){ //std::make_tuple(std::forward<Args>(args)...); can't compile in if constexpr in vs2017,why?
                 if(i==0&&has_key<T>(item))
                     append(sql, " where ", item);
                 else
