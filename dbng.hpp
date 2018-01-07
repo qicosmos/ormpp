@@ -179,7 +179,7 @@ public:\
         WRAPER(connect);
         WRAPER(execute);
         void update_operate_time(){
-            latest_tm_ = std::chrono::high_resolution_clock::now();
+            latest_tm_ = std::chrono::system_clock::now();
         }
 
         auto get_latest_operate_time(){
