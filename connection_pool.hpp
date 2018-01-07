@@ -29,7 +29,7 @@ namespace ormpp{
         }
 
         std::shared_ptr<DB> get(){
-            std::unique_lock lock( mutex_ );
+            std::unique_lock<std::mutex> lock( mutex_ );
 
             while ( pool_.empty() ){
                 if(condition_.wait_for(lock, std::chrono::seconds(10))== std::cv_status::timeout){
@@ -43,7 +43,7 @@ namespace ormpp{
             lock.unlock();
 
             //check timeout, idle time shuold less than 8 hours
-            auto now = std::chrono::high_resolution_clock::now();
+            auto now = std::chrono::system_clock::now();
             auto last = conn->get_latest_operate_time();
             auto mins = std::chrono::duration_cast<std::chrono::minutes>(now - last).count();
             if((mins-6*60)>0){
@@ -55,7 +55,7 @@ namespace ormpp{
         }
 
         void return_back(std::shared_ptr<DB> conn){
-            std::unique_lock lock( mutex_ );
+            std::unique_lock<std::mutex> lock( mutex_ );
             pool_.push_back( conn );
             lock.unlock();
             condition_.notify_one();
