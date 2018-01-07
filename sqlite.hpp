@@ -28,6 +28,8 @@ namespace ormpp{
                 handle_ = nullptr;
                 return r==SQLITE_OK;
             }
+
+			return true;
         }
 
         template<typename T, typename... Args>
@@ -215,8 +217,9 @@ namespace ormpp{
             constexpr auto SIZE = sizeof... (Args);
             auto_key_map_[name.data()] = "";
             //auto_increment_key and key can't exist at the same time
+			using U = std::tuple<std::decay_t <Args>...>;
             if constexpr (SIZE>0){
-                using U = std::tuple<std::decay_t <Args>...>;
+                //using U = std::tuple<std::decay_t <Args>...>; //the code can't compile in vs2017, why?maybe args... in if constexpr?
                 static_assert(!(iguana::has_type<ormpp_key, U>::value&&iguana::has_type<ormpp_auto_increment_key, U>::value), "should only one key");
             }
 
