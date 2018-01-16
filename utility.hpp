@@ -239,6 +239,7 @@ namespace ormpp{
     }
 
 #define FID(field) std::pair<std::string_view, decltype(&field)>(get_field_name<decltype(&field)>(std::string_view(#field)), &field)
+#define ID(field) get_field_name<decltype(&field)>(std::string_view(#field)).data()
 }
 
 #endif //ORM_UTILITY_HPP
