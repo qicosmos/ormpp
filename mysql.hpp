@@ -129,19 +129,24 @@ namespace ormpp{
             std::string sql = s;
             constexpr auto Args_Size = sizeof...(Args);
             if(Args_Size!=0){
-                if(Args_Size!=std::count(sql.begin(), sql.end(), '?'))
-                    return {};
+				if (Args_Size != std::count(sql.begin(), sql.end(), '?')) {
+					has_error_ = true;
+					return {};
+				}
 
                 sql = get_sql(sql, std::forward<Args>(args)...);
             }
 
             stmt_ = mysql_stmt_init(con_);
-            if (!stmt_)
-                return {};
+            if (!stmt_) {
+				has_error_ = true;
+				return {};
+			}
 
             if (mysql_stmt_prepare(stmt_, sql.c_str(), sql.size())) {
                 fprintf(stderr, "%s\n", mysql_error(con_));
-                return {};
+				has_error_ = true;
+				return {};
             }
 
             auto guard = guard_statment(stmt_);
@@ -189,12 +194,14 @@ namespace ormpp{
 
             if(mysql_stmt_bind_result(stmt_, &param_binds[0])){
 //                fprintf(stderr, "%s\n", mysql_error(con_));
-                return {};
+				has_error_ = true;
+				return {};
             }
 
             if(mysql_stmt_execute(stmt_)){
 //                fprintf(stderr, "%s\n", mysql_error(con_));
-                return {};
+				has_error_ = true;
+				return {};
             }
 
             while (mysql_stmt_fetch(stmt_) == 0){
@@ -229,11 +236,14 @@ namespace ormpp{
             constexpr auto SIZE = iguana::get_value<T>();
 
             stmt_ = mysql_stmt_init(con_);
-            if (!stmt_)
-                return {};
+			if (!stmt_) {
+				has_error_ = true;
+				return {};
+			}
 
             if (mysql_stmt_prepare(stmt_, sql.c_str(), sql.size())) {
-                return {};
+				has_error_ = true;
+				return {};
             }
 
             auto guard = guard_statment(stmt_);
@@ -261,12 +271,14 @@ namespace ormpp{
 
             if(mysql_stmt_bind_result(stmt_, &param_binds[0])){
 //                fprintf(stderr, "%s\n", mysql_error(con_));
-                return {};
+				has_error_ = true;
+				return {};
             }
 
             if(mysql_stmt_execute(stmt_)){
 //                fprintf(stderr, "%s\n", mysql_error(con_));
-                return {};
+				has_error_ = true;
+				return {};
             }
 
             while (mysql_stmt_fetch(stmt_) == 0){
@@ -286,6 +298,10 @@ namespace ormpp{
 
             return v;
         }
+
+		bool has_error() {
+			return has_error_;
+		}
 
         //just support execute string sql without placeholders
         bool execute(const std::string& sql){
@@ -527,6 +543,7 @@ namespace ormpp{
     private:
         MYSQL *con_ = nullptr;
         MYSQL_STMT* stmt_ = nullptr;
+		bool has_error_ = false;
         std::map<std::string, std::string> auto_key_map_;
     };
 }

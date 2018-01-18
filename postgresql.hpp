@@ -51,6 +51,10 @@ namespace ormpp{
 			return (PQstatus(con_) == CONNECTION_OK);
 		}
 
+		bool has_error() {
+			return false;//todo
+		}
+
         template<typename T, typename... Args>
         constexpr auto create_datatable(Args&&... args){
 //            std::string droptb = "DROP TABLE IF EXISTS ";
