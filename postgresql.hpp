@@ -47,6 +47,10 @@ namespace ormpp{
             return true;
         }
 
+		bool ping() {
+			return true;
+		}
+
         template<typename T, typename... Args>
         constexpr auto create_datatable(Args&&... args){
 //            std::string droptb = "DROP TABLE IF EXISTS ";

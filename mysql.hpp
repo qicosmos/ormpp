@@ -39,11 +39,18 @@ namespace ormpp{
                     return false;
             }
 
+			char value = 1;
+			mysql_options(con_, MYSQL_OPT_RECONNECT, &value);
+
             if(std::apply(&mysql_real_connect, tp)== nullptr)
                 return false;
 
             return true;
         }
+
+		bool ping() {
+			return mysql_ping(con_) == 0;
+		}
 
         template<typename... Args>
         bool disconnect(Args&&... args){

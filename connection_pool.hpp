@@ -32,7 +32,7 @@ namespace ormpp{
             std::unique_lock<std::mutex> lock( mutex_ );
 
             while ( pool_.empty() ){
-                if(condition_.wait_for(lock, std::chrono::seconds(10))== std::cv_status::timeout){
+                if(condition_.wait_for(lock, std::chrono::seconds(3))== std::cv_status::timeout){
                     //timeout
                     return nullptr;
                 }
@@ -41,6 +41,10 @@ namespace ormpp{
             auto conn = pool_.front();
             pool_.pop_front();
             lock.unlock();
+
+			if (!conn->ping()) {
+				return create_connection();
+			}
 
             //check timeout, idle time shuold less than 8 hours
             auto now = std::chrono::system_clock::now();
@@ -55,6 +59,9 @@ namespace ormpp{
         }
 
         void return_back(std::shared_ptr<DB> conn){
+			if (conn == nullptr) {
+				conn = create_connection();
+			}
             std::unique_lock<std::mutex> lock( mutex_ );
             pool_.push_back( conn );
             lock.unlock();

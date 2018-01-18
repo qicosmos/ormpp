@@ -96,6 +96,10 @@ namespace ormpp{
             return db_.rollback();
         }
 
+		bool ping() {
+			return db_.ping();
+		}
+
     private:
         template<typename Pair, typename U>
         auto build_condition(Pair pair, std::string_view oper, U&& val){
