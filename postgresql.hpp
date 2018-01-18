@@ -48,7 +48,7 @@ namespace ormpp{
         }
 
 		bool ping() {
-			return true;
+			return (PQstatus(con_) == CONNECTION_OK);
 		}
 
         template<typename T, typename... Args>
