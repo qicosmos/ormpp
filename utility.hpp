@@ -55,7 +55,7 @@ namespace ormpp{
     auto sort_tuple(const std::tuple<Args...>& tp){
         if constexpr(sizeof...(Args)==2){
             auto [a, b] = tp;
-            if constexpr(!std::is_same_v<decltype(a), ormpp_key>&&!std::is_same_v<decltype(a), ormpp_auto_increment_key>)
+            if constexpr(!std::is_same_v<decltype(a), ormpp_key>&&!std::is_same_v<decltype(a), ormpp_auto_key>)
             return std::make_tuple(b, a);
             else
             return tp;

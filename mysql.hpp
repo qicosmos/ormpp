@@ -339,7 +339,7 @@ namespace ormpp{
 			using U = std::tuple<std::decay_t <Args>...>;
             if constexpr (SIZE>0){
                 //using U = std::tuple<std::decay_t <Args>...>;//the code can't compile in vs
-                static_assert(!(iguana::has_type<ormpp_key, U>::value&&iguana::has_type<ormpp_auto_increment_key, U>::value), "should only one key");
+                static_assert(!(iguana::has_type<ormpp_key, U>::value&&iguana::has_type<ormpp_auto_key, U>::value), "should only one key");
             }
             auto tp = sort_tuple(std::make_tuple(std::forward<Args>(args)...));
             const size_t arr_size = arr.size();
@@ -370,7 +370,7 @@ namespace ormpp{
                     append(sql, " PRIMARY KEY");
                     has_add_field = true;
                     }
-                    else if constexpr (std::is_same_v<decltype(item), ormpp_auto_increment_key>){
+                    else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>){
                     if(!has_add_field){
                         append(sql, field_name.data(), " ", type_name_arr[i]);
                     }

@@ -15,7 +15,7 @@ struct ormpp_key{
     std::string fields;
 };
 
-struct ormpp_auto_increment_key{
+struct ormpp_auto_key{
     std::string fields;
 };
 

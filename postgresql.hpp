@@ -378,7 +378,7 @@ namespace ormpp{
 			using U = std::tuple<std::decay_t <Args>...>;
             if constexpr (SIZE>0){
 				//using U = std::tuple<std::decay_t <Args>...>; //the code can't compile in vs2017, why?maybe args... in if constexpr?
-                static_assert(!(iguana::has_type<ormpp_key, U>::value&&iguana::has_type<ormpp_auto_increment_key, U>::value), "should only one key");
+                static_assert(!(iguana::has_type<ormpp_key, U>::value&&iguana::has_type<ormpp_auto_key, U>::value), "should only one key");
             }
 
             //at first sort the args, make sure the key always in the head
@@ -414,7 +414,7 @@ namespace ormpp{
 
                     key_map_[name.data()] = item.fields;
                 }
-                    else if constexpr (std::is_same_v<decltype(item), ormpp_auto_increment_key>){
+                    else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>){
                     if(!has_add_field){
                         append(sql, field_name.data(), " ");
                         has_add_field = true;

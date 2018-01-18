@@ -168,7 +168,7 @@ TEST_CASE(orm_create_table){
 
     ormpp_key key{"id"};
     ormpp_not_null not_null{{"id", "age"}};
-    ormpp_auto_increment_key auto_key{"id"};
+    ormpp_auto_key auto_key{"id"};
 
     TEST_REQUIRE(mysql.create_datatable<person>());
     TEST_REQUIRE(postgres.create_datatable<person>());
@@ -222,7 +222,7 @@ TEST_CASE(orm_insert_query){
 
     ormpp_key key{"code"};
     ormpp_not_null not_null{{"code", "age"}};
-    ormpp_auto_increment_key auto_key{"code"};
+    ormpp_auto_key auto_key{"code"};
 
     student s = {1, "tom", 0, 19, 1.5, "room2"};
     student s1 = {1, "jack", 1, 20, 2.5, "room3"};
@@ -311,7 +311,7 @@ TEST_CASE(orm_update){
 
     ormpp_key key{"code"};
     ormpp_not_null not_null{{"code", "age"}};
-    ormpp_auto_increment_key auto_key{"code"};
+    ormpp_auto_key auto_key{"code"};
 
     student s = {1, "tom", 0, 19, 1.5, "room2"};
     student s1 = {2, "jack", 1, 20, 2.5, "room3"};
@@ -356,7 +356,7 @@ TEST_CASE(orm_multi_update){
 
     ormpp_key key{"code"};
     ormpp_not_null not_null{{"code", "age"}};
-    ormpp_auto_increment_key auto_key{"code"};
+    ormpp_auto_key auto_key{"code"};
 
     student s = {1, "tom", 0, 19, 1.5, "room2"};
     student s1 = {2, "jack", 1, 20, 2.5, "room3"};
@@ -399,7 +399,7 @@ TEST_CASE(orm_delete){
 
     ormpp_key key{"code"};
     ormpp_not_null not_null{{"code", "age"}};
-    ormpp_auto_increment_key auto_key{"code"};
+    ormpp_auto_key auto_key{"code"};
 
     student s = {1, "tom", 0, 19, 1.5, "room2"};
     student s1 = {2, "jack", 1, 20, 2.5, "room3"};
@@ -486,7 +486,7 @@ TEST_CASE(orm_query_some){
 
     ormpp_key key{"code"};
     ormpp_not_null not_null{{"code", "age"}};
-    ormpp_auto_increment_key auto_key{"code"};
+    ormpp_auto_key auto_key{"code"};
 
     student s = {1, "tom", 0, 19, 1.5, "room2"};
     student s1 = {2, "jack", 1, 20, 2.5, "room3"};
@@ -534,7 +534,7 @@ TEST_CASE(orm_query_multi_table){
 
     ormpp_key key{"code"};
     ormpp_not_null not_null{{"code", "age"}};
-    ormpp_auto_increment_key auto_key{"code"};
+    ormpp_auto_key auto_key{"code"};
 
     student s = {1, "tom", 0, 19, 1.5, "room2"};
     student s1 = {2, "jack", 1, 20, 2.5, "room3"};
@@ -592,7 +592,7 @@ TEST_CASE(orm_transaction){
 
     ormpp_key key{"code"};
     ormpp_not_null not_null{{"code", "age"}};
-    ormpp_auto_increment_key auto_key{"code"};
+    ormpp_auto_key auto_key{"code"};
 
     student s = {1, "tom", 0, 19, 1.5, "room2"};
     student s1 = {2, "jack", 1, 20, 2.5, "room3"};
