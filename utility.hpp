@@ -59,7 +59,8 @@ namespace ormpp{
             return std::make_tuple(b, a);
             else
             return tp;
-        }else{
+        }
+		else{
             return tp;
         }
     }
@@ -73,15 +74,15 @@ namespace ormpp{
     template <typename T>
     inline constexpr auto get_type_names(DBType type){
         constexpr auto SIZE = iguana::get_value<T>();
-        std::array<std::string_view, SIZE> arr = {};
+        std::array<std::string, SIZE> arr = {};
         iguana::for_each(T{}, [&](auto& item, auto i){
             constexpr auto Idx = decltype(i)::value;
             using U = std::remove_reference_t<decltype(iguana::get<Idx>(std::declval<T>()))>;
-            std::string_view s;
+            std::string s;
             switch (type){
                 case DBType::mysql : s = ormpp_mysql::type_to_name(identity<U>{});
                     break;
-                case DBType::sqlite : s = ormpp_sqlite::type_to_name(identity<U>{});
+				case DBType::sqlite : s = ormpp_sqlite::type_to_name(identity<U>{});
                     break;
                 case DBType::postgresql : s = ormpp_postgresql::type_to_name(identity<U>{});
                     break;

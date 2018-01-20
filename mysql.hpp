@@ -395,6 +395,14 @@ namespace ormpp{
                     auto_key_map_[name.data()] = item.fields;
                     has_add_field = true;
                     }
+					else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
+						if (!has_add_field) {
+							append(sql, field_name.data(), " ", type_name_arr[i]);
+						}
+
+						append(sql, ", UNIQUE(", item.fields, ")");
+						has_add_field = true;
+					}
                     else {
                     append(sql, field_name.data(), " ", type_name_arr[i]);
                     }

@@ -17,6 +17,12 @@
 #define TEST_MAIN
 #include "unit_test.hpp"
 
+struct test_tb {
+	int id;
+	char name[12];
+};
+REFLECTION(test_tb, id, name);
+
 struct person
 {
     int id;
@@ -43,7 +49,7 @@ struct simple{
 REFLECTION(simple, id, code, age);
 
 using namespace ormpp;
-const char* ip = "127.0.0.1"; //your database ip
+const char* ip = "120.78.135.113"; //your database ip
 
 //TEST_CASE(mysql_performance){
 //    dbng<mysql> mysql;
@@ -79,16 +85,19 @@ const char* ip = "127.0.0.1"; //your database ip
 //    std::cout<<s<<'\n';
 //}
 
+template<class T, size_t N>
+constexpr size_t size(T(&)[N]) { return N; }
+
 TEST_CASE(mysql_pool){
     auto& pool = connection_pool<dbng<mysql>>::instance();
     try {
-        pool.init(3, ip, "root", "12345", "testdb");
-        pool.init(7, ip, "root", "12345", "testdb");
+        pool.init(1, ip, "root", "12345", "testdb");
     }catch(const std::exception& e){
         std::cout<<e.what()<<std::endl;
         return;
     }
-
+	auto con = pool.get();
+	con->create_datatable<test_tb>(ormpp_unique{"name"});
     for (int i = 0; i < 10; ++i) {
         auto conn = pool.get();
 //        conn_guard guard(conn);
