@@ -49,7 +49,7 @@ struct simple{
 REFLECTION(simple, id, code, age);
 
 using namespace ormpp;
-const char* ip = "120.78.135.113"; //your database ip
+const char* ip = "127.0.0.1"; //your database ip
 
 //TEST_CASE(mysql_performance){
 //    dbng<mysql> mysql;
@@ -97,6 +97,7 @@ TEST_CASE(mysql_pool){
         return;
     }
 	auto con = pool.get();
+	auto v = con->query<std::tuple<test_tb>>("select * from test_tb");
 	con->create_datatable<test_tb>(ormpp_unique{"name"});
     for (int i = 0; i < 10; ++i) {
         auto conn = pool.get();
