@@ -159,7 +159,7 @@ namespace ormpp {
 
 			size_t index = 0;
 			iguana::for_each(tp, [&param_binds, &mp, &index](auto& item, auto I) {
-				using U = std::decay_t<decltype(item)>;
+				using U = std::remove_reference_t<decltype(item)>;
 				if constexpr(std::is_arithmetic_v<U>) {
 					param_binds[index].buffer_type = (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
 					param_binds[index].buffer = &item;
@@ -188,14 +188,25 @@ namespace ormpp {
 							param_binds[index].buffer_length = 65536;
 						}
 						else if constexpr(is_char_array_v<U>) {
-							param_binds[Idx].buffer_type = MYSQL_TYPE_VAR_STRING;
 							std::vector<char> tmp(sizeof(U), 0);
-							mp.emplace(decltype(i)::value, tmp);
-							param_binds[Idx].buffer = &(mp.rbegin()->second[0]);
-							param_binds[Idx].buffer_length = sizeof(U);
+							mp.emplace_back(std::move(tmp));
+							param_binds[index].buffer_type = MYSQL_TYPE_VAR_STRING;
+							param_binds[index].buffer = &(mp.back()[0]);
+							param_binds[index].buffer_length = sizeof(U);
 						}
 						index++;
 					});
+				}
+				else if constexpr(is_char_array_v<U>) {
+					param_binds[index].buffer_type = MYSQL_TYPE_VAR_STRING;
+					std::vector<char> tmp(sizeof(U), 0);
+					mp.emplace_back(std::move(tmp));
+					param_binds[index].buffer = &(mp.back()[0]);
+					param_binds[index].buffer_length = sizeof(U);
+					index++;
+				}
+				else {
+					std::cout << typeid(U).name() << std::endl;
 				}
 			}, std::make_index_sequence<SIZE>{});
 
@@ -220,8 +231,7 @@ namespace ormpp {
 						it++;
 					}
 					else if constexpr(is_char_array_v<U>) {
-						auto& vec = mp[decltype(i)::value];
-						memcpy(item, &(*it)[0], vec.size());
+						memcpy(item, &(*it)[0], sizeof(U));
 					}
 					else if constexpr(iguana::is_reflection_v<U>) {
 						iguana::for_each(item, [&mp, &it, &item](auto ele, auto i) {
@@ -230,8 +240,8 @@ namespace ormpp {
 								item.*ele = std::string(&(*it)[0], strlen((*it).data()));
 								it++;
 							}
-							else if constexpr(is_char_array_v<U>) {
-								//todo
+							else if constexpr(is_char_array_v<V>) {
+								memcpy(item.*ele, &(*it)[0], sizeof(V));
 							}
 						});
 					}
