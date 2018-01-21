@@ -315,6 +315,9 @@ namespace ormpp{
             else if constexpr(std::is_same_v<std::string, U>){
                 return SQLITE_OK == sqlite3_bind_text(stmt_, i,  value.data(), value.size(), nullptr);
             }
+			else if constexpr(is_char_array_v<U>) {
+				return SQLITE_OK == sqlite3_bind_text(stmt_, i, value, sizeof(U), nullptr);
+			}
             else {
                 std::cout<<"this type has not supported yet"<<std::endl;
                 return false;
@@ -337,6 +340,9 @@ namespace ormpp{
                 value.reserve(sqlite3_column_bytes(stmt_, i));
                 value.assign((const char*)sqlite3_column_text(stmt_, i), (size_t)sqlite3_column_bytes(stmt_, i));
             }
+			else if constexpr (is_char_array_v<U>) {
+				memcpy(value, sqlite3_column_text(stmt_, i), sizeof(U));
+			}
             else {
                 std::cout<<"this type has not supported yet"<<std::endl;
             }
