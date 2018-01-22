@@ -543,6 +543,11 @@ namespace ormpp{
 //                    std::cout<<value.size()<<std::endl;
                 param_values.push_back(std::move(temp));
             }
+			else if constexpr(is_char_array_v<U>) {
+				std::vector<char> temp = {};
+				std::copy(value, value+sizeof(U), std::back_inserter(temp));
+				param_values.push_back(std::move(temp));
+			}
             else {
                 std::cout<<"this type has not supported yet"<<std::endl;
             }
@@ -563,6 +568,10 @@ namespace ormpp{
             else if constexpr(std::is_same_v<std::string, U>){
                 value = PQgetvalue(res_, row, i);
             }
+			else if constexpr(is_char_array_v<U>) {
+				auto p = PQgetvalue(res_, row, i);
+				memcpy(value, p, sizeof(U));
+			}
             else {
                 std::cout<<"this type has not supported yet"<<std::endl;
             }
