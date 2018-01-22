@@ -92,7 +92,7 @@ namespace ormpp{
             std::string sql = generate_query_sql<T>(args...);
             constexpr auto SIZE = iguana::get_value<T>();
 
-            int result = sqlite3_prepare_v2(handle_, sql.data(), sql.size(), &stmt_, nullptr);
+            int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(), &stmt_, nullptr);
             if(result!=SQLITE_OK)
                 return {};
 
@@ -111,7 +111,7 @@ namespace ormpp{
                 T t = {};
                 iguana::for_each(t, [this, &t](auto item, auto I)
                 {
-                    assign(t.*item, decltype(I)::value);
+                    assign(t.*item, (int)decltype(I)::value);
                 });
 
                 v.push_back(std::move(t));
@@ -134,7 +134,7 @@ namespace ormpp{
                 sql = get_sql(sql, std::forward<Args>(args)...);
             }
 
-            int result = sqlite3_prepare_v2(handle_, sql.data(), sql.size(), &stmt_, nullptr);
+            int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(), &stmt_, nullptr);
             if(result!=SQLITE_OK)
                 return {};
 
@@ -151,7 +151,7 @@ namespace ormpp{
                     break;
 
                 T tp = {};
-                size_t index = 0;
+                int index = 0;
                 iguana::for_each(tp, [this, &index](auto& item, auto I)
                 {
                     if constexpr(iguana::is_reflection_v<decltype(item)>){
@@ -301,7 +301,7 @@ namespace ormpp{
         };
 
         template<typename T>
-        constexpr bool set_param_bind(T&& value, size_t i){
+        constexpr bool set_param_bind(T&& value, int i){
             using U = std::remove_const_t<std::remove_reference_t<T>>;
             if constexpr(std::is_integral_v<U>&&!iguana::is_int64_v<U>){//double, int64
                 return SQLITE_OK == sqlite3_bind_int(stmt_, i, value);
@@ -313,7 +313,7 @@ namespace ormpp{
                 return SQLITE_OK == sqlite3_bind_double(stmt_, i, value);
             }
             else if constexpr(std::is_same_v<std::string, U>){
-                return SQLITE_OK == sqlite3_bind_text(stmt_, i,  value.data(), value.size(), nullptr);
+                return SQLITE_OK == sqlite3_bind_text(stmt_, i,  value.data(), (int)value.size(), nullptr);
             }
 			else if constexpr(is_char_array_v<U>) {
 				return SQLITE_OK == sqlite3_bind_text(stmt_, i, value, sizeof(U), nullptr);
@@ -325,7 +325,7 @@ namespace ormpp{
         }
 
         template<typename T>
-        constexpr void assign(T&& value, size_t i){
+        constexpr void assign(T&& value, int i){
             using U = std::remove_const_t<std::remove_reference_t<T>>;
             if constexpr(std::is_integral_v<U>&&!iguana::is_int64_v<U>){//double, int64
                 value = sqlite3_column_int(stmt_, i);
@@ -350,7 +350,7 @@ namespace ormpp{
 
         template<typename T, typename... Args>
         constexpr int insert_impl(bool is_update, const std::string& sql, const T& t, Args&&... args) {
-            int result = sqlite3_prepare_v2(handle_, sql.data(), sql.size(), &stmt_, nullptr);
+            int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(), &stmt_, nullptr);
             if (result != SQLITE_OK)
                 return INT_MIN;
 
@@ -384,7 +384,7 @@ namespace ormpp{
 
         template<typename T, typename... Args>
         constexpr int insert_impl(bool is_update, const std::string& sql, const std::vector<T>& v, Args&&... args) {
-            int result = sqlite3_prepare_v2(handle_, sql.data(), sql.size(), &stmt_, nullptr);
+            int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(), &stmt_, nullptr);
             if (result != SQLITE_OK)
                 return INT_MIN;
 
@@ -432,7 +432,7 @@ namespace ormpp{
 
             b = commit();
 
-            return b?v.size():INT_MIN;
+            return b?(int)v.size():INT_MIN;
         }
 
         sqlite3* handle_ = nullptr;

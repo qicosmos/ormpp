@@ -143,7 +143,7 @@ namespace ormpp {
 				return {};
 			}
 
-			if (mysql_stmt_prepare(stmt_, sql.c_str(), sql.size())) {
+			if (mysql_stmt_prepare(stmt_, sql.c_str(), (int)sql.size())) {
 				fprintf(stderr, "%s\n", mysql_error(con_));
 				has_error_ = true;
 				return {};
@@ -192,7 +192,7 @@ namespace ormpp {
 							mp.emplace_back(std::move(tmp));
 							param_binds[index].buffer_type = MYSQL_TYPE_VAR_STRING;
 							param_binds[index].buffer = &(mp.back()[0]);
-							param_binds[index].buffer_length = sizeof(U);
+							param_binds[index].buffer_length = (unsigned long)sizeof(U);
 						}
 						index++;
 					});
@@ -202,7 +202,7 @@ namespace ormpp {
 					std::vector<char> tmp(sizeof(U), 0);
 					mp.emplace_back(std::move(tmp));
 					param_binds[index].buffer = &(mp.back()[0]);
-					param_binds[index].buffer_length = sizeof(U);
+					param_binds[index].buffer_length = (unsigned long)sizeof(U);
 					index++;
 				}
 				else {
@@ -265,7 +265,7 @@ namespace ormpp {
 				return {};
 			}
 
-			if (mysql_stmt_prepare(stmt_, sql.c_str(), sql.size())) {
+			if (mysql_stmt_prepare(stmt_, sql.c_str(), (unsigned long)sql.size())) {
 				has_error_ = true;
 				return {};
 			}
@@ -289,14 +289,14 @@ namespace ormpp {
 					std::vector<char> tmp(65536, 0);
 					mp.emplace(decltype(i)::value, tmp);
 					param_binds[Idx].buffer = &(mp.rbegin()->second[0]);
-					param_binds[Idx].buffer_length = tmp.size();
+					param_binds[Idx].buffer_length = (unsigned long)tmp.size();
 				}
 				else if constexpr(is_char_array_v<U>) {
 					param_binds[Idx].buffer_type = MYSQL_TYPE_VAR_STRING;
 					std::vector<char> tmp(sizeof(U), 0);
 					mp.emplace(decltype(i)::value, tmp);
 					param_binds[Idx].buffer = &(mp.rbegin()->second[0]);
-					param_binds[Idx].buffer_length = sizeof(U);
+					param_binds[Idx].buffer_length = (unsigned long)sizeof(U);
 				}
 			});
 
@@ -466,12 +466,12 @@ namespace ormpp {
 			else if constexpr(std::is_same_v<std::string, U>) {
 				param.buffer_type = MYSQL_TYPE_STRING;
 				param.buffer = (void*)(value.c_str());
-				param.buffer_length = value.size();
+				param.buffer_length = (unsigned long)value.size();
 			}
 			else if constexpr(std::is_same_v<const char*, U> || is_char_array_v<U>) {
 				param.buffer_type = MYSQL_TYPE_STRING;
 				param.buffer = (void*)(value);
-				param.buffer_length = strlen(value);
+				param.buffer_length = (unsigned long)strlen(value);
 			}
 			param_binds.push_back(param);
 		}
@@ -527,7 +527,7 @@ namespace ormpp {
 			if (!stmt_)
 				return INT_MIN;
 
-			if (mysql_stmt_prepare(stmt_, sql.c_str(), sql.size())) {
+			if (mysql_stmt_prepare(stmt_, sql.c_str(), (int)sql.size())) {
 				return INT_MIN;
 			}
 
@@ -545,7 +545,7 @@ namespace ormpp {
 			if (!stmt_)
 				return INT_MIN;
 
-			if (mysql_stmt_prepare(stmt_, sql.c_str(), sql.size())) {
+			if (mysql_stmt_prepare(stmt_, sql.c_str(), (int)sql.size())) {
 				return INT_MIN;
 			}
 
@@ -565,7 +565,7 @@ namespace ormpp {
 			}
 			b = commit();
 
-			return b ? t.size() : INT_MIN;
+			return b ? (int)t.size() : INT_MIN;
 		}
 
 		template<typename... Args>

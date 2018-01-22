@@ -112,7 +112,7 @@ namespace ormpp{
             if(!commit())
                 return INT_MIN;
 
-            return v.size();
+            return (int)v.size();
         }
 
         //if there is no key in a table, you can set some fields as a condition in the args...
@@ -169,7 +169,7 @@ namespace ormpp{
             if(!commit())
                 return INT_MIN;
 
-            return v.size();
+            return (int)v.size();
         }
 
         template<typename T, typename... Args>
@@ -193,7 +193,7 @@ namespace ormpp{
                 T t = {};
                 iguana::for_each(t, [this, i, &t](auto item, auto I)
                 {
-                    assign(t.*item, i, decltype(I)::value);
+                    assign(t.*item, i, (int)decltype(I)::value);
                 });
                 v.push_back(std::move(t));
             }
@@ -231,18 +231,18 @@ namespace ormpp{
 
             for(auto i = 0; i < ntuples; i++){
                 T tp = {};
-                size_t index = 0;
+                int index = 0;
                 iguana::for_each(tp, [this, i, &index](auto& item, auto I)
                 {
                     if constexpr(iguana::is_reflection_v<decltype(item)>){
                     std::remove_reference_t<decltype(item)> t = {};
                     iguana::for_each(t, [this, &index, &t](auto ele, auto i)
                     {
-                        assign(t.*ele, i, index++);
+                        assign(t.*ele, (int)i, index++);
                     });
                     item = std::move(t);
                     }else{
-                        assign(item, i, index++);
+                        assign(item, (int)i, index++);
                     }
                 }, std::make_index_sequence<SIZE>{});
                 v.push_back(std::move(tp));
@@ -455,7 +455,7 @@ namespace ormpp{
 
         template<typename T>
         bool prepare(const std::string& sql){
-            res_ = PQprepare(con_, "", sql.data(), iguana::get_value<T>(), nullptr);
+            res_ = PQprepare(con_, "", sql.data(), (int)iguana::get_value<T>(), nullptr);
             if (PQresultStatus(res_) != PGRES_COMMAND_OK){
                 std::cout<<PQresultErrorMessage(res_)<<std::endl;
                 PQclear(res_);
@@ -506,7 +506,7 @@ namespace ormpp{
                 param_values_buf.push_back(item.data());
             }
 
-            res_ = PQexecPrepared(con_, "", param_values.size(), param_values_buf.data(), NULL,NULL,0);
+            res_ = PQexecPrepared(con_, "", (int)param_values.size(), param_values_buf.data(), NULL,NULL,0);
 
             if (PQresultStatus(res_) != PGRES_COMMAND_OK){
                 std::cout<<PQresultErrorMessage(res_)<<std::endl;
@@ -549,7 +549,7 @@ namespace ormpp{
         }
 
         template<typename T>
-        constexpr void assign(T&& value, int row, size_t i){
+        constexpr void assign(T&& value, int row, int i){
             using U = std::remove_const_t<std::remove_reference_t<T>>;
             if constexpr(std::is_integral_v<U>&&!iguana::is_int64_v<U>){
                 value = std::atoi(PQgetvalue(res_, row, i));

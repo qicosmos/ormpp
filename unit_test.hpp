@@ -97,7 +97,7 @@ public:
 			UnitTest::getInstance().checkLine(defined_line_);
 			size_t old_failure_num = UnitTest::getInstance().getFailureNum();
 			method_();
-			int failures = UnitTest::getInstance().getFailureNum() - old_failure_num;
+			auto failures = UnitTest::getInstance().getFailureNum() - old_failure_num;
 			if (failures)
 			{
 				std::cout << ">>> ";
@@ -157,7 +157,7 @@ static void report_and_exit()
 {
 	std::cout << "\n**** ";
 	std::cout << UnitTest::getInstance().getFailureNum() << " failures are detected." << std::endl;
-	exit(UnitTest::getInstance().getFailureNum());
+	exit((int)UnitTest::getInstance().getFailureNum());
 }
 
 int main()

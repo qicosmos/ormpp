@@ -63,7 +63,6 @@ namespace ormpp{
         constexpr auto type_to_name(identity<double>) noexcept { return "DOUBLE"sv; }
         constexpr auto type_to_name(identity<int64_t>) noexcept { return "INTEGER"sv; }
         auto type_to_name(identity<std::string>) noexcept { return "TEXT"sv; }
-		constexpr auto type_to_name(identity<char*>) noexcept { return "varchar"sv; }
 		template<size_t N>
 		constexpr auto type_to_name(identity<std::array<char, N>>) noexcept {
 			std::string s = "varchar(" + std::to_string(N) + ")";
@@ -90,7 +89,6 @@ namespace ormpp{
         constexpr auto type_to_name(identity<double>) noexcept { return "double precision"sv; }
         constexpr auto type_to_name(identity<int64_t>) noexcept { return "bigint"sv; }
         auto type_to_name(identity<std::string>) noexcept { return "text"sv; }
-		constexpr auto type_to_name(identity<char*>) noexcept { return "varchar"sv; }
 		template<size_t N>
 		constexpr auto type_to_name(identity<std::array<char, N>>) noexcept {
 			std::string s = "varchar(" + std::to_string(N)+")";
