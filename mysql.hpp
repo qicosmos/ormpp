@@ -483,8 +483,8 @@ namespace ormpp {
 			std::string auto_key = (it == auto_key_map_.end()) ? "" : it->second;
 
 			iguana::for_each(t, [&t, &param_binds, &auto_key, this](const auto& v, auto i) {
-				if (!auto_key.empty() && auto_key == iguana::get_name<T>(decltype(i)::value).data())
-					return;
+				/*if (!auto_key.empty() && auto_key == iguana::get_name<T>(decltype(i)::value).data())
+					return;*/
 
 				set_param_bind(param_binds, t.*v);
 			});
@@ -584,7 +584,7 @@ namespace ormpp {
 		MYSQL * con_ = nullptr;
 		MYSQL_STMT* stmt_ = nullptr;
 		bool has_error_ = false;
-		std::map<std::string, std::string> auto_key_map_;
+		inline static std::map<std::string, std::string> auto_key_map_;
 	};
 }
 
