@@ -493,8 +493,8 @@ namespace ormpp{
             std::string auto_key = (it==auto_key_map_.end())?"":it->second;
 
             iguana::for_each(t, [&t, &param_values, &auto_key, this](auto item, auto i){
-                if(!auto_key.empty()&&auto_key==iguana::get_name<T>(decltype(i)::value).data())
-                    return;
+                /*if(!auto_key.empty()&&auto_key==iguana::get_name<T>(decltype(i)::value).data())
+                    return;*/
                 set_param_values(param_values, t.*item);
             });
 

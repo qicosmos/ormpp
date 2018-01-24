@@ -364,9 +364,9 @@ namespace ormpp{
                 if(!bind_ok)
                     return;
 
-                if(!auto_key.empty()&&auto_key==iguana::get_name<T>(decltype(i)::value).data()){
+                /*if(!auto_key.empty()&&auto_key==iguana::get_name<T>(decltype(i)::value).data()){
                     return;
-                }
+                }*/
 
                 bind_ok = set_param_bind(t.*item, index+1);
                 index++;
