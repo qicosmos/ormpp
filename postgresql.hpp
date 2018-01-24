@@ -636,8 +636,8 @@ namespace ormpp{
             int index = 0;
             for (auto i = 0; i < SIZE; ++i) {
                 std::string field_name = iguana::get_name<T>(i).data();
-                if(it!=auto_key_map_.end()&&it->second==field_name)
-                    continue;
+                //if(it!=auto_key_map_.end()&&it->second==field_name)
+                //    continue;
 
                 values+="$";
                 char temp[20] = {};

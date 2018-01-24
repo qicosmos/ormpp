@@ -128,8 +128,8 @@ namespace ormpp{
         auto it = auto_key_map_.find(name.data());
         for (auto i = 0; i < SIZE; ++i) {
             std::string field_name = iguana::get_name<T>(i).data();
-            if(it!=auto_key_map_.end()&&it->second==field_name)
-                continue;
+           /* if(it!=auto_key_map_.end()&&it->second==field_name)
+                continue;*/
 
             values+="?";
             fields+=field_name;
