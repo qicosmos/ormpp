@@ -193,9 +193,13 @@ namespace ormpp{
 		auto tp = std::make_tuple(std::forward<Args>(args)...);
         if constexpr (sizeof...(Args)>0){
             int i = 0;
-            for_each0(tp, [&i, &sql](const auto& item){ //std::make_tuple(std::forward<Args>(args)...); can't compile in if constexpr in vs2017,why?
-                if(i==0&&has_key<T>(item))
-                    append(sql, " where ", item);
+            for_each0(tp, [&i, &sql](const std::string& item){ //std::make_tuple(std::forward<Args>(args)...); can't compile in if constexpr in vs2017,why?
+				if (i == 0 && has_key<T>(item)) {
+					if (item.find("select") != std::string::npos) {
+						sql = item;
+					}else
+						append(sql, " where ", item);
+				}
                 else
                     append(sql, " ", item);
 
