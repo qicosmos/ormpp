@@ -98,7 +98,7 @@ TEST_CASE(mysql_pool){
 	auto vt1 = sqlite.query<std::tuple<test_tb>>("select * from test_tb");
     auto& pool = connection_pool<dbng<mysql>>::instance();
     try {
-        pool.init(1, ip, "root", "12345", "testdb");
+        pool.init(1, ip, "root", "12345", "testdb", 2);
     }catch(const std::exception& e){
         std::cout<<e.what()<<std::endl;
         return;
@@ -121,8 +121,8 @@ TEST_CASE(mysql_pool){
 TEST_CASE(postgres_pool){
     auto& pool = connection_pool<dbng<postgresql>>::instance();
     try {
-        pool.init(3, ip, "root", "12345", "testdb");
-        pool.init(7, ip, "root", "12345", "testdb");
+        pool.init(3, ip, "root", "12345", "testdb",2);
+        pool.init(7, ip, "root", "12345", "testdb",2);
     }catch(const std::exception& e){
         std::cout<<e.what()<<std::endl;
         return;

@@ -70,8 +70,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>C:\mysql;C:\postgresql;C:\sqlite3;iguana;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\mysql\lib;C:\postgresql\lib;C:\sqlite3;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\mysql;C:\postgresql\pgsql;C:\sqlite3;iguana;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\mysql\lib;C:\postgresql\pgsql\lib;C:\sqlite3;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <IncludePath>C:\mysql;C:\postgresql;C:\sqlite3;iguana;$(IncludePath)</IncludePath>
