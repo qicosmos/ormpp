@@ -101,7 +101,7 @@ namespace ormpp{
         std::mutex mutex_;
         std::condition_variable condition_;
         std::once_flag flag_;
-        std::tuple<const char*, const char*, const char*, const char*> args_;
+        std::tuple<const char*, const char*, const char*, const char*, int> args_;
     };
 
     template<typename DB>
