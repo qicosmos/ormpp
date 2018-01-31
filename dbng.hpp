@@ -79,7 +79,7 @@ namespace ormpp{
             return delete_records<T>(sql);
         }
 
-        int execute(const std::string& sql){
+        bool execute(const std::string& sql){
             return db_.execute(sql);
         }
 
