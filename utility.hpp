@@ -246,7 +246,7 @@ namespace ormpp{
     template<typename U>
     constexpr std::string_view get_field_name(std::string_view full_name){
         using T = typename field_attribute<U>::type;
-        return full_name.substr(iguana::get_name<T>().length()+1, full_name.length());
+        return full_name.substr(iguana::get_name<T>().length()+2, full_name.length());
     }
 
 #define FID(field) std::pair<std::string_view, decltype(&field)>(get_field_name<decltype(&field)>(std::string_view(#field)), &field)
