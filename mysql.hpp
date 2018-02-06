@@ -339,7 +339,12 @@ namespace ormpp {
 
 		//just support execute string sql without placeholders
 		bool execute(const std::string& sql) {
-			return mysql_query(con_, sql.data()) == 0;
+			if (mysql_query(con_, sql.data()) != 0) {
+				fprintf(stderr, "%s\n", mysql_error(con_));
+				return false;
+			}
+
+			return true;
 		}
 
 		//transaction
