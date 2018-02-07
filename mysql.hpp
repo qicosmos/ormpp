@@ -349,10 +349,6 @@ namespace ormpp {
 
 		//transaction
 		bool begin() {
-			if (mysql_query(con_, "SET AUTOCOMMIT=0")) {
-				//                fprintf(stderr, "%s\n", mysql_error(con_));
-				return false;
-			}
 			if (mysql_query(con_, "BEGIN")) {
 				//                fprintf(stderr, "%s\n", mysql_error(con_));
 				return false;
