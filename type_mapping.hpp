@@ -21,8 +21,8 @@ namespace ormpp{
 	};
 
 #define REGISTER_TYPE(Type, Index)                                              \
-    constexpr int type_to_id(identity<Type>) noexcept { return Index; } \
-    constexpr auto id_to_type( std::integral_constant<std::size_t, Index > ) noexcept { Type res{}; return res; }
+    inline constexpr int type_to_id(identity<Type>) noexcept { return Index; } \
+    inline constexpr auto id_to_type( std::integral_constant<std::size_t, Index > ) noexcept { Type res{}; return res; }
 
     namespace ormpp_mysql{
         REGISTER_TYPE( char    , MYSQL_TYPE_TINY     )
@@ -32,18 +32,18 @@ namespace ormpp{
         REGISTER_TYPE( double  , MYSQL_TYPE_DOUBLE   )
         REGISTER_TYPE( int64_t , MYSQL_TYPE_LONGLONG )
 
-        int type_to_id(identity<std::string>) noexcept { return MYSQL_TYPE_VAR_STRING; }
-        std::string id_to_type(std::integral_constant<std::size_t, MYSQL_TYPE_VAR_STRING > ) noexcept { std::string res{}; return res; }
+		inline int type_to_id(identity<std::string>) noexcept { return MYSQL_TYPE_VAR_STRING; }
+		inline std::string id_to_type(std::integral_constant<std::size_t, MYSQL_TYPE_VAR_STRING > ) noexcept { std::string res{}; return res; }
 
-        constexpr auto type_to_name(identity<char>) noexcept { return "TINYINT"sv; }
-        constexpr auto type_to_name(identity<short>) noexcept { return "SMALLINT"sv; }
-        constexpr auto type_to_name(identity<int>) noexcept { return "INTEGER"sv; }
-        constexpr auto type_to_name(identity<float>) noexcept { return "FLOAT"sv; }
-        constexpr auto type_to_name(identity<double>) noexcept { return "DOUBLE"sv; }
-        constexpr auto type_to_name(identity<int64_t>) noexcept { return "BIGINT"sv; }
-        auto type_to_name(identity<std::string>) noexcept { return "TEXT"sv; }
+		inline constexpr auto type_to_name(identity<char>) noexcept { return "TINYINT"sv; }
+		inline constexpr auto type_to_name(identity<short>) noexcept { return "SMALLINT"sv; }
+		inline constexpr auto type_to_name(identity<int>) noexcept { return "INTEGER"sv; }
+		inline constexpr auto type_to_name(identity<float>) noexcept { return "FLOAT"sv; }
+		inline constexpr auto type_to_name(identity<double>) noexcept { return "DOUBLE"sv; }
+		inline constexpr auto type_to_name(identity<int64_t>) noexcept { return "BIGINT"sv; }
+		inline auto type_to_name(identity<std::string>) noexcept { return "TEXT"sv; }
 		template<size_t N>
-		constexpr auto type_to_name(identity<std::array<char, N>>) noexcept {
+		inline constexpr auto type_to_name(identity<std::array<char, N>>) noexcept {
 			std::string s = "varchar(" + std::to_string(N) + ")";
 			return s;
 		}
@@ -53,18 +53,18 @@ namespace ormpp{
         REGISTER_TYPE( int     , SQLITE_INTEGER     )
         REGISTER_TYPE( double  , SQLITE_FLOAT   )
 
-        int type_to_id(identity<std::string>) noexcept { return SQLITE_TEXT; }
-        std::string id_to_type(std::integral_constant<std::size_t, SQLITE_TEXT > ) noexcept { std::string res{}; return res; }
+		inline int type_to_id(identity<std::string>) noexcept { return SQLITE_TEXT; }
+		inline std::string id_to_type(std::integral_constant<std::size_t, SQLITE_TEXT > ) noexcept { std::string res{}; return res; }
 
-        constexpr auto type_to_name(identity<char>) noexcept { return "INTEGER"sv; }
-        constexpr auto type_to_name(identity<short>) noexcept { return "INTEGER"sv; }
-        constexpr auto type_to_name(identity<int>) noexcept { return "INTEGER"sv; }
-        constexpr auto type_to_name(identity<float>) noexcept { return "FLOAT"sv; }
-        constexpr auto type_to_name(identity<double>) noexcept { return "DOUBLE"sv; }
-        constexpr auto type_to_name(identity<int64_t>) noexcept { return "INTEGER"sv; }
-        auto type_to_name(identity<std::string>) noexcept { return "TEXT"sv; }
+		inline constexpr auto type_to_name(identity<char>) noexcept { return "INTEGER"sv; }
+		inline constexpr auto type_to_name(identity<short>) noexcept { return "INTEGER"sv; }
+		inline constexpr auto type_to_name(identity<int>) noexcept { return "INTEGER"sv; }
+		inline constexpr auto type_to_name(identity<float>) noexcept { return "FLOAT"sv; }
+		inline constexpr auto type_to_name(identity<double>) noexcept { return "DOUBLE"sv; }
+		inline constexpr auto type_to_name(identity<int64_t>) noexcept { return "INTEGER"sv; }
+		inline auto type_to_name(identity<std::string>) noexcept { return "TEXT"sv; }
 		template<size_t N>
-		constexpr auto type_to_name(identity<std::array<char, N>>) noexcept {
+		inline constexpr auto type_to_name(identity<std::array<char, N>>) noexcept {
 			std::string s = "varchar(" + std::to_string(N) + ")";
 			return s;
 		}
@@ -79,18 +79,18 @@ namespace ormpp{
         REGISTER_TYPE( double  , FLOAT8OID   )
         REGISTER_TYPE( int64_t , INT8OID )
 
-        int type_to_id(identity<std::string>) noexcept { return TEXTOID; }
-        std::string id_to_type(std::integral_constant<std::size_t,  TEXTOID> ) noexcept { std::string res{}; return res; }
+		inline int type_to_id(identity<std::string>) noexcept { return TEXTOID; }
+		inline std::string id_to_type(std::integral_constant<std::size_t,  TEXTOID> ) noexcept { std::string res{}; return res; }
 
-        constexpr auto type_to_name(identity<char>) noexcept { return "char"sv; }
-        constexpr auto type_to_name(identity<short>) noexcept { return "smallint"sv; }
-        constexpr auto type_to_name(identity<int>) noexcept { return "integer"sv; }
-        constexpr auto type_to_name(identity<float>) noexcept { return "real"sv; }
-        constexpr auto type_to_name(identity<double>) noexcept { return "double precision"sv; }
-        constexpr auto type_to_name(identity<int64_t>) noexcept { return "bigint"sv; }
-        auto type_to_name(identity<std::string>) noexcept { return "text"sv; }
+		inline constexpr auto type_to_name(identity<char>) noexcept { return "char"sv; }
+		inline constexpr auto type_to_name(identity<short>) noexcept { return "smallint"sv; }
+		inline constexpr auto type_to_name(identity<int>) noexcept { return "integer"sv; }
+		inline constexpr auto type_to_name(identity<float>) noexcept { return "real"sv; }
+		inline constexpr auto type_to_name(identity<double>) noexcept { return "double precision"sv; }
+		inline constexpr auto type_to_name(identity<int64_t>) noexcept { return "bigint"sv; }
+		inline auto type_to_name(identity<std::string>) noexcept { return "text"sv; }
 		template<size_t N>
-		constexpr auto type_to_name(identity<std::array<char, N>>) noexcept {
+		inline constexpr auto type_to_name(identity<std::array<char, N>>) noexcept {
 			std::string s = "varchar(" + std::to_string(N)+")";
 			return s;
 		}

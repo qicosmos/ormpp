@@ -89,33 +89,33 @@ template<class T, size_t N>
 constexpr size_t size(T(&)[N]) { return N; }
 
 TEST_CASE(mysql_pool){
-	dbng<sqlite> sqlite;
-	sqlite.connect("testdb");
-	sqlite.create_datatable<test_tb>(ormpp_unique{ "name" });
-	test_tb tb{ 1, "aa" };
-	sqlite.insert(tb);
-	auto vt = sqlite.query<test_tb>();
-	auto vt1 = sqlite.query<std::tuple<test_tb>>("select * from test_tb");
-    auto& pool = connection_pool<dbng<mysql>>::instance();
-    try {
-        pool.init(1, ip, "root", "12345", "testdb", 2);
-    }catch(const std::exception& e){
-        std::cout<<e.what()<<std::endl;
-        return;
-    }
-	auto con = pool.get();
-	auto v = con->query<std::tuple<test_tb>>("select * from test_tb");
-	con->create_datatable<test_tb>(ormpp_unique{"name"});
-    for (int i = 0; i < 10; ++i) {
-        auto conn = pool.get();
-//        conn_guard guard(conn);
-        if(conn== nullptr){
-            std::cout<<"no available conneciton"<<std::endl;
-            break;
-        }
-
-        bool r = conn->create_datatable<person>();
-    }
+//	dbng<sqlite> sqlite;
+//	sqlite.connect("testdb");
+//	sqlite.create_datatable<test_tb>(ormpp_unique{ "name" });
+//	test_tb tb{ 1, "aa" };
+//	sqlite.insert(tb);
+//	auto vt = sqlite.query<test_tb>();
+//	auto vt1 = sqlite.query<std::tuple<test_tb>>("select * from test_tb");
+//    auto& pool = connection_pool<dbng<mysql>>::instance();
+//    try {
+//        pool.init(1, ip, "root", "12345", "testdb", 2);
+//    }catch(const std::exception& e){
+//        std::cout<<e.what()<<std::endl;
+//        return;
+//    }
+//	auto con = pool.get();
+//	auto v = con->query<std::tuple<test_tb>>("select * from test_tb");
+//	con->create_datatable<test_tb>(ormpp_unique{"name"});
+//    for (int i = 0; i < 10; ++i) {
+//        auto conn = pool.get();
+////        conn_guard guard(conn);
+//        if(conn== nullptr){
+//            std::cout<<"no available conneciton"<<std::endl;
+//            break;
+//        }
+//
+//        bool r = conn->create_datatable<person>();
+//    }
 }
 
 TEST_CASE(postgres_pool){
