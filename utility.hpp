@@ -249,7 +249,7 @@ namespace ormpp{
         return full_name.substr(iguana::get_name<T>().length()+2, full_name.length());
     }
 
-#define FID(field) std::pair<std::string_view, decltype(&field)>(get_field_name<decltype(&field)>(std::string_view(#field)), &field)
+#define FID(field) std::pair<std::string_view, decltype(&field)>(ormpp::get_field_name<decltype(&field)>(std::string_view(#field)), &field)
 #define ID(field) get_field_name<decltype(&field)>(std::string_view(#field)).data()
 }
 
