@@ -68,14 +68,14 @@ namespace ormpp{
         template<typename Pair, typename U>
         auto query(Pair pair, std::string_view oper, U&& val){
             auto sql = build_condition(pair, oper, std::forward<U>(val));
-            using T = typename field_attribute<decltype(pair.second)>::type;
+            using T = typename ormpp::field_attribute<decltype(pair.second)>::type;
             return query<T>(sql);
         }
 
         template<typename Pair, typename U>
         bool delete_records(Pair pair, std::string_view oper, U&& val){
             auto sql = build_condition(pair, oper, std::forward<U>(val));
-            using T = typename field_attribute<decltype(pair.second)>::type;
+            using T = typename ormpp::field_attribute<decltype(pair.second)>::type;
             return delete_records<T>(sql);
         }
 
