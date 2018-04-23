@@ -13,6 +13,7 @@
 #include "postgresql.hpp"
 #include "dbng.hpp"
 #include "connection_pool.hpp"
+#include "ormpp_cfg.hpp"
 
 #define TEST_MAIN
 #include "unit_test.hpp"
@@ -116,6 +117,26 @@ TEST_CASE(mysql_pool){
 //
 //        bool r = conn->create_datatable<person>();
 //    }
+}
+
+TEST_CASE(test_ormpp_cfg){
+    ormpp_cfg cfg{};
+    bool ret = config_manager::from_file(cfg, "./cfg/ormpp.cfg");
+    if (!ret) {
+        return ;
+    }
+
+    auto& pool = connection_pool<dbng<mysql>>::instance();
+    try {
+        pool.init(cfg.db_conn_num, cfg.db_ip.data(), cfg.user_name.data(), cfg.pwd.data(), cfg.db_name.data(), cfg.timeout);
+    }catch(const std::exception& e){
+        std::cout<<e.what()<<std::endl;
+        return;
+    }
+
+    auto conn1 = pool.get();
+    auto result1 = conn1->query<student>();
+    std::cout<<result1.size()<<std::endl;
 }
 
 TEST_CASE(postgres_pool){
