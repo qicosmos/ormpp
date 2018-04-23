@@ -10,6 +10,7 @@
 #include <vector>
 #include <functional>
 #include <chrono>
+#include "utility.hpp"
 
 namespace ormpp{
     template<typename DB>
