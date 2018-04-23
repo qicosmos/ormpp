@@ -5,6 +5,7 @@
 #define ORM_UTILITY_HPP
 #include "entity.hpp"
 #include "type_mapping.hpp"
+#include "iguana/reflection.hpp"
 
 namespace ormpp{
     template <typename ... Args>

@@ -5,7 +5,6 @@
 #define ORM_ENTITY_HPP
 #include <set>
 #include <string>
-#include <iguana/reflection.hpp>
 
 struct ormpp_not_null{
     std::set<std::string> fields;
