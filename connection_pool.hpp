@@ -58,8 +58,8 @@ namespace ormpp{
             return conn;
         }
 
-        void return_back(std::shared_ptr<DB> conn||conn->has_error()){
-			if (conn == nullptr) {
+        void return_back(std::shared_ptr<DB> conn){
+			if (conn == nullptr||conn->has_error()) {
 				conn = create_connection();
 			}
             std::unique_lock<std::mutex> lock( mutex_ );
