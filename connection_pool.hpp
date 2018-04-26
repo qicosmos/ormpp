@@ -58,7 +58,7 @@ namespace ormpp{
             return conn;
         }
 
-        void return_back(std::shared_ptr<DB> conn){
+        void return_back(std::shared_ptr<DB> conn||conn->has_error()){
 			if (conn == nullptr) {
 				conn = create_connection();
 			}
