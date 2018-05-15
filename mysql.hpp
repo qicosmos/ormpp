@@ -585,7 +585,7 @@ namespace ormpp {
 		MYSQL * con_ = nullptr;
 		MYSQL_STMT* stmt_ = nullptr;
 		bool has_error_ = false;
-		inline static std::map<std::string, std::string> auto_key_map_;
+		static std::map<std::string, std::string> auto_key_map_;
 	};
 }
 
