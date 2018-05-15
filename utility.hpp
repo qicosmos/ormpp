@@ -52,7 +52,7 @@ namespace ormpp{
     }
 
     template<typename... Args>
-    auto sort_tuple(const std::tuple<Args...>& tp){
+    inline auto sort_tuple(const std::tuple<Args...>& tp){
         if constexpr(sizeof...(Args)==2){
             auto [a, b] = tp;
             if constexpr(!std::is_same_v<decltype(a), ormpp_key>&&!std::is_same_v<decltype(a), ormpp_auto_key>)
@@ -147,7 +147,7 @@ namespace ormpp{
     }
 
 //    template <typename T>
-    bool is_empty(const std::string& t){
+    inline bool is_empty(const std::string& t){
         return t.empty();
     }
 
