@@ -29,7 +29,7 @@ namespace ormpp{
 #define REGISTER_TYPE(Type, Index)                                              \
     inline constexpr int type_to_id(identity<Type>) noexcept { return Index; } \
     inline constexpr auto id_to_type( std::integral_constant<std::size_t, Index > ) noexcept { Type res{}; return res; }
-
+#ifdef ORMPP_ENABLE_MYSQL
     namespace ormpp_mysql{
         REGISTER_TYPE( char    , MYSQL_TYPE_TINY     )
         REGISTER_TYPE( short   , MYSQL_TYPE_SHORT    )
@@ -54,7 +54,8 @@ namespace ormpp{
 			return s;
 		}
     }
-
+	#endif
+#ifdef ORMPP_ENABLE_SQLITE3
     namespace ormpp_sqlite{
         REGISTER_TYPE( int     , SQLITE_INTEGER     )
         REGISTER_TYPE( double  , SQLITE_FLOAT   )
@@ -75,7 +76,8 @@ namespace ormpp{
 			return s;
 		}
     }
-
+#endif
+	#ifdef ORMPP_ENABLE_PG
     namespace ormpp_postgresql{
         REGISTER_TYPE( bool    , BOOLOID     )
         REGISTER_TYPE( char    , CHAROID     )
@@ -101,6 +103,7 @@ namespace ormpp{
 			return s;
 		}
     }
+	#endif
 }
 
 #endif //EXAMPLE1_TYPE_MAPPING_HPP
