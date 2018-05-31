@@ -5,7 +5,7 @@
 #define ORM_UTILITY_HPP
 #include "entity.hpp"
 #include "type_mapping.hpp"
-#include "../iguana/iguana/reflection.hpp"
+#include "iguana/reflection.hpp"
 
 namespace ormpp{
     template <typename ... Args>
@@ -80,12 +80,18 @@ namespace ormpp{
             using U = std::remove_reference_t<decltype(iguana::get<Idx>(std::declval<T>()))>;
             std::string s;
             switch (type){
+#ifdef ORMPP_ENABLE_MYSQL
                 case DBType::mysql : s = ormpp_mysql::type_to_name(identity<U>{});
                     break;
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
 				case DBType::sqlite : s = ormpp_sqlite::type_to_name(identity<U>{});
                     break;
+#endif
+#ifdef ORMPP_ENABLE_PG
                 case DBType::postgresql : s = ormpp_postgresql::type_to_name(identity<U>{});
                     break;
+#endif
             }
 
             arr[Idx] = s;
