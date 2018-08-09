@@ -41,7 +41,7 @@ namespace ormpp {
 
 			char value = 1;
 			mysql_options(con_, MYSQL_OPT_RECONNECT, &value);
-			mysql_options(con_, MYSQL_SET_CHARSET_NAME, MYSQL_AUTODETECT_CHARSET_NAME);
+			mysql_options(con_, MYSQL_SET_CHARSET_NAME, "utf8");
 
 			if (std::apply(&mysql_real_connect, tp) == nullptr)
 				return false;
