@@ -28,25 +28,35 @@ namespace ormpp {
 			}
 
 			con_ = mysql_init(nullptr);
-			if (con_ == nullptr)
+			if (con_ == nullptr) {
+				last_error_ = "mysql init failed";
 				return false;
+			}				
 
 			int timeout = -1;
 			auto tp = std::tuple_cat(get_tp(timeout, std::forward<Args>(args)...), std::make_tuple(0, nullptr, 0));
 
 			if (timeout > 0) {
-				if (mysql_options(con_, MYSQL_OPT_CONNECT_TIMEOUT, &timeout) != 0)
+				if (mysql_options(con_, MYSQL_OPT_CONNECT_TIMEOUT, &timeout) != 0) {
+					last_error_ = mysql_error(con_);
 					return false;
+				}					
 			}
 
 			char value = 1;
 			mysql_options(con_, MYSQL_OPT_RECONNECT, &value);
 			mysql_options(con_, MYSQL_SET_CHARSET_NAME, "utf8");
 
-			if (std::apply(&mysql_real_connect, tp) == nullptr)
+			if (std::apply(&mysql_real_connect, tp) == nullptr) {
+				last_error_ = mysql_error(con_);
 				return false;
+			}		
 
 			return true;
+		}
+
+		std::string get_last_error() const {
+			return last_error_;
 		}
 
 		bool ping() {
@@ -586,6 +596,7 @@ namespace ormpp {
 		MYSQL * con_ = nullptr;
 		MYSQL_STMT* stmt_ = nullptr;
 		bool has_error_ = false;
+		std::string last_error_;
 		inline static std::map<std::string, std::string> auto_key_map_;
 	};
 }
