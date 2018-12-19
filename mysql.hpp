@@ -29,7 +29,7 @@ namespace ormpp {
 
 			con_ = mysql_init(nullptr);
 			if (con_ == nullptr) {
-				last_error_ = "mysql init failed";
+				set_last_error("mysql init failed");
 				return false;
 			}				
 
@@ -38,7 +38,7 @@ namespace ormpp {
 
 			if (timeout > 0) {
 				if (mysql_options(con_, MYSQL_OPT_CONNECT_TIMEOUT, &timeout) != 0) {
-					last_error_ = mysql_error(con_);
+					set_last_error(mysql_error(con_));
 					return false;
 				}					
 			}
@@ -48,11 +48,16 @@ namespace ormpp {
 			mysql_options(con_, MYSQL_SET_CHARSET_NAME, "utf8");
 
 			if (std::apply(&mysql_real_connect, tp) == nullptr) {
-				last_error_ = mysql_error(con_);
+				set_last_error(mysql_error(con_));
 				return false;
-			}		
+			}
 
 			return true;
+		}
+
+		void set_last_error(std::string last_error) {
+			last_error_ = std::move(last_error);
+			std::cout << last_error_ << std::endl;//todo, write to log file
 		}
 
 		std::string get_last_error() const {
