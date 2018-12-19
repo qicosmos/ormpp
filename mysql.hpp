@@ -245,7 +245,7 @@ namespace ormpp {
 						memcpy(item, &(*it)[0], sizeof(U));
 					}
 					else if constexpr(iguana::is_reflection_v<U>) {
-						iguana::for_each(item, [&mp, &it, &item](auto ele, auto i) {
+						iguana::for_each(item, [&it, &item](auto ele, auto i) {
 							using V = std::remove_reference_t<decltype(std::declval<U>().*ele)>;
 							if constexpr(std::is_same_v<std::string, V>) {
 								item.*ele = std::string(&(*it)[0], strlen((*it).data()));
