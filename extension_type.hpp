@@ -129,11 +129,7 @@ namespace ormpp {
 		}
 		my_bool* is_sql_null() const
 		{
-			if (is_null_) {
-				null_ = std::make_shared<char>(1);
-				return &(*null_);
-			}
-			return nullptr;
+			return (my_bool*)(&is_null_);
 		}
 
 		std::string to_string()
@@ -149,7 +145,6 @@ namespace ormpp {
 		std::string buff_;
 		mutable MYSQL_TIME sql_time;
 		bool is_null_;
-		mutable std::shared_ptr<char> null_;
 	};
 
 
@@ -233,11 +228,7 @@ namespace ormpp {
 		}
 		my_bool* is_sql_null() const
 		{
-			if (is_null_) {
-				null_ = std::make_shared<char>(1);
-				return &(*null_);
-			}
-			return nullptr;
+			return (my_bool*)(&is_null_);
 		}
 		std::string to_string()
 		{
@@ -252,7 +243,6 @@ namespace ormpp {
 		std::string buff_;
 		mutable MYSQL_TIME sql_time;
 		bool is_null_;
-		mutable std::shared_ptr<char> null_;
 	};
 
 
@@ -339,11 +329,7 @@ namespace ormpp {
 		}
 		my_bool* is_sql_null() const
 		{
-			if (is_null_) {
-				null_ = std::make_shared<char>(1);
-				return &(*null_);
-			}
-			return nullptr;
+			return (my_bool*)(&is_null_);
 		}
 
 		std::string to_string()
@@ -359,7 +345,6 @@ namespace ormpp {
 		std::string buff_;
 		mutable MYSQL_TIME sql_time;
 		bool is_null_;
-		mutable std::shared_ptr<char> null_;
 	};
 
 	class Integer
@@ -430,11 +415,7 @@ namespace ormpp {
 
 		my_bool* is_sql_null() const
 		{
-			if (is_null_) {
-				null_ = std::make_shared<char>(1);
-				return &(*null_);
-			}
-			return nullptr;
+			return (my_bool*)(&is_null_);
 		}
 		std::string to_string()
 		{
@@ -446,7 +427,6 @@ namespace ormpp {
 			}
 		}
 	private:
-		mutable std::shared_ptr<char> null_;
 		bool is_null_;
 		int value_; 
 	};
@@ -531,11 +511,7 @@ namespace ormpp {
 
 		my_bool* is_sql_null() const
 		{
-			if (is_null_) {
-				null_ = std::make_shared<char>(1);
-				return &(*null_);
-			}
-			return nullptr;
+			return (my_bool*)(&is_null_);
 		}
 
 		std::string to_string()
@@ -548,7 +524,6 @@ namespace ormpp {
 			}
 		}
 	private:
-		mutable std::shared_ptr<char> null_;
 		bool is_null_;
 		char value_;
 	};
@@ -633,11 +608,7 @@ namespace ormpp {
 
 		my_bool* is_sql_null() const
 		{
-			if (is_null_) {
-				null_ = std::make_shared<char>(1);
-				return &(*null_);
-			}
-			return nullptr;
+			return (my_bool*)(&is_null_);
 		}
 
 		std::string to_string()
@@ -650,7 +621,6 @@ namespace ormpp {
 			}
 		}
 	private:
-		mutable std::shared_ptr<char> null_;
 		bool is_null_;
 		short value_;
 	};
@@ -723,11 +693,7 @@ namespace ormpp {
 
 		my_bool* is_sql_null() const
 		{
-			if (is_null_) {
-				null_ = std::make_shared<char>(1);
-				return &(*null_);
-			}
-			return nullptr;
+			return (my_bool*)(&is_null_);
 		}
 
 		std::string to_string()
@@ -740,7 +706,6 @@ namespace ormpp {
 			}
 		}
 	private:
-		mutable std::shared_ptr<char> null_;
 		bool is_null_;
 		std::int64_t value_;
 	};
@@ -814,11 +779,7 @@ namespace ormpp {
 
 		my_bool* is_sql_null() const
 		{
-			if (is_null_) {
-				null_ = std::make_shared<char>(1);
-				return &(*null_);
-			}
-			return nullptr;
+			return (my_bool*)(&is_null_);
 		}
 
 		std::string to_string()
@@ -831,7 +792,6 @@ namespace ormpp {
 			}
 		}
 	private:
-		mutable std::shared_ptr<char> null_;
 		bool is_null_;
 		float value_;
 	};
@@ -904,11 +864,7 @@ namespace ormpp {
 
 		my_bool* is_sql_null() const
 		{
-			if (is_null_) {
-				null_ = std::make_shared<char>(1);
-				return &(*null_);
-			}
-			return nullptr;
+			return (my_bool*)(&is_null_);
 		}
 
 		std::string to_string()
@@ -921,7 +877,6 @@ namespace ormpp {
 			}
 		}
 	private:
-		mutable std::shared_ptr<char> null_;
 		bool is_null_;
 		double value_;
 	};
