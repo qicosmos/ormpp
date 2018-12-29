@@ -28,24 +28,40 @@ namespace ormpp {
 			}
 
 			con_ = mysql_init(nullptr);
-			if (con_ == nullptr)
+			if (con_ == nullptr) {
+				set_last_error("mysql init failed");
 				return false;
+			}				
 
 			int timeout = -1;
 			auto tp = std::tuple_cat(get_tp(timeout, std::forward<Args>(args)...), std::make_tuple(0, nullptr, 0));
 
 			if (timeout > 0) {
-				if (mysql_options(con_, MYSQL_OPT_CONNECT_TIMEOUT, &timeout) != 0)
+				if (mysql_options(con_, MYSQL_OPT_CONNECT_TIMEOUT, &timeout) != 0) {
+					set_last_error(mysql_error(con_));
 					return false;
+				}					
 			}
 
 			char value = 1;
 			mysql_options(con_, MYSQL_OPT_RECONNECT, &value);
+			mysql_options(con_, MYSQL_SET_CHARSET_NAME, "utf8");
 
-			if (std::apply(&mysql_real_connect, tp) == nullptr)
+			if (std::apply(&mysql_real_connect, tp) == nullptr) {
+				set_last_error(mysql_error(con_));
 				return false;
+			}
 
 			return true;
+		}
+
+		void set_last_error(std::string last_error) {
+			last_error_ = std::move(last_error);
+			std::cout << last_error_ << std::endl;//todo, write to log file
+		}
+
+		std::string get_last_error() const {
+			return last_error_;
 		}
 
 		bool ping() {
@@ -234,7 +250,7 @@ namespace ormpp {
 						memcpy(item, &(*it)[0], sizeof(U));
 					}
 					else if constexpr(iguana::is_reflection_v<U>) {
-						iguana::for_each(item, [&mp, &it, &item](auto ele, auto i) {
+						iguana::for_each(item, [&it, &item](auto ele, auto i) {
 							using V = std::remove_reference_t<decltype(std::declval<U>().*ele)>;
 							if constexpr(std::is_same_v<std::string, V>) {
 								item.*ele = std::string(&(*it)[0], strlen((*it).data()));
@@ -585,6 +601,7 @@ namespace ormpp {
 		MYSQL * con_ = nullptr;
 		MYSQL_STMT* stmt_ = nullptr;
 		bool has_error_ = false;
+		std::string last_error_;
 		inline static std::map<std::string, std::string> auto_key_map_;
 	};
 }

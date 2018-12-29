@@ -186,7 +186,7 @@ connect exmple:
 
 	postgres.connect("127.0.0.1", "root", "12345", "testdb")
 
-	sqlite.connect("127.0.0.1", "root", "12345", "testdb")
+	sqlite.connect("dbfile")
 
 return value：bool，success return true, failure return false.
 

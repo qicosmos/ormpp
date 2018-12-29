@@ -188,32 +188,29 @@ namespace ormpp{
         return false;
     }
 
+	void get_sql_conditions(std::string& sql) {
+	}
+
+	template<typename... Args>
+	void get_sql_conditions(std::string& sql, const std::string& arg, Args&&... args) {
+		if (arg.find("select") != std::string::npos) {
+			sql = arg;
+		}
+		else {
+			append(sql, arg, std::forward<Args>(args)...);
+		}
+	}
+
     template<typename T, typename... Args>
     inline std::string generate_query_sql(Args&&... args){
-        static_assert(sizeof...(Args)==0||sizeof...(Args)>0);
+		constexpr size_t param_size = sizeof...(Args);
+        static_assert(param_size ==0|| param_size>0);
         std::string sql = "select * from ";
-        constexpr auto SIZE = iguana::get_value<T>();
         constexpr auto name = iguana::get_name<T>();
         append(sql, name.data());
 
-		auto tp = std::make_tuple(std::forward<Args>(args)...);
-        if constexpr (sizeof...(Args)>0){
-            int i = 0;
-            for_each0(tp, [&i, &sql](const std::string& item){ //std::make_tuple(std::forward<Args>(args)...); can't compile in if constexpr in vs2017,why?
-				if (i == 0 && has_key<T>(item)) {
-					if (item.find("select") != std::string::npos) {
-						sql = item;
-					}else
-						append(sql, " where ", item);
-				}
-                else
-                    append(sql, " ", item);
-
-                i++;
-            }, std::make_index_sequence<sizeof...(Args)>{});
-        }
-
-        return sql;
+		get_sql_conditions(sql, std::forward<Args>(args)...);
+		return sql;
     }
 
     template<typename T>
@@ -256,7 +253,7 @@ namespace ormpp{
     }
 
 #define FID(field) std::pair<std::string_view, decltype(&field)>(ormpp::get_field_name<decltype(&field)>(std::string_view(#field)), &field)
-#define ID(field) get_field_name<decltype(&field)>(std::string_view(#field)).data()
+#define SID(field) get_field_name<decltype(&field)>(std::string_view(#field)).data()
 }
 
 #endif //ORM_UTILITY_HPP
