@@ -12,7 +12,7 @@
 #include "entity.hpp"
 #include "type_mapping.hpp"
 #include "utility.hpp"
-
+#include "extension_type.hpp"
 namespace ormpp {
 
 	class mysql {
@@ -290,6 +290,7 @@ namespace ormpp {
 
 			std::array<MYSQL_BIND, SIZE> param_binds = {};
 			std::map<size_t, std::vector<char>> mp;
+			std::map<size_t, MYSQL_TIME> mp_date;
 
 			std::vector<T> v;
 			T t{};
@@ -314,6 +315,60 @@ namespace ormpp {
 					param_binds[Idx].buffer = &(mp.rbegin()->second[0]);
 					param_binds[Idx].buffer_length = (unsigned long)sizeof(U);
 				}
+				else if constexpr (std::is_same_v<DateTime, U>) {
+					param_binds[Idx].buffer_type = MYSQL_TYPE_DATETIME;
+					MYSQL_TIME tmp;
+					mp_date.emplace(decltype(i)::value, tmp);
+					param_binds[Idx].buffer = &(mp_date.rbegin()->second);
+					param_binds[Idx].buffer_length = 0;
+					param_binds[Idx].is_null = (t.*item).sql_set_null();
+				}
+				else if constexpr (std::is_same_v<SQLDate, U>) {
+					param_binds[Idx].buffer_type = MYSQL_TYPE_DATE;
+					MYSQL_TIME tmp;
+					mp_date.emplace(decltype(i)::value, tmp);
+					param_binds[Idx].buffer = &(mp_date.rbegin()->second);
+					param_binds[Idx].buffer_length = 0;
+					param_binds[Idx].is_null = (t.*item).sql_set_null();
+				}
+				else if constexpr (std::is_same_v<SQLTime, U>) {
+					param_binds[Idx].buffer_type = MYSQL_TYPE_TIME;
+					MYSQL_TIME tmp;
+					mp_date.emplace(decltype(i)::value, tmp);
+					param_binds[Idx].buffer = &(mp_date.rbegin()->second);
+					param_binds[Idx].buffer_length = 0;
+					param_binds[Idx].is_null = (t.*item).sql_set_null();
+				}
+				else if constexpr (std::is_same_v<Integer, U>) {
+					param_binds[Idx].buffer_type = MYSQL_TYPE_LONG;
+					param_binds[Idx].buffer = &((t.*item).get_value());
+					param_binds[Idx].is_null = (t.*item).sql_set_null();
+				}
+				else if constexpr (std::is_same_v<TinyInt, U>) {
+					param_binds[Idx].buffer_type = MYSQL_TYPE_TINY;
+					param_binds[Idx].buffer = &((t.*item).get_value());
+					param_binds[Idx].is_null = (t.*item).sql_set_null();
+				}
+				else if constexpr (std::is_same_v<SmallInt, U>) {
+					param_binds[Idx].buffer_type = MYSQL_TYPE_SHORT;
+					param_binds[Idx].buffer = &((t.*item).get_value());
+					param_binds[Idx].is_null = (t.*item).sql_set_null();
+				}
+				else if constexpr (std::is_same_v<BigInt, U>) {
+					param_binds[Idx].buffer_type = MYSQL_TYPE_LONGLONG;
+					param_binds[Idx].buffer = &((t.*item).get_value());
+					param_binds[Idx].is_null = (t.*item).sql_set_null();
+				}
+				else if constexpr (std::is_same_v<Float, U>) {
+					param_binds[Idx].buffer_type = MYSQL_TYPE_FLOAT;
+					param_binds[Idx].buffer = &((t.*item).get_value());
+					param_binds[Idx].is_null = (t.*item).sql_set_null();
+				}
+				else if constexpr (std::is_same_v<Double, U>) {
+					param_binds[Idx].buffer_type = MYSQL_TYPE_DOUBLE;
+					param_binds[Idx].buffer = &((t.*item).get_value());
+					param_binds[Idx].is_null = (t.*item).sql_set_null();
+				}
 			});
 
 			if (mysql_stmt_bind_result(stmt_, &param_binds[0])) {
@@ -331,7 +386,7 @@ namespace ormpp {
 			while (mysql_stmt_fetch(stmt_) == 0) {
 				using TP = decltype(iguana::get(std::declval<T>()));
 
-				iguana::for_each(t, [&mp, &t](auto item, auto i) {
+				iguana::for_each(t, [&mp,&mp_date, &t](auto item, auto i) {
 					using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
 					if constexpr(std::is_same_v<std::string, U>) {
 						auto& vec = mp[decltype(i)::value];
@@ -340,6 +395,39 @@ namespace ormpp {
 					else if constexpr(is_char_array_v<U>) {
 						auto& vec = mp[decltype(i)::value];
 						memcpy(t.*item, vec.data(), vec.size());
+					}
+					else if constexpr (std::is_same_v<DateTime, U>) {
+						if ((t.*item).is_null() == false) {
+							auto& time = mp_date[decltype(i)::value];
+							std::stringstream ss;
+							ss << time.year << "-" << time.month << "-" << time.day << " " << time.hour << ":" << time.minute << ":" << time.second;
+							(t.*item) = ss.str();
+						}
+						else {
+							(t.*item) = "";
+						}
+					}
+					else if constexpr (std::is_same_v<SQLDate, U>) {
+						if ((t.*item).is_null() == false) {
+							auto& time = mp_date[decltype(i)::value];
+							std::stringstream ss;
+							ss << time.year << "-" << time.month << "-" << time.day;
+							(t.*item) = ss.str();
+						}
+						else {
+							(t.*item) = "";
+						}
+					}
+					else if constexpr (std::is_same_v<SQLTime, U>) {
+						if ((t.*item).is_null() == false) {
+							auto& time = mp_date[decltype(i)::value];
+							std::stringstream ss;
+							ss <<  time.hour << ":" << time.minute << ":" << time.second;
+							(t.*item) = ss.str();
+						}
+						else {
+							(t.*item) = "";
+						}
 					}
 				});
 
@@ -476,19 +564,67 @@ namespace ormpp {
 			MYSQL_BIND param = {};
 
 			using U = std::remove_const_t<std::remove_reference_t<T>>;
-			if constexpr(std::is_arithmetic_v<U>) {
+			if constexpr (std::is_arithmetic_v<U>) {
 				param.buffer_type = (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
 				param.buffer = const_cast<void*>(static_cast<const void*>(&value));
 			}
-			else if constexpr(std::is_same_v<std::string, U>) {
+			else if constexpr (std::is_same_v<std::string, U>) {
 				param.buffer_type = MYSQL_TYPE_STRING;
 				param.buffer = (void*)(value.c_str());
 				param.buffer_length = (unsigned long)value.size();
 			}
-			else if constexpr(std::is_same_v<const char*, U> || is_char_array_v<U>) {
+			else if constexpr (std::is_same_v<const char*, U> || is_char_array_v<U>) {
 				param.buffer_type = MYSQL_TYPE_STRING;
 				param.buffer = (void*)(value);
 				param.buffer_length = (unsigned long)strlen(value);
+			}
+			else if constexpr (std::is_same_v<Integer, U>) {
+				param.buffer_type = MYSQL_TYPE_LONG;
+				param.buffer = value.to_buffer();
+				param.is_null = value.is_sql_null();
+			}
+			else if constexpr (std::is_same_v<TinyInt, U>) {
+				param.buffer_type = MYSQL_TYPE_TINY;
+				param.buffer = value.to_buffer();
+				param.is_null = value.is_sql_null();
+			}
+			else if constexpr (std::is_same_v<SmallInt, U>) {
+				param.buffer_type = MYSQL_TYPE_SHORT;
+				param.buffer = value.to_buffer();
+				param.is_null = value.is_sql_null();
+			}
+			else if constexpr (std::is_same_v<BigInt, U>) {
+				param.buffer_type = MYSQL_TYPE_LONGLONG;
+				param.buffer = value.to_buffer();
+				param.is_null = value.is_sql_null();
+			}
+			else if constexpr (std::is_same_v<Float, U>) {
+				param.buffer_type = MYSQL_TYPE_FLOAT;
+				param.buffer = value.to_buffer();
+				param.is_null = value.is_sql_null();
+			}
+			else if constexpr (std::is_same_v<Double, U>) {
+				param.buffer_type = MYSQL_TYPE_DOUBLE;
+				param.buffer = value.to_buffer();
+				param.is_null = value.is_sql_null();
+			}
+			else if constexpr (std::is_same_v<DateTime, U>) {
+				param.buffer_type = MYSQL_TYPE_DATETIME;
+				param.buffer = value.to_buffer();
+				param.buffer_length = 0;
+				param.is_null = value.is_sql_null();
+			}
+			else if constexpr (std::is_same_v<SQLDate, U>) {
+				param.buffer_type = MYSQL_TYPE_DATE;
+				param.buffer = value.to_buffer();
+				param.buffer_length = 0;
+				param.is_null = value.is_sql_null();
+			}
+			else if constexpr (std::is_same_v<SQLTime, U>) {
+				param.buffer_type = MYSQL_TYPE_TIME;
+				param.buffer = value.to_buffer();
+				param.buffer_length = 0;
+				param.is_null = value.is_sql_null();
 			}
 			param_binds.push_back(param);
 		}
