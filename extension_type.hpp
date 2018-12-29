@@ -135,6 +135,16 @@ namespace ormpp {
 			}
 			return nullptr;
 		}
+
+		std::string to_string()
+		{
+			if (is_null_) {
+				return "null";
+			}
+			else {
+				return buff_;
+			}
+		}
 	private:
 		std::string buff_;
 		mutable MYSQL_TIME sql_time;
@@ -228,6 +238,15 @@ namespace ormpp {
 				return &(*null_);
 			}
 			return nullptr;
+		}
+		std::string to_string()
+		{
+			if (is_null_) {
+				return "null";
+			}
+			else {
+				return buff_;
+			}
 		}
 	private:
 		std::string buff_;
@@ -326,6 +345,16 @@ namespace ormpp {
 			}
 			return nullptr;
 		}
+
+		std::string to_string()
+		{
+			if (is_null_) {
+				return "null";
+			}
+			else {
+				return buff_;
+			}
+		}
 	private:
 		std::string buff_;
 		mutable MYSQL_TIME sql_time;
@@ -406,6 +435,15 @@ namespace ormpp {
 				return &(*null_);
 			}
 			return nullptr;
+		}
+		std::string to_string()
+		{
+			if (is_null_) {
+				return "null";
+			}
+			else {
+				return std::to_string(value_);
+			}
 		}
 	private:
 		mutable std::shared_ptr<char> null_;
@@ -499,6 +537,16 @@ namespace ormpp {
 			}
 			return nullptr;
 		}
+
+		std::string to_string()
+		{
+			if (is_null_) {
+				return "null";
+			}
+			else {
+				return std::to_string(value_);
+			}
+		}
 	private:
 		mutable std::shared_ptr<char> null_;
 		bool is_null_;
@@ -591,6 +639,16 @@ namespace ormpp {
 			}
 			return nullptr;
 		}
+
+		std::string to_string()
+		{
+			if (is_null_) {
+				return "null";
+			}
+			else {
+				return std::to_string(value_);
+			}
+		}
 	private:
 		mutable std::shared_ptr<char> null_;
 		bool is_null_;
@@ -670,6 +728,16 @@ namespace ormpp {
 				return &(*null_);
 			}
 			return nullptr;
+		}
+
+		std::string to_string()
+		{
+			if (is_null_) {
+				return "null";
+			}
+			else {
+				return std::to_string(value_);
+			}
 		}
 	private:
 		mutable std::shared_ptr<char> null_;
@@ -752,6 +820,16 @@ namespace ormpp {
 			}
 			return nullptr;
 		}
+
+		std::string to_string()
+		{
+			if (is_null_) {
+				return "null";
+			}
+			else {
+				return std::to_string(value_);
+			}
+		}
 	private:
 		mutable std::shared_ptr<char> null_;
 		bool is_null_;
@@ -831,6 +909,16 @@ namespace ormpp {
 				return &(*null_);
 			}
 			return nullptr;
+		}
+
+		std::string to_string()
+		{
+			if (is_null_) {
+				return "null";
+			}
+			else {
+				return std::to_string(value_);
+			}
 		}
 	private:
 		mutable std::shared_ptr<char> null_;

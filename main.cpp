@@ -34,7 +34,7 @@ int main()
 	////info.time.format_from_timestamp(std::time(nullptr));
 	//connect.insert(info);
 	auto vec = connect.query<type_tb>("select * from type_tb where id=44");
-	std::cout << vec.size() << std::endl;
+	//std::cout << vec.size() << std::endl;
 	auto info = vec[0];
 	std::cout << info.number.get_value() << std::endl;
 	std::cout << info.time.get_value() << std::endl;
