@@ -290,7 +290,7 @@ namespace ormpp {
 
 			std::array<MYSQL_BIND, SIZE> param_binds = {};
 			std::map<size_t, std::vector<char>> mp;
-			std::map<size_t, MYSQL_TIME> mp_date;
+			//std::map<size_t, MYSQL_TIME> mp_date;
 
 			std::vector<T> v;
 			T t{};
@@ -317,25 +317,25 @@ namespace ormpp {
 				}
 				else if constexpr (std::is_same_v<DateTime, U>) {
 					param_binds[Idx].buffer_type = MYSQL_TYPE_DATETIME;
-					MYSQL_TIME tmp;
-					mp_date.emplace(decltype(i)::value, tmp);
-					param_binds[Idx].buffer = &(mp_date.rbegin()->second);
+					std::vector<char> tmp(sizeof(MYSQL_TIME), 0);
+					mp.emplace(decltype(i)::value, tmp);
+					param_binds[Idx].buffer = &(mp.rbegin()->second[0]);
 					param_binds[Idx].buffer_length = 0;
 					param_binds[Idx].is_null = (t.*item).sql_set_null();
 				}
 				else if constexpr (std::is_same_v<SQLDate, U>) {
 					param_binds[Idx].buffer_type = MYSQL_TYPE_DATE;
-					MYSQL_TIME tmp;
-					mp_date.emplace(decltype(i)::value, tmp);
-					param_binds[Idx].buffer = &(mp_date.rbegin()->second);
+					std::vector<char> tmp(sizeof(MYSQL_TIME), 0);
+					mp.emplace(decltype(i)::value, tmp);
+					param_binds[Idx].buffer = &(mp.rbegin()->second[0]);
 					param_binds[Idx].buffer_length = 0;
 					param_binds[Idx].is_null = (t.*item).sql_set_null();
 				}
 				else if constexpr (std::is_same_v<SQLTime, U>) {
 					param_binds[Idx].buffer_type = MYSQL_TYPE_TIME;
-					MYSQL_TIME tmp;
-					mp_date.emplace(decltype(i)::value, tmp);
-					param_binds[Idx].buffer = &(mp_date.rbegin()->second);
+					std::vector<char> tmp(sizeof(MYSQL_TIME), 0);
+					mp.emplace(decltype(i)::value, tmp);
+					param_binds[Idx].buffer = &(mp.rbegin()->second[0]);
 					param_binds[Idx].buffer_length = 0;
 					param_binds[Idx].is_null = (t.*item).sql_set_null();
 				}
@@ -386,7 +386,7 @@ namespace ormpp {
 			while (mysql_stmt_fetch(stmt_) == 0) {
 				using TP = decltype(iguana::get(std::declval<T>()));
 
-				iguana::for_each(t, [&mp,&mp_date, &t](auto item, auto i) {
+				iguana::for_each(t, [&mp, &t](auto item, auto i) {
 					using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
 					if constexpr(std::is_same_v<std::string, U>) {
 						auto& vec = mp[decltype(i)::value];
@@ -398,9 +398,9 @@ namespace ormpp {
 					}
 					else if constexpr (std::is_same_v<DateTime, U>) {
 						if ((t.*item).is_null() == false) {
-							auto& time = mp_date[decltype(i)::value];
+							auto time = (MYSQL_TIME*)(mp[decltype(i)::value].data());
 							std::stringstream ss;
-							ss << time.year << "-" << time.month << "-" << time.day << " " << time.hour << ":" << time.minute << ":" << time.second;
+							ss << time->year << "-" << time->month << "-" << time->day << " " << time->hour << ":" << time->minute << ":" << time->second;
 							(t.*item) = ss.str();
 						}
 						else {
@@ -409,9 +409,9 @@ namespace ormpp {
 					}
 					else if constexpr (std::is_same_v<SQLDate, U>) {
 						if ((t.*item).is_null() == false) {
-							auto& time = mp_date[decltype(i)::value];
+							auto time = (MYSQL_TIME*)(mp[decltype(i)::value].data());
 							std::stringstream ss;
-							ss << time.year << "-" << time.month << "-" << time.day;
+							ss << time->year << "-" << time->month << "-" << time->day;
 							(t.*item) = ss.str();
 						}
 						else {
@@ -420,9 +420,9 @@ namespace ormpp {
 					}
 					else if constexpr (std::is_same_v<SQLTime, U>) {
 						if ((t.*item).is_null() == false) {
-							auto& time = mp_date[decltype(i)::value];
+							auto time = (MYSQL_TIME*)(mp[decltype(i)::value].data());
 							std::stringstream ss;
-							ss <<  time.hour << ":" << time.minute << ":" << time.second;
+							ss <<  time->hour << ":" << time->minute << ":" << time->second;
 							(t.*item) = ss.str();
 						}
 						else {

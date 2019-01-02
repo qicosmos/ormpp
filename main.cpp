@@ -20,28 +20,31 @@ int main()
 {
 	dbng<mysql> connect;
 	connect.connect("127.0.0.1", "root", "root", "mysql_test");
-	type_tb info;
-	info.id = 0;
-	info.content = "abc";
-	//info.number = 10;
-	info.tiny = 10;
-	info.smit = 32767;
-	info.ff = 20.123;
-	info.dd = 1024.123456789;
-	info.date = std::time(nullptr);
-	info.ttime = std::time(nullptr);
+	//type_tb info;
+	//info.id = 0;
+	//info.content = "abc";
+	////info.number = 10;
+	//info.tiny = 10;
+	//info.smit = 32767;
+	//info.ff = 20.123;
+	//info.dd = 1024.123456789;
+	//info.date = std::time(nullptr);
+	//info.ttime = std::time(nullptr);
 
-	info.number = 1024;
-	info.number.set_null();
-	//info.big = 0;
-	//info.time.format_from_timestamp(std::time(nullptr));
-	connect.insert(info);
+	//info.number = 1024;
+	//info.number.set_null();
 
-	//auto vec = connect.query<type_tb>("select * from type_tb where id=44");
-	////std::cout << vec.size() << std::endl;
-	//auto info = vec[0];
-	//std::cout << info.number.get_value() << std::endl;
-	//std::cout << info.time.get_value() << std::endl;
+	//info.time = "2019-01-01 12:02:03";
+
+	//connect.insert(info);
+
+
+	//cc = '2';
+	auto vec = connect.query<type_tb>("select * from type_tb where id=44");
+	//std::cout << vec.size() << std::endl;
+	auto info = vec[0];
+	std::cout << info.number.get_value() << std::endl;
+	std::cout << info.time.get_value() << std::endl;
 	std::cin.get();
 	return 0;
 }
