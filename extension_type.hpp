@@ -17,6 +17,7 @@
 namespace ormpp {
 	class DateTime
 	{
+		friend std::ostream& operator << (std::ostream& os, DateTime const& v);
 	public:
 		DateTime() :buff_(), is_null_(true)
 		{
@@ -147,9 +148,16 @@ namespace ormpp {
 		bool is_null_;
 	};
 
+	inline std::ostream& operator << (std::ostream& os, DateTime const& v) 
+	{
+		os << v.buff_;
+		return os;
+	}
+
 
 	class SQLDate
 	{
+		friend std::ostream& operator << (std::ostream& os, SQLDate const& v);
 	public:
 		SQLDate() :buff_(), is_null_(true)
 		{
@@ -245,9 +253,16 @@ namespace ormpp {
 		bool is_null_;
 	};
 
+	inline std::ostream& operator << (std::ostream& os, SQLDate const& v)
+	{
+		os << v.buff_;
+		return os;
+	}
+
 
 	class SQLTime
 	{
+		friend std::ostream& operator << (std::ostream& os, SQLTime const& v);
 	public:
 		SQLTime() :buff_(), is_null_(true)
 		{
@@ -347,8 +362,15 @@ namespace ormpp {
 		bool is_null_;
 	};
 
+	inline std::ostream& operator << (std::ostream& os, SQLTime const& v)
+	{
+		os << v.buff_;
+		return os;
+	}
+
 	class Integer
 	{
+		friend std::ostream& operator << (std::ostream& os, Integer const& v);
 	public:
 		Integer(): is_null_(true), value_(0)
 		{
@@ -431,8 +453,15 @@ namespace ormpp {
 		int value_; 
 	};
 
+	inline  std::ostream& operator << (std::ostream& os, Integer const& v)
+	{
+		os << v.value_;
+		return os;
+	}
+
 	class TinyInt
 	{
+		friend std::ostream& operator << (std::ostream& os, TinyInt const& v);
 	public:
 		TinyInt() : is_null_(true), value_(0)
 		{
@@ -528,8 +557,15 @@ namespace ormpp {
 		char value_;
 	};
 
+	inline std::ostream& operator << (std::ostream& os, TinyInt const& v)
+	{
+		os << int(v.value_);
+		return os;
+	}
+
 	class SmallInt
 	{
+		friend std::ostream& operator << (std::ostream& os, SmallInt const& v);
 	public:
 		SmallInt() : is_null_(true), value_(0)
 		{
@@ -625,8 +661,15 @@ namespace ormpp {
 		short value_;
 	};
 
+	inline std::ostream& operator << (std::ostream& os, SmallInt const& v)
+	{
+		os << v.value_;
+		return os;
+	}
+
 	class BigInt
 	{
+		friend std::ostream& operator << (std::ostream& os, BigInt const& v);
 	public:
 		BigInt() : is_null_(true), value_(0)
 		{
@@ -710,9 +753,15 @@ namespace ormpp {
 		std::int64_t value_;
 	};
 
+	inline  std::ostream& operator << (std::ostream& os, BigInt const& v)
+	{
+		os << v.value_;
+		return os;
+	}
 
 	class Float
 	{
+		friend std::ostream& operator << (std::ostream& os, Float const& v);
 	public:
 		Float() : is_null_(true), value_(0)
 		{
@@ -796,8 +845,15 @@ namespace ormpp {
 		float value_;
 	};
 
+	inline std::ostream& operator << (std::ostream& os, Float const& v)
+	{
+		os << v.value_;
+		return os;
+	}
+
 	class Double
 	{
+		friend std::ostream& operator << (std::ostream& os, Double const& v);
 	public:
 		Double() : is_null_(true), value_(0)
 		{
@@ -880,4 +936,10 @@ namespace ormpp {
 		bool is_null_;
 		double value_;
 	};
+
+	inline  std::ostream& operator << (std::ostream& os, Double const& v)
+	{
+		os << v.value_;
+		return os;
+	}
 }
