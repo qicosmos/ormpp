@@ -12,7 +12,7 @@
 #include "entity.hpp"
 #include "type_mapping.hpp"
 #include "utility.hpp"
-#include "extension_type.hpp"
+
 namespace ormpp {
 
 	class mysql {
