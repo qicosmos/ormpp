@@ -40,8 +40,8 @@ int main()
 
 
 	//cc = '2';
-	auto vec = connect.query<std::tuple<int, std::string, DateTime, Integer, TinyInt, SmallInt, BigInt, Float, Double, SQLDate, SQLTime>>("select * from type_tb where id=44");
-	std::cout << vec.size() << std::endl;
+	auto vec = connect.query<std::tuple<Integer, std::string, DateTime, Integer, TinyInt, SmallInt, BigInt, Float, Double, SQLDate, SQLTime>>("select * from type_tb where id=44");
+	//std::cout << vec.size() << std::endl;
 	auto info = vec[0];
 	//std::cout << info.number.get_value() << std::endl;
 	//std::cout << info.time.get_value() << std::endl;

@@ -329,10 +329,10 @@ namespace ormpp {
 							auto time = (MYSQL_TIME*)(&(*it)[0]);
 							std::stringstream ss;
 							ss << time->year << "-" << time->month << "-" << time->day << " " << time->hour << ":" << time->minute << ":" << time->second;
-							item = ss.str();
+							item.sql_set_buff(ss.str());
 						}
 						else {
-							item = "";
+							item.sql_set_buff("");
 						}
 						it++;
 					}
@@ -341,10 +341,10 @@ namespace ormpp {
 							auto time = (MYSQL_TIME*)(&(*it)[0]);
 							std::stringstream ss;
 							ss << time->year << "-" << time->month << "-" << time->day;
-							item = ss.str();
+							item.sql_set_buff(ss.str());
 						}
 						else {
-							item = "";
+							item.sql_set_buff("");
 						}
 						it++;
 					}
@@ -353,10 +353,10 @@ namespace ormpp {
 							auto time = (MYSQL_TIME*)(&(*it)[0]);
 							std::stringstream ss;
 							ss << time->hour << ":" << time->minute << ":" << time->second;
-							item = ss.str();
+							item.sql_set_buff(ss.str());
 						}
 						else {
-							item = "";
+							item.sql_set_buff("");
 						}
 						it++;
 					}

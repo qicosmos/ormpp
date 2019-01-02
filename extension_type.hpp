@@ -27,8 +27,14 @@ namespace ormpp {
 		{
 			format_from_timestamp(timestamp);
 		}
-		DateTime(std::string const& datetime):is_null_(false)
+		DateTime(std::string const& datetime)
 		{
+			if (datetime.empty()) {
+				is_null_ = true;
+			}
+			else {
+				is_null_ = false;
+			}
 			buff_ = datetime;
 		}
 	public:
@@ -73,7 +79,7 @@ namespace ormpp {
 
 		my_bool* sql_set_null()
 		{
-			return (my_bool*)&is_null_;
+			return (my_bool*)(&is_null_);
 		}
 
 		std::string& get_value()
@@ -142,6 +148,11 @@ namespace ormpp {
 				return buff_;
 			}
 		}
+
+		void sql_set_buff(std::string&& tmp)
+		{
+			buff_ = std::move(tmp);
+		}
 	private:
 		std::string buff_;
 		mutable MYSQL_TIME sql_time;
@@ -150,7 +161,12 @@ namespace ormpp {
 
 	inline std::ostream& operator << (std::ostream& os, DateTime const& v) 
 	{
-		os << v.buff_;
+		if (v.is_null_) {
+			os << "Null";
+		}
+		else {
+			os << v.buff_;
+		}
 		return os;
 	}
 
@@ -167,8 +183,14 @@ namespace ormpp {
 		{
 			format_from_timestamp(timestamp);
 		}
-		SQLDate(std::string const& datet) :is_null_(false)
+		SQLDate(std::string const& datet)
 		{
+			if (datet.empty()) {
+				is_null_ = true;
+			}
+			else {
+				is_null_ = false;
+			}
 			buff_ = datet;
 		}
 	public:
@@ -205,7 +227,7 @@ namespace ormpp {
 
 		my_bool* sql_set_null()
 		{
-			return (my_bool*)&is_null_;
+			return (my_bool*)(&is_null_);
 		}
 
 		std::string& get_value()
@@ -247,6 +269,10 @@ namespace ormpp {
 				return buff_;
 			}
 		}
+		void sql_set_buff(std::string&& tmp)
+		{
+			buff_ = std::move(tmp);
+		}
 	private:
 		std::string buff_;
 		mutable MYSQL_TIME sql_time;
@@ -255,7 +281,12 @@ namespace ormpp {
 
 	inline std::ostream& operator << (std::ostream& os, SQLDate const& v)
 	{
-		os << v.buff_;
+		if (v.is_null_) {
+			os << "Null";
+		}
+		else {
+			os << v.buff_;
+		}
 		return os;
 	}
 
@@ -272,8 +303,14 @@ namespace ormpp {
 		{
 			format_from_timestamp(timestamp);
 		}
-		SQLTime(std::string const& time) :is_null_(false)
+		SQLTime(std::string const& time)
 		{
+			if (time.empty()) {
+				is_null_ = true;
+			}
+			else {
+				is_null_ = false;
+			}
 			buff_ = time;
 		}
 	public:
@@ -306,7 +343,7 @@ namespace ormpp {
 
 		my_bool* sql_set_null()
 		{
-			return (my_bool*)&is_null_;
+			return (my_bool*)(&is_null_);
 		}
 
 		bool is_null() {
@@ -356,6 +393,11 @@ namespace ormpp {
 				return buff_;
 			}
 		}
+
+		void sql_set_buff(std::string&& tmp)
+		{
+			buff_ = std::move(tmp);
+		}
 	private:
 		std::string buff_;
 		mutable MYSQL_TIME sql_time;
@@ -364,7 +406,12 @@ namespace ormpp {
 
 	inline std::ostream& operator << (std::ostream& os, SQLTime const& v)
 	{
-		os << v.buff_;
+		if (v.is_null_) {
+			os << "Null";
+		}
+		else {
+			os << v.buff_;
+		}
 		return os;
 	}
 
@@ -455,7 +502,12 @@ namespace ormpp {
 
 	inline  std::ostream& operator << (std::ostream& os, Integer const& v)
 	{
-		os << v.value_;
+		if (v.is_null_) {
+			os << "Null";
+		}
+		else {
+			os << v.value_;
+		}
 		return os;
 	}
 
@@ -559,7 +611,12 @@ namespace ormpp {
 
 	inline std::ostream& operator << (std::ostream& os, TinyInt const& v)
 	{
-		os << int(v.value_);
+		if (v.is_null_) {
+			os << "Null";
+		}
+		else {
+			os << int(v.value_);
+		}
 		return os;
 	}
 
@@ -663,7 +720,12 @@ namespace ormpp {
 
 	inline std::ostream& operator << (std::ostream& os, SmallInt const& v)
 	{
-		os << v.value_;
+		if (v.is_null_) {
+			os << "Null";
+		}
+		else {
+			os << v.value_;
+		}
 		return os;
 	}
 
@@ -755,7 +817,12 @@ namespace ormpp {
 
 	inline  std::ostream& operator << (std::ostream& os, BigInt const& v)
 	{
-		os << v.value_;
+		if (v.is_null_) {
+			os << "Null";
+		}
+		else {
+			os << v.value_;
+		}
 		return os;
 	}
 
@@ -847,7 +914,12 @@ namespace ormpp {
 
 	inline std::ostream& operator << (std::ostream& os, Float const& v)
 	{
-		os << v.value_;
+		if (v.is_null_) {
+			os << "Null";
+		}
+		else {
+			os << v.value_;
+		}
 		return os;
 	}
 
@@ -939,7 +1011,12 @@ namespace ormpp {
 
 	inline  std::ostream& operator << (std::ostream& os, Double const& v)
 	{
-		os << v.value_;
+		if (v.is_null_) {
+			os << "Null";
+		}
+		else {
+			os << v.value_;
+		}
 		return os;
 	}
 }
