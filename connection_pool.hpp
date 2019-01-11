@@ -42,7 +42,7 @@ namespace ormpp{
             pool_.pop_front();
             lock.unlock();
 
-			if (!conn->ping()) {
+			if (conn==nullptr||!conn->ping()) {
 				return create_connection();
 			}
 
@@ -108,11 +108,10 @@ namespace ormpp{
     struct conn_guard{
         conn_guard(std::shared_ptr<DB> con) : conn_(con){}
         ~conn_guard(){
-            if(conn_!= nullptr)
-                connection_pool<DB>::instance().return_back(conn_);
+			connection_pool<DB>::instance().return_back(conn_.lock());
         }
     private:
-        std::shared_ptr<DB> conn_;
+        std::weak_ptr<DB> conn_;
     };
 }
 
