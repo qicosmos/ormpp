@@ -29,6 +29,7 @@ ormpp是modern c++(c++11/14/17)开发的ORM库，目前支持了三种数据库�
 这个例子展示如何使用ormpp实现数据库的增删改查之类的操作，无需写sql语句。
 
 	#include "dbng.hpp"
+	#include "mysql.hpp"
 	using namespace ormpp;
 	
 	struct person
@@ -147,6 +148,7 @@ ormpp屏蔽了不同数据库操作接口的差异，提供了统一简单的数
 先在entity.hpp中定义业务实体（和数据库的表对应），接着定义数据库对象：
 
 	#include "dbng.hpp"
+	#include "mysql.hpp"
 	using namespace ormpp;
 	
 	struct person
