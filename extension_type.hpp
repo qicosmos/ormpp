@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <memory>
 #include <sstream>
+
+#ifdef ORMPP_ENABLE_MYSQL
 namespace ormpp {
 	class DateTime
 	{
@@ -26,7 +28,7 @@ namespace ormpp {
 		{
 
 		}
-		DateTime(std::time_t timestamp):is_null_(false)
+		DateTime(std::time_t timestamp) :is_null_(false)
 		{
 			format_from_timestamp(timestamp);
 		}
@@ -55,7 +57,7 @@ namespace ormpp {
 		DateTime& format_from_timestamp(std::time_t timestamp)
 		{
 			auto tm = localtime(&timestamp);
-			char buff[255] = {0};
+			char buff[255] = { 0 };
 			strftime(buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", tm);
 			buff_.erase();
 			std::for_each(buff, &buff[254], [this](char const v) {
@@ -76,7 +78,7 @@ namespace ormpp {
 			is_null_ = true;
 		}
 
-		bool is_null() {
+		bool is_null() const {
 			return is_null_;
 		}
 
@@ -86,6 +88,11 @@ namespace ormpp {
 		}
 
 		std::string& get_value()
+		{
+			return buff_;
+		}
+
+		std::string const& get_value() const
 		{
 			return buff_;
 		}
@@ -162,7 +169,7 @@ namespace ormpp {
 		bool is_null_;
 	};
 
-	inline std::ostream& operator << (std::ostream& os, DateTime const& v) 
+	inline std::ostream& operator << (std::ostream& os, DateTime const& v)
 	{
 		if (v.is_null_) {
 			os << "Null";
@@ -224,7 +231,7 @@ namespace ormpp {
 			is_null_ = true;
 		}
 
-		bool is_null() {
+		bool is_null() const{
 			return is_null_;
 		}
 
@@ -234,6 +241,11 @@ namespace ormpp {
 		}
 
 		std::string& get_value()
+		{
+			return buff_;
+		}
+
+		std::string const& get_value() const
 		{
 			return buff_;
 		}
@@ -349,11 +361,16 @@ namespace ormpp {
 			return (my_bool*)(&is_null_);
 		}
 
-		bool is_null() {
+		bool is_null() const{
 			return is_null_;
 		}
 
 		std::string& get_value()
+		{
+			return buff_;
+		}
+
+		std::string const& get_value() const
 		{
 			return buff_;
 		}
@@ -422,11 +439,11 @@ namespace ormpp {
 	{
 		friend std::ostream& operator << (std::ostream& os, Integer const& v);
 	public:
-		Integer(): is_null_(true), value_(0)
+		Integer() : is_null_(true), value_(0)
 		{
 
 		}
-		Integer(int value):is_null_(false), value_(value)
+		Integer(int value) :is_null_(false), value_(value)
 		{
 
 		}
@@ -466,12 +483,17 @@ namespace ormpp {
 			return value_;
 		}
 
+		int const& get_value() const
+		{
+			return value_;
+		}
+
 		void set_null() {
 			value_ = 0;
 			is_null_ = true;
 		}
 
-		bool is_null() {
+		bool is_null() const{
 			return is_null_;
 		}
 
@@ -500,7 +522,7 @@ namespace ormpp {
 		}
 	private:
 		bool is_null_;
-		int value_; 
+		int value_;
 	};
 
 	inline  std::ostream& operator << (std::ostream& os, Integer const& v)
@@ -579,6 +601,11 @@ namespace ormpp {
 			return value_;
 		}
 
+		char const& get_value() const
+		{
+			return value_;
+		}
+
 		void* to_buffer() const
 		{
 			return const_cast<void*>(static_cast<const void*>(&value_));
@@ -589,7 +616,7 @@ namespace ormpp {
 			return (my_bool*)&is_null_;
 		}
 
-		bool is_null() {
+		bool is_null() const{
 			return is_null_;
 		}
 
@@ -688,6 +715,11 @@ namespace ormpp {
 			return value_;
 		}
 
+		short const& get_value() const
+		{
+			return value_;
+		}
+
 		void* to_buffer() const
 		{
 			return const_cast<void*>(static_cast<const void*>(&value_));
@@ -698,7 +730,7 @@ namespace ormpp {
 			return (my_bool*)&is_null_;
 		}
 
-		bool is_null() {
+		bool is_null() const{
 			return is_null_;
 		}
 
@@ -785,7 +817,12 @@ namespace ormpp {
 			return value_;
 		}
 
-		bool is_null() {
+		std::int64_t const& get_value() const
+		{
+			return value_;
+		}
+
+		bool is_null() const{
 			return is_null_;
 		}
 
@@ -882,12 +919,17 @@ namespace ormpp {
 			return value_;
 		}
 
+		float const& get_value() const
+		{
+			return value_;
+		}
+
 		my_bool* sql_set_null()
 		{
 			return (my_bool*)&is_null_;
 		}
 
-		bool is_null() {
+		bool is_null() const{
 			return is_null_;
 		}
 
@@ -979,12 +1021,17 @@ namespace ormpp {
 			return value_;
 		}
 
+		double const& get_value() const
+		{
+			return value_;
+		}
+
 		my_bool* sql_set_null()
 		{
 			return (my_bool*)&is_null_;
 		}
 
-		bool is_null() {
+		bool is_null() const{
 			return is_null_;
 		}
 
@@ -1023,3 +1070,4 @@ namespace ormpp {
 		return os;
 	}
 }
+#endif

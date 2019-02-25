@@ -328,7 +328,12 @@ namespace ormpp {
 						if (item.is_null() == false) {
 							auto time = (MYSQL_TIME*)(&(*it)[0]);
 							std::stringstream ss;
-							ss << time->year << "-" << time->month << "-" << time->day << " " << time->hour << ":" << time->minute << ":" << time->second;
+							auto month = time->month < 10 ? std::string("0") + std::to_string(time->month) : std::to_string(time->month);
+							auto day = time->day < 10 ? std::string("0") + std::to_string(time->day) : std::to_string(time->day);
+							auto hour = time->hour < 10 ? std::string("0") + std::to_string(time->hour) : std::to_string(time->hour);
+							auto minute = time->minute < 10 ? std::string("0") + std::to_string(time->minute) : std::to_string(time->minute);
+							auto second = time->second < 10 ? std::string("0") + std::to_string(time->second) : std::to_string(time->second);
+							ss << time->year << "-" << month << "-" << day << " " <<hour << ":" << minute << ":" << second;
 							item.sql_set_buff(ss.str());
 						}
 						else {
@@ -340,7 +345,9 @@ namespace ormpp {
 						if (item.is_null() == false) {
 							auto time = (MYSQL_TIME*)(&(*it)[0]);
 							std::stringstream ss;
-							ss << time->year << "-" << time->month << "-" << time->day;
+							auto month = time->month < 10 ? std::string("0") + std::to_string(time->month) : std::to_string(time->month);
+							auto day = time->day < 10 ? std::string("0") + std::to_string(time->day) : std::to_string(time->day);
+							ss << time->year << "-" << month << "-" << day;
 							item.sql_set_buff(ss.str());
 						}
 						else {
@@ -352,7 +359,10 @@ namespace ormpp {
 						if (item.is_null() == false) {
 							auto time = (MYSQL_TIME*)(&(*it)[0]);
 							std::stringstream ss;
-							ss << time->hour << ":" << time->minute << ":" << time->second;
+							auto hour = time->hour < 10 ? std::string("0") + std::to_string(time->hour) : std::to_string(time->hour);
+							auto minute = time->minute < 10 ? std::string("0") + std::to_string(time->minute) : std::to_string(time->minute);
+							auto second = time->second < 10 ? std::string("0") + std::to_string(time->second) : std::to_string(time->second);
+							ss << hour << ":" << minute << ":" << second;
 							item.sql_set_buff(ss.str());
 						}
 						else {
@@ -499,7 +509,12 @@ namespace ormpp {
 						if ((t.*item).is_null() == false) {
 							auto time = (MYSQL_TIME*)(mp[decltype(i)::value].data());
 							std::stringstream ss;
-							ss << time->year << "-" << time->month << "-" << time->day << " " << time->hour << ":" << time->minute << ":" << time->second;
+							auto month = time->month < 10 ? std::string("0") + std::to_string(time->month) : std::to_string(time->month);
+							auto day = time->day < 10 ? std::string("0") + std::to_string(time->day) : std::to_string(time->day);
+							auto hour = time->hour < 10 ? std::string("0") + std::to_string(time->hour) : std::to_string(time->hour);
+							auto minute = time->minute < 10 ? std::string("0") + std::to_string(time->minute) : std::to_string(time->minute);
+							auto second = time->second < 10 ? std::string("0") + std::to_string(time->second) : std::to_string(time->second);
+							ss << time->year << "-" << month << "-" << day << " " << hour << ":" << minute << ":" << second;
 							(t.*item) = ss.str();
 						}
 						else {
@@ -510,7 +525,9 @@ namespace ormpp {
 						if ((t.*item).is_null() == false) {
 							auto time = (MYSQL_TIME*)(mp[decltype(i)::value].data());
 							std::stringstream ss;
-							ss << time->year << "-" << time->month << "-" << time->day;
+							auto month = time->month < 10 ? std::string("0") + std::to_string(time->month) : std::to_string(time->month);
+							auto day = time->day < 10 ? std::string("0") + std::to_string(time->day) : std::to_string(time->day);
+							ss << time->year << "-" << month << "-" << day;
 							(t.*item) = ss.str();
 						}
 						else {
@@ -521,7 +538,10 @@ namespace ormpp {
 						if ((t.*item).is_null() == false) {
 							auto time = (MYSQL_TIME*)(mp[decltype(i)::value].data());
 							std::stringstream ss;
-							ss <<  time->hour << ":" << time->minute << ":" << time->second;
+							auto hour = time->hour < 10 ? std::string("0") + std::to_string(time->hour) : std::to_string(time->hour);
+							auto minute = time->minute < 10 ? std::string("0") + std::to_string(time->minute) : std::to_string(time->minute);
+							auto second = time->second < 10 ? std::string("0") + std::to_string(time->second) : std::to_string(time->second);
+							ss <<  hour << ":" << minute << ":" << second;
 							(t.*item) = ss.str();
 						}
 						else {

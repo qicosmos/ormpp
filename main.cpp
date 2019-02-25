@@ -37,32 +37,38 @@ int main()
 {
 	dbng<mysql> connect;
 	connect.connect("127.0.0.1", "root", "root", "mysql_test");
-	//type_tb info;
-	//info.id = 0;
-	//info.content = "abc";
-	////info.number = 10;
-	//info.tiny = 10;
-	//info.smit = 32767;
-	//info.ff = 20.123;
-	//info.dd = 1024.123456789;
-	//info.date = std::time(nullptr);
-	//info.ttime = std::time(nullptr);
+	type_tb info;
+	info.id = 0;
+	info.content = "abc";
+	//info.number = 10;
+	info.tiny = 10;
+	info.smit = 32767;
+	info.ff = 20.123;
+	info.dd = 1024.123456789;
+	info.date = std::time(nullptr);
+	info.ttime = std::time(nullptr);
 
-	//info.number = 1024;
-	//info.number.set_null();
+	info.number = 1024;
+	info.number.set_null();
 
-	//info.time = "2019-01-01 12:02:03";
-
-	//connect.insert(info);
-	connect.create_datatable<tb_add>();
-
-
-	auto vec = connect.query<type_tb>("select * from type_tb where id=44");
-	auto& info = vec[0];
-	
-	info.content = "2333333333";
 	info.time = "2019-01-02 16:19:00";
-	connect.update(info);
+
+	std::vector<type_tb> ins;
+	ins.push_back(info);
+	auto other = info;
+	other.time = "2019-01-02 16:19:59";
+	ins.push_back(other);
+
+	connect.insert(ins);
+	//connect.create_datatable<tb_add>();
+
+
+	//auto vec = connect.query<type_tb>("select * from type_tb where id=44");
+	//auto& info = vec[0];
+	//
+	//info.content = "2333333333";
+	//info.time = "2019-01-02 16:19:00";
+	//connect.update(info);
 
 	//cc = '2';
 	//auto vec = connect.query<std::tuple<Integer, std::string, DateTime, Integer, TinyInt, SmallInt, BigInt, Float, Double, SQLDate, SQLTime>>("select * from type_tb where id=44");
