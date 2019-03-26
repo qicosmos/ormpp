@@ -27,7 +27,7 @@ ormpp是modern c++(c++11/14/17)开发的ORM库，目前支持了三种数据库�
 ## 快速示例
 
 这个例子展示如何使用ormpp实现数据库的增删改查之类的操作，无需写sql语句。
-
+```c++
 	#include "dbng.hpp"
 	using namespace ormpp;
 	
@@ -74,7 +74,7 @@ ormpp是modern c++(c++11/14/17)开发的ORM库，目前支持了三种数据库�
 		}
 		mysql.commit();
 	}
-
+```
 ## 如何编译
 
 ### 编译器支持
@@ -89,13 +89,26 @@ ormpp是modern c++(c++11/14/17)开发的ORM库，目前支持了三种数据库�
 
 序列化部分用的是iguana，所以需要下载iguana的代码，直接在ormpp目录下git clone https://github.com/qicosmos/iguana.git
 
-上面三步完成之后就可以直接编译了。
+上面三步完成之后就可以直接编译 main.cpp 了。
+
+### 作为地三方库
+用Git submodule管理ormpp及其依赖iguana, 然后CMakeLists.txt中include
+```bash
+# bash
+git submodule add https://github.com/qicosmos/ormpp.git third_party/ormpp
+git submodule add https://github.com/qicosmos/iguana.git third_party/iguana
+
+# CMakeLists.txt
+set(INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/third_party/ormpp")
+message(STATUS "INCLUDE_DIRS: ${INCLUDE_DIRS}")
+include_directories (${INCLUDE_DIRS})
+```
 
 ## 接口介绍
 ormpp屏蔽了不同数据库操作接口的差异，提供了统一简单的数据库操作接口，具体提供了数据库连接、断开连接、创建数据表、插入数据、更新数据、删除数据、查询数据和事务相关的接口。
 
 ### 接口概览
-
+```c++
 	//连接数据库
 	template <typename... Args>
 	bool connect(Args&&... args);
@@ -142,10 +155,10 @@ ormpp屏蔽了不同数据库操作接口的差异，提供了统一简单的数
 	
 	//回滚
 	bool rollback();
-
+```
 ### 具体的接口使用介绍
 先在entity.hpp中定义业务实体（和数据库的表对应），接着定义数据库对象：
-
+```c++
 	#include "dbng.hpp"
 	using namespace ormpp;
 	
@@ -164,7 +177,7 @@ ormpp屏蔽了不同数据库操作接口的差异，提供了统一简单的数
 	    dbng<postgresql> postgres;
 		//......
 	}
-
+```
 1. 连接数据库
 
 	template <typename... Args>
@@ -176,7 +189,7 @@ connect exmple:
 
 	postgres.connect("127.0.0.1", "root", "12345", "testdb")
 
-	sqlite.connect("127.0.0.1", "root", "12345", "testdb")
+	sqlite.connect("dbfile")
 
 返回值：bool，成功返回true，失败返回false.
 
