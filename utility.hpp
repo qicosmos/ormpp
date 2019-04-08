@@ -188,11 +188,11 @@ namespace ormpp{
         return false;
     }
 
-	void get_sql_conditions(std::string& sql) {
+	inline void get_sql_conditions(std::string& sql) {
 	}
 
 	template<typename... Args>
-	void get_sql_conditions(std::string& sql, const std::string& arg, Args&&... args) {
+	inline void get_sql_conditions(std::string& sql, const std::string& arg, Args&&... args) {
 		if (arg.find("select") != std::string::npos) {
 			sql = arg;
 		}
