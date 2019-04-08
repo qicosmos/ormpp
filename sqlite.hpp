@@ -3,6 +3,7 @@
 //
 #include <string>
 #include <vector>
+#include <climits>
 #include <sqlite3.h>
 #include "utility.hpp"
 
@@ -33,7 +34,7 @@ namespace ormpp{
         }
 
         template<typename T, typename... Args>
-        constexpr bool create_datatable(Args&&... args){
+        bool create_datatable(Args&&... args){
 //            std::string droptb = "DROP TABLE IF EXISTS ";
 //            droptb += iguana::get_name<T>();
 //            if (sqlite3_exec(handle_, droptb.data(), nullptr, nullptr, nullptr)!=SQLITE_OK) {
@@ -49,35 +50,35 @@ namespace ormpp{
         }
 
         template<typename T, typename... Args>
-        constexpr int insert(const T& t,Args&&... args){
+        int insert(const T& t,Args&&... args){
             std::string sql = auto_key_map_.empty()?generate_insert_sql<T>(false):generate_auto_insert_sql<T>(auto_key_map_, false);
 
             return insert_impl(false, sql, t, std::forward<Args>(args)...);
         }
 
         template<typename T, typename... Args>
-        constexpr int insert(const std::vector<T>& t, Args&&... args){
+        int insert(const std::vector<T>& t, Args&&... args){
             std::string sql = auto_key_map_.empty()?generate_insert_sql<T>(false):generate_auto_insert_sql<T>(auto_key_map_, false);
 
             return insert_impl(false, sql, t, std::forward<Args>(args)...);
         }
 
         template<typename T, typename... Args>
-        constexpr int update(const T& t, Args&&... args) {
+        int update(const T& t, Args&&... args) {
             std::string sql = generate_insert_sql<T>(true);
 
             return insert_impl(true, sql, t, std::forward<Args>(args)...);
         }
 
         template<typename T, typename... Args>
-        constexpr int update(const std::vector<T>& t, Args&&... args){
+        int update(const std::vector<T>& t, Args&&... args){
             std::string sql = generate_insert_sql<T>(true);
 
             return insert_impl(true, sql, t, std::forward<Args>(args)...);
         }
 
         template<typename T, typename... Args>
-        constexpr bool delete_records(Args&&... where_conditon){
+        bool delete_records(Args&&... where_conditon){
             auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
             if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr)!=SQLITE_OK) {
                 return false;
@@ -88,7 +89,7 @@ namespace ormpp{
 
         //restriction, all the args are string, the first is the where condition, rest are append conditions
         template<typename T, typename... Args>
-        constexpr std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(Args&&... args){
+        std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(Args&&... args){
             std::string sql = generate_query_sql<T>(args...);
             constexpr auto SIZE = iguana::get_value<T>();
 
@@ -121,7 +122,7 @@ namespace ormpp{
         }
 
         template<typename T, typename Arg, typename... Args>
-        constexpr std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(const Arg& s, Args&&... args){
+        std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(const Arg& s, Args&&... args){
             static_assert(iguana::is_tuple<T>::value);
             constexpr auto SIZE = std::tuple_size_v<T>;
 
@@ -301,7 +302,7 @@ namespace ormpp{
         };
 
         template<typename T>
-        constexpr bool set_param_bind(T&& value, int i){
+        bool set_param_bind(T&& value, int i){
             using U = std::remove_const_t<std::remove_reference_t<T>>;
             if constexpr(std::is_integral_v<U>&&!iguana::is_int64_v<U>){//double, int64
                 return SQLITE_OK == sqlite3_bind_int(stmt_, i, value);
@@ -325,7 +326,7 @@ namespace ormpp{
         }
 
         template<typename T>
-        constexpr void assign(T&& value, int i){
+        void assign(T&& value, int i){
             using U = std::remove_const_t<std::remove_reference_t<T>>;
             if constexpr(std::is_integral_v<U>&&!iguana::is_int64_v<U>){//double, int64
                 value = sqlite3_column_int(stmt_, i);
@@ -349,7 +350,7 @@ namespace ormpp{
         }
 
         template<typename T, typename... Args>
-        constexpr int insert_impl(bool is_update, const std::string& sql, const T& t, Args&&... args) {
+        int insert_impl(bool is_update, const std::string& sql, const T& t, Args&&... args) {
             int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(), &stmt_, nullptr);
             if (result != SQLITE_OK)
                 return INT_MIN;
@@ -383,7 +384,7 @@ namespace ormpp{
         }
 
         template<typename T, typename... Args>
-        constexpr int insert_impl(bool is_update, const std::string& sql, const std::vector<T>& v, Args&&... args) {
+        int insert_impl(bool is_update, const std::string& sql, const std::vector<T>& v, Args&&... args) {
             int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(), &stmt_, nullptr);
             if (result != SQLITE_OK)
                 return INT_MIN;
