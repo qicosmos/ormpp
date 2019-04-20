@@ -333,7 +333,10 @@ namespace ormpp {
 
 				iguana::for_each(t, [&mp, &t](auto item, auto i) {
 					using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
-					if constexpr(std::is_same_v<std::string, U>) {
+					if constexpr (std::is_arithmetic_v<U>) {
+						memset(&(t.*item), 0, sizeof(U));
+					}
+					else if constexpr (std::is_same_v<std::string, U>) {
 						auto& vec = mp[decltype(i)::value];
 						t.*item = std::string(&vec[0], strlen(vec.data()));
 					}
@@ -343,6 +346,9 @@ namespace ormpp {
 					}
 				});
 
+				for (auto& p :mp) {
+					p.second.assign(p.second.size(),0);
+				}
 				v.push_back(std::move(t));
 			}
 
