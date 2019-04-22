@@ -81,7 +81,7 @@ namespace ormpp{
             std::string s;
             switch (type){
 #ifdef ORMPP_ENABLE_MYSQL
-                case DBType::mysql : s = ormpp_mysql::type_to_name(identity<U>{});
+			case DBType::mysql: s = ormpp_mysql::type_to_name(identity<U>{});
                     break;
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3

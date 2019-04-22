@@ -16,6 +16,8 @@
 #include <string>
 #include <string_view>
 #include "pg_types.h"
+
+#include "extension_type.hpp"
 using namespace std::string_view_literals;
 
 #ifndef EXAMPLE1_TYPE_MAPPING_HPP
@@ -38,6 +40,16 @@ namespace ormpp{
         REGISTER_TYPE( double  , MYSQL_TYPE_DOUBLE   )
         REGISTER_TYPE( int64_t , MYSQL_TYPE_LONGLONG )
 
+		inline constexpr int type_to_id(identity<ormpp::Integer>) noexcept { return MYSQL_TYPE_LONG; }
+		inline constexpr int type_to_id(identity<ormpp::TinyInt>) noexcept { return MYSQL_TYPE_TINY; }
+		inline constexpr int type_to_id(identity<ormpp::SmallInt>) noexcept { return MYSQL_TYPE_SHORT; }
+		inline constexpr int type_to_id(identity<ormpp::BigInt>) noexcept { return MYSQL_TYPE_LONGLONG; }
+		inline constexpr int type_to_id(identity<ormpp::Float>) noexcept { return MYSQL_TYPE_FLOAT; }
+		inline constexpr int type_to_id(identity<ormpp::Double>) noexcept { return MYSQL_TYPE_DOUBLE; }
+		inline constexpr int type_to_id(identity<ormpp::DateTime>) noexcept { return MYSQL_TYPE_DATETIME; }
+		inline constexpr int type_to_id(identity<ormpp::SQLDate>) noexcept { return MYSQL_TYPE_DATE; }
+		inline constexpr int type_to_id(identity<ormpp::SQLTime>) noexcept { return MYSQL_TYPE_TIME; }
+
 		inline int type_to_id(identity<std::string>) noexcept { return MYSQL_TYPE_VAR_STRING; }
 		inline std::string id_to_type(std::integral_constant<std::size_t, MYSQL_TYPE_VAR_STRING > ) noexcept { std::string res{}; return res; }
 
@@ -53,6 +65,16 @@ namespace ormpp{
 			std::string s = "varchar(" + std::to_string(N) + ")";
 			return s;
 		}
+
+		inline constexpr auto type_to_name(identity<ormpp::TinyInt>) noexcept { return "TINYINT"sv; }
+		inline constexpr auto type_to_name(identity<ormpp::SmallInt>) noexcept { return "SMALLINT"sv; }
+		inline constexpr auto type_to_name(identity<ormpp::Integer>) noexcept { return "INTEGER"sv; }
+		inline constexpr auto type_to_name(identity<ormpp::Float>) noexcept { return "FLOAT"sv; }
+		inline constexpr auto type_to_name(identity<ormpp::Double>) noexcept { return "DOUBLE"sv; }
+		inline constexpr auto type_to_name(identity<ormpp::BigInt>) noexcept { return "BIGINT"sv; }
+		inline constexpr auto type_to_name(identity<ormpp::DateTime>) noexcept { return "DATETIME"sv; }
+		inline constexpr auto type_to_name(identity<ormpp::SQLDate>) noexcept { return "DATE"sv; }
+		inline constexpr auto type_to_name(identity<ormpp::SQLTime>) noexcept { return "TIME"sv; }
     }
 	#endif
 #ifdef ORMPP_ENABLE_SQLITE3
