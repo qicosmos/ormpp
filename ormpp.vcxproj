@@ -110,7 +110,7 @@
       <PreprocessorDefinitions>ORMPP_ENABLE_MYSQL;ORMPP_ENABLE_SQLITE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>libmysql_x64.lib;libpq.lib;sqlite3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libmysql_x64.lib;sqlite3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -146,7 +146,7 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>libmysql_x64.lib;libpq.lib;libpgport.lib;libecpg.lib;postgres.lib;libeay32.lib;sqlite3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libmysql_x64.lib;libpgport.lib;libecpg.lib;postgres.lib;libeay32.lib;sqlite3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

@@ -41,6 +41,7 @@ namespace ormpp{
 		inline int type_to_id(identity<std::string>) noexcept { return MYSQL_TYPE_VAR_STRING; }
 		inline std::string id_to_type(std::integral_constant<std::size_t, MYSQL_TYPE_VAR_STRING > ) noexcept { std::string res{}; return res; }
 
+		inline constexpr auto type_to_name(identity<bool>) noexcept { return "INTEGER"sv; }
 		inline constexpr auto type_to_name(identity<char>) noexcept { return "TINYINT"sv; }
 		inline constexpr auto type_to_name(identity<short>) noexcept { return "SMALLINT"sv; }
 		inline constexpr auto type_to_name(identity<int>) noexcept { return "INTEGER"sv; }
@@ -63,6 +64,7 @@ namespace ormpp{
 		inline int type_to_id(identity<std::string>) noexcept { return SQLITE_TEXT; }
 		inline std::string id_to_type(std::integral_constant<std::size_t, SQLITE_TEXT > ) noexcept { std::string res{}; return res; }
 
+		inline constexpr auto type_to_name(identity<bool>) noexcept { return "INTEGER"sv; }
 		inline constexpr auto type_to_name(identity<char>) noexcept { return "INTEGER"sv; }
 		inline constexpr auto type_to_name(identity<short>) noexcept { return "INTEGER"sv; }
 		inline constexpr auto type_to_name(identity<int>) noexcept { return "INTEGER"sv; }
@@ -90,6 +92,7 @@ namespace ormpp{
 		inline int type_to_id(identity<std::string>) noexcept { return TEXTOID; }
 		inline std::string id_to_type(std::integral_constant<std::size_t,  TEXTOID> ) noexcept { std::string res{}; return res; }
 
+		inline constexpr auto type_to_name(identity<bool>) noexcept { return "integer"sv; }
 		inline constexpr auto type_to_name(identity<char>) noexcept { return "char"sv; }
 		inline constexpr auto type_to_name(identity<short>) noexcept { return "smallint"sv; }
 		inline constexpr auto type_to_name(identity<int>) noexcept { return "integer"sv; }
