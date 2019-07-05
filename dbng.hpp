@@ -109,6 +109,10 @@ namespace ormpp{
 			return db_.get_last_error();
 		}
 
+		int get_last_affect_rows() {
+			return db_.get_last_affect_rows();
+		}
+
     private:
         template<typename Pair, typename U>
         auto build_condition(Pair pair, std::string_view oper, U&& val){

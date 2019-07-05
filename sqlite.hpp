@@ -182,6 +182,10 @@ namespace ormpp{
             return true;
         }
 
+		int get_last_affect_rows() {
+			return sqlite3_changes(handle_);
+		}
+
         //transaction
         bool begin(){
             if (sqlite3_exec(handle_, "BEGIN", nullptr, nullptr, nullptr)!=SQLITE_OK) {
