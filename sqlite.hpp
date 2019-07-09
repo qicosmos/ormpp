@@ -167,7 +167,8 @@ namespace ormpp{
                     }
                 }, std::make_index_sequence<SIZE>{});
 
-                v.push_back(std::move(tp));
+				if(index>0)
+					v.push_back(std::move(tp));
             }
 
             return v;
