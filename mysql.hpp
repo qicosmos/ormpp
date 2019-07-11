@@ -263,7 +263,8 @@ namespace ormpp {
 					}
 				}, std::make_index_sequence<SIZE>{});
 
-				v.push_back(std::move(tp));
+				if(index>0)
+					v.push_back(std::move(tp));
 			}
 
 			return v;
@@ -293,12 +294,14 @@ namespace ormpp {
 
 			std::vector<T> v;
 			T t{};
+			int index = 0;
 			iguana::for_each(t, [&](auto item, auto i) {
 				constexpr auto Idx = decltype(i)::value;
 				using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
 				if constexpr(std::is_arithmetic_v<U>) {
 					param_binds[Idx].buffer_type = (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
 					param_binds[Idx].buffer = &(t.*item);
+					index++;
 				}
 				else if constexpr(std::is_same_v<std::string, U>) {
 					param_binds[Idx].buffer_type = MYSQL_TYPE_STRING;
@@ -306,6 +309,7 @@ namespace ormpp {
 					mp.emplace(decltype(i)::value, tmp);
 					param_binds[Idx].buffer = &(mp.rbegin()->second[0]);
 					param_binds[Idx].buffer_length = (unsigned long)tmp.size();
+					index++;
 				}
 				else if constexpr(is_char_array_v<U>) {
 					param_binds[Idx].buffer_type = MYSQL_TYPE_VAR_STRING;
@@ -313,8 +317,13 @@ namespace ormpp {
 					mp.emplace(decltype(i)::value, tmp);
 					param_binds[Idx].buffer = &(mp.rbegin()->second[0]);
 					param_binds[Idx].buffer_length = (unsigned long)sizeof(U);
+					index++;
 				}
 			});
+
+			if (index == 0) {
+				return {};
+			}
 
 			if (mysql_stmt_bind_result(stmt_, &param_binds[0])) {
 				//                fprintf(stderr, "%s\n", mysql_error(con_));
@@ -346,6 +355,7 @@ namespace ormpp {
 				for (auto& p :mp) {
 					p.second.assign(p.second.size(),0);
 				}
+
 				v.push_back(std::move(t));
 				iguana::for_each(t, [&mp, &t](auto item, auto i) {
 					using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
@@ -353,7 +363,6 @@ namespace ormpp {
 						memset(&(t.*item), 0, sizeof(U));
 					}
 				});
-
 			}
 
 			return v;
