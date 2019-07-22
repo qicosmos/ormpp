@@ -26,7 +26,7 @@ ormpp是modern c++(c++11/14/17)开发的ORM库，目前支持了三种数据库�
 
 ## 快速示例
 
-这个例子展示如何使用ormpp实现数据库的增删改查之类的操作，无需写sql语句。  
+这个例子展示如何使用ormpp实现数据库的增删改查之类的操作，无需写sql语句。
 
 	#include "dbng.hpp"
 	using namespace ormpp;
