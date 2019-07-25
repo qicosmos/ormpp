@@ -136,6 +136,10 @@ namespace ormpp {
 			return true;
 		}
 
+		int get_last_affect_rows() {
+			return (int)mysql_affected_rows(con_);
+		}
+
 		//for tuple and string with args...
 		template<typename T, typename Arg, typename... Args>
 		constexpr std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(const Arg& s, Args&&... args) {
