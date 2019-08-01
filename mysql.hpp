@@ -87,11 +87,12 @@ namespace ormpp {
 			//            }
 
 			std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
+			sql += " DEFAULT CHARSET=utf8";
 			if (mysql_query(con_, sql.data())) {
 				fprintf(stderr, "%s\n", mysql_error(con_));
 				return false;
 			}
-
+			
 			return true;
 		}
 
