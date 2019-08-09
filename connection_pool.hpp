@@ -25,7 +25,7 @@ namespace ormpp{
         //call_once
         template<typename... Args>
         void init(int maxsize, Args&&... args){
-            std::call_once(flag_, &connection_pool<DB>::init_impl<Args...>, this, maxsize, std::forward<Args>(args)...);
+            std::call_once(flag_, &connection_pool<DB>::template init_impl<Args...>, this, maxsize, std::forward<Args>(args)...);
         }
 
         std::shared_ptr<DB> get(){
