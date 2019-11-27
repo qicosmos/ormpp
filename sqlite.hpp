@@ -263,7 +263,7 @@ namespace ormpp{
                     if(!has_add_field){
                         append(sql, field_name.data(), " ", type_name_arr[i]);
                     }
-                    append(sql, " PRIMARY KEY ASC");
+                    append(sql, " PRIMARY KEY AUTOINCREMENT");
                     auto_key_map_[name.data()] = item.fields;
                     has_add_field = true;
                 }
