@@ -51,14 +51,14 @@ namespace ormpp{
 
         template<typename T, typename... Args>
         int insert(const T& t,Args&&... args){
-            std::string sql = auto_key_map_.empty()?generate_insert_sql<T>(false):generate_auto_insert_sql<T>(auto_key_map_, false);
+            std::string sql = auto_key_map_.empty()?generate_insert_sql<T>(false): generate_auto_insert_sql0<T>(auto_key_map_, false);
 
             return insert_impl(false, sql, t, std::forward<Args>(args)...);
         }
 
         template<typename T, typename... Args>
         int insert(const std::vector<T>& t, Args&&... args){
-            std::string sql = auto_key_map_.empty()?generate_insert_sql<T>(false):generate_auto_insert_sql<T>(auto_key_map_, false);
+            std::string sql = auto_key_map_.empty()?generate_insert_sql<T>(false): generate_auto_insert_sql0<T>(auto_key_map_, false);
 
             return insert_impl(false, sql, t, std::forward<Args>(args)...);
         }
@@ -370,9 +370,9 @@ namespace ormpp{
                 if(!bind_ok)
                     return;
 
-                /*if(!auto_key.empty()&&auto_key==iguana::get_name<T>(decltype(i)::value).data()){
+                if(!auto_key.empty()&&auto_key==iguana::get_name<T>(decltype(i)::value).data()){
                     return;
-                }*/
+                }
 
                 bind_ok = set_param_bind(t.*item, index+1);
                 index++;
@@ -440,6 +440,36 @@ namespace ormpp{
 
             return b?(int)v.size():INT_MIN;
         }
+
+		template<typename  T>
+		inline std::string generate_auto_insert_sql0(std::map<std::string, std::string>& auto_key_map_, bool replace) {
+			std::string sql = replace ? "replace into " : "insert into ";
+			constexpr auto SIZE = iguana::get_value<T>();
+			constexpr auto name = iguana::get_name<T>();
+			append(sql, name.data());
+
+			std::string fields = "(";
+			std::string values = " values(";
+			auto it = auto_key_map_.find(name.data());
+			for (auto i = 0; i < SIZE; ++i) {
+				std::string field_name = iguana::get_name<T>(i).data();
+				 if(it!=auto_key_map_.end()&&it->second==field_name)
+					 continue;
+
+				values += "?";
+				fields += field_name;
+				if (i < SIZE - 1) {
+					fields += ", ";
+					values += ", ";
+				}
+				else {
+					fields += ")";
+					values += ")";
+				}
+			}
+			append(sql, fields, values);
+			return sql;
+		}
 
         sqlite3* handle_ = nullptr;
         sqlite3_stmt* stmt_ = nullptr;
