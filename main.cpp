@@ -310,7 +310,7 @@ TEST_CASE(orm_insert_query){
         auto result3 = sqlite.query<student>();
         TEST_CHECK(result3.size()==1);
         TEST_CHECK(sqlite.insert(v)==2);
-        auto result6 = mysql.query<student>();
+        auto result6 = sqlite.query<student>();
         TEST_CHECK(result6.size()==4);
 #endif
     }
