@@ -521,7 +521,7 @@ TEST_CASE(orm_query){
     TEST_CHECK(mysql.insert(v)==3);
     auto result = mysql.query<simple>();
     TEST_CHECK(result.size()==3);
-    auto result3 = mysql.query<simple>("id=1");
+    auto result3 = mysql.query<simple>("where id=1");
     TEST_CHECK(result3.size()==1);
 #endif
 
@@ -532,7 +532,7 @@ TEST_CASE(orm_query){
     TEST_CHECK(sqlite.insert(v)==3);
     auto result2 = sqlite.query<simple>();
     TEST_CHECK(result2.size()==3);
-    auto result5 = sqlite.query<simple>("id=3");
+    auto result5 = sqlite.query<simple>("where id=3");
     TEST_CHECK(result5.size()==1);
 #endif
 
@@ -543,7 +543,7 @@ TEST_CASE(orm_query){
     TEST_CHECK(postgres.insert(v)==3);
     auto result1 = postgres.query<simple>();
     TEST_CHECK(result1.size()==3);
-    auto result4 = postgres.query<simple>("id=2");
+    auto result4 = postgres.query<simple>("where id=2");
     TEST_CHECK(result4.size()==1);
 #endif
 }
