@@ -16,10 +16,23 @@ namespace ormpp{
             disconnect();
         }
 
+		void set_last_error(std::string last_error) {
+			last_error_ = std::move(last_error);
+			//std::cout << last_error_ << std::endl;//todo, write to log file
+		}
+
+		std::string get_last_error() const {
+			return last_error_;
+		}
+
         template <typename... Args>
         bool connect(Args&&... args){
             auto r = sqlite3_open(std::forward<Args>(args)..., &handle_);
-            return r == SQLITE_OK;
+			if (r == SQLITE_OK) {
+				return true;
+			}
+			set_last_error(sqlite3_errmsg(handle_));
+			return false;
         }
 
         template <typename... Args>
@@ -27,7 +40,11 @@ namespace ormpp{
             if(handle_!= nullptr){
                 auto r = sqlite3_close(handle_);
                 handle_ = nullptr;
-                return r==SQLITE_OK;
+				if (r == SQLITE_OK) {
+					return true;
+				}
+				set_last_error(sqlite3_errmsg(handle_));
+				return false;
             }
 
 			return true;
@@ -42,7 +59,8 @@ namespace ormpp{
 //            }
 
             std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
-            if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr)!=SQLITE_OK) {
+			if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr) != SQLITE_OK) {
+				set_last_error(sqlite3_errmsg(handle_));
                 return false;
             }
 
@@ -81,6 +99,7 @@ namespace ormpp{
         bool delete_records(Args&&... where_conditon){
             auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
             if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr)!=SQLITE_OK) {
+                set_last_error(sqlite3_errmsg(handle_));
                 return false;
             }
 
@@ -94,8 +113,10 @@ namespace ormpp{
             constexpr auto SIZE = iguana::get_value<T>();
 
             int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(), &stmt_, nullptr);
-            if(result!=SQLITE_OK)
-                return {};
+            if (result != SQLITE_OK) {
+				set_last_error(sqlite3_errmsg(handle_));
+				return {};
+            }
 
             auto guard = guard_statment(stmt_);
 
@@ -136,8 +157,10 @@ namespace ormpp{
             }
 
             int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(), &stmt_, nullptr);
-            if(result!=SQLITE_OK)
-                return {};
+            if (result != SQLITE_OK) {
+				set_last_error(sqlite3_errmsg(handle_));
+				return {};
+            }
 
             auto guard = guard_statment(stmt_);
 
@@ -176,7 +199,8 @@ namespace ormpp{
 
         //just support execute string sql without placeholders
         bool execute(const std::string& sql){
-            if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr)!=SQLITE_OK) {
+			if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr) != SQLITE_OK) {
+				set_last_error(sqlite3_errmsg(handle_));
                 return false;
             }
 
@@ -189,7 +213,8 @@ namespace ormpp{
 
         //transaction
         bool begin(){
-            if (sqlite3_exec(handle_, "BEGIN", nullptr, nullptr, nullptr)!=SQLITE_OK) {
+			if (sqlite3_exec(handle_, "BEGIN", nullptr, nullptr, nullptr) != SQLITE_OK) {
+				set_last_error(sqlite3_errmsg(handle_));
                 return false;
             }
 
@@ -197,7 +222,8 @@ namespace ormpp{
         }
 
         bool commit(){
-            if (sqlite3_exec(handle_, "COMMIT", nullptr, nullptr, nullptr)!=SQLITE_OK) {
+			if (sqlite3_exec(handle_, "COMMIT", nullptr, nullptr, nullptr) != SQLITE_OK) {
+				set_last_error(sqlite3_errmsg(handle_));
                 return false;
             }
 
@@ -205,7 +231,8 @@ namespace ormpp{
         }
 
         bool rollback(){
-            if (sqlite3_exec(handle_, "ROLLBACK", nullptr, nullptr, nullptr)!=SQLITE_OK) {
+			if (sqlite3_exec(handle_, "ROLLBACK", nullptr, nullptr, nullptr) != SQLITE_OK) {
+				set_last_error(sqlite3_errmsg(handle_));
                 return false;
             }
 
@@ -357,8 +384,10 @@ namespace ormpp{
         template<typename T, typename... Args>
         int insert_impl(bool is_update, const std::string& sql, const T& t, Args&&... args) {
             int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(), &stmt_, nullptr);
-            if (result != SQLITE_OK)
-                return INT_MIN;
+            if (result != SQLITE_OK) {
+				set_last_error(sqlite3_errmsg(handle_));
+				return INT_MIN;
+            }
 
             auto guard = guard_statment(stmt_);
 
@@ -378,12 +407,16 @@ namespace ormpp{
                 index++;
             });
 
-            if(!bind_ok)
-                return INT_MIN;
+			if (!bind_ok) {
+				set_last_error(sqlite3_errmsg(handle_));
+				return INT_MIN;
+            }
 
             result = sqlite3_step(stmt_);
-            if (result != SQLITE_DONE)
-                return INT_MIN;
+            if (result != SQLITE_DONE) {
+                set_last_error(sqlite3_errmsg(handle_));
+				return INT_MIN;
+            }
 
             return 1;
         }
@@ -391,14 +424,18 @@ namespace ormpp{
         template<typename T, typename... Args>
         int insert_impl(bool is_update, const std::string& sql, const std::vector<T>& v, Args&&... args) {
             int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(), &stmt_, nullptr);
-            if (result != SQLITE_OK)
-                return INT_MIN;
+			if (result != SQLITE_OK) {
+				set_last_error(sqlite3_errmsg(handle_));
+				return INT_MIN;
+			}
 
             auto guard = guard_statment(stmt_);
 
             bool b = begin();
-            if(!b)
-                return INT_MIN;
+			if (!b) {
+				set_last_error(sqlite3_errmsg(handle_));
+				return INT_MIN;
+			}
 
             auto it = auto_key_map_.find(get_name<T>());
             std::string auto_key = (is_update||it==auto_key_map_.end())?"":it->second;
@@ -419,19 +456,22 @@ namespace ormpp{
                 });
 
                 if(!bind_ok){
-                    rollback();
+					rollback();
+					set_last_error(sqlite3_errmsg(handle_));
                     return INT_MIN;
                 }
 
                 result = sqlite3_step(stmt_);
                 if (result != SQLITE_DONE){
-                    rollback();
+					rollback();
+					set_last_error(sqlite3_errmsg(handle_));
                     return INT_MIN;
                 }
 
                 result = sqlite3_reset(stmt_);
                 if (result != SQLITE_OK){
-                    rollback();
+					rollback();
+					set_last_error(sqlite3_errmsg(handle_));
                     return INT_MIN;
                 }
             }
@@ -474,6 +514,7 @@ namespace ormpp{
         sqlite3* handle_ = nullptr;
         sqlite3_stmt* stmt_ = nullptr;
         std::map<std::string, std::string> auto_key_map_;
+		std::string last_error_;
 //        std::string auto_key_ = "";
     };
 }
