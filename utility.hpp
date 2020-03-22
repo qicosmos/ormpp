@@ -201,12 +201,23 @@ namespace ormpp{
 		}
 	}
 
+    template<typename T, typename = std::enable_if_t<iguana::is_reflection_v<T>>>
+    inline std::string get_name() {
+#ifdef ORMPP_ENABLE_PG
+        std::string quota_name = "'" + std::string(iguana::get_name<T>()) + "'";
+#else
+        std::string quota_name = "`" + std::string(iguana::get_name<T>()) + "`";
+#endif 
+
+        return quota_name;
+    }
+
     template<typename T, typename... Args>
     inline std::string generate_query_sql(Args&&... args){
 		constexpr size_t param_size = sizeof...(Args);
         static_assert(param_size ==0|| param_size>0);
         std::string sql = "select * from ";
-        constexpr auto name = iguana::get_name<T>();
+        auto name = get_name<T>();
         append(sql, name.data());
 
 		get_sql_conditions(sql, std::forward<Args>(args)...);

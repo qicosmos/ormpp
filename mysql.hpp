@@ -419,7 +419,7 @@ namespace ormpp {
 		template<typename T, typename... Args >
 		std::string generate_createtb_sql(Args&&... args) {
 			const auto type_name_arr = get_type_names<T>(DBType::mysql);
-			constexpr auto name = iguana::get_name<T>();
+			auto name = get_name<T>();
 			std::string sql = std::string("CREATE TABLE IF NOT EXISTS ") + name.data() + "(";
 			auto arr = iguana::get_array<T>();
 			constexpr auto SIZE = sizeof... (Args);

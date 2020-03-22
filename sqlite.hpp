@@ -217,7 +217,7 @@ namespace ormpp{
         std::string generate_createtb_sql(Args&&... args)
         {
             const auto type_name_arr = get_type_names<T>(DBType::sqlite);
-            constexpr auto name = iguana::get_name<T>();
+            auto name = get_name<T>();
             std::string sql = std::string("CREATE TABLE IF NOT EXISTS ") + name.data()+"(";
             auto arr = iguana::get_array<T>();
             constexpr auto SIZE = sizeof... (Args);
@@ -445,7 +445,7 @@ namespace ormpp{
 		inline std::string generate_auto_insert_sql0(std::map<std::string, std::string>& auto_key_map_, bool replace) {
 			std::string sql = replace ? "replace into " : "insert into ";
 			constexpr auto SIZE = iguana::get_value<T>();
-			constexpr auto name = iguana::get_name<T>();
+			auto name = get_name<T>();
 			append(sql, name.data());
 
 			std::string fields = "(";
