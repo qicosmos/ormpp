@@ -105,11 +105,22 @@ namespace ormpp{
         (f(std::get<Idx>(t)), ...);
     }
 
+    template<typename T, typename = std::enable_if_t<iguana::is_reflection_v<T>>>
+    inline std::string get_name() {
+#ifdef ORMPP_ENABLE_PG
+        std::string quota_name = "'" + std::string(iguana::get_name<T>()) + "'";
+#else
+        std::string quota_name = "`" + std::string(iguana::get_name<T>()) + "`";
+#endif 
+
+        return quota_name;
+    }
+
     template<typename T>
     inline std::string generate_insert_sql(bool replace){
         std::string sql = replace?"replace into ":"insert into ";
         constexpr auto SIZE = iguana::get_value<T>();
-        constexpr auto name = iguana::get_name<T>();
+        auto name = get_name<T>();
         append(sql, name.data(), " values(");
         for (auto i = 0; i < SIZE; ++i) {
             sql+="?";
@@ -126,7 +137,7 @@ namespace ormpp{
     inline std::string generate_auto_insert_sql(std::map<std::string, std::string>& auto_key_map_, bool replace){
         std::string sql = replace?"replace into ":"insert into ";
         constexpr auto SIZE = iguana::get_value<T>();
-        constexpr auto name = iguana::get_name<T>();
+        auto name = get_name<T>();
         append(sql, name.data());
 
         std::string fields = "(";
@@ -167,7 +178,7 @@ namespace ormpp{
     inline std::string generate_delete_sql(Args&&... where_conditon){
         std::string sql = "delete from ";
         constexpr auto SIZE = iguana::get_value<T>();
-        constexpr auto name = iguana::get_name<T>();
+        auto name = get_name<T>();
         append(sql, name.data());
 		if constexpr (sizeof...(Args) > 0) {
 			if (!is_empty(std::forward<Args>(where_conditon)...))//fix for vs2017
@@ -200,17 +211,6 @@ namespace ormpp{
 			append(sql, arg, std::forward<Args>(args)...);
 		}
 	}
-
-    template<typename T, typename = std::enable_if_t<iguana::is_reflection_v<T>>>
-    inline std::string get_name() {
-#ifdef ORMPP_ENABLE_PG
-        std::string quota_name = "'" + std::string(iguana::get_name<T>()) + "'";
-#else
-        std::string quota_name = "`" + std::string(iguana::get_name<T>()) + "`";
-#endif 
-
-        return quota_name;
-    }
 
     template<typename T, typename... Args>
     inline std::string generate_query_sql(Args&&... args){
