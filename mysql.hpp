@@ -80,12 +80,6 @@ namespace ormpp {
 
 		template<typename T, typename... Args >
 		constexpr bool create_datatable(Args&&... args) {
-			//            std::string droptb = "DROP TABLE IF EXISTS ";
-			//            droptb += iguana::get_name<T>();
-			//            if (mysql_query(con_, droptb.data())) {
-			//                return false;
-			//            }
-
 			std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
 			sql += " DEFAULT CHARSET=utf8";
 			if (mysql_query(con_, sql.data())) {
@@ -98,7 +92,7 @@ namespace ormpp {
 
 		template<typename T, typename... Args>
 		constexpr int insert(const std::vector<T>& t, Args&&... args) {
-			auto name = iguana::get_name<T>().data();
+			auto name = get_name<T>();
 			std::string sql = auto_key_map_[name].empty() ? generate_insert_sql<T>(false) : generate_auto_insert_sql<T>(auto_key_map_, false);
 
 			return insert_impl(sql, t, std::forward<Args>(args)...);
@@ -114,7 +108,7 @@ namespace ormpp {
 		template<typename T, typename... Args>
 		constexpr int insert(const T& t, Args&&... args) {
 			//insert into person values(?, ?, ?);
-			auto name = iguana::get_name<T>().data();
+			auto name = get_name<T>();
 			std::string sql = auto_key_map_[name].empty() ? generate_insert_sql<T>(false) : generate_auto_insert_sql<T>(auto_key_map_, false);
 
 			return insert_impl(sql, t, std::forward<Args>(args)...);
@@ -520,7 +514,7 @@ namespace ormpp {
 		template<typename T>
 		int stmt_execute(const T& t) {
 			std::vector<MYSQL_BIND> param_binds;
-			auto it = auto_key_map_.find(iguana::get_name<T>().data());
+			auto it = auto_key_map_.find(get_name<T>());
 			std::string auto_key = (it == auto_key_map_.end()) ? "" : it->second;
 
 			iguana::for_each(t, [&t, &param_binds, &auto_key, this](const auto& v, auto i) {

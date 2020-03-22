@@ -362,7 +362,7 @@ namespace ormpp{
 
             auto guard = guard_statment(stmt_);
 
-            auto it = auto_key_map_.find(iguana::get_name<T>().data());
+            auto it = auto_key_map_.find(get_name<T>());
             std::string auto_key = (is_update||it==auto_key_map_.end())?"":it->second;
             bool bind_ok = true;
             int index = 0;
@@ -400,7 +400,7 @@ namespace ormpp{
             if(!b)
                 return INT_MIN;
 
-            auto it = auto_key_map_.find(iguana::get_name<T>().data());
+            auto it = auto_key_map_.find(get_name<T>());
             std::string auto_key = (is_update||it==auto_key_map_.end())?"":it->second;
 
             for(auto& t : v){
