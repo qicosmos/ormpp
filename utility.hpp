@@ -92,6 +92,10 @@ namespace ormpp{
                 case DBType::postgresql : s = ormpp_postgresql::type_to_name(identity<U>{});
                     break;
 #endif
+                case DBType::sqlite:
+                    break;
+                case DBType::postgresql:
+                    break;
             }
 
             arr[Idx] = s;
