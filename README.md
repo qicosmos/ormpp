@@ -28,6 +28,7 @@ ormpp是modern c++(c++11/14/17)开发的ORM库，目前支持了三种数据库�
 
 这个例子展示如何使用ormpp实现数据库的增删改查之类的操作，无需写sql语句。
 
+```C++
 	#include "dbng.hpp"
 	using namespace ormpp;
 	
@@ -74,6 +75,7 @@ ormpp是modern c++(c++11/14/17)开发的ORM库，目前支持了三种数据库�
 		}
 		mysql.commit();
 	}
+```
 
 ## 如何编译
 
@@ -95,6 +97,7 @@ ormpp是modern c++(c++11/14/17)开发的ORM库，目前支持了三种数据库�
 ormpp屏蔽了不同数据库操作接口的差异，提供了统一简单的数据库操作接口，具体提供了数据库连接、断开连接、创建数据表、插入数据、更新数据、删除数据、查询数据和事务相关的接口。
 
 ### 接口概览
+```C++
 
 	//连接数据库
 	template <typename... Args>
@@ -142,9 +145,12 @@ ormpp屏蔽了不同数据库操作接口的差异，提供了统一简单的数
 	
 	//回滚
 	bool rollback();
+```
 
 ### 具体的接口使用介绍
 先在entity.hpp中定义业务实体（和数据库的表对应），接着定义数据库对象：
+
+```C++
 
 	#include "dbng.hpp"
 	using namespace ormpp;
@@ -164,44 +170,61 @@ ormpp屏蔽了不同数据库操作接口的差异，提供了统一简单的数
 	    dbng<postgresql> postgres;
 		//......
 	}
+```
 
 1. 连接数据库
+```C++
+
 
 	template <typename... Args>
 	bool connect(Args&&... args);
+```
 
 connect exmple:
+```C++
+
 
 	mysql.connect("127.0.0.1", "root", "12345", "testdb")
 
 	postgres.connect("127.0.0.1", "root", "12345", "testdb")
 
 	sqlite.connect("127.0.0.1", "root", "12345", "testdb")
-
+```
 返回值：bool，成功返回true，失败返回false.
 
 2. 断开数据库连接
+```C++
+
 	
 	bool disconnect();
+```
 
 disconnect exmple:
+```C++
+
 
 	mysql.disconnect();
 
 	postgres.disconnect();
 
 	sqlite.disconnect();
+```
 
 注意：用户可以不用显式调用，在数据库对象析构时会自动调用disconnect接口。
 
 返回值：bool，成功返回true，失败返回false.
 
 3.创建数据表
+```C++
+
 
 	template<typename T, typename... Args>
 	bool create_datatable(Args&&... args);
+```
 
 create_datatable example:
+```C++
+
 
 	//创建不含主键的表
 	mysql.create_datatable<student>();
@@ -221,31 +244,41 @@ create_datatable example:
     mysql.create_datatable<person>(key1, not_null);
     postgres.create_datatable<person>(key1, not_null);
     sqlite.create_datatable<person>(key1);
+```
 
 注意：目前只支持了key和not null属性，并且只支持单键，还不支持组合键，将在下一个版本中支持组合键。
 
 返回值：bool，成功返回true，失败返回false.
 
 4.插入单条数据
+```C++
+
 
 	template<typename T, typename... Args>
 	int insert(const T& t, Args&&... args);
+```
 
 insert example:
+
+```C++
 
 	person p = {1, "test1", 2};
 	TEST_CHECK(mysql.insert(p)==1);
     TEST_CHECK(postgres.insert(p)==1);
     TEST_CHECK(sqlite.insert(p)==1);
-
+```
 返回值：int，成功返回插入数据的条数1，失败返回INT_MIN.
 
 5.插入多条数据
 
+```C++
+
 	template<typename T, typename... Args>
 	int insert(const std::vector<T>& t, Args&&... args);
-
+```
 multiple insert example:
+
+```C++
 
 	person p = {1, "test1", 2};
     person p1 = {2, "test2", 3};
@@ -255,36 +288,46 @@ multiple insert example:
     TEST_CHECK(mysql.insert(v1)==3);
     TEST_CHECK(postgres.insert(v1)==3);
     TEST_CHECK(sqlite.insert(v1)==3);
-
+```
 返回值：int，成功返回插入数据的条数N，失败返回INT_MIN.
 
 6. 更新单条数据
 
 
+```C++
+
 	template<typename T, typename... Args>
 	int update(const T& t, Args&&... args);
-
+```
 update example:
+
+```C++
 
 	person p = {1, "test1", 2};
 	TEST_CHECK(mysql.update(p)==1);
     TEST_CHECK(postgres.update(p)==1);
     TEST_CHECK(sqlite.update(p)==1);
-
+```
 注意：更新会根据表的key字段去更新，如果表没有key字段的时候，需要指定一个更新依据字段名，比如
 	
+```C++
+
 	TEST_CHECK(mysql.update(p, "age")==1);
     TEST_CHECK(postgres.update(p, "age")==1);
     TEST_CHECK(sqlite.update(p, "age")==1);
-
+```
 返回值：int，成功返回更新数据的条数1，失败返回INT_MIN.
 
 5.插入多条数据
 
+```C++
+
 	template<typename T, typename... Args>
 	int update(const std::vector<T>& t, Args&&... args);
-
+```
 multiple insert example:
+
+```C++
 
 	person p = {1, "test1", 2};
     person p1 = {2, "test2", 3};
@@ -294,17 +337,21 @@ multiple insert example:
     TEST_CHECK(mysql.insert(v1)==3);
     TEST_CHECK(postgres.insert(v1)==3);
     TEST_CHECK(sqlite.insert(v1)==3);
-
+```
 注意：更新会根据表的key字段去更新，如果表没有key字段的时候，需要指定一个更新依据字段名，用法同上。
 
 返回值：int，成功返回更新数据的条数N，失败返回INT_MIN.
 
 6. 删除数据
 
+```C++
+
 	template<typename T, typename... Args>
 	bool delete_records(Args&&... where_conditon);
-
+```
 delete_records example:
+
+```C++
 
 	//删除所有数据
 	TEST_REQUIRE(mysql.delete_records<person>());
@@ -315,10 +362,12 @@ delete_records example:
 	TEST_REQUIRE(mysql.delete_records<person>("id=1"));
 	TEST_REQUIRE(postgres.delete_records<person>("id=1"));
 	TEST_REQUIRE(sqlite.delete_records<person>("id=1"));
-
+```
 返回值：bool，成功返回true，失败返回false.
 
 7.单表查询
+
+```C++
 
 	template<typename T, typename... Args>
 	auto query(Args&&... args);
@@ -326,8 +375,10 @@ delete_records example:
 	//如果T是一个反射对象则返回的是单表查询结果vector<T>
 	template<typename T, typename... Args>
 	std::vector<T> query(Args&&... args);
-
+```
 single table query example:
+
+```C++
 
     auto result = mysql.query<person>();
     TEST_CHECK(result.size()==3);
@@ -346,10 +397,12 @@ single table query example:
     TEST_CHECK(result4.size()==1);
 
     auto result5 = sqlite.query<person>("where id=3");
-
+```
 返回值：std::vector<T>，成功vector不为空，失败则为空.
 
 8.多表或特定列查询
+
+```C++
 
 	template<typename T, typename... Args>
 	auto query(Args&&... args);
@@ -357,8 +410,10 @@ single table query example:
 	//如果T是一个tuple类型则返回的是多表或特定列查询，结果vector<tuple<T>>
 	template<typename T, typename... Args>
 	std::vector<std::tuple<T>> query(Args&&... args);
-
+```
 multiple or some fields query example:
+
+```C++
 
     auto result = mysql.query<std::tuple<int, std::string, int>>("select code, name, dm from person");
     TEST_CHECK(result.size()==3);
@@ -380,14 +435,18 @@ multiple or some fields query example:
     auto result5 = sqlite.query<std::tuple<int>>("select count(1) from person");
     TEST_CHECK(result5.size()==1);
     TEST_CHECK(std::get<0>(result5[0])==3);
-
+```
 返回值：std::vector<std::tuple<T>>，成功vector不为空，失败则为空.
 
 9.执行原生sql语句
 
-	int execute(const std::string& sql);
+```C++
 
+	int execute(const std::string& sql);
+```
 execute example:
+
+```C++
 
 	r = mysql.execute("drop table if exists person");
     TEST_REQUIRE(r);
@@ -397,7 +456,7 @@ execute example:
 
     r = sqlite.execute("drop table if exists person");
     TEST_REQUIRE(r);
-
+```
 注意：execute接口支持的原生sql语句是不带占位符的，是一条完整的sql语句。
 
 返回值：int，成功返回更新数据的条数1，失败返回INT_MIN.
@@ -405,6 +464,8 @@ execute example:
 10.事务接口
 
 开始事务，提交事务，回滚
+
+```C++
 
 	//transaction
 	mysql.begin();
@@ -416,11 +477,14 @@ execute example:
             }
 	}
 	mysql.commit();
+```
 返回值：bool，成功返回true，失败返回false.
 
 11.面向切面编程AOP
 
 定义切面：
+
+```C++
 
 	struct log{
 		//args...是业务逻辑函数的入参
@@ -453,14 +517,16 @@ execute example:
 	        return true;
 	    }
 	};
-
+```
 注意：切面的定义中，允许你只定义before或after，或者二者都定义。
+
+```C++
 
 	//增加日志和校验的切面
 	dbng<mysql> mysql;
     auto r = mysql.warper_connect<log, validate>("127.0.0.1", "root", "12345", "testdb");
     TEST_REQUIRE(r);
-
+```
 ## roadmap
 
 1. 支持组合键。
