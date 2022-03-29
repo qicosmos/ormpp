@@ -220,6 +220,11 @@ namespace ormpp{
         auto name = get_name<T>();
         append(sql, name.data());
 
+        std::string where_sql = "";
+        if (param_size > 0) {
+          where_sql = " where 1=1 and ";
+        }
+        sql.append(where_sql);
 		get_sql_conditions(sql, std::forward<Args>(args)...);
 		return sql;
     }
