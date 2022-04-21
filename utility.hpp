@@ -208,6 +208,10 @@ namespace ormpp{
 			sql = arg;
 		}
 		else {
+      if (arg.find("limit") != std::string::npos) {
+        auto pos = sql.find("where");
+        sql = sql.substr(0, pos);
+      }
 			append(sql, arg, std::forward<Args>(args)...);
 		}
 	}
