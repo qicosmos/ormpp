@@ -61,7 +61,7 @@ inline auto sort_tuple(const std::tuple<Args...> &tp) {
   }
 }
 
-enum class DBType { mysql, sqlite, postgresql };
+enum class DBType { mysql, sqlite, postgresql, unknown };
 
 template <typename T> inline constexpr auto get_type_names(DBType type) {
   constexpr auto SIZE = iguana::get_value<T>();
@@ -71,23 +71,22 @@ template <typename T> inline constexpr auto get_type_names(DBType type) {
     using U =
         std::remove_reference_t<decltype(iguana::get<Idx>(std::declval<T>()))>;
     std::string s;
-    switch (type) {
-#ifdef ORMPP_ENABLE_MYSQL
-    case DBType::mysql:
+    if(type==DBType::unknown) {}
+#ifdef ORMPP_ENABLE_MYSQL    
+    else if(type==DBType::mysql) {
       s = ormpp_mysql::type_to_name(identity<U>{});
-      break;
+    }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
-    case DBType::sqlite:
+    else if(type==DBType::sqlite) {
       s = ormpp_sqlite::type_to_name(identity<U>{});
-      break;
+    }
 #endif
 #ifdef ORMPP_ENABLE_PG
-    case DBType::postgresql:
+    else if(type==DBType::postgresql) {
       s = ormpp_postgresql::type_to_name(identity<U>{});
-      break;
-#endif
     }
+#endif
 
     arr[Idx] = s;
   });
@@ -114,10 +113,10 @@ inline std::string get_name() {
 
 template <typename T> inline std::string generate_insert_sql(bool replace) {
   std::string sql = replace ? "replace into " : "insert into ";
-  constexpr auto SIZE = iguana::get_value<T>();
+  constexpr size_t SIZE = iguana::get_value<T>();
   auto name = get_name<T>();
   append(sql, name.data(), " values(");
-  for (auto i = 0; i < SIZE; ++i) {
+  for (size_t i = 0; i < SIZE; ++i) {
     sql += "?";
     if (i < SIZE - 1)
       sql += ", ";
@@ -139,8 +138,8 @@ generate_auto_insert_sql(std::map<std::string, std::string> &auto_key_map_,
 
   std::string fields = "(";
   std::string values = " values(";
-  auto it = auto_key_map_.find(name.data());
-  for (auto i = 0; i < SIZE; ++i) {
+  // auto it = auto_key_map_.find(name.data());
+  for (size_t i = 0; i < SIZE; ++i) {
     std::string field_name = iguana::get_name<T>(i).data();
     /* if(it!=auto_key_map_.end()&&it->second==field_name)
          continue;*/
@@ -173,7 +172,6 @@ template <size_t N> inline constexpr size_t char_array_size(char (&)[N]) {
 template <typename T, typename... Args>
 inline std::string generate_delete_sql(Args &&...where_conditon) {
   std::string sql = "delete from ";
-  constexpr auto SIZE = iguana::get_value<T>();
   auto name = get_name<T>();
   append(sql, name.data());
   if constexpr (sizeof...(Args) > 0) {

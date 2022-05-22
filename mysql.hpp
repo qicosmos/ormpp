@@ -335,8 +335,6 @@ public:
     }
 
     while (mysql_stmt_fetch(stmt_) == 0) {
-      using TP = decltype(iguana::get(std::declval<T>()));
-
       iguana::for_each(t, [&mp, &t](auto item, auto i) {
         using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
         if constexpr (std::is_same_v<std::string, U>) {

@@ -30,11 +30,11 @@
 
 using namespace std::string_literals;
 
-struct test_tb {
-  int id;
-  char name[12];
-};
-REFLECTION(test_tb, id, name);
+// struct test_tb {
+//   int id;
+//   char name[12];
+// };
+// REFLECTION(test_tb, id, name);
 
 struct person {
   int id;
@@ -278,8 +278,9 @@ TEST_CASE(orm_insert_query) {
   auto vv = mysql.query(FID(simple::id), "<", 5);
   auto vv3 = mysql.query(FID(person::name), "<", "5");
   auto vv5 = mysql.query(FID(person::name), "<", 5);
-  auto r = mysql.delete_records(FID(simple::id), "=", 3);
+  mysql.delete_records(FID(simple::id), "=", 3);
 #endif
+
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;

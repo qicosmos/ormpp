@@ -98,7 +98,6 @@ private:
   template <typename Pair, typename U>
   auto build_condition(Pair pair, std::string_view oper, U &&val) {
     std::string sql = "";
-    using T = typename field_attribute<decltype(pair.second)>::type;
     using V = std::remove_const_t<std::remove_reference_t<U>>;
 
     // if field type is numeric, return type of val is numeric, to string; val
