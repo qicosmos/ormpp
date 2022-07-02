@@ -31,8 +31,7 @@ public:
     }
 
     int timeout = -1;
-    auto tp = std::tuple_cat(get_tp(timeout, std::forward<Args>(args)...),
-                             std::make_tuple(0, nullptr, 0));
+    auto tp = get_tp(timeout, std::forward<Args>(args)...);
 
     if (timeout > 0) {
       if (mysql_options(con_, MYSQL_OPT_CONNECT_TIMEOUT, &timeout) != 0) {
@@ -609,9 +608,16 @@ private:
     if constexpr (sizeof...(Args) == 5) {
       auto [c, s1, s2, s3, s4, i] = tp;
       timeout = i;
-      return std::make_tuple(c, s1, s2, s3, s4);
-    } else
-      return tp;
+      return std::make_tuple(c, s1, s2, s3, s4, 0, nullptr, 0);
+    }
+    else if constexpr (sizeof...(Args) == 6) {
+      auto [c, s1, s2, s3, s4, i, port] = tp;
+      timeout = i;
+      return std::make_tuple(c, s1, s2, s3, s4, port, nullptr, 0);
+    }
+    else {
+      return std::tuple_cat(tp, std::make_tuple(0, nullptr, 0));
+    } 
   }
 
 private:

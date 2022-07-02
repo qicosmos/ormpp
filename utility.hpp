@@ -194,7 +194,7 @@ template <typename T> inline bool has_key(const std::string &s) {
   return false;
 }
 
-inline void get_sql_conditions(std::string &sql) {}
+inline void get_sql_conditions(std::string &) {}
 
 template <typename... Args>
 inline void get_sql_conditions(std::string &sql, const std::string &arg,

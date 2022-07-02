@@ -99,6 +99,23 @@ const char *ip = "127.0.0.1"; // your database ip
 
 template <class T, size_t N> constexpr size_t size(T (&)[N]) { return N; }
 
+struct dummy {
+  int id;
+  std::string name;
+};
+REFLECTION(dummy, id, name);
+
+TEST_CASE(mysql_exist_tb) {
+  dbng<mysql> mysql;
+  TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb", /*timeout_seconds=*/5, 3306));
+  dummy d{ 0, "tom" };
+  dummy d1{ 0, "jerry" };
+  mysql.insert(d);
+  mysql.insert(d1);
+  auto v = mysql.query<dummy>("limit 1, 1");
+  std::cout << v.size() << "\n";
+}
+
 TEST_CASE(mysql_pool) {
   //	dbng<sqlite> sqlite;
   //	sqlite.connect("testdb");
@@ -311,8 +328,8 @@ TEST_CASE(orm_insert_query) {
     TEST_CHECK(sqlite.insert(v) == 2);
     auto result6 = sqlite.query<student>();
     TEST_CHECK(result6.size() == 4);
-    auto v = sqlite.query(FID(student::code), "<", "5");
-    auto v1 = sqlite.query<student>("limit 2");
+    auto v2 = sqlite.query(FID(student::code), "<", "5");
+    auto v3 = sqlite.query<student>("limit 2");
 #endif
   }
 
@@ -679,8 +696,8 @@ TEST_CASE(orm_transaction) {
 
   TEST_REQUIRE(mysql.begin());
   for (int i = 0; i < 10; ++i) {
-    student s = {i, "tom", 0, 19, 1.5, "room2"};
-    if (!mysql.insert(s)) {
+    student st = {i, "tom", 0, 19, 1.5, "room2"};
+    if (!mysql.insert(st)) {
       mysql.rollback();
       return;
     }
