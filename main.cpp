@@ -731,8 +731,8 @@ TEST_CASE(orm_transaction) {
   TEST_REQUIRE(sqlite.create_datatable<student>(key));
   TEST_REQUIRE(sqlite.begin());
   for (int i = 0; i < 10; ++i) {
-    student s = {i, "tom", 0, 19, 1.5, "room2"};
-    if (!sqlite.insert(s)) {
+    student st = {i, "tom", 0, 19, 1.5, "room2"};
+    if (!sqlite.insert(st)) {
       sqlite.rollback();
       return;
     }
