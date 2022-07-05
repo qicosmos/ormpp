@@ -156,8 +156,9 @@ TEST_CASE(test_ormpp_cfg) {
 #ifdef ORMPP_ENABLE_MYSQL
   auto &pool = connection_pool<dbng<mysql>>::instance();
   try {
+    cfg.db_port = 3306;
     pool.init(cfg.db_conn_num, cfg.db_ip.data(), cfg.user_name.data(),
-              cfg.pwd.data(), cfg.db_name.data(), cfg.timeout);
+              cfg.pwd.data(), cfg.db_name.data(), cfg.timeout, cfg.db_port);
   } catch (const std::exception &e) {
     std::cout << e.what() << std::endl;
     return;

@@ -99,7 +99,7 @@ private:
   std::mutex mutex_;
   std::condition_variable condition_;
   std::once_flag flag_;
-  std::tuple<const char *, const char *, const char *, const char *, int> args_;
+  std::tuple<const char *, const char *, const char *, const char *, int, int> args_;
 };
 
 template <typename DB> struct conn_guard {

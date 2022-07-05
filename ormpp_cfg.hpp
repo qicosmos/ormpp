@@ -19,8 +19,9 @@ struct ormpp_cfg {
   std::string db_name;
   int timeout;
   int db_conn_num;
+  int db_port;
 };
-REFLECTION(ormpp_cfg, db_ip, user_name, pwd, db_name, timeout, db_conn_num);
+REFLECTION(ormpp_cfg, db_ip, user_name, pwd, db_name, timeout, db_conn_num, db_port);
 
 /*
         int max_thread_num = config_manager::get<int>("max_thread_num",
