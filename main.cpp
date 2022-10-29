@@ -323,13 +323,14 @@ TEST_CASE(orm_insert_query) {
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
+    TEST_CHECK(sqlite.delete_records<student>());
     TEST_REQUIRE(sqlite.create_datatable<student>(auto_key));
     TEST_CHECK(sqlite.insert(s) == 1);
     auto result3 = sqlite.query<student>();
     TEST_CHECK(result3.size() == 1);
     TEST_CHECK(sqlite.insert(v) == 2);
     auto result6 = sqlite.query<student>();
-    TEST_CHECK(result6.size() == 4);
+    TEST_CHECK(result6.size() == 3);
     auto v2 = sqlite.query(FID(student::code), "<", "5");
     auto v3 = sqlite.query<student>("limit 2");
 #endif
@@ -338,6 +339,7 @@ TEST_CASE(orm_insert_query) {
   // key
   {
 #ifdef ORMPP_ENABLE_MYSQL
+    TEST_CHECK(mysql.delete_records<student>());
     TEST_REQUIRE(mysql.create_datatable<student>(auto_key, not_null));
     TEST_CHECK(mysql.insert(s) == 1);
     auto result1 = mysql.query<student>("limit 3");
@@ -354,8 +356,8 @@ TEST_CASE(orm_insert_query) {
     v[1].code = 2;
     TEST_CHECK(mysql.insert(s) == 1);
     auto result11 = mysql.query<student>();
-    TEST_CHECK(result11.size() == 1);
-    TEST_CHECK(mysql.insert(s) < 0);
+    TEST_CHECK(result11.size() == 5);
+    //TEST_CHECK(mysql.insert(s) < 0);
     TEST_CHECK(mysql.delete_records<student>());
     TEST_CHECK(mysql.insert(v) == 2);
     auto result44 = mysql.query<student>();
@@ -379,7 +381,7 @@ TEST_CASE(orm_insert_query) {
     TEST_REQUIRE(sqlite.create_datatable<student>(key));
     TEST_CHECK(sqlite.insert(s) == 1);
     auto result3 = sqlite.query<student>();
-    TEST_CHECK(result3.size() == 1);
+    TEST_CHECK(result3.size() == 4);
     TEST_CHECK(sqlite.delete_records<student>());
     TEST_CHECK(sqlite.insert(v) == 2);
 #endif
@@ -398,7 +400,9 @@ TEST_CASE(orm_update) {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
+
   TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+  TEST_CHECK(mysql.delete_records<student>());
   TEST_REQUIRE(mysql.create_datatable<student>(key, not_null));
   TEST_CHECK(mysql.insert(v) == 3);
 
@@ -425,6 +429,7 @@ TEST_CASE(orm_update) {
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   TEST_REQUIRE(sqlite.connect("test.db"));
+  TEST_CHECK(sqlite.delete_records<student>());
   TEST_REQUIRE(sqlite.create_datatable<student>(key));
   TEST_CHECK(sqlite.insert(v) == 3);
   TEST_CHECK(sqlite.update(v[0]) == 1);
@@ -448,6 +453,7 @@ TEST_CASE(orm_multi_update) {
   dbng<mysql> mysql;
   TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
   TEST_REQUIRE(mysql.create_datatable<student>(key, not_null));
+  TEST_CHECK(mysql.delete_records<student>());
   TEST_CHECK(mysql.insert(v) == 3);
   v[0].name = "test1";
   v[1].name = "test2";
@@ -461,6 +467,7 @@ TEST_CASE(orm_multi_update) {
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   TEST_REQUIRE(sqlite.connect("test.db"));
+  TEST_CHECK(sqlite.delete_records<student>());
   TEST_REQUIRE(sqlite.create_datatable<student>(key));
   TEST_CHECK(sqlite.insert(v) == 3);
   TEST_CHECK(sqlite.update(v) == 3);
@@ -492,6 +499,7 @@ TEST_CASE(orm_delete) {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+  mysql.delete_records<student>();
   TEST_REQUIRE(mysql.create_datatable<student>(key, not_null));
   TEST_CHECK(mysql.insert(v) == 3);
   TEST_REQUIRE(mysql.delete_records<student>("code=1"));
@@ -517,6 +525,7 @@ TEST_CASE(orm_delete) {
   dbng<sqlite> sqlite;
   TEST_REQUIRE(sqlite.connect("test.db"));
   TEST_REQUIRE(sqlite.create_datatable<student>(key));
+  sqlite.delete_records<student>();
   TEST_CHECK(sqlite.insert(v) == 3);
   TEST_REQUIRE(sqlite.delete_records<student>("code=1"));
   TEST_CHECK(sqlite.query<student>().size() == 2);
@@ -536,22 +545,24 @@ TEST_CASE(orm_query) {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+  mysql.delete_records<simple>();
   TEST_REQUIRE(mysql.create_datatable<simple>(key));
   TEST_CHECK(mysql.insert(v) == 3);
   auto result = mysql.query<simple>();
   TEST_CHECK(result.size() == 3);
-  auto result3 = mysql.query<simple>("where id=1");
+  auto result3 = mysql.query<simple>("id=1");
   TEST_CHECK(result3.size() == 1);
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   TEST_REQUIRE(sqlite.connect("test.db"));
+  sqlite.delete_records<simple>();
   TEST_REQUIRE(sqlite.create_datatable<simple>(key));
   TEST_CHECK(sqlite.insert(v) == 3);
   auto result2 = sqlite.query<simple>();
   TEST_CHECK(result2.size() == 3);
-  auto result5 = sqlite.query<simple>("where id=3");
+  auto result5 = sqlite.query<simple>("id=3");
   TEST_CHECK(result5.size() == 1);
 #endif
 
@@ -580,6 +591,7 @@ TEST_CASE(orm_query_some) {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+  mysql.delete_records<student>();
   TEST_REQUIRE(mysql.create_datatable<student>(key, not_null));
   TEST_CHECK(mysql.insert(v) == 3);
   auto result3 = mysql.query<std::tuple<int>>("select count(1) from student");
@@ -638,6 +650,8 @@ TEST_CASE(orm_query_multi_table) {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+  mysql.delete_records<student>();
+  mysql.delete_records<person>();
   TEST_REQUIRE(mysql.create_datatable<student>(key, not_null));
   TEST_CHECK(mysql.insert(v) == 3);
   TEST_REQUIRE(mysql.create_datatable<person>(key1, not_null));
@@ -669,9 +683,12 @@ TEST_CASE(orm_query_multi_table) {
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   TEST_REQUIRE(sqlite.connect("test.db"));
+  sqlite.delete_records<student>();
+  sqlite.delete_records<person>();
   TEST_REQUIRE(sqlite.create_datatable<student>(key));
   TEST_CHECK(sqlite.insert(v) == 3);
   TEST_REQUIRE(sqlite.create_datatable<person>(key1));
+  TEST_CHECK(sqlite.insert(v1) == 3);
   auto result2 = sqlite.query<std::tuple<int, std::string, double>>(
       "select person.*, student.name, student.age from person, student"s);
   TEST_CHECK(result2.size() == 9);
@@ -694,6 +711,7 @@ TEST_CASE(orm_transaction) {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb"));
+  mysql.delete_records<student>();
   TEST_REQUIRE(mysql.create_datatable<student>(key, not_null));
 
   TEST_REQUIRE(mysql.begin());
