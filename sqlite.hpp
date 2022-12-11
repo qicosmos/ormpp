@@ -113,7 +113,6 @@ public:
   std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>>
   query(Args &&...args) {
     std::string sql = generate_query_sql<T>(args...);
-    constexpr auto SIZE = iguana::get_value<T>();
 
     int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
                                     &stmt_, nullptr);
@@ -152,7 +151,7 @@ public:
 
     std::string sql = s;
     constexpr auto Args_Size = sizeof...(Args);
-    if (Args_Size != 0) {
+    if constexpr(Args_Size != 0) {
       if (Args_Size != std::count(sql.begin(), sql.end(), '?'))
         return {};
 
@@ -181,10 +180,10 @@ public:
       int index = 0;
       iguana::for_each(
           tp,
-          [this, &index](auto &item, auto I) {
+          [this, &index](auto &item, auto /*I*/) {
             if constexpr (iguana::is_reflection_v<decltype(item)>) {
               std::remove_reference_t<decltype(item)> t = {};
-              iguana::for_each(t, [this, &index, &t](auto ele, auto i) {
+              iguana::for_each(t, [this, &index, &t](auto ele, auto /*i*/) {
                 assign(t.*ele, index++);
               });
               item = std::move(t);
@@ -367,7 +366,12 @@ private:
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (std::is_integral_v<U> &&
                   !iguana::is_int64_v<U>) { // double, int64
-      value = sqlite3_column_int(stmt_, i);
+      if constexpr (std::is_same_v<U, char>) {
+        value = (char)sqlite3_column_int(stmt_, i);
+      }
+      else {
+        value = sqlite3_column_int(stmt_, i);
+      }
     } else if constexpr (iguana::is_int64_v<U>) {
       value = sqlite3_column_int64(stmt_, i);
     } else if constexpr (std::is_floating_point_v<U>) {

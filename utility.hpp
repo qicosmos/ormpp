@@ -32,7 +32,7 @@ template <typename T> inline void append_impl(std::string &sql, const T &str) {
     if (str.empty())
       return;
   } else {
-    if (sizeof(str) == 0) {
+    if constexpr(sizeof(str) == 0) {
       return;
     }
   }
@@ -66,7 +66,7 @@ enum class DBType { mysql, sqlite, postgresql, unknown };
 template <typename T> inline constexpr auto get_type_names(DBType type) {
   constexpr auto SIZE = iguana::get_value<T>();
   std::array<std::string, SIZE> arr = {};
-  iguana::for_each(T{}, [&](auto &item, auto i) {
+  iguana::for_each(T{}, [&](auto &/*item*/, auto i) {
     constexpr auto Idx = decltype(i)::value;
     using U =
         std::remove_reference_t<decltype(iguana::get<Idx>(std::declval<T>()))>;
@@ -129,7 +129,7 @@ template <typename T> inline std::string generate_insert_sql(bool replace) {
 
 template <typename T>
 inline std::string
-generate_auto_insert_sql(std::map<std::string, std::string> &auto_key_map_,
+generate_auto_insert_sql(std::map<std::string, std::string> &/*auto_key_map_*/,
                          bool replace) {
   std::string sql = replace ? "replace into " : "insert into ";
   constexpr auto SIZE = iguana::get_value<T>();
@@ -217,7 +217,7 @@ inline std::string generate_query_sql(Args &&...args) {
   append(sql, name.data());
 
   std::string where_sql = "";
-  if (param_size > 0) {
+  if constexpr(param_size > 0) {
     where_sql = " where 1=1 and ";
   }
   sql.append(where_sql);

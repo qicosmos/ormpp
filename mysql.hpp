@@ -49,6 +49,8 @@ public:
       return false;
     }
 
+    reset_error();
+
     return true;
   }
 
@@ -72,6 +74,7 @@ public:
 
   template <typename T, typename... Args>
   constexpr bool create_datatable(Args &&...args) {
+    reset_error();
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
     sql += " DEFAULT CHARSET=utf8";
     if (mysql_query(con_, sql.data())) {
@@ -84,6 +87,7 @@ public:
 
   template <typename T, typename... Args>
   constexpr int insert(const std::vector<T> &t, Args &&...args) {
+    reset_error();
     auto name = get_name<T>();
     std::string sql = auto_key_map_[name].empty()
                           ? generate_insert_sql<T>(false)
@@ -94,6 +98,7 @@ public:
 
   template <typename T, typename... Args>
   constexpr int update(const std::vector<T> &t, Args &&...args) {
+    reset_error();
     std::string sql = generate_insert_sql<T>(true);
 
     return insert_impl(sql, t, std::forward<Args>(args)...);
@@ -101,6 +106,7 @@ public:
 
   template <typename T, typename... Args>
   constexpr int insert(const T &t, Args &&...args) {
+    reset_error();
     // insert into person values(?, ?, ?);
     auto name = get_name<T>();
     std::string sql = auto_key_map_[name].empty()
@@ -112,12 +118,14 @@ public:
 
   template <typename T, typename... Args>
   constexpr int update(const T &t, Args &&...args) {
+    reset_error();
     std::string sql = generate_insert_sql<T>(true);
     return insert_impl(sql, t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   constexpr bool delete_records(Args &&...where_conditon) {
+    reset_error();
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
     if (mysql_query(con_, sql.data())) {
       fprintf(stderr, "%s\n", mysql_error(con_));
@@ -133,12 +141,13 @@ public:
   template <typename T, typename Arg, typename... Args>
   constexpr std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>>
   query(const Arg &s, Args &&...args) {
+    reset_error();
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
 
     std::string sql = s;
     constexpr auto Args_Size = sizeof...(Args);
-    if (Args_Size != 0) {
+    if constexpr(Args_Size != 0) {
       if (Args_Size != std::count(sql.begin(), sql.end(), '?')) {
         has_error_ = true;
         return {};
@@ -170,7 +179,7 @@ public:
     size_t index = 0;
     iguana::for_each(
         tp,
-        [&param_binds, &mp, &index](auto &item, auto I) {
+        [&param_binds, &mp, &index](auto &item, auto /*I*/) {
           using U = std::remove_reference_t<decltype(item)>;
           if constexpr (std::is_arithmetic_v<U>) {
             param_binds[index].buffer_type =
@@ -186,25 +195,25 @@ public:
             index++;
           } else if constexpr (iguana::is_reflection_v<U>) {
             iguana::for_each(item, [&param_binds, &mp, &item, &index](auto &ele,
-                                                                      auto i) {
-              using U =
+                                                                      auto /*i*/) {
+              using V =
                   std::remove_reference_t<decltype(std::declval<U>().*ele)>;
-              if constexpr (std::is_arithmetic_v<U>) {
+              if constexpr (std::is_arithmetic_v<V>) {
                 param_binds[index].buffer_type =
-                    (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
+                    (enum_field_types)ormpp_mysql::type_to_id(identity<V>{});
                 param_binds[index].buffer = &(item.*ele);
-              } else if constexpr (std::is_same_v<std::string, U>) {
+              } else if constexpr (std::is_same_v<std::string, V>) {
                 std::vector<char> tmp(65536, 0);
                 mp.emplace_back(std::move(tmp));
                 param_binds[index].buffer_type = MYSQL_TYPE_STRING;
                 param_binds[index].buffer = &(mp.back()[0]);
                 param_binds[index].buffer_length = 65536;
-              } else if constexpr (is_char_array_v<U>) {
-                std::vector<char> tmp(sizeof(U), 0);
+              } else if constexpr (is_char_array_v<V>) {
+                std::vector<char> tmp(sizeof(V), 0);
                 mp.emplace_back(std::move(tmp));
                 param_binds[index].buffer_type = MYSQL_TYPE_VAR_STRING;
                 param_binds[index].buffer = &(mp.back()[0]);
-                param_binds[index].buffer_length = (unsigned long)sizeof(U);
+                param_binds[index].buffer_length = (unsigned long)sizeof(V);
               }
               index++;
             });
@@ -237,7 +246,7 @@ public:
       auto it = mp.begin();
       iguana::for_each(
           tp,
-          [&mp, &it](auto &item, auto i) {
+          [&mp, &it](auto &item, auto /*i*/) {
             using U = std::remove_reference_t<decltype(item)>;
             if constexpr (std::is_same_v<std::string, U>) {
               item = std::string(&(*it)[0], strlen((*it).data()));
@@ -245,7 +254,7 @@ public:
             } else if constexpr (is_char_array_v<U>) {
               memcpy(item, &(*it)[0], sizeof(U));
             } else if constexpr (iguana::is_reflection_v<U>) {
-              iguana::for_each(item, [&it, &item](auto ele, auto i) {
+              iguana::for_each(item, [&it, &item](auto ele, auto /*i*/) {
                 using V =
                     std::remove_reference_t<decltype(std::declval<U>().*ele)>;
                 if constexpr (std::is_same_v<std::string, V>) {
@@ -270,6 +279,7 @@ public:
   template <typename T, typename... Args>
   constexpr std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>>
   query(Args &&...args) {
+    reset_error();
     std::string sql = generate_query_sql<T>(args...);
     constexpr auto SIZE = iguana::get_value<T>();
 
@@ -350,7 +360,7 @@ public:
       }
 
       v.push_back(std::move(t));
-      iguana::for_each(t, [&mp, &t](auto item, auto i) {
+      iguana::for_each(t, [&mp, &t](auto item, auto /*i*/) {
         using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
         if constexpr (std::is_arithmetic_v<U>) {
           memset(&(t.*item), 0, sizeof(U));
@@ -362,6 +372,10 @@ public:
   }
 
   bool has_error() { return has_error_; }
+  void reset_error() {
+    has_error_ = false;
+    last_error_ = {};
+  }
 
   // just support execute string sql without placeholders
   bool execute(const std::string &sql) {
@@ -514,7 +528,7 @@ private:
     std::string auto_key = (it == auto_key_map_.end()) ? "" : it->second;
 
     iguana::for_each(
-        t, [&t, &param_binds, &auto_key, this](const auto &v, auto i) {
+        t, [&t, &param_binds, &auto_key, this](const auto &v, auto /*i*/) {
           /*if (!auto_key.empty() && auto_key ==
              iguana::get_name<T>(decltype(i)::value).data()) return;*/
 
