@@ -49,6 +49,8 @@ public:
       return false;
     }
 
+    reset_error();
+
     return true;
   }
 
@@ -72,6 +74,7 @@ public:
 
   template <typename T, typename... Args>
   constexpr bool create_datatable(Args &&...args) {
+    reset_error();
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
     sql += " DEFAULT CHARSET=utf8";
     if (mysql_query(con_, sql.data())) {
@@ -84,6 +87,7 @@ public:
 
   template <typename T, typename... Args>
   constexpr int insert(const std::vector<T> &t, Args &&...args) {
+    reset_error();
     auto name = get_name<T>();
     std::string sql = auto_key_map_[name].empty()
                           ? generate_insert_sql<T>(false)
@@ -94,6 +98,7 @@ public:
 
   template <typename T, typename... Args>
   constexpr int update(const std::vector<T> &t, Args &&...args) {
+    reset_error();
     std::string sql = generate_insert_sql<T>(true);
 
     return insert_impl(sql, t, std::forward<Args>(args)...);
@@ -101,6 +106,7 @@ public:
 
   template <typename T, typename... Args>
   constexpr int insert(const T &t, Args &&...args) {
+    reset_error();
     // insert into person values(?, ?, ?);
     auto name = get_name<T>();
     std::string sql = auto_key_map_[name].empty()
@@ -112,12 +118,14 @@ public:
 
   template <typename T, typename... Args>
   constexpr int update(const T &t, Args &&...args) {
+    reset_error();
     std::string sql = generate_insert_sql<T>(true);
     return insert_impl(sql, t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   constexpr bool delete_records(Args &&...where_conditon) {
+    reset_error();
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
     if (mysql_query(con_, sql.data())) {
       fprintf(stderr, "%s\n", mysql_error(con_));
@@ -133,6 +141,7 @@ public:
   template <typename T, typename Arg, typename... Args>
   constexpr std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>>
   query(const Arg &s, Args &&...args) {
+    reset_error();
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
 
@@ -270,6 +279,7 @@ public:
   template <typename T, typename... Args>
   constexpr std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>>
   query(Args &&...args) {
+    reset_error();
     std::string sql = generate_query_sql<T>(args...);
     constexpr auto SIZE = iguana::get_value<T>();
 
@@ -362,6 +372,10 @@ public:
   }
 
   bool has_error() { return has_error_; }
+  void reset_error() {
+    has_error_ = false;
+    last_error_ = {};
+  }
 
   // just support execute string sql without placeholders
   bool execute(const std::string &sql) {
