@@ -475,6 +475,8 @@ execute example:
 
 purecpp@163.com
 
+qq群: 492859173
+
 [http://purecpp.org/](http://purecpp.org/ "purecpp")
 
 [https://github.com/qicosmos/ormpp](https://github.com/qicosmos/ormpp "ormpp")
