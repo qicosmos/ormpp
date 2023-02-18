@@ -212,7 +212,15 @@ template <typename T, typename... Args>
 inline std::string generate_query_sql(Args &&...args) {
   constexpr size_t param_size = sizeof...(Args);
   static_assert(param_size == 0 || param_size > 0);
-  std::string sql = "select * from ";
+  static auto fileds = iguana::Reflect_members<T>::arr();
+  std::string sql = "select ";
+  for (int i = 0; i < fileds.size(); ++i) {
+      if (i) {
+          sql += ',';
+      }
+      sql += fileds[i]; 
+  }
+  sql += " from ";
   auto name = get_name<T>();
   append(sql, name.data());
 
