@@ -16,6 +16,7 @@
 #include "pg_types.h"
 #include <string>
 #include <string_view>
+#include <vector>
 using namespace std::string_view_literals;
 
 #ifndef EXAMPLE1_TYPE_MAPPING_HPP
@@ -31,6 +32,7 @@ template <class T> struct identity {};
     Type res{};                                                                \
     return res;                                                                \
   }
+
 #ifdef ORMPP_ENABLE_MYSQL
 namespace ormpp_mysql {
 REGISTER_TYPE(char, MYSQL_TYPE_TINY)
@@ -39,6 +41,8 @@ REGISTER_TYPE(int, MYSQL_TYPE_LONG)
 REGISTER_TYPE(float, MYSQL_TYPE_FLOAT)
 REGISTER_TYPE(double, MYSQL_TYPE_DOUBLE)
 REGISTER_TYPE(int64_t, MYSQL_TYPE_LONGLONG)
+
+using blob = std::vector<char>;
 
 inline int type_to_id(identity<std::string>) noexcept {
   return MYSQL_TYPE_VAR_STRING;
@@ -66,6 +70,9 @@ inline constexpr auto type_to_name(identity<double>) noexcept {
 }
 inline constexpr auto type_to_name(identity<int64_t>) noexcept {
   return "BIGINT"sv;
+}
+inline constexpr auto type_to_name(identity<blob>) noexcept {
+    return "BLOB"sv;
 }
 inline auto type_to_name(identity<std::string>) noexcept { return "TEXT"sv; }
 template <size_t N>
