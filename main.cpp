@@ -803,3 +803,33 @@ TEST_CASE(orm_aop) {
   // r = mysql.wraper_execute<validate, log>("drop table if exists person");
   // TEST_REQUIRE(r);
 }
+
+struct image
+{
+  int id;
+  ormpp::blob bin;
+};
+
+REFLECTION(image, id, bin);
+
+TEST_CASE(orm_mysql_blob) {
+  dbng<mysql> mysql;
+
+  TEST_REQUIRE(mysql.connect("127.0.0.1", "root", "", "testdb"));
+  TEST_REQUIRE(mysql.execute("DROP TABLE IF EXISTS image"));
+
+  TEST_REQUIRE(mysql.create_datatable<image>());
+
+  auto data = "this is a  test binary stream\0, and ?...";
+  auto size = 42;
+
+  image img;
+  img.id = 1;
+  img.bin.assign(data, data + size);
+
+  TEST_REQUIRE(mysql.insert(img) == 1);
+
+  auto result = mysql.query<image>("id=1");
+  TEST_REQUIRE(result.size() == 1);
+  TEST_REQUIRE(result[0].bin.size() == size);
+}
