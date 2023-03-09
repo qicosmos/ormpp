@@ -132,6 +132,7 @@ template <typename T> inline std::string generate_insert_sql(bool replace) {
   auto name = get_name<T>();
   auto fileds = get_fields<T>();
   append(sql, name.data(), "(", fileds.data(), ")", "values(");
+  
   for (size_t i = 0; i < SIZE; ++i) {
     sql += "?";
     if (i < SIZE - 1)
