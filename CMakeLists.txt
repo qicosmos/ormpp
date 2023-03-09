@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.2)
 project(ormpp)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -std=c++17")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -std=c++17")
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 SET(ENABLE_MYSQL ON)
 SET(ENABLE_PG OFF)
 SET(ENABLE_SQLITE3 OFF)
