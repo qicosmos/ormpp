@@ -99,24 +99,25 @@ const char *ip = "127.0.0.1"; // your database ip
 
 template <class T, size_t N> constexpr size_t size(T (&)[N]) { return N; }
 
-struct jacy {
+struct test_order {
   int id;
   std::string name;
 };
-REFLECTION(jacy, id, name);
+REFLECTION(test_order, name, id);
 
-TEST_CASE(flexible_reflection_order)
+TEST_CASE(random_reflection_order)
 {
   dbng<mysql> mysql;
   TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb", /*timeout_seconds=*/5, 3306));
-  TEST_REQUIRE(mysql.create_datatable<jacy>());
-  TEST_REQUIRE(mysql.delete_records<jacy>());
-  TEST_REQUIRE(mysql.execute("alter table jacy modify name text first;"));
-  mysql.insert(jacy{ 666, "007" });
-  auto v = mysql.query<jacy>();
+  TEST_REQUIRE(mysql.execute("create table if not exists `test_order` (id int, name text);"));
+  mysql.delete_records<test_order>();
+  int id = 666;
+  std::string name = "hello";
+  mysql.insert(test_order { id, name });
+  auto v = mysql.query<test_order>();
   TEST_REQUIRE(v.size() > 0);
-  TEST_REQUIRE(v.front().id == 666);
-  TEST_REQUIRE(v.front().name == "007");
+  TEST_CHECK(v.front().id == id);
+  TEST_CHECK(v.front().name == name);
 }
 
 struct dummy {
