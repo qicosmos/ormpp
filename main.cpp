@@ -99,6 +99,26 @@ const char *ip = "127.0.0.1"; // your database ip
 
 template <class T, size_t N> constexpr size_t size(T (&)[N]) { return N; }
 
+struct jacy {
+  int id;
+  std::string name;
+};
+REFLECTION(jacy, id, name);
+
+TEST_CASE(flexible_reflection_order)
+{
+  dbng<mysql> mysql;
+  TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb", /*timeout_seconds=*/5, 3306));
+  TEST_REQUIRE(mysql.create_datatable<jacy>());
+  TEST_REQUIRE(mysql.delete_records<jacy>());
+  TEST_REQUIRE(mysql.execute("alter table jacy modify name text first;"));
+  mysql.insert(jacy{ 666, "007" });
+  auto v = mysql.query<jacy>();
+  TEST_REQUIRE(v.size() > 0);
+  TEST_REQUIRE(v.front().id == 666);
+  TEST_REQUIRE(v.front().name == "007");
+}
+
 struct dummy {
   int id;
   std::string name;

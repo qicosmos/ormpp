@@ -111,11 +111,27 @@ inline std::string get_name() {
   return quota_name;
 }
 
+template <typename T, typename = std::enable_if_t<iguana::is_reflection_v<T>>>
+inline std::string get_fields()
+{
+  std::string fileds = "";
+  static auto arr = iguana::Reflect_members<T>::arr();
+  for (int i = 0; i < arr.size(); ++i) {
+    if (i) {
+      fileds += ",";
+    }
+    fileds += arr[i];
+  }
+  
+  return fileds;
+}
+
 template <typename T> inline std::string generate_insert_sql(bool replace) {
   std::string sql = replace ? "replace into " : "insert into ";
   constexpr size_t SIZE = iguana::get_value<T>();
   auto name = get_name<T>();
-  append(sql, name.data(), " values(");
+  auto fileds = get_fields<T>();
+  append(sql, name.data(), "(", fileds.data(), ")", "values(");
   for (size_t i = 0; i < SIZE; ++i) {
     sql += "?";
     if (i < SIZE - 1)
@@ -212,17 +228,10 @@ template <typename T, typename... Args>
 inline std::string generate_query_sql(Args &&...args) {
   constexpr size_t param_size = sizeof...(Args);
   static_assert(param_size == 0 || param_size > 0);
-  static auto fileds = iguana::Reflect_members<T>::arr();
   std::string sql = "select ";
-  for (int i = 0; i < fileds.size(); ++i) {
-      if (i) {
-          sql += ',';
-      }
-      sql += fileds[i]; 
-  }
-  sql += " from ";
   auto name = get_name<T>();
-  append(sql, name.data());
+  auto fields = get_fields<T>();
+  append(sql, fields.data(), "from", name.data());
 
   std::string where_sql = "";
   if constexpr(param_size > 0) {
