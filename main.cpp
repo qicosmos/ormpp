@@ -99,6 +99,27 @@ const char *ip = "127.0.0.1"; // your database ip
 
 template <class T, size_t N> constexpr size_t size(T (&)[N]) { return N; }
 
+struct test_order {
+  int id;
+  std::string name;
+};
+REFLECTION(test_order, name, id);
+
+TEST_CASE(random_reflection_order)
+{
+  dbng<mysql> mysql;
+  TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb", /*timeout_seconds=*/5, 3306));
+  TEST_REQUIRE(mysql.execute("create table if not exists `test_order` (id int, name text);"));
+  mysql.delete_records<test_order>();
+  int id = 666;
+  std::string name = "hello";
+  mysql.insert(test_order { id, name });
+  auto v = mysql.query<test_order>();
+  TEST_REQUIRE(v.size() > 0);
+  TEST_CHECK(v.front().id == id);
+  TEST_CHECK(v.front().name == name);
+}
+
 struct dummy {
   int id;
   std::string name;
