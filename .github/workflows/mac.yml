@@ -11,12 +11,12 @@ on:
 
 jobs:
   build_on_mac:
+    runs-on: macOS-latest
+  
     strategy:
       matrix:
         mode: [Release]
         ssl: [OFF]
-
-    runs-on: macos-12
 
     steps:
       - name: Checkout
@@ -27,11 +27,13 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@master
         
       - name: Install mysql
-        run: |
-          brew install mysql
-          mysqld --initialize-insecure
-          brew services start mysql
-          mysql -uroot -e 'select version()'
+        uses: appleboy/setup-mysql@v1
+        with:
+          password: ${{ secrets.MYSQL_PASSWORD }}
+          version: '5.7'
+
+      - name: Verify MySQL installation
+        run: mysql --version
 
       - name: Configure CMake
         run: CXX=clang++ CC=clang cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.mode}}
