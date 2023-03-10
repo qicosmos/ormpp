@@ -3,11 +3,11 @@ name: macOS Monterey 12
 on:
   push:
     branches:
-      - master
+      - main
 
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
   build_on_mac:
