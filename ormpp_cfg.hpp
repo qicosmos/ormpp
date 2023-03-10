@@ -115,7 +115,7 @@ public:
   template <typename T>
   inline static bool to_file(T &t, std::string_view file_path) {
     iguana::string_stream ss;
-    iguana::json:to_json(ss, t);
+    iguana::json::to_json(ss, t);
     std::ofstream out(file_path.data(), std::ios::binary);
     if (!out.is_open()) {
       return false;
