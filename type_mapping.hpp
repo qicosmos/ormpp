@@ -7,7 +7,7 @@
 #endif
 #else
 #ifdef ORMPP_ENABLE_MYSQL
-#include <mysql/mysql.h>
+#include <mysql.h>
 #endif
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
