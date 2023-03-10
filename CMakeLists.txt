@@ -26,7 +26,6 @@ set(SOURCE_FILES main.cpp dbng.hpp unit_test.hpp pg_types.h
 endif()
 
 INCLUDE_DIRECTORIES(
-                    ${CMAKE_SOURCE_DIR}
                     ${MYSQL_INCLUDE_DIR}
                     ${CMAKE_SOURCE_DIR}/iguana
                    )
