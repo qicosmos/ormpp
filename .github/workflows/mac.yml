@@ -29,6 +29,8 @@ jobs:
       - name: Install mysql
         run: |
           brew install mysql
+          mkdir temp
+          mv data/* temp/
           mysqld --initialize-insecure
           brew services start mysql
           mysql -uroot -e 'select version()'
