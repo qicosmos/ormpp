@@ -32,8 +32,7 @@ if( WIN32 )
 			  "$ENV{SYSTEMDRIVE}/MySQL/*/include" )
 	
 	find_library( MYSQL_LIBRARY
-		#NAMES "mysqlclient" "mysqlclient_r"
-		NAMES "libmysql"
+		NAMES "mysqlclient" "mysqlclient_r"
 		PATHS "$ENV{PROGRAMFILES}/MySQL/*/lib"
 			  #"$ENV{PROGRAMFILES(x86)}/MySQL/*/lib"
 			  "$ENV{SYSTEMDRIVE}/MySQL/*/lib" )
@@ -82,4 +81,3 @@ if(MYSQL_FOUND)
   
   MESSAGE(STATUS "Found MYSQL INCLUDE: ${MYSQL_INCLUDE_DIRS} (found version \"${MYSQL_VERSION_STRING}\")")
 endif()
-
