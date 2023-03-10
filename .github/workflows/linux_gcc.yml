@@ -11,11 +11,12 @@ on:
       
 jobs:
   build_by_gcc:
+    runs-on: ubuntu-20.04
+  
     strategy:
       matrix:
         mode: [Debug, Release]
         ssl: [ON, OFF]
-    runs-on: ubuntu-20.04
 
     steps:
       - name: Checkout
