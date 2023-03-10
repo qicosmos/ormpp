@@ -26,11 +26,11 @@ jobs:
         id: set-up-homebrew
         uses: Homebrew/actions/setup-homebrew@master
         
-      - name: Install mysql
-        uses: appleboy/setup-mysql@v1
-        with:
-          password: ${{ secrets.MYSQL_PASSWORD }}
-          version: '5.7'
+      - name: Run MySQL Docker container
+        run: |
+          docker run -d -p 3306:3306 --name mysql \
+            -e MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_PASSWORD }} \
+            mysql:latest
 
       - name: Verify MySQL installation
         run: mysql --version
