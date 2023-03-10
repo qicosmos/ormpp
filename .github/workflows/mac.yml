@@ -3,18 +3,18 @@ name: macOS Monterey 12
 on:
   push:
     branches:
-      - main
+      - master
 
   pull_request:
     branches:
-      - main
+      - master
 
 jobs:
   build_on_mac:
     strategy:
       matrix:
-        mode: [Debug, Release]
-        ssl: [ON, OFF]
+        mode: [Release]
+        ssl: [OFF]
 
     runs-on: macos-12
 
