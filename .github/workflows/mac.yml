@@ -27,7 +27,11 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@master
         
       - name: Install MySQL
-        run: brew install mysql
+        run: |
+          brew install mysql
+          mysqld --initialize-insecure
+          brew services start mysql
+          mysql -uroot -e 'select version()'
 
       - name: Verify MySQL installation
         run: mysql --version
