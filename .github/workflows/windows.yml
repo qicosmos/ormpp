@@ -8,7 +8,7 @@ on:
 
 jobs:
   build_on_windows:
-    runs-on: windows-2019
+    runs-on: windows-latest
 
     strategy:
       matrix:
