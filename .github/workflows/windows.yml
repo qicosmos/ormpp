@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         mode: [ Debug ] #[ Release, Debug ]
-        arch: [ x86 ] #[ amd64,x86 ]
+        arch: [ amd64 ] #[ amd64,x86 ]
         ssl: [ OFF ] #[ ON, OFF ]
 
     steps:
