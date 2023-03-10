@@ -11,13 +11,14 @@ on:
 
 jobs:
   build_by_clang:
+    runs-on: ubuntu-latest
+    
     strategy:
       matrix:
         mode: [Debug, Release]
         libcxx: [OFF]
         ssl: [OFF]
-    runs-on: ubuntu-20.04
-
+        
     steps:
       - name: Checkout
         uses: actions/checkout@v3
