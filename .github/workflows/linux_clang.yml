@@ -13,7 +13,7 @@ jobs:
   build_by_clang:
     strategy:
       matrix:
-        mode: [Release]
+        mode: [Debug, Release]
         libcxx: [OFF]
         ssl: [OFF]
     runs-on: ubuntu-20.04
