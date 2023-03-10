@@ -11,8 +11,8 @@ on:
 
 jobs:
   build_on_mac:
-    runs-on: macOS-latest
-  
+    runs-on: macOS-12
+
     strategy:
       matrix:
         mode: [Release]
