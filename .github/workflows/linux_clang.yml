@@ -11,7 +11,7 @@ on:
 
 jobs:
   build_by_clang:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     
     strategy:
       matrix:
