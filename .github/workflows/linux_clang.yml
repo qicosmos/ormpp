@@ -3,19 +3,19 @@ name: Ubuntu 20.04 (clang)
 on:
   push:
     branches:
-      - main
+      - master
 
   pull_request:
     branches:
-      - main
+      - master
 
 jobs:
   build_by_clang:
     strategy:
       matrix:
-        mode: [Debug, Release]
+        mode: [Release]
         libcxx: [OFF]
-        ssl: [ON, OFF]
+        ssl: [OFF]
     runs-on: ubuntu-22.04
 
     steps:
