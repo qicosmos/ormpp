@@ -3,11 +3,11 @@ name: Ubuntu 20.04 (gcc)
 on:
   push:
     branches:
-      - main
+      - master
       
   pull_request:
     branches:
-      - main
+      - master
       
 jobs:
   build_by_gcc:
