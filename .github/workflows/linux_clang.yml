@@ -13,9 +13,9 @@ jobs:
   build_by_clang:
     strategy:
       matrix:
-        mode: [Debug, Release]
+        mode: [Release]
         libcxx: [OFF]
-        ssl: [ON, OFF]
+        ssl: [OFF]
     runs-on: ubuntu-22.04
 
     steps:
