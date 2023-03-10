@@ -13,7 +13,7 @@ jobs:
   build_by_gcc:
     strategy:
       matrix:
-        mode: [Release]
+        mode: [Debug, Release]
         ssl: [OFF]
     runs-on: ubuntu-22.04
 
