@@ -279,7 +279,7 @@ public:
                 } else if constexpr (is_char_array_v<V>) {
                   memcpy(item.*ele, &(*it)[0], sizeof(V));
                 } else if constexpr (std::is_same_v<blob, V>) {
-                  item.assign((*it).data(), (*it).data() + get_blob_len(column));
+                  //item.assign((*it).data(), (*it).data() + get_blob_len(column));
                   it++;
                 }
               });

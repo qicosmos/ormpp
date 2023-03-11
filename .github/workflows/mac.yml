@@ -15,8 +15,8 @@ jobs:
 
     strategy:
       matrix:
-        mode: [Release]
-        ssl: [OFF]
+        mode: [Debug, Release]
+        ssl: [ON, OFF]
 
     steps:
       - name: Checkout
