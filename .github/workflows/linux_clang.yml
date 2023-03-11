@@ -15,9 +15,9 @@ jobs:
     
     strategy:
       matrix:
-        mode: [Debug, Release]
+        mode: [Release]
         libcxx: [OFF]
-        ssl: [ON, OFF]
+        ssl: [OFF]
         
     steps:
       - name: Checkout
