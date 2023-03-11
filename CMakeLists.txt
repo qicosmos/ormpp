@@ -15,9 +15,10 @@ message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 # libc++ or libstdc++&clang
 option(BUILD_WITH_LIBCXX "Build with libc++" OFF)
 if(BUILD_WITH_LIBCXX AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++ -pthread")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
     message(STATUS "Build with libc++")
 else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
     message(STATUS "Build with libstdc++")
 endif()
 
