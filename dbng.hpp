@@ -5,21 +5,24 @@
 #ifndef ORM_DBNG_HPP
 #define ORM_DBNG_HPP
 
-#include "utility.hpp"
 #include <chrono>
 #include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "utility.hpp"
+
 namespace ormpp {
-template <typename DB> class dbng {
-public:
+template <typename DB>
+class dbng {
+ public:
   dbng() = default;
   dbng(const dbng &) = delete;
   ~dbng() { disconnect(); }
 
-  template <typename... Args> bool connect(Args &&...args) {
+  template <typename... Args>
+  bool connect(Args &&...args) {
     return db_.connect(std::forward<Args>(args)...);
   }
 
@@ -58,7 +61,8 @@ public:
 
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
-  template <typename T, typename... Args> std::vector<T> query(Args &&...args) {
+  template <typename T, typename... Args>
+  std::vector<T> query(Args &&...args) {
     return db_.template query<T>(std::forward<Args>(args)...);
   }
 
@@ -94,7 +98,7 @@ public:
 
   int get_last_affect_rows() { return db_.get_last_affect_rows(); }
 
-private:
+ private:
   template <typename Pair, typename U>
   auto build_condition(Pair pair, std::string_view oper, U &&val) {
     std::string sql = "";
@@ -122,56 +126,55 @@ private:
     return sql;
   }
 
-#define HAS_MEMBER(member)                                                     \
-  template <typename T, typename... Args> struct has_##member {                \
-  private:                                                                     \
-    template <typename U>                                                      \
-    static auto Check(int)                                                     \
-        -> decltype(std::declval<U>().member(std::declval<Args>()...),         \
-                    std::true_type());                                         \
-    template <typename U> static std::false_type Check(...);                   \
-                                                                               \
-  public:                                                                      \
-    enum {                                                                     \
-      value = std::is_same<decltype(Check<T>(0)), std::true_type>::value       \
-    };                                                                         \
+#define HAS_MEMBER(member)                                               \
+  template <typename T, typename... Args>                                \
+  struct has_##member {                                                  \
+   private:                                                              \
+    template <typename U>                                                \
+    static auto Check(int)                                               \
+        -> decltype(std::declval<U>().member(std::declval<Args>()...),   \
+                    std::true_type());                                   \
+    template <typename U>                                                \
+    static std::false_type Check(...);                                   \
+                                                                         \
+   public:                                                               \
+    enum {                                                               \
+      value = std::is_same<decltype(Check<T>(0)), std::true_type>::value \
+    };                                                                   \
   };
 
   HAS_MEMBER(before)
   HAS_MEMBER(after)
 
-#define WRAPER(func)                                                           \
-  template <typename... AP, typename... Args>                                  \
-  auto wraper##_##func(Args &&...args) {                                       \
-    using result_type = decltype(std::declval<decltype(this)>()->func(         \
-        std::declval<Args>()...));                                             \
-    bool r = true;                                                             \
-    std::tuple<AP...> tp{};                                                    \
-    for_each_l(                                                                \
-        tp,                                                                    \
-        [&r, &args...](auto &item) {                                           \
-          if (!r)                                                              \
-            return;                                                            \
-          if constexpr (has_before<decltype(item)>::value)                     \
-            r = item.before(std::forward<Args>(args)...);                      \
-        },                                                                     \
-        std::make_index_sequence<sizeof...(AP)>{});                            \
-    if (!r)                                                                    \
-      return result_type{};                                                    \
-    auto lambda = [this, &args...] {                                           \
-      return this->func(std::forward<Args>(args)...);                          \
-    };                                                                         \
-    result_type result = std::invoke(lambda);                                  \
-    for_each_r(                                                                \
-        tp,                                                                    \
-        [&r, &result, &args...](auto &item) {                                  \
-          if (!r)                                                              \
-            return;                                                            \
-          if constexpr (has_after<decltype(item), result_type>::value)         \
-            r = item.after(result, std::forward<Args>(args)...);               \
-        },                                                                     \
-        std::make_index_sequence<sizeof...(AP)>{});                            \
-    return result;                                                             \
+#define WRAPER(func)                                                   \
+  template <typename... AP, typename... Args>                          \
+  auto wraper##_##func(Args &&...args) {                               \
+    using result_type = decltype(std::declval<decltype(this)>()->func( \
+        std::declval<Args>()...));                                     \
+    bool r = true;                                                     \
+    std::tuple<AP...> tp{};                                            \
+    for_each_l(                                                        \
+        tp,                                                            \
+        [&r, &args...](auto &item) {                                   \
+          if (!r) return;                                              \
+          if constexpr (has_before<decltype(item)>::value)             \
+            r = item.before(std::forward<Args>(args)...);              \
+        },                                                             \
+        std::make_index_sequence<sizeof...(AP)>{});                    \
+    if (!r) return result_type{};                                      \
+    auto lambda = [this, &args...] {                                   \
+      return this->func(std::forward<Args>(args)...);                  \
+    };                                                                 \
+    result_type result = std::invoke(lambda);                          \
+    for_each_r(                                                        \
+        tp,                                                            \
+        [&r, &result, &args...](auto &item) {                          \
+          if (!r) return;                                              \
+          if constexpr (has_after<decltype(item), result_type>::value) \
+            r = item.after(result, std::forward<Args>(args)...);       \
+        },                                                             \
+        std::make_index_sequence<sizeof...(AP)>{});                    \
+    return result;                                                     \
   }
 
   template <typename... Args, typename F, std::size_t... Idx>
@@ -187,18 +190,18 @@ private:
     (std::forward<F>(f)(std::get<size - Idx - 1>(t)), ...);
   }
 
-public:
+ public:
   WRAPER(connect);
   WRAPER(execute);
   void update_operate_time() { latest_tm_ = std::chrono::system_clock::now(); }
 
   auto get_latest_operate_time() { return latest_tm_; }
 
-private:
+ private:
   DB db_;
   std::chrono::system_clock::time_point latest_tm_ =
       std::chrono::system_clock::now();
 };
-} // namespace ormpp
+}  // namespace ormpp
 
-#endif // ORM_DBNG_HPP
+#endif  // ORM_DBNG_HPP

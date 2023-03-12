@@ -25,7 +25,7 @@ SET(ENABLE_MYSQL ON)
 SET(ENABLE_PG OFF)
 SET(ENABLE_SQLITE3 OFF)
 if (ENABLE_MYSQL)
-include(FindMySQL.cmake)
+include(cmake/mysql.cmake)
 add_definitions(-DORMPP_ENABLE_MYSQL)
 set(SOURCE_FILES main.cpp dbng.hpp unit_test.hpp pg_types.h
         type_mapping.hpp utility.hpp entity.hpp mysql.hpp

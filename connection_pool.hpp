@@ -14,15 +14,17 @@
 #include <tuple>
 
 namespace ormpp {
-template <typename DB> class connection_pool {
-public:
+template <typename DB>
+class connection_pool {
+ public:
   static connection_pool<DB> &instance() {
     static connection_pool<DB> instance;
     return instance;
   }
 
   // call_once
-  template <typename... Args> void init(int maxsize, Args &&...args) {
+  template <typename... Args>
+  void init(int maxsize, Args &&...args) {
     std::call_once(flag_, &connection_pool<DB>::template init_impl<Args...>,
                    this, maxsize, std::forward<Args>(args)...);
   }
@@ -69,8 +71,9 @@ public:
     condition_.notify_one();
   }
 
-private:
-  template <typename... Args> void init_impl(int maxsize, Args &&...args) {
+ private:
+  template <typename... Args>
+  void init_impl(int maxsize, Args &&...args) {
     args_ = std::make_tuple(std::forward<Args>(args)...);
 
     for (int i = 0; i < maxsize; ++i) {
@@ -99,16 +102,18 @@ private:
   std::mutex mutex_;
   std::condition_variable condition_;
   std::once_flag flag_;
-  std::tuple<const char *, const char *, const char *, const char *, int, int> args_;
+  std::tuple<const char *, const char *, const char *, const char *, int, int>
+      args_;
 };
 
-template <typename DB> struct conn_guard {
+template <typename DB>
+struct conn_guard {
   conn_guard(std::shared_ptr<DB> con) : conn_(con) {}
   ~conn_guard() { connection_pool<DB>::instance().return_back(conn_.lock()); }
 
-private:
+ private:
   std::weak_ptr<DB> conn_;
 };
-} // namespace ormpp
+}  // namespace ormpp
 
-#endif // ORMPP_CONNECTION_POOL_HPP
+#endif  // ORMPP_CONNECTION_POOL_HPP

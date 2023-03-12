@@ -17,11 +17,12 @@ using namespace std::string_literals;
 
 namespace ormpp {
 class postgresql {
-public:
+ public:
   ~postgresql() { disconnect(); }
 
   // ip, user, pwd, db, timeout  the sequence must be fixed like this
-  template <typename... Args> bool connect(Args &&...args) {
+  template <typename... Args>
+  bool connect(Args &&...args) {
     auto sql = ""s;
     sql = generate_conn_sql(std::make_tuple(std::forward<Args>(args)...));
 
@@ -34,7 +35,8 @@ public:
     return true;
   }
 
-  template <typename... Args> bool disconnect(Args &&...args) {
+  template <typename... Args>
+  bool disconnect(Args &&...args) {
     if (con_ != nullptr) {
       PQfinish(con_);
       con_ = nullptr;
@@ -46,7 +48,7 @@ public:
   bool ping() { return (PQstatus(con_) == CONNECTION_OK); }
 
   bool has_error() {
-    return false; // todo
+    return false;  // todo
   }
 
   template <typename T, typename... Args>
@@ -78,8 +80,7 @@ public:
   constexpr int insert(const T &t, Args &&...args) {
     //            std::string sql = generate_pq_insert_sql<T>(false);
     std::string sql = generate_auto_insert_sql<T>(false);
-    if (!prepare<T>(sql))
-      return INT_MIN;
+    if (!prepare<T>(sql)) return INT_MIN;
 
     return insert_impl(sql, t, std::forward<Args>(args)...);
   }
@@ -89,11 +90,9 @@ public:
     //            std::string sql = generate_pq_insert_sql<T>(false);
     std::string sql = generate_auto_insert_sql<T>(false);
 
-    if (!begin())
-      return INT_MIN;
+    if (!begin()) return INT_MIN;
 
-    if (!prepare<T>(sql))
-      return INT_MIN;
+    if (!prepare<T>(sql)) return INT_MIN;
 
     for (auto &item : v) {
       auto result = insert_impl(sql, item, std::forward<Args>(args)...);
@@ -103,8 +102,7 @@ public:
       }
     }
 
-    if (!commit())
-      return INT_MIN;
+    if (!commit()) return INT_MIN;
 
     return (int)v.size();
   }
@@ -119,8 +117,7 @@ public:
     auto key = it == key_map_.end() ? "" : it->second;
 
     auto condition = get_condition(t, key, std::forward<Args...>(args)...);
-    if (!begin())
-      return INT_MIN;
+    if (!begin()) return INT_MIN;
 
     if (!delete_records<T>(condition)) {
       rollback();
@@ -132,8 +129,7 @@ public:
       return INT_MIN;
     }
 
-    if (!commit())
-      return INT_MIN;
+    if (!commit()) return INT_MIN;
 
     return 1;
   }
@@ -141,8 +137,7 @@ public:
   template <typename T, typename... Args>
   constexpr int update(const std::vector<T> &v, Args &&...args) {
     // transaction, firstly delete, secondly insert
-    if (!begin())
-      return INT_MIN;
+    if (!begin()) return INT_MIN;
 
     auto name = iguana::get_name<T>();
     auto it = key_map_.find(name.data());
@@ -161,20 +156,18 @@ public:
       }
     }
 
-    if (!commit())
-      return INT_MIN;
+    if (!commit()) return INT_MIN;
 
     return (int)v.size();
   }
 
   template <typename T, typename... Args>
-  constexpr std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>>
-  query(Args &&...args) {
+  constexpr std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
+      Args &&...args) {
     std::string sql = generate_query_sql<T>(std::forward<Args>(args)...);
     constexpr auto SIZE = iguana::get_value<T>();
 
-    if (!prepare<T>(sql))
-      return {};
+    if (!prepare<T>(sql)) return {};
 
     res_ = PQexec(con_, sql.data());
     if (PQresultStatus(res_) != PGRES_TUPLES_OK) {
@@ -199,22 +192,20 @@ public:
   }
 
   template <typename T, typename Arg, typename... Args>
-  constexpr std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>>
-  query(const Arg &s, Args &&...args) {
+  constexpr std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(
+      const Arg &s, Args &&...args) {
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
 
     std::string sql = s;
     constexpr auto Args_Size = sizeof...(Args);
     if (Args_Size != 0) {
-      if (Args_Size != std::count(sql.begin(), sql.end(), '$'))
-        return {};
+      if (Args_Size != std::count(sql.begin(), sql.end(), '$')) return {};
 
       sql = get_sql(sql, std::forward<Args>(args)...);
     }
 
-    if (!prepare<T>(sql))
-      return {};
+    if (!prepare<T>(sql)) return {};
 
     res_ = PQexec(con_, sql.data());
     if (PQresultStatus(res_) != PGRES_TUPLES_OK) {
@@ -309,15 +300,17 @@ public:
     return true;
   }
 
-private:
-  template <typename T> auto to_str(T &&t) {
+ private:
+  template <typename T>
+  auto to_str(T &&t) {
     if constexpr (std::is_integral_v<std::decay_t<T>>)
       return std::to_string(std::forward<T>(t));
     else
       return t;
   }
 
-  template <typename Tuple> std::string generate_conn_sql(const Tuple &tp) {
+  template <typename Tuple>
+  std::string generate_conn_sql(const Tuple &tp) {
     constexpr size_t SIZE = std::tuple_size_v<Tuple>;
     if constexpr (SIZE == 4) {
       return generate_conn_sql(
@@ -347,17 +340,15 @@ private:
     void dismiss() { dismiss_ = true; }
 
     ~guard_result() {
-      if (dismiss_)
-        return;
+      if (dismiss_) return;
 
-      if (res_ != nullptr)
-        status_ = PQresultStatus(res_);
+      if (res_ != nullptr) status_ = PQresultStatus(res_);
 
       if (status_ != PGRES_COMMAND_OK)
         std::cout << PQresultErrorMessage(res_) << std::endl;
     }
 
-  private:
+   private:
     PGresult *res_ = nullptr;
     int status_ = 0;
     bool dismiss_ = false;
@@ -392,14 +383,13 @@ private:
       bool has_add_field = false;
       iguana::for_each(
           tp,
-          [&sql, &i, &has_add_field, field_name, type_name_arr, name,
-           this](auto item, auto I) {
+          [&sql, &i, &has_add_field, field_name, type_name_arr, name, this](
+              auto item, auto I) {
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
               if (item.fields.find(field_name.data()) == item.fields.end())
                 return;
             } else {
-              if (item.fields != field_name.data())
-                return;
+              if (item.fields != field_name.data()) return;
             }
 
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
@@ -443,8 +433,7 @@ private:
         append(sql, field_name.data(), " ", type_name_arr[i]);
       }
 
-      if (i < arr_size - 1)
-        sql += ", ";
+      if (i < arr_size - 1) sql += ", ";
     }
 
     sql += ")";
@@ -452,7 +441,8 @@ private:
     return sql;
   }
 
-  template <typename T> bool prepare(const std::string &sql) {
+  template <typename T>
+  bool prepare(const std::string &sql) {
     res_ =
         PQprepare(con_, "", sql.data(), (int)iguana::get_value<T>(), nullptr);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
@@ -465,7 +455,8 @@ private:
     return true;
   }
 
-  template <typename T> std::string generate_pq_insert_sql(bool replace) {
+  template <typename T>
+  std::string generate_pq_insert_sql(bool replace) {
     std::string sql = replace ? "replace into " : "insert into ";
     constexpr auto SIZE = iguana::get_value<T>();
     constexpr auto name = iguana::get_name<T>();
@@ -498,8 +489,7 @@ private:
                        set_param_values(param_values, t.*item);
                      });
 
-    if (param_values.empty())
-      return INT_MIN;
+    if (param_values.empty()) return INT_MIN;
 
     std::vector<const char *> param_values_buf;
     for (auto &item : param_values) {
@@ -551,7 +541,8 @@ private:
     }
   }
 
-  template <typename T> constexpr void assign(T &&value, int row, int i) {
+  template <typename T>
+  constexpr void assign(T &&value, int row, int i) {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (std::is_integral_v<U> && !iguana::is_int64_v<U>) {
       value = std::atoi(PQgetvalue(res_, row, i));
@@ -619,7 +610,8 @@ private:
     }
   }
 
-  template <typename T> std::string generate_auto_insert_sql(bool replace) {
+  template <typename T>
+  std::string generate_auto_insert_sql(bool replace) {
     std::string sql = replace ? "replace into " : "insert into ";
     constexpr auto SIZE = iguana::get_value<T>();
     constexpr auto name = iguana::get_name<T>();
@@ -659,5 +651,5 @@ private:
   std::map<std::string, std::string> auto_key_map_;
   std::map<std::string, std::string> key_map_;
 };
-} // namespace ormpp
-#endif // ORM_POSTGRESQL_HPP
+}  // namespace ormpp
+#endif  // ORM_POSTGRESQL_HPP

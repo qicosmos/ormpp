@@ -44,7 +44,7 @@ struct person {
 REFLECTION(person, id, name, age)
 
 struct student {
-  int code; // key
+  int code;  // key
   std::string name;
   char sex;
   int age;
@@ -61,7 +61,7 @@ struct simple {
 REFLECTION(simple, id, code, age);
 
 using namespace ormpp;
-const char *ip = "127.0.0.1"; // your database ip
+const char *ip = "127.0.0.1";  // your database ip
 
 // TEST_CASE(mysql_performance){
 //    dbng<mysql> mysql;
@@ -97,7 +97,10 @@ const char *ip = "127.0.0.1"; // your database ip
 //    m_begin).count(); std::cout<<s<<'\n';
 //}
 
-template <class T, size_t N> constexpr size_t size(T (&)[N]) { return N; }
+template <class T, size_t N>
+constexpr size_t size(T (&)[N]) {
+  return N;
+}
 
 struct test_order {
   int id;
@@ -105,15 +108,16 @@ struct test_order {
 };
 REFLECTION(test_order, name, id);
 
-TEST_CASE(random_reflection_order)
-{
+TEST_CASE(random_reflection_order) {
   dbng<mysql> mysql;
-  TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb", /*timeout_seconds=*/5, 3306));
-  TEST_REQUIRE(mysql.execute("create table if not exists `test_order` (id int, name text);"));
+  TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb",
+                             /*timeout_seconds=*/5, 3306));
+  TEST_REQUIRE(mysql.execute(
+      "create table if not exists `test_order` (id int, name text);"));
   mysql.delete_records<test_order>();
   int id = 666;
   std::string name = "hello";
-  mysql.insert(test_order { id, name });
+  mysql.insert(test_order{id, name});
   auto v = mysql.query<test_order>();
   TEST_REQUIRE(v.size() > 0);
   TEST_CHECK(v.front().id == id);
@@ -128,9 +132,10 @@ REFLECTION(dummy, id, name);
 
 TEST_CASE(mysql_exist_tb) {
   dbng<mysql> mysql;
-  TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb", /*timeout_seconds=*/5, 3306));
-  dummy d{ 0, "tom" };
-  dummy d1{ 0, "jerry" };
+  TEST_REQUIRE(mysql.connect(ip, "root", "12345", "testdb",
+                             /*timeout_seconds=*/5, 3306));
+  dummy d{0, "tom"};
+  dummy d1{0, "jerry"};
   mysql.insert(d);
   mysql.insert(d1);
   auto v = mysql.query<dummy>("limit 1, 1");
@@ -211,7 +216,7 @@ TEST_CASE(postgres_pool) {
     pool.return_back(conn2);
   });
 
-  auto conn4 = pool.get(); // 10s later, timeout
+  auto conn4 = pool.get();  // 10s later, timeout
   TEST_CHECK(conn4 == nullptr);
   auto conn5 = pool.get();
   TEST_CHECK(conn5 != nullptr);
@@ -320,7 +325,6 @@ TEST_CASE(orm_insert_query) {
   mysql.delete_records(FID(simple::id), "=", 3);
 #endif
 
-
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
   TEST_REQUIRE(postgres.connect(ip, "root", "12345", "testdb"));
@@ -378,7 +382,7 @@ TEST_CASE(orm_insert_query) {
     TEST_CHECK(mysql.insert(s) == 1);
     auto result11 = mysql.query<student>();
     TEST_CHECK(result11.size() == 5);
-    //TEST_CHECK(mysql.insert(s) < 0);
+    // TEST_CHECK(mysql.insert(s) < 0);
     TEST_CHECK(mysql.delete_records<student>());
     TEST_CHECK(mysql.insert(v) == 2);
     auto result44 = mysql.query<student>();
@@ -784,24 +788,28 @@ TEST_CASE(orm_transaction) {
 }
 
 struct log {
-  template <typename... Args> bool before(Args... args) {
+  template <typename... Args>
+  bool before(Args... args) {
     std::cout << "log before" << std::endl;
     return true;
   }
 
-  template <typename T, typename... Args> bool after(T t, Args... args) {
+  template <typename T, typename... Args>
+  bool after(T t, Args... args) {
     std::cout << "log after" << std::endl;
     return true;
   }
 };
 
 struct validate {
-  template <typename... Args> bool before(Args... args) {
+  template <typename... Args>
+  bool before(Args... args) {
     std::cout << "validate before" << std::endl;
     return true;
   }
 
-  template <typename T, typename... Args> bool after(T t, Args... args) {
+  template <typename T, typename... Args>
+  bool after(T t, Args... args) {
     std::cout << "validate after" << std::endl;
     return true;
   }
@@ -825,8 +833,7 @@ TEST_CASE(orm_aop) {
   // TEST_REQUIRE(r);
 }
 
-struct image
-{
+struct image {
   int id;
   ormpp::blob bin;
 };

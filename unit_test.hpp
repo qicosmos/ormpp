@@ -15,7 +15,7 @@ struct BaseCase {
 struct AbortThisCase {};
 
 class UnitTest {
-private:
+ private:
   UnitTest() : last_checked_line_{0}, failure_num_{0}, current_case_{nullptr} {}
   std::vector<BaseCase *> test_cases_;
   std::string last_checked_file_;
@@ -23,7 +23,7 @@ private:
   size_t failure_num_;
   BaseCase *current_case_;
 
-public:
+ public:
   static UnitTest &getInstance() {
     static UnitTest instance;
     return instance;
@@ -57,12 +57,16 @@ public:
   size_t getFailureNum() { return failure_num_; }
 };
 
-template <bool should_be_included = true> struct TestCase : BaseCase {
-public:
+template <bool should_be_included = true>
+struct TestCase : BaseCase {
+ public:
   TestCase(std::function<void()> method, const std::string &name,
            const std::string &file, size_t line)
-      : method_{method}, case_name_{name}, defined_file_{file},
-        defined_line_{line}, is_aborted_{false} {
+      : method_{method},
+        case_name_{name},
+        defined_file_{file},
+        defined_line_{line},
+        is_aborted_{false} {
     UnitTest::getInstance().registerTestCase(this);
   }
 
@@ -100,7 +104,7 @@ public:
 
   ~TestCase() override = default;
 
-private:
+ private:
   std::function<void()> method_;
   std::string case_name_;
   std::string defined_file_;
@@ -108,7 +112,8 @@ private:
   bool is_aborted_;
 };
 
-template <> struct TestCase<false> {
+template <>
+struct TestCase<false> {
   TestCase(std::function<void()>, const std::string &, const std::string &,
            size_t) {}
 };
@@ -139,22 +144,22 @@ void do_check_failed(F &&f, Args &&...args) {
   f(std::forward<Args>(args)...);
 }
 
-template <typename... Msgs> void do_check_failed(Msgs &&...msgs) {
+template <typename... Msgs>
+void do_check_failed(Msgs &&...msgs) {
   (void)std::initializer_list<int>{
       (std::cout << ">>> " << msgs << std::endl, 0)...};
 }
 
-#define TEST_CASE(test_name, ...)                                              \
-  static void test_name();                                                     \
-  static TestCase<__VA_ARGS__> test_name##_case{test_name, #test_name,         \
-                                                __FILE__, __LINE__};           \
+#define TEST_CASE(test_name, ...)                                      \
+  static void test_name();                                             \
+  static TestCase<__VA_ARGS__> test_name##_case{test_name, #test_name, \
+                                                __FILE__, __LINE__};   \
   static void test_name()
 
 #define G_CHECK(cond, strict, ...)                                             \
   do {                                                                         \
     BaseCase *cur_case = UnitTest::getInstance().currentCase();                \
-    if (cur_case->isAborted())                                                 \
-      throw AbortThisCase{};                                                   \
+    if (cur_case->isAborted()) throw AbortThisCase{};                          \
     UnitTest::getInstance().checkFile(__FILE__);                               \
     UnitTest::getInstance().checkLine(__LINE__);                               \
     if (!(cond)) {                                                             \
