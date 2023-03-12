@@ -129,9 +129,11 @@ struct convert {
 
   template <typename T>
   static inline char* out(char* p, T&& obj) {
-    if (D == Rev) p -= sizeof(T);
+    if (D == Rev)
+      p -= sizeof(T);
     memcpy(p, reinterpret_cast<const void*>(&obj), sizeof(T));
-    if (D == Fwd) p += sizeof(T);
+    if (D == Fwd)
+      p += sizeof(T);
     return p;
   }
 
@@ -193,15 +195,18 @@ struct convert {
 
   template <typename UInt, size_t N = sizeof(UInt)>
   static inline char* itoa(char* p, UInt u) {
-    if (u < pow10<U<N>>(N)) return head(p, U<N / 2>(u));
+    if (u < pow10<U<N>>(N))
+      return head(p, U<N / 2>(u));
     QR<N> x = split<N>(u);
     return (u < pow10<U<N>>(2 * N) ? (head<N>(p, x)) : (large<N>(p, x)));
   }
 
   // selected when "u" is one byte
   static inline char* itoa(char* p, U<1> u) {
-    if (u < 10) return out<char>(p, '0' + u);
-    if (u < 100) return out(p, dd(u));
+    if (u < 10)
+      return out<char>(p, '0' + u);
+    if (u < 100)
+      return out(p, dd(u));
     return (D == Fwd ? (out(out<char>(p, '0' + u / 100), dd(u % 100)))
                      : (out<char>(out(p, dd(u % 100)), '0' + u / 100)));
   }
@@ -253,7 +258,8 @@ struct convert {
       p += (mask & 1);
     }
     p = convert<D>::template itoa(p, u);
-    if (D == Rev && mask) *--p = '-';
+    if (D == Rev && mask)
+      *--p = '-';
     return p;
   }
 };
@@ -276,7 +282,8 @@ inline char* xtoa(long long sval, char* str, int radix, int signedp) {
   if (signedp && (10 == uradix) && (0 > sval)) {
     *sp++ = '-';
     uval = -sval;
-  } else {
+  }
+  else {
     uval = sval;
   }
   sp2 = sp;
@@ -286,7 +293,8 @@ inline char* xtoa(long long sval, char* str, int radix, int signedp) {
     uval /= uradix;
     if (10 > rem) {
       *sp++ = '0' + (char)rem;
-    } else {
+    }
+    else {
       *sp++ = 'A' + (char)rem - 10;
     }
   } while (0 < uval);

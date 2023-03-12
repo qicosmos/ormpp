@@ -130,9 +130,11 @@ class sqlite {
     std::vector<T> v;
     while (true) {
       result = sqlite3_step(stmt_);
-      if (result == SQLITE_DONE) break;
+      if (result == SQLITE_DONE)
+        break;
 
-      if (result != SQLITE_ROW) break;
+      if (result != SQLITE_ROW)
+        break;
 
       T t = {};
       iguana::for_each(t, [this, &t](auto item, auto I) {
@@ -154,7 +156,8 @@ class sqlite {
     std::string sql = s;
     constexpr auto Args_Size = sizeof...(Args);
     if constexpr (Args_Size != 0) {
-      if (Args_Size != std::count(sql.begin(), sql.end(), '?')) return {};
+      if (Args_Size != std::count(sql.begin(), sql.end(), '?'))
+        return {};
 
       sql = get_sql(sql, std::forward<Args>(args)...);
     }
@@ -171,9 +174,11 @@ class sqlite {
     std::vector<T> v;
     while (true) {
       result = sqlite3_step(stmt_);
-      if (result == SQLITE_DONE) break;
+      if (result == SQLITE_DONE)
+        break;
 
-      if (result != SQLITE_ROW) break;
+      if (result != SQLITE_ROW)
+        break;
 
       T tp = {};
       int index = 0;
@@ -186,13 +191,15 @@ class sqlite {
                 assign(t.*ele, index++);
               });
               item = std::move(t);
-            } else {
+            }
+            else {
               assign(item, index++);
             }
           },
           std::make_index_sequence<SIZE>{});
 
-      if (index > 0) v.push_back(std::move(tp));
+      if (index > 0)
+        v.push_back(std::move(tp));
     }
 
     return v;
@@ -274,8 +281,10 @@ class sqlite {
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
               if (item.fields.find(field_name.data()) == item.fields.end())
                 return;
-            } else {
-              if (item.fields != field_name.data()) return;
+            }
+            else {
+              if (item.fields != field_name.data())
+                return;
             }
 
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
@@ -284,29 +293,32 @@ class sqlite {
               }
               append(sql, " NOT NULL");
               has_add_field = true;
-            } else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
+            }
+            else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
               }
 
               append(sql, " PRIMARY KEY ");
               has_add_field = true;
-            } else if constexpr (std::is_same_v<decltype(item),
-                                                ormpp_auto_key>) {
+            }
+            else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
               }
               append(sql, " PRIMARY KEY AUTOINCREMENT");
               auto_key_map_[name.data()] = item.fields;
               has_add_field = true;
-            } else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
+            }
+            else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
               }
 
               append(sql, ", UNIQUE(", item.fields, ")");
               has_add_field = true;
-            } else {
+            }
+            else {
               append(sql, field_name.data(), " ", type_name_arr[i]);
             }
           },
@@ -316,7 +328,8 @@ class sqlite {
         append(sql, field_name.data(), " ", type_name_arr[i]);
       }
 
-      if (i < arr_size - 1) sql += ", ";
+      if (i < arr_size - 1)
+        sql += ", ";
     }
 
     sql += ")";
@@ -329,9 +342,11 @@ class sqlite {
     sqlite3_stmt *stmt_ = nullptr;
     int status_ = 0;
     ~guard_statment() {
-      if (stmt_ != nullptr) status_ = sqlite3_finalize(stmt_);
+      if (stmt_ != nullptr)
+        status_ = sqlite3_finalize(stmt_);
 
-      if (status_) fprintf(stderr, "close statment error code %d\n", status_);
+      if (status_)
+        fprintf(stderr, "close statment error code %d\n", status_);
     }
   };
 
@@ -341,17 +356,22 @@ class sqlite {
     if constexpr (std::is_integral_v<U> &&
                   !iguana::is_int64_v<U>) {  // double, int64
       return SQLITE_OK == sqlite3_bind_int(stmt_, i, value);
-    } else if constexpr (iguana::is_int64_v<U>) {
+    }
+    else if constexpr (iguana::is_int64_v<U>) {
       return SQLITE_OK == sqlite3_bind_int64(stmt_, i, value);
-    } else if constexpr (std::is_floating_point_v<U>) {
+    }
+    else if constexpr (std::is_floating_point_v<U>) {
       return SQLITE_OK == sqlite3_bind_double(stmt_, i, value);
-    } else if constexpr (std::is_same_v<std::string, U>) {
+    }
+    else if constexpr (std::is_same_v<std::string, U>) {
       return SQLITE_OK == sqlite3_bind_text(stmt_, i, value.data(),
                                             (int)value.size(), nullptr);
-    } else if constexpr (is_char_array_v<U>) {
+    }
+    else if constexpr (is_char_array_v<U>) {
       return SQLITE_OK ==
              sqlite3_bind_text(stmt_, i, value, sizeof(U), nullptr);
-    } else {
+    }
+    else {
       std::cout << "this type has not supported yet" << std::endl;
       return false;
     }
@@ -364,20 +384,26 @@ class sqlite {
                   !iguana::is_int64_v<U>) {  // double, int64
       if constexpr (std::is_same_v<U, char>) {
         value = (char)sqlite3_column_int(stmt_, i);
-      } else {
+      }
+      else {
         value = sqlite3_column_int(stmt_, i);
       }
-    } else if constexpr (iguana::is_int64_v<U>) {
+    }
+    else if constexpr (iguana::is_int64_v<U>) {
       value = sqlite3_column_int64(stmt_, i);
-    } else if constexpr (std::is_floating_point_v<U>) {
+    }
+    else if constexpr (std::is_floating_point_v<U>) {
       value = sqlite3_column_double(stmt_, i);
-    } else if constexpr (std::is_same_v<std::string, U>) {
+    }
+    else if constexpr (std::is_same_v<std::string, U>) {
       value.reserve(sqlite3_column_bytes(stmt_, i));
       value.assign((const char *)sqlite3_column_text(stmt_, i),
                    (size_t)sqlite3_column_bytes(stmt_, i));
-    } else if constexpr (is_char_array_v<U>) {
+    }
+    else if constexpr (is_char_array_v<U>) {
       memcpy(value, sqlite3_column_text(stmt_, i), sizeof(U));
-    } else {
+    }
+    else {
       std::cout << "this type has not supported yet" << std::endl;
     }
   }
@@ -401,7 +427,8 @@ class sqlite {
     int index = 0;
     iguana::for_each(
         t, [&t, &bind_ok, &auto_key, &index, this](auto item, auto i) {
-          if (!bind_ok) return;
+          if (!bind_ok)
+            return;
 
           if (!auto_key.empty() &&
               auto_key == iguana::get_name<T>(decltype(i)::value).data()) {
@@ -453,7 +480,8 @@ class sqlite {
       int index = 0;
       iguana::for_each(
           t, [&t, &bind_ok, &auto_key, &index, this](auto item, auto i) {
-            if (!bind_ok) return;
+            if (!bind_ok)
+              return;
 
             if (!auto_key.empty() &&
                 auto_key == iguana::get_name<T>(decltype(i)::value).data()) {
@@ -503,14 +531,16 @@ class sqlite {
     auto it = auto_key_map_.find(name.data());
     for (auto i = 0; i < SIZE; ++i) {
       std::string field_name = iguana::get_name<T>(i).data();
-      if (it != auto_key_map_.end() && it->second == field_name) continue;
+      if (it != auto_key_map_.end() && it->second == field_name)
+        continue;
 
       values += "?";
       fields += field_name;
       if (i < SIZE - 1) {
         fields += ", ";
         values += ", ";
-      } else {
+      }
+      else {
         fields += ")";
         values += ")";
       }

@@ -602,7 +602,8 @@ constexpr decltype(auto) get(T&& t) {
     std::array<char, sizeof(U)> arr;
     memcpy(arr.data(), s, arr.size());
     return arr;
-  } else
+  }
+  else
     return std::forward<T>(t).*(std::get<I>(M::apply_impl()));
 }
 
@@ -670,8 +671,9 @@ constexpr auto get_index(std::string_view name) {
   using M = decltype(iguana_reflect_members(std::declval<T>()));
   constexpr auto arr = M::arr();
 
-  auto it = std::find_if(arr.begin(), arr.end(),
-                         [name](auto str) { return (str == name); });
+  auto it = std::find_if(arr.begin(), arr.end(), [name](auto str) {
+    return (str == name);
+  });
 
   return std::distance(arr.begin(), it);
 }

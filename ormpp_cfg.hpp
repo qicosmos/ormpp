@@ -78,7 +78,8 @@ class config_manager {
       }
     });
 
-    if (!has_key) return false;
+    if (!has_key)
+      return false;
 
     return to_file(cfg, file_path);
   }

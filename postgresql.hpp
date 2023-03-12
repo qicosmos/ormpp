@@ -80,7 +80,8 @@ class postgresql {
   constexpr int insert(const T &t, Args &&...args) {
     //            std::string sql = generate_pq_insert_sql<T>(false);
     std::string sql = generate_auto_insert_sql<T>(false);
-    if (!prepare<T>(sql)) return INT_MIN;
+    if (!prepare<T>(sql))
+      return INT_MIN;
 
     return insert_impl(sql, t, std::forward<Args>(args)...);
   }
@@ -90,9 +91,11 @@ class postgresql {
     //            std::string sql = generate_pq_insert_sql<T>(false);
     std::string sql = generate_auto_insert_sql<T>(false);
 
-    if (!begin()) return INT_MIN;
+    if (!begin())
+      return INT_MIN;
 
-    if (!prepare<T>(sql)) return INT_MIN;
+    if (!prepare<T>(sql))
+      return INT_MIN;
 
     for (auto &item : v) {
       auto result = insert_impl(sql, item, std::forward<Args>(args)...);
@@ -102,7 +105,8 @@ class postgresql {
       }
     }
 
-    if (!commit()) return INT_MIN;
+    if (!commit())
+      return INT_MIN;
 
     return (int)v.size();
   }
@@ -117,7 +121,8 @@ class postgresql {
     auto key = it == key_map_.end() ? "" : it->second;
 
     auto condition = get_condition(t, key, std::forward<Args...>(args)...);
-    if (!begin()) return INT_MIN;
+    if (!begin())
+      return INT_MIN;
 
     if (!delete_records<T>(condition)) {
       rollback();
@@ -129,7 +134,8 @@ class postgresql {
       return INT_MIN;
     }
 
-    if (!commit()) return INT_MIN;
+    if (!commit())
+      return INT_MIN;
 
     return 1;
   }
@@ -137,7 +143,8 @@ class postgresql {
   template <typename T, typename... Args>
   constexpr int update(const std::vector<T> &v, Args &&...args) {
     // transaction, firstly delete, secondly insert
-    if (!begin()) return INT_MIN;
+    if (!begin())
+      return INT_MIN;
 
     auto name = iguana::get_name<T>();
     auto it = key_map_.find(name.data());
@@ -156,7 +163,8 @@ class postgresql {
       }
     }
 
-    if (!commit()) return INT_MIN;
+    if (!commit())
+      return INT_MIN;
 
     return (int)v.size();
   }
@@ -167,7 +175,8 @@ class postgresql {
     std::string sql = generate_query_sql<T>(std::forward<Args>(args)...);
     constexpr auto SIZE = iguana::get_value<T>();
 
-    if (!prepare<T>(sql)) return {};
+    if (!prepare<T>(sql))
+      return {};
 
     res_ = PQexec(con_, sql.data());
     if (PQresultStatus(res_) != PGRES_TUPLES_OK) {
@@ -200,12 +209,14 @@ class postgresql {
     std::string sql = s;
     constexpr auto Args_Size = sizeof...(Args);
     if (Args_Size != 0) {
-      if (Args_Size != std::count(sql.begin(), sql.end(), '$')) return {};
+      if (Args_Size != std::count(sql.begin(), sql.end(), '$'))
+        return {};
 
       sql = get_sql(sql, std::forward<Args>(args)...);
     }
 
-    if (!prepare<T>(sql)) return {};
+    if (!prepare<T>(sql))
+      return {};
 
     res_ = PQexec(con_, sql.data());
     if (PQresultStatus(res_) != PGRES_TUPLES_OK) {
@@ -228,7 +239,8 @@ class postgresql {
                 assign(t.*ele, (int)i, index++);
               });
               item = std::move(t);
-            } else {
+            }
+            else {
               assign(item, (int)i, index++);
             }
           },
@@ -316,11 +328,13 @@ class postgresql {
       return generate_conn_sql(
           std::make_tuple("host", "user", "password", "dbname"), tp,
           std::make_index_sequence<SIZE>{});
-    } else if constexpr (SIZE == 5) {
+    }
+    else if constexpr (SIZE == 5) {
       return generate_conn_sql(std::make_tuple("host", "user", "password",
                                                "dbname", "connect_timeout"),
                                tp, std::make_index_sequence<SIZE>{});
-    } else {
+    }
+    else {
       return "";
     }
   }
@@ -340,9 +354,11 @@ class postgresql {
     void dismiss() { dismiss_ = true; }
 
     ~guard_result() {
-      if (dismiss_) return;
+      if (dismiss_)
+        return;
 
-      if (res_ != nullptr) status_ = PQresultStatus(res_);
+      if (res_ != nullptr)
+        status_ = PQresultStatus(res_);
 
       if (status_ != PGRES_COMMAND_OK)
         std::cout << PQresultErrorMessage(res_) << std::endl;
@@ -388,8 +404,10 @@ class postgresql {
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
               if (item.fields.find(field_name.data()) == item.fields.end())
                 return;
-            } else {
-              if (item.fields != field_name.data()) return;
+            }
+            else {
+              if (item.fields != field_name.data())
+                return;
             }
 
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
@@ -399,7 +417,8 @@ class postgresql {
               }
 
               append(sql, " NOT NULL");
-            } else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
+            }
+            else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
                 has_add_field = true;
@@ -407,8 +426,8 @@ class postgresql {
               append(sql, " PRIMARY KEY ");
 
               key_map_[name.data()] = item.fields;
-            } else if constexpr (std::is_same_v<decltype(item),
-                                                ormpp_auto_key>) {
+            }
+            else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ");
                 has_add_field = true;
@@ -416,14 +435,16 @@ class postgresql {
               append(sql, " serial primary key");
               auto_key_map_[name.data()] = item.fields;
               key_map_[name.data()] = item.fields;
-            } else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
+            }
+            else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
               }
 
               append(sql, ", UNIQUE(", item.fields, ")");
               has_add_field = true;
-            } else {
+            }
+            else {
               append(sql, field_name.data(), " ", type_name_arr[i]);
             }
           },
@@ -433,7 +454,8 @@ class postgresql {
         append(sql, field_name.data(), " ", type_name_arr[i]);
       }
 
-      if (i < arr_size - 1) sql += ", ";
+      if (i < arr_size - 1)
+        sql += ", ";
     }
 
     sql += ")";
@@ -489,7 +511,8 @@ class postgresql {
                        set_param_values(param_values, t.*item);
                      });
 
-    if (param_values.empty()) return INT_MIN;
+    if (param_values.empty())
+      return INT_MIN;
 
     std::vector<const char *> param_values_buf;
     for (auto &item : param_values) {
@@ -518,25 +541,30 @@ class postgresql {
       std::vector<char> temp(20, 0);
       itoa_fwd(value, temp.data());
       param_values.push_back(std::move(temp));
-    } else if constexpr (iguana::is_int64_v<U>) {
+    }
+    else if constexpr (iguana::is_int64_v<U>) {
       std::vector<char> temp(65, 0);
       xtoa(value, temp.data(), 10, std::is_signed_v<U>);
       param_values.push_back(std::move(temp));
-    } else if constexpr (std::is_floating_point_v<U>) {
+    }
+    else if constexpr (std::is_floating_point_v<U>) {
       std::vector<char> temp(20, 0);
       sprintf(temp.data(), "%f", value);
       param_values.push_back(std::move(temp));
-    } else if constexpr (std::is_same_v<std::string, U>) {
+    }
+    else if constexpr (std::is_same_v<std::string, U>) {
       std::vector<char> temp = {};
       std::copy(value.data(), value.data() + value.size() + 1,
                 std::back_inserter(temp));
       //                    std::cout<<value.size()<<std::endl;
       param_values.push_back(std::move(temp));
-    } else if constexpr (is_char_array_v<U>) {
+    }
+    else if constexpr (is_char_array_v<U>) {
       std::vector<char> temp = {};
       std::copy(value, value + sizeof(U), std::back_inserter(temp));
       param_values.push_back(std::move(temp));
-    } else {
+    }
+    else {
       std::cout << "this type has not supported yet" << std::endl;
     }
   }
@@ -546,16 +574,21 @@ class postgresql {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (std::is_integral_v<U> && !iguana::is_int64_v<U>) {
       value = std::atoi(PQgetvalue(res_, row, i));
-    } else if constexpr (iguana::is_int64_v<U>) {
+    }
+    else if constexpr (iguana::is_int64_v<U>) {
       value = std::atoll(PQgetvalue(res_, row, i));
-    } else if constexpr (std::is_floating_point_v<U>) {
+    }
+    else if constexpr (std::is_floating_point_v<U>) {
       value = std::atof(PQgetvalue(res_, row, i));
-    } else if constexpr (std::is_same_v<std::string, U>) {
+    }
+    else if constexpr (std::is_same_v<std::string, U>) {
       value = PQgetvalue(res_, row, i);
-    } else if constexpr (is_char_array_v<U>) {
+    }
+    else if constexpr (is_char_array_v<U>) {
       auto p = PQgetvalue(res_, row, i);
       memcpy(value, p, sizeof(U));
-    } else {
+    }
+    else {
       std::cout << "this type has not supported yet" << std::endl;
     }
   }
@@ -573,7 +606,8 @@ class postgresql {
         if constexpr (std::is_arithmetic_v<U>) {
           append(result, iguana::get_name<T, Idx>().data(), "=",
                  std::to_string(t.*item));
-        } else if constexpr (std::is_same_v<std::string, U>) {
+        }
+        else if constexpr (std::is_same_v<std::string, U>) {
           append(result, iguana::get_name<T, Idx>().data(), "=", t.*item);
         }
       }
@@ -603,7 +637,8 @@ class postgresql {
         append(result, " and ");
         append(result, iguana::get_name<T, Idx>().data(), "=",
                std::to_string(val));
-      } else if constexpr (std::is_same_v<std::string, U>) {
+      }
+      else if constexpr (std::is_same_v<std::string, U>) {
         append(result, " and ");
         append(result, iguana::get_name<T, Idx>().data(), "=", val);
       }
@@ -637,7 +672,8 @@ class postgresql {
       if (i < SIZE - 1) {
         fields += ", ";
         values += ", ";
-      } else {
+      }
+      else {
         fields += ")";
         values += ")";
       }

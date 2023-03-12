@@ -80,7 +80,8 @@ class connection_pool {
       auto conn = std::make_shared<DB>();
       if (conn->connect(std::forward<Args>(args)...)) {
         pool_.push_back(conn);
-      } else {
+      }
+      else {
         throw std::invalid_argument("init failed");
       }
     }
@@ -88,7 +89,9 @@ class connection_pool {
 
   auto create_connection() {
     auto conn = std::make_shared<DB>();
-    auto fn = [conn](auto... targs) { return conn->connect(targs...); };
+    auto fn = [conn](auto... targs) {
+      return conn->connect(targs...);
+    };
 
     return std::apply(fn, args_) ? conn : nullptr;
   }

@@ -191,14 +191,16 @@ class mysql {
                 (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
             param_binds[index].buffer = &item;
             index++;
-          } else if constexpr (std::is_same_v<std::string, U>) {
+          }
+          else if constexpr (std::is_same_v<std::string, U>) {
             std::vector<char> tmp(65536, 0);
             mp.emplace_back(std::move(tmp));
             param_binds[index].buffer_type = MYSQL_TYPE_STRING;
             param_binds[index].buffer = &(mp.back()[0]);
             param_binds[index].buffer_length = 65536;
             index++;
-          } else if constexpr (iguana::is_reflection_v<U>) {
+          }
+          else if constexpr (iguana::is_reflection_v<U>) {
             iguana::for_each(item, [&param_binds, &mp, &item, &index](
                                        auto &ele, auto /*i*/) {
               using V =
@@ -207,19 +209,22 @@ class mysql {
                 param_binds[index].buffer_type =
                     (enum_field_types)ormpp_mysql::type_to_id(identity<V>{});
                 param_binds[index].buffer = &(item.*ele);
-              } else if constexpr (std::is_same_v<std::string, V>) {
+              }
+              else if constexpr (std::is_same_v<std::string, V>) {
                 std::vector<char> tmp(65536, 0);
                 mp.emplace_back(std::move(tmp));
                 param_binds[index].buffer_type = MYSQL_TYPE_STRING;
                 param_binds[index].buffer = &(mp.back()[0]);
                 param_binds[index].buffer_length = 65536;
-              } else if constexpr (is_char_array_v<V>) {
+              }
+              else if constexpr (is_char_array_v<V>) {
                 std::vector<char> tmp(sizeof(V), 0);
                 mp.emplace_back(std::move(tmp));
                 param_binds[index].buffer_type = MYSQL_TYPE_VAR_STRING;
                 param_binds[index].buffer = &(mp.back()[0]);
                 param_binds[index].buffer_length = (unsigned long)sizeof(V);
-              } else if constexpr (std::is_same_v<blob, U>) {
+              }
+              else if constexpr (std::is_same_v<blob, U>) {
                 std::vector<char> tmp(65536, 0);
                 mp.emplace_back(std::move(tmp));
                 param_binds[index].buffer_type = MYSQL_TYPE_BLOB;
@@ -228,21 +233,24 @@ class mysql {
               }
               index++;
             });
-          } else if constexpr (is_char_array_v<U>) {
+          }
+          else if constexpr (is_char_array_v<U>) {
             param_binds[index].buffer_type = MYSQL_TYPE_VAR_STRING;
             std::vector<char> tmp(sizeof(U), 0);
             mp.emplace_back(std::move(tmp));
             param_binds[index].buffer = &(mp.back()[0]);
             param_binds[index].buffer_length = (unsigned long)sizeof(U);
             index++;
-          } else if constexpr (std::is_same_v<blob, U>) {
+          }
+          else if constexpr (std::is_same_v<blob, U>) {
             std::vector<char> tmp(65536, 0);
             mp.emplace_back(std::move(tmp));
             param_binds[index].buffer_type = MYSQL_TYPE_BLOB;
             param_binds[index].buffer = &(mp.back()[0]);
             param_binds[index].buffer_length = 65536;
             index++;
-          } else {
+          }
+          else {
             std::cout << typeid(U).name() << std::endl;
           }
         },
@@ -270,9 +278,11 @@ class mysql {
             if constexpr (std::is_same_v<std::string, U>) {
               item = std::string(&(*it)[0], strlen((*it).data()));
               it++;
-            } else if constexpr (is_char_array_v<U>) {
+            }
+            else if constexpr (is_char_array_v<U>) {
               memcpy(item, &(*it)[0], sizeof(U));
-            } else if constexpr (iguana::is_reflection_v<U>) {
+            }
+            else if constexpr (iguana::is_reflection_v<U>) {
               iguana::for_each(item, [&it, &item, &column, this](auto ele,
                                                                  auto /*i*/) {
                 using V =
@@ -280,9 +290,11 @@ class mysql {
                 if constexpr (std::is_same_v<std::string, V>) {
                   item.*ele = std::string(&(*it)[0], strlen((*it).data()));
                   it++;
-                } else if constexpr (is_char_array_v<V>) {
+                }
+                else if constexpr (is_char_array_v<V>) {
                   memcpy(item.*ele, &(*it)[0], sizeof(V));
-                } else if constexpr (std::is_same_v<blob, V>) {
+                }
+                else if constexpr (std::is_same_v<blob, V>) {
                   // item.assign((*it).data(), (*it).data() +
                   // get_blob_len(column));
                   it++;
@@ -290,7 +302,8 @@ class mysql {
               });
               ++column;
               return;
-            } else if constexpr (std::is_same_v<blob, U>) {
+            }
+            else if constexpr (std::is_same_v<blob, U>) {
               item.assign((*it).data(), (*it).data() + get_blob_len(column));
               it++;
             }
@@ -298,7 +311,8 @@ class mysql {
           },
           std::make_index_sequence<SIZE>{});
 
-      if (index > 0) v.push_back(std::move(tp));
+      if (index > 0)
+        v.push_back(std::move(tp));
     }
 
     return v;
@@ -339,21 +353,24 @@ class mysql {
             (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
         param_binds[Idx].buffer = &(t.*item);
         index++;
-      } else if constexpr (std::is_same_v<std::string, U>) {
+      }
+      else if constexpr (std::is_same_v<std::string, U>) {
         param_binds[Idx].buffer_type = MYSQL_TYPE_STRING;
         std::vector<char> tmp(65536, 0);
         mp.emplace(decltype(i)::value, tmp);
         param_binds[Idx].buffer = &(mp.rbegin()->second[0]);
         param_binds[Idx].buffer_length = (unsigned long)tmp.size();
         index++;
-      } else if constexpr (is_char_array_v<U>) {
+      }
+      else if constexpr (is_char_array_v<U>) {
         param_binds[Idx].buffer_type = MYSQL_TYPE_VAR_STRING;
         std::vector<char> tmp(sizeof(U), 0);
         mp.emplace(decltype(i)::value, tmp);
         param_binds[Idx].buffer = &(mp.rbegin()->second[0]);
         param_binds[Idx].buffer_length = (unsigned long)sizeof(U);
         index++;
-      } else if constexpr (std::is_same_v<blob, U>) {
+      }
+      else if constexpr (std::is_same_v<blob, U>) {
         std::vector<char> tmp(65536, 0);
         mp.emplace(decltype(i)::value, std::move(tmp));
         param_binds[index].buffer_type = MYSQL_TYPE_BLOB;
@@ -386,10 +403,12 @@ class mysql {
         if constexpr (std::is_same_v<std::string, U>) {
           auto &vec = mp[decltype(i)::value];
           t.*item = std::string(&vec[0], strlen(vec.data()));
-        } else if constexpr (is_char_array_v<U>) {
+        }
+        else if constexpr (is_char_array_v<U>) {
           auto &vec = mp[decltype(i)::value];
           memcpy(t.*item, vec.data(), vec.size());
-        } else if constexpr (std::is_same_v<blob, U>) {
+        }
+        else if constexpr (std::is_same_v<blob, U>) {
           auto &vec = mp[decltype(i)::value];
           t.*item = blob(vec.data(), vec.data() + get_blob_len(column));
         }
@@ -505,8 +524,10 @@ class mysql {
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
               if (item.fields.find(field_name.data()) == item.fields.end())
                 return;
-            } else {
-              if (item.fields != field_name.data()) return;
+            }
+            else {
+              if (item.fields != field_name.data())
+                return;
             }
 
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
@@ -515,14 +536,15 @@ class mysql {
               }
               append(sql, " NOT NULL");
               has_add_field = true;
-            } else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
+            }
+            else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
               }
               append(sql, " PRIMARY KEY");
               has_add_field = true;
-            } else if constexpr (std::is_same_v<decltype(item),
-                                                ormpp_auto_key>) {
+            }
+            else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
               }
@@ -530,14 +552,16 @@ class mysql {
               append(sql, " PRIMARY KEY");
               auto_key_map_[name.data()] = item.fields;
               has_add_field = true;
-            } else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
+            }
+            else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
               }
 
               append(sql, ", UNIQUE(", item.fields, ")");
               has_add_field = true;
-            } else {
+            }
+            else {
               append(sql, field_name.data(), " ", type_name_arr[i]);
             }
           },
@@ -547,7 +571,8 @@ class mysql {
         append(sql, field_name.data(), " ", type_name_arr[i]);
       }
 
-      if (i < arr_size - 1) sql += ", ";
+      if (i < arr_size - 1)
+        sql += ", ";
     }
 
     sql += ")";
@@ -565,16 +590,18 @@ class mysql {
       param.buffer_type =
           (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
       param.buffer = const_cast<void *>(static_cast<const void *>(&value));
-    } else if constexpr (std::is_same_v<std::string, U>) {
+    }
+    else if constexpr (std::is_same_v<std::string, U>) {
       param.buffer_type = MYSQL_TYPE_STRING;
       param.buffer = (void *)(value.c_str());
       param.buffer_length = (unsigned long)value.size();
-    } else if constexpr (std::is_same_v<const char *, U> ||
-                         is_char_array_v<U>) {
+    }
+    else if constexpr (std::is_same_v<const char *, U> || is_char_array_v<U>) {
       param.buffer_type = MYSQL_TYPE_STRING;
       param.buffer = (void *)(value);
       param.buffer_length = (unsigned long)strlen(value);
-    } else if constexpr (std::is_same_v<blob, U>) {
+    }
+    else if constexpr (std::is_same_v<blob, U>) {
       param.buffer_type = MYSQL_TYPE_BLOB;
       param.buffer = (void *)(value.data());
       param.buffer_length = (unsigned long)value.size();
@@ -619,16 +646,19 @@ class mysql {
     MYSQL_STMT *stmt_ = nullptr;
     int status_ = 0;
     ~guard_statment() {
-      if (stmt_ != nullptr) status_ = mysql_stmt_close(stmt_);
+      if (stmt_ != nullptr)
+        status_ = mysql_stmt_close(stmt_);
 
-      if (status_) fprintf(stderr, "close statment error code %d\n", status_);
+      if (status_)
+        fprintf(stderr, "close statment error code %d\n", status_);
     }
   };
 
   template <typename T, typename... Args>
   int insert_impl(const std::string &sql, const T &t, Args &&...args) {
     stmt_ = mysql_stmt_init(con_);
-    if (!stmt_) return INT_MIN;
+    if (!stmt_)
+      return INT_MIN;
 
     if (mysql_stmt_prepare(stmt_, sql.c_str(), (int)sql.size())) {
       return INT_MIN;
@@ -636,7 +666,8 @@ class mysql {
 
     auto guard = guard_statment(stmt_);
 
-    if (stmt_execute(t) < 0) return INT_MIN;
+    if (stmt_execute(t) < 0)
+      return INT_MIN;
 
     return 1;
   }
@@ -645,7 +676,8 @@ class mysql {
   int insert_impl(const std::string &sql, const std::vector<T> &t,
                   Args &&...args) {
     stmt_ = mysql_stmt_init(con_);
-    if (!stmt_) return INT_MIN;
+    if (!stmt_)
+      return INT_MIN;
 
     if (mysql_stmt_prepare(stmt_, sql.c_str(), (int)sql.size())) {
       return INT_MIN;
@@ -655,7 +687,8 @@ class mysql {
 
     // transaction
     bool b = begin();
-    if (!b) return INT_MIN;
+    if (!b)
+      return INT_MIN;
 
     for (auto &item : t) {
       int r = stmt_execute(item);
@@ -676,11 +709,13 @@ class mysql {
       auto [c, s1, s2, s3, s4, i] = tp;
       timeout = i;
       return std::make_tuple(c, s1, s2, s3, s4, 0, nullptr, 0);
-    } else if constexpr (sizeof...(Args) == 6) {
+    }
+    else if constexpr (sizeof...(Args) == 6) {
       auto [c, s1, s2, s3, s4, i, port] = tp;
       timeout = i;
       return std::make_tuple(c, s1, s2, s3, s4, port, nullptr, 0);
-    } else {
+    }
+    else {
       return std::tuple_cat(tp, std::make_tuple(0, nullptr, 0));
     }
   }

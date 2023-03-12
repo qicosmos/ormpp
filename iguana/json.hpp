@@ -13,7 +13,8 @@ namespace iguana {
 namespace json {
 template <typename InputIt, typename T, typename F>
 T join(InputIt first, InputIt last, const T &delim, const F &f) {
-  if (first == last) return T();
+  if (first == last)
+    return T();
 
   T t = f(*first++);
   while (first != last) {
@@ -25,7 +26,8 @@ T join(InputIt first, InputIt last, const T &delim, const F &f) {
 
 template <typename Stream, typename InputIt, typename T, typename F>
 void join(Stream &ss, InputIt first, InputIt last, const T &delim, const F &f) {
-  if (first == last) return;
+  if (first == last)
+    return;
 
   f(*first++);
   while (first != last) {
@@ -116,8 +118,9 @@ std::enable_if_t<std::is_enum<T>::value> render_json_value(Stream &ss, T val) {
 template <typename Stream, typename T>
 void render_array(Stream &ss, const T &v) {
   ss.put('[');
-  join(ss, std::begin(v), std::end(v), ',',
-       [&ss](const auto &jsv) { render_json_value(ss, jsv); });
+  join(ss, std::begin(v), std::end(v), ',', [&ss](const auto &jsv) {
+    render_json_value(ss, jsv);
+  });
   ss.put(']');
 }
 
@@ -147,8 +150,9 @@ template <typename Stream, typename T>
 std::enable_if_t<is_sequence_container<T>::value> render_json_value(
     Stream &ss, const T &v) {
   ss.put('[');
-  join(ss, v.cbegin(), v.cend(), ',',
-       [&ss](const auto &jsv) { render_json_value(ss, jsv); });
+  join(ss, v.cbegin(), v.cend(), ',', [&ss](const auto &jsv) {
+    render_json_value(ss, jsv);
+  });
   ss.put(']');
 }
 
@@ -170,11 +174,13 @@ constexpr auto to_json(Stream &s, T &&v)
   for (size_t i = 0; i < size; i++) {
     if constexpr (is_reflection_v<U>) {
       to_json(s, v[i]);
-    } else {
+    }
+    else {
       render_json_value(s, v[i]);
     }
 
-    if (i != size - 1) s.put(',');
+    if (i != size - 1)
+      s.put(',');
   }
   s.put(']');
 }
@@ -188,7 +194,8 @@ constexpr auto to_json(Stream &s, T &&t)
   for_each(std::forward<T>(t), [&s, size](auto &v, auto i) {
     render_json_value(s, v);
 
-    if (i != size - 1) s.put(',');
+    if (i != size - 1)
+      s.put(',');
   });
   s.put(']');
 }
@@ -208,11 +215,13 @@ constexpr auto to_json(Stream &s, T &&t)
 
     if constexpr (!is_reflection<decltype(v)>::value) {
       render_json_value(s, t.*v);
-    } else {
+    }
+    else {
       to_json(s, t.*v);
     }
 
-    if (Idx < Count - 1) s.put(',');
+    if (Idx < Count - 1)
+      s.put(',');
   });
   s.put('}');
 }
@@ -265,9 +274,11 @@ class reader_t {
       : len_(len), ptr_((char *)ptr) {
     if (ptr == nullptr) {
       end_mark_ = true;
-    } else if (len == 0) {
+    }
+    else if (len == 0) {
       end_mark_ = true;
-    } else if (ptr[0] == 0) {
+    }
+    else if (ptr[0] == 0) {
       end_mark_ = true;
     }
     next();
@@ -335,7 +346,8 @@ class reader_t {
           }
           do_next = true;
           break;
-        } else if (c == '*') {
+        }
+        else if (c == '*') {
           take();
           c = read();
           do {
@@ -368,18 +380,21 @@ class reader_t {
           cur_tok_.type = token::t_uint;
           cur_tok_.value.u64 = c - '0';
           parser_number();
-        } else if (c == '-') {
+        }
+        else if (c == '-') {
           cur_tok_.type = token::t_int;
           cur_tok_.value.i64 = 0;
           cur_tok_.neg = true;
           parser_number();
-        } else {
+        }
+        else {
           cur_tok_.type = token::t_string;
           parser_string();
         }
       }
     }
-    if (do_next == false) return;
+    if (do_next == false)
+      return;
     next();
   }
 
@@ -389,7 +404,8 @@ class reader_t {
   inline void decimal_reset() { decimal = 0.1; }
 
   inline char read() const {
-    if (end_mark_) return 0;
+    if (end_mark_)
+      return 0;
     return ptr_[cur_offset_];
   }
 
@@ -397,10 +413,12 @@ class reader_t {
     if (end_mark_ == false) {
       ++cur_offset_;
       char v = ptr_[cur_offset_];
-      if (v != '\r') ++cur_col_;
+      if (v != '\r')
+        ++cur_col_;
       if (len_ > 0 && cur_offset_ >= len_) {
         end_mark_ = true;
-      } else if (v == 0) {
+      }
+      else if (v == 0) {
         end_mark_ = true;
       }
       if (v == '\n') {
@@ -420,7 +438,8 @@ class reader_t {
   }
 
   inline void fill_escape_char(size_t count, char c) {
-    if (count == 0) return;
+    if (count == 0)
+      return;
     ptr_[cur_offset_ - count] = c;
   }
 
@@ -435,10 +454,12 @@ class reader_t {
   inline char char_to_hex(char v) {
     if (v < 'f') {
       v = table[int(v)];
-    } else {
+    }
+    else {
       v = 16;
     }
-    if (v > 15) error("utf8 code error!");
+    if (v > 15)
+      error("utf8 code error!");
     return v;
   }
 
@@ -468,16 +489,19 @@ class reader_t {
     if (utf1 < 0x80) {
       fill_escape_char(esc_count, (char)utf1);
       esc_count -= 1;
-    } else if (utf1 < 0x800) {
+    }
+    else if (utf1 < 0x800) {
       fill_escape_char(esc_count, (char)(0xC0 | ((utf1 >> 6) & 0xFF)));
       fill_escape_char(esc_count - 1, (char)(0x80 | ((utf1 & 0x3F))));
       esc_count -= 2;
-    } else if (utf1 < 0x80000) {
+    }
+    else if (utf1 < 0x80000) {
       fill_escape_char(esc_count, (char)(0xE0 | ((utf1 >> 12) & 0xFF)));
       fill_escape_char(esc_count - 1, (char)(0x80 | ((utf1 >> 6) & 0x3F)));
       fill_escape_char(esc_count - 2, (char)(0x80 | ((utf1 & 0x3F))));
       esc_count -= 3;
-    } else {
+    }
+    else {
       if (utf1 < 0x110000) {
         error("utf8 code error!");
       }
@@ -644,10 +668,12 @@ class reader_t {
           if (cur_tok_.type == token::t_int) {
             cur_tok_.value.i64 *= 10;
             cur_tok_.value.i64 += c - '0';
-          } else if (cur_tok_.type == token::t_uint) {
+          }
+          else if (cur_tok_.type == token::t_uint) {
             cur_tok_.value.u64 *= 10;
             cur_tok_.value.u64 += c - '0';
-          } else if (cur_tok_.type == token::t_number) {
+          }
+          else if (cur_tok_.type == token::t_number) {
             cur_tok_.value.d64 += decimal * (c - '0');
             decimal *= 0.1;
           }
@@ -658,11 +684,13 @@ class reader_t {
             cur_tok_.type = token::t_number;
             cur_tok_.value.d64 = (double)cur_tok_.value.i64;
             decimal_reset();
-          } else if (cur_tok_.type == token::t_uint) {
+          }
+          else if (cur_tok_.type == token::t_uint) {
             cur_tok_.type = token::t_number;
             cur_tok_.value.d64 = (double)cur_tok_.value.u64;
             decimal_reset();
-          } else if (cur_tok_.type == token::t_number) {
+          }
+          else if (cur_tok_.type == token::t_number) {
             error("not a valid number!");
           }
           break;
@@ -728,7 +756,8 @@ inline void skip_object(reader_t &rd) {
       rd.next();
       skip(rd);
       tok = &rd.peek();
-    } else {
+    }
+    else {
       rd.error("invalid json document!");
       break;
     }
@@ -756,7 +785,8 @@ inline void skip(reader_t &rd) {
         rd.next();
         skip_array(rd);
         return;
-      } else if (tok.str.str[0] == '{') {
+      }
+      else if (tok.str.str[0] == '{') {
         rd.next();
         skip_object(rd);
         return;
@@ -771,7 +801,8 @@ inline void skip(reader_t &rd) {
 
 template <typename T>
 void check_result(T val, char const *str) {
-  if (*str == 'n') return;
+  if (*str == 'n')
+    return;
 
   if (val == 0 && (*str) != '0') {
     g_has_error = true;
@@ -792,7 +823,8 @@ inline std::enable_if_t<is_signed_intergral_like<T>::value> read_json(
     }
     case token::t_int: {
       val = static_cast<T>(tok.value.i64);
-      if (tok.neg) val = -val;
+      if (tok.neg)
+        val = -val;
       break;
     }
     case token::t_uint: {
@@ -801,7 +833,8 @@ inline std::enable_if_t<is_signed_intergral_like<T>::value> read_json(
     }
     case token::t_number: {
       val = static_cast<T>(tok.value.d64);
-      if (tok.neg) val = -val;
+      if (tok.neg)
+        val = -val;
       break;
     }
     default: {
@@ -868,7 +901,8 @@ inline std::enable_if_t<std::is_floating_point<T>::value> read_json(
     }
     case token::t_int: {
       val = static_cast<T>(tok.value.i64);
-      if (tok.neg) val = -val;
+      if (tok.neg)
+        val = -val;
       break;
     }
     case token::t_uint: {
@@ -877,7 +911,8 @@ inline std::enable_if_t<std::is_floating_point<T>::value> read_json(
     }
     case token::t_number: {
       val = static_cast<T>(tok.value.d64);
-      if (tok.neg) val = -val;
+      if (tok.neg)
+        val = -val;
       break;
     }
     default: {
@@ -898,7 +933,8 @@ inline void read_json(reader_t &rd, bool &val, bool unorder = false) {
               (ptr[1] == 'r' || ptr[1] == 'R') &&
               (ptr[2] == 'u' || ptr[2] == 'U') &&
               (ptr[3] == 'e' || ptr[3] == 'E');
-      } else {
+      }
+      else {
         val = false;
       }
       break;
@@ -926,7 +962,8 @@ inline void read_json(reader_t &rd, std::string &val, bool unorder = false) {
   auto &tok = rd.peek();
   if (tok.type == token::t_string) {
     val.assign(tok.str.str, tok.str.len);
-  } else {
+  }
+  else {
     rd.error("not a valid string.");
   }
   rd.next();
@@ -953,9 +990,11 @@ inline void read_array(reader_t &rd, T &val) {
       rd.next();
       tok = &rd.peek();
       continue;
-    } else if (tok->str.str[0] == ']') {
+    }
+    else if (tok->str.str[0] == ']') {
       break;
-    } else {
+    }
+    else {
       rd.error("no valid array!");
       break;
     }
@@ -997,9 +1036,11 @@ inline std::enable_if_t<is_sequence_container<T>::value> read_json(
       rd.next();
       tok = &rd.peek();
       continue;
-    } else if (tok->str.str[0] == ']') {
+    }
+    else if (tok->str.str[0] == ']') {
       break;
-    } else {
+    }
+    else {
       rd.error("no valid array!");
       break;
     }
@@ -1032,9 +1073,11 @@ inline std::enable_if_t<is_associat_container<T>::value> read_json(
       rd.next();
       tok = &rd.peek();
       continue;
-    } else if (tok->str.str[0] == '}') {
+    }
+    else if (tok->str.str[0] == '}') {
       break;
-    } else {
+    }
+    else {
       rd.error("no valid object!");
       break;
     }
@@ -1070,7 +1113,8 @@ inline constexpr std::enable_if_t<is_reflection_v<T>> do_read(reader_t &rd,
       rd.next();
       rd.next();
       read_json(rd, t.*v);
-    } else {
+    }
+    else {
       rd.next();
       rd.next();
       rd.next();
@@ -1084,12 +1128,14 @@ template <typename U, typename T>
 inline void assign(reader_t &rd, T &t) {
   if constexpr (!is_reflection<U>::value) {
     read_json(rd, t);
-  } else {
+  }
+  else {
     do_read(rd, t);
     rd.next();
   }
 
-  if (g_has_error) return;
+  if (g_has_error)
+    return;
 
   rd.next();
 }
@@ -1100,8 +1146,9 @@ inline std::enable_if_t<is_tuple<std::decay_t<T>>::value, bool> from_json(
   g_has_error = false;
   reader_t rd(buf, len);
   rd.next();
-  for_each(std::forward<T>(t),
-           [&rd](auto &v, auto i) { assign<decltype(v)>(rd, v); });
+  for_each(std::forward<T>(t), [&rd](auto &v, auto i) {
+    assign<decltype(v)>(rd, v);
+  });
   return !g_has_error;
 }
 
@@ -1114,7 +1161,8 @@ from_json(T &&v, const char *buf, size_t len = -1) {
   reader_t rd(buf, len);
   rd.next();
   while (rd.peek().type != token::t_end) {
-    if (g_has_error) return false;
+    if (g_has_error)
+      return false;
 
     assign<U>(rd, t);
     v.push_back(std::move(t));
@@ -1152,14 +1200,16 @@ constexpr void do_read0(reader_t &rd, T &&t) {
   size_t loop_idx = 0;
   size_t index = 0;
   while (rd.peek().type != token::t_end && index <= Size) {
-    if (loop_idx != Size) rd.next();
+    if (loop_idx != Size)
+      rd.next();
 
     auto &tk = rd.peek();
 
     std::string_view s(tk.str.str, tk.str.len);
     index = iguana::get_index<T>(s);
     if (index == Size) {
-      if (tk.type == token::t_end || tk.type == token::t_ctrl) break;
+      if (tk.type == token::t_end || tk.type == token::t_ctrl)
+        break;
 
       rd.next();
       rd.next();
@@ -1176,7 +1226,8 @@ constexpr void do_read0(reader_t &rd, T &&t) {
             rd.next();
             rd.next();
             read_json(rd, t.*v, true);
-          } else {
+          }
+          else {
             rd.next();
             rd.next();
             do_read0(rd, t.*v);

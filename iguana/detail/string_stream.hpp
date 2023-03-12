@@ -75,7 +75,8 @@ struct basic_string_stream {
     char const* end = ptr + len;
     while (ptr < end) {
       const char c = *ptr;
-      if (c == 0) break;
+      if (c == 0)
+        break;
       ++ptr;
       if (escape[(unsigned char)c]) {
         char buff[6] = {'\\', '0'};
@@ -89,7 +90,8 @@ struct basic_string_stream {
             ++ptr;
             buff[4] = (hex_table[((unsigned char)c1) >> 4]);
             buff[5] = (hex_table[((unsigned char)c1) & 0xF]);
-          } else {
+          }
+          else {
             buff[2] = '0';
             buff[3] = '0';
             buff[4] = (hex_table[((unsigned char)c) >> 4]);
@@ -98,7 +100,8 @@ struct basic_string_stream {
           len = 6;
         }
         write(buff, len);
-      } else {
+      }
+      else {
         put(c);
       }
     }

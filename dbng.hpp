@@ -113,13 +113,15 @@ class dbng {
     if constexpr (std::is_arithmetic_v<return_type> &&
                   std::is_arithmetic_v<V>) {
       append(sql, pair.first, oper, std::to_string(std::forward<U>(val)));
-    } else if constexpr (!std::is_arithmetic_v<return_type>) {
+    }
+    else if constexpr (!std::is_arithmetic_v<return_type>) {
       if constexpr (std::is_arithmetic_v<V>)
         append(sql, pair.first, oper,
                to_str(std::to_string(std::forward<U>(val))));
       else
         append(sql, pair.first, oper, to_str(std::forward<U>(val)));
-    } else {
+    }
+    else {
       append(sql, pair.first, oper, std::forward<U>(val));
     }
 
@@ -156,12 +158,14 @@ class dbng {
     for_each_l(                                                        \
         tp,                                                            \
         [&r, &args...](auto &item) {                                   \
-          if (!r) return;                                              \
+          if (!r)                                                      \
+            return;                                                    \
           if constexpr (has_before<decltype(item)>::value)             \
             r = item.before(std::forward<Args>(args)...);              \
         },                                                             \
         std::make_index_sequence<sizeof...(AP)>{});                    \
-    if (!r) return result_type{};                                      \
+    if (!r)                                                            \
+      return result_type{};                                            \
     auto lambda = [this, &args...] {                                   \
       return this->func(std::forward<Args>(args)...);                  \
     };                                                                 \
@@ -169,7 +173,8 @@ class dbng {
     for_each_r(                                                        \
         tp,                                                            \
         [&r, &result, &args...](auto &item) {                          \
-          if (!r) return;                                              \
+          if (!r)                                                      \
+            return;                                                    \
           if constexpr (has_after<decltype(item), result_type>::value) \
             r = item.after(result, std::forward<Args>(args)...);       \
         },                                                             \

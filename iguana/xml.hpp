@@ -13,11 +13,13 @@
 #include "reflection.hpp"
 
 #define IGUANA_XML_READER_CHECK_FORWARD \
-  if (l > length) return 0;             \
+  if (l > length)                       \
+    return 0;                           \
   work_ptr += l;                        \
   length -= l
 #define IGUANA_XML_READER_CHECK_FORWARD_CHAR \
-  if (length < 1) return 0;                  \
+  if (length < 1)                            \
+    return 0;                                \
   work_ptr += 1;                             \
   length -= 1
 #define IGUANA_XML_HEADER "<?xml version = \"1.0\" encoding=\"UTF-8\">"
@@ -38,7 +40,8 @@ struct char_const {
 };
 
 inline bool expected_char(char const *str, char character) {
-  if (*str == character) return true;
+  if (*str == character)
+    return true;
   return false;
 }
 
@@ -49,7 +52,8 @@ inline size_t forward(char const *begin, size_t length, Pred p) {
     char work = *work_ptr;
     if (!p(work)) {
       ++work_ptr;
-    } else {
+    }
+    else {
       return traversed;
     }
   }
@@ -58,8 +62,9 @@ inline size_t forward(char const *begin, size_t length, Pred p) {
 }
 
 inline size_t ignore_blank_ctrl(char const *begin, size_t length) {
-  return forward(begin, length,
-                 [](auto c) { return !std::isblank(c) && !std::iscntrl(c); });
+  return forward(begin, length, [](auto c) {
+    return !std::isblank(c) && !std::iscntrl(c);
+  });
 }
 
 inline size_t get_token(char const *str, size_t length) {
@@ -73,19 +78,24 @@ inline size_t get_token(char const *str, size_t length) {
 
 inline bool expected_token(char const *str, size_t length, char const *expected,
                            size_t expected_length) {
-  if (expected_length != length) return false;
+  if (expected_length != length)
+    return false;
 
-  if (std::strncmp(str, expected, length) == 0) return true;
+  if (std::strncmp(str, expected, length) == 0)
+    return true;
   return false;
 }
 
 inline size_t forward_until(char const *str, size_t length, char until_c) {
-  return forward(str, length, [until_c](auto c) { return until_c == c; });
+  return forward(str, length, [until_c](auto c) {
+    return until_c == c;
+  });
 }
 
 inline size_t forward_after(char const *str, size_t length, char after_c) {
   auto l = forward_until(str, length, after_c);
-  if (l < length) l++;
+  if (l < length)
+    l++;
   return l;
 }
 
@@ -99,11 +109,14 @@ inline auto get_value(char const *str, size_t length, T &value)
   using U = std::remove_const_t<std::remove_reference_t<T>>;
   if constexpr (std::is_integral_v<U> && !detail::is_64_v<U>) {
     value = std::atoi(str);
-  } else if constexpr (std::is_floating_point_v<U>) {
+  }
+  else if constexpr (std::is_floating_point_v<U>) {
     value = std::atof(str);
-  } else if constexpr (detail::is_64_v<U>) {
+  }
+  else if constexpr (detail::is_64_v<U>) {
     value = std::atoll(str);
-  } else {
+  }
+  else {
     std::cout << "don't support the type now" << std::endl;
     throw(std::invalid_argument("don't support the type now"));
   }
@@ -151,7 +164,8 @@ class xml_reader_t {
     IGUANA_XML_READER_CHECK_FORWARD_CHAR;
 
     l = detail::get_token(work_ptr, length);
-    if (!detail::expected_token(work_ptr, l, "xml", 3)) return false;
+    if (!detail::expected_token(work_ptr, l, "xml", 3))
+      return false;
     IGUANA_XML_READER_CHECK_FORWARD;
 
     l = detail::forward_after(work_ptr, length,
@@ -328,7 +342,8 @@ void to_xml_impl(Stream &s, T &&t) {
       render_head(s, get_name<T, Idx>().data());
       render_xml_value(s, t.*v);
       render_tail(s, get_name<T, Idx>().data());
-    } else {
+    }
+    else {
       render_head(s, get_name<T, Idx>().data());
       to_xml_impl(s, t.*v);
       render_tail(s, get_name<T, Idx>().data());
@@ -359,7 +374,8 @@ constexpr void do_read(xml_reader_t &rd, T &&t) {
         rd.get_value(t.*v);
         rd.end_object(get_name<T, Idx>().data());
       }
-    } else {
+    }
+    else {
       if (rd.begin_object(get_name<T, Idx>().data()) == 1) {
         do_read(rd, t.*v);
         rd.end_object(get_name<T, Idx>().data());

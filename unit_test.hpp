@@ -159,7 +159,8 @@ void do_check_failed(Msgs &&...msgs) {
 #define G_CHECK(cond, strict, ...)                                             \
   do {                                                                         \
     BaseCase *cur_case = UnitTest::getInstance().currentCase();                \
-    if (cur_case->isAborted()) throw AbortThisCase{};                          \
+    if (cur_case->isAborted())                                                 \
+      throw AbortThisCase{};                                                   \
     UnitTest::getInstance().checkFile(__FILE__);                               \
     UnitTest::getInstance().checkLine(__LINE__);                               \
     if (!(cond)) {                                                             \
@@ -171,7 +172,8 @@ void do_check_failed(Msgs &&...msgs) {
         do_check_failed(__VA_ARGS__);                                          \
         cur_case->abort();                                                     \
         throw AbortThisCase{};                                                 \
-      } else {                                                                 \
+      }                                                                        \
+      else {                                                                   \
         std::cout << ">>> check \"" << #cond << "\" failed."                   \
                   << "at " << __FILE__ << "(" << __LINE__ << ")" << std::endl; \
         do_check_failed(__VA_ARGS__);                                          \

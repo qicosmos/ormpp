@@ -34,8 +34,10 @@ template <typename T>
 inline void append_impl(std::string &sql, const T &str) {
   if constexpr (std::is_same_v<std::string, T> ||
                 std::is_same_v<std::string_view, T>) {
-    if (str.empty()) return;
-  } else {
+    if (str.empty())
+      return;
+  }
+  else {
     if constexpr (sizeof(str) == 0) {
       return;
     }
@@ -60,7 +62,8 @@ inline auto sort_tuple(const std::tuple<Args...> &tp) {
       return std::make_tuple(b, a);
     else
       return tp;
-  } else {
+  }
+  else {
     return tp;
   }
 }
@@ -171,7 +174,8 @@ inline std::string generate_auto_insert_sql(
     if (i < SIZE - 1) {
       fields += ", ";
       values += ", ";
-    } else {
+    }
+    else {
       fields += ")";
       values += ")";
     }
@@ -209,7 +213,8 @@ template <typename T>
 inline bool has_key(const std::string &s) {
   auto arr = iguana::get_array<T>();
   for (size_t i = 0; i < arr.size(); ++i) {
-    if (s.find(arr[i].data()) != std::string::npos) return true;
+    if (s.find(arr[i].data()) != std::string::npos)
+      return true;
   }
 
   return false;
@@ -222,7 +227,8 @@ inline void get_sql_conditions(std::string &sql, const std::string &arg,
                                Args &&...args) {
   if (arg.find("select") != std::string::npos) {
     sql = arg;
-  } else {
+  }
+  else {
     if (arg.find("limit") != std::string::npos) {
       auto pos = sql.find("where");
       sql = sql.substr(0, pos);
@@ -253,7 +259,8 @@ template <typename T>
 inline constexpr auto to_str(T &&t) {
   if constexpr (std::is_arithmetic_v<std::decay_t<T>>) {
     return std::to_string(std::forward<T>(t));
-  } else {
+  }
+  else {
     return std::string("'") + t + std::string("'");
   }
 }
