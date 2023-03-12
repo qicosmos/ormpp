@@ -1,0 +1,52 @@
+name: Ubuntu 20.04 (llvm cov)
+
+on:
+  pull_request_target:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get install openssl
+          sudo apt-get install libssl-dev
+          sudo apt-get install llvm
+
+      - name: Run Coverage
+        run: |
+          mkdir build && cd build
+          CC=clang CXX=clang++ cmake .. -DCOVERAGE_TEST=ON
+          make -j test_ormpp
+          export LLVM_PROFILE_FILE="test_ormpp-%m.profraw"
+          ./tests/test_ormpp
+          llvm-profdata merge -sparse test_ormpp-*.profraw -o test_ormpp.profdata
+          llvm-cov show ./tests/test_ormpp -instr-profile=test_ormpp.profdata -format=html -output-dir=../.coverage_llvm_cov -ignore-filename-regex="async_simple|thirdparty|tests|asio|util|logging|struct_pack" -show-instantiations=false
+          echo "Done!"
+
+      - name: Upload Coverage Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: llvm-cov
+          path: ${{ github.workspace }}/.coverage_llvm_cov
+
+      - name: Create Code Coverage Report
+        working-directory: ${{github.workspace}}/build
+        run: |
+          echo "Code Coverage Report" > tmp.log
+          echo "for detail, [goto summary](https://github.com/${{ github.repository_owner }}/${{ github.event.repository.name }}/actions/runs/${{github.run_id}}) download Artifacts `llvm-cov`" >> tmp.log
+          echo "\`\`\`" >> tmp.log
+          llvm-cov report ./tests/test_ormpp -instr-profile=test_ormpp.profdata -ignore-filename-regex="thirdparty|tests" -show-region-summary=false >> tmp.log
+          echo "\`\`\`" >> tmp.log
+
+      - name: Create Comment
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-file: '${{github.workspace}}/build/tmp.log'
