@@ -1,14 +1,15 @@
-name: Ubuntu 20.04 (llvm cov)
+name: Ubuntu 22.04 (llvm cov)
 
 on:
   pull_request_target:
     branches:
       - main
       - master
+      - cpp20_base
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
@@ -28,7 +29,7 @@ jobs:
           export LLVM_PROFILE_FILE="test_ormpp-%m.profraw"
           ./tests/test_ormpp
           llvm-profdata merge -sparse test_ormpp-*.profraw -o test_ormpp.profdata
-          llvm-cov show ./tests/test_ormpp -instr-profile=test_ormpp.profdata -format=html -output-dir=../.coverage_llvm_cov -ignore-filename-regex="async_simple|thirdparty|tests|asio|util|logging|struct_pack" -show-instantiations=false
+          llvm-cov show ./tests/test_ormpp -instr-profile=test_ormpp.profdata -format=html -output-dir=../.coverage_llvm_cov -show-instantiations=false
           echo "Done!"
 
       - name: Upload Coverage Results
