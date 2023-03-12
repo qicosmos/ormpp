@@ -18,8 +18,8 @@
 using namespace std::string_literals;
 
 using namespace ormpp;
+const char *password = "";
 const char *ip = "127.0.0.1";
-const char *password = "root";
 const char *db = "test_ormppdb";
 
 #ifdef ORMPP_ENABLE_MYSQL
@@ -166,7 +166,7 @@ TEST_CASE("mysql_pool") {
 
 TEST_CASE("test_ormpp_cfg") {
   ormpp_cfg cfg{};
-  bool ret = config_manager::from_file(cfg, "./cfg/ormpp.cfg");
+  bool ret = config_manager::from_file(cfg, "../cfg/ormpp.cfg");
   if (!ret) {
     return;
   }
