@@ -43,8 +43,8 @@ jobs:
         working-directory: ${{github.workspace}}/build
         run: OpenCppCoverage.exe --sources ${{github.workspace}} --export_type cobertura:ormppCov.xml --cover_children -- ctest -C Release
 
-      - name: Upload Report to Codecov
-        uses: codecov/codecov-action@v2
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
         with:
           files: ./ormppCov.xml
           fail_ci_if_error: true
