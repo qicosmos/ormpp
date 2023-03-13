@@ -50,13 +50,6 @@ jobs:
           name:  ${{ runner.os }}-coverage
           files: ${{github.workspace}}/build/ormppCov.xml
 
-      - name: Build package
-        working-directory: ${{github.workspace}}/build
-        shell: bash
-        run: |
-          set -x
-          ninja package
-
       - name: Upload Binary installer to release
         if: contains(github.ref, 'refs/tags')
         uses: svenstaro/upload-release-action@v2
