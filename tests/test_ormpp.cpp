@@ -22,15 +22,6 @@ const char *password = "";
 const char *ip = "127.0.0.1";
 const char *db = "test_ormppdb";
 
-#ifdef ORMPP_ENABLE_MYSQL
-TEST_CASE("create database") {
-  dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, "world"));
-  mysql.execute("drop database if not exists " + std::string(db));
-  mysql.execute("create database if not exists " + std::string(db));
-}
-#endif
-
 struct person {
   int id;
   std::string name;

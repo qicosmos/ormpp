@@ -18,6 +18,18 @@ jobs:
         mode: [Debug, Release]
         ssl: [ON, OFF]
 
+    services:
+      mysql:
+        image: "mysql:8.0"
+
+        options: >-
+          --health-cmd "mysqladmin ping --silent"
+          -e MYSQL_ALLOW_EMPTY_PASSWORD=yes
+          -e MYSQL_DATABASE=test_ormppdb
+
+        ports:
+          - "3306:3306"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
