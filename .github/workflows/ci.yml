@@ -5,7 +5,7 @@ on: [ push, pull_request ]
 jobs:
   build-and-test:
 
-    name: ${{ matrix.toolchain }}(${{ matrix.configuration }})
+    name: ${{ matrix.toolchain }} (${{ matrix.configuration }})
     runs-on: ${{ matrix.os }}
 
     strategy:
