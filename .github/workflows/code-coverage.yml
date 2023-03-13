@@ -38,7 +38,7 @@ jobs:
       - name: Generate Report
         id: generate_test_report
         shell: cmd
-        run: OpenCppCoverage.exe --sources ${{github.workspace}} --export_type cobertura:ormppCov.xml -- "${{github.workspace}}/build/tests/Release/test_ormpp.exe"
+        run: OpenCppCoverage.exe --sources ${{github.workspace}} --export_type cobertura:ormppCov.xml -- "${{github.workspace}}/build/tests/test_ormpp.exe"
 
       - name: Upload Report to Codecov
         uses: codecov/codecov-action@v2
