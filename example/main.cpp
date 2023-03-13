@@ -15,8 +15,8 @@
 #include "../include/dbng.hpp"
 
 using namespace ormpp;
+const char *password = "";
 const char *ip = "127.0.0.1";
-const char *password = "12345";
 const char *db = "test_ormppdb";
 
 int main() {

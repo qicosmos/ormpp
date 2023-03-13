@@ -20,15 +20,19 @@ jobs:
 
     services:
       mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: password
-          MYSQL_DATABASE: db
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5 -e MYSQL_ROOT_PASSWORD=password -e MYSQL_USER=root -e MYSQL_PASSWORD=password -e MYSQL_DATABASE=db --entrypoint sh mysql:8 -c "exec docker-entrypoint.sh mysqld --default-authentication-plugin=mysql_native_password"
+        image: "mysql:8.0"
+
+        options: >-
+          --health-cmd "mysqladmin ping --silent"
+          -e MYSQL_ALLOW_EMPTY_PASSWORD=yes
+          -e MYSQL_DATABASE=test_ormppdb
+          
+        ports:
+          - "3306:3306"
 
     steps:
       - name: Verify MySQL connection from host
-        run: mysql --host mysql --port 3306 -uroot -ppassword -e "SHOW DATABASES"
+        run: mysql --host mysql --port 3306 -uroot -p -e "SHOW DATABASES"
 
       - name: Checkout
         uses: actions/checkout@v3
