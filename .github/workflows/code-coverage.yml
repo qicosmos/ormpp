@@ -49,3 +49,20 @@ jobs:
           flags: ${{ runner.os }}
           name:  ${{ runner.os }}-coverage
           files: ${{github.workspace}}/build/ormppCov.xml
+
+      - name: Build package
+        working-directory: ${{github.workspace}}/build
+        shell: bash
+        run: |
+          set -x
+          ninja package
+
+      - name: Upload Binary installer to release
+        if: contains(github.ref, 'refs/tags')
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: build/ormppCov.exe
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
