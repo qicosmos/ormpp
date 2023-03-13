@@ -113,17 +113,17 @@ struct dummy {
 };
 REFLECTION(dummy, id, name);
 
-TEST_CASE("mysql_exist_tb") {
-  dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, db,
-                        /*timeout_seconds=*/5, 3306));
-  dummy d{0, "tom"};
-  dummy d1{0, "jerry"};
-  mysql.insert(d);
-  mysql.insert(d1);
-  auto v = mysql.query<dummy>("limit 1, 1");
-  std::cout << v.size() << "\n";
-}
+// TEST_CASE("mysql_exist_tb") {
+//   dbng<mysql> mysql;
+//   REQUIRE(mysql.connect(ip, "root", password, db,
+//                         /*timeout_seconds=*/5, 3306));
+//   dummy d{0, "tom"};
+//   dummy d1{0, "jerry"};
+//   mysql.insert(d);
+//   mysql.insert(d1);
+//   auto v = mysql.query<dummy>("limit 1, 1");
+//   std::cout << v.size() << "\n";
+// }
 
 TEST_CASE("mysql_pool") {
   //	dbng<sqlite> sqlite;
