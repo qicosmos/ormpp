@@ -1,11 +1,6 @@
 name: Ubuntu 20.04 (clang)
 
-on:
-  push:
-    branches: [ master ]
-    
-  pull_request:
-    branches: [ master ]
+on: [ push ]
 
 jobs:
   build_by_clang:

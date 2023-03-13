@@ -1,11 +1,6 @@
 name: Windows Server 2022
 
-on:
-  push:
-    branches: [ master ]
-
-  pull_request:
-    branches: [ master ]
+on: [ push ]
 
 jobs:
   build_on_windows:
