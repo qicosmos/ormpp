@@ -5,12 +5,12 @@ on: [ push, pull_request ]
 jobs:
   build-and-test:
 
-    name: ${{ matrix.toolchain }}
+    name: ${{ matrix.toolchain }}(${{ matrix.configuration }})
     runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
-        toolchain: [ linux-gcc, macos-clang, windows-msvc ]
+        toolchain: [ linux-gcc, linux-clang, macos-clang, windows-msvc ]
 
         configuration: [ Release ]
 
@@ -18,6 +18,10 @@ jobs:
           - toolchain: linux-gcc
             os: ubuntu-latest
             compiler: gcc
+
+          - toolchain: linux-clang
+            os: ubuntu-latest
+            compiler: clang
 
           - toolchain: macos-clang
             os: macos-latest
@@ -38,13 +42,13 @@ jobs:
         database: test_ormppdb
 
     - name: Verify MySQL Connections
-      run: mysql -uroot -e'show databases;'
+      run:  mysql -uroot -e'show databases;'
 
     - name: Configure (${{ matrix.configuration }})
-      run: cmake -S . -Bbuild -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
+      run:  cmake -S . -Bbuild -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
 
-    - name: Build with ${{ matrix.compiler }} ${{ matrix.configuration }}
-      run: cmake --build build --config ${{ matrix.configuration }}
+    - name: Build with ${{ matrix.compiler }}
+      run:  cmake --build build --config ${{ matrix.configuration }}
 
     - name: Test
       working-directory: build
