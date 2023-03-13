@@ -31,7 +31,7 @@ jobs:
 
       - name: CMake configure & build
         run: |
-          cmake -DCMAKE_BUILD_TYPE=Release -G Ninja -B ${{github.workspace}}/build
+          cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -G Ninja
           cmake --build ${{github.workspace}}/build --config Release
 
       - name: Setup OpenCppCoverage
@@ -39,14 +39,9 @@ jobs:
           choco install OpenCppCoverage -y
           echo "C:\Program Files\OpenCppCoverage" >> $env:GITHUB_PATH
 
-      - name: Setup QtIFW 4.x
-        uses: jmarrec/setup-qtifw@v1
-        with:
-          qtifw-version: '4.x'
-
       - name: Generate Report
-        shell: cmd
-        run: OpenCppCoverage.exe --sources ${{github.workspace}} --export_type cobertura:ormppCov.xml -- "${{github.workspace}}/build/tests/test_ormpp.exe"
+        working-directory: ${{github.workspace}}/build
+        run: OpenCppCoverage.exe --sources ${{github.workspace}} --export_type cobertura:ormppCov.xml --cover_children -- ctest -C Release
 
       - name: Upload Report to Codecov
         uses: codecov/codecov-action@v2

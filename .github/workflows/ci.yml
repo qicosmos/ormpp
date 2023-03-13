@@ -45,13 +45,13 @@ jobs:
         run:  mysql -uroot -e'show databases;'
 
       - name: Configure (${{ matrix.configuration }})
-        run:  cmake -S . -Bbuild -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
+        run:  cmake -B${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
 
       - name: Build with ${{ matrix.compiler }}
-        run:  cmake --build build --config ${{ matrix.configuration }}
+        run:  cmake --build ${{github.workspace}}/build --config ${{ matrix.configuration }}
 
       - name: Test
-        working-directory: build
+        working-directory: ${{github.workspace}}/build
         env:
           CTEST_OUTPUT_ON_FAILURE: 1
         run: ctest -C ${{ matrix.configuration }}
