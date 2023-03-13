@@ -18,8 +18,8 @@
 using namespace std::string_literals;
 
 using namespace ormpp;
-const char *password = "";
 const char *ip = "127.0.0.1";
+const char *password = "12345";
 const char *db = "test_ormppdb";
 
 #ifdef ORMPP_ENABLE_MYSQL

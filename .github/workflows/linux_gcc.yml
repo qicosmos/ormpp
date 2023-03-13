@@ -18,6 +18,19 @@ jobs:
         mode: [Debug, Release]
         ssl: [ON, OFF]
 
+    services:
+      mysql:
+        image: mysql
+        ports:
+          - '3306:3306'
+        env:
+          MYSQL_ROOT_PASSWORD: 12345
+          MYSQL_DATABASE: test_ormppdb
+        options: >-
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3

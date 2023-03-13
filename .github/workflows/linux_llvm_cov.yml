@@ -24,7 +24,7 @@ jobs:
       - name: Run Coverage
         run: |
           mkdir build && cd build
-          CC=clang CXX=clang++ cmake .. -DCOVERAGE_TEST=ON
+          CC=clang CXX=clang++ cmake .. -DCOVERAGE_TEST=ON -DCINATRA_ENABLE_SSL=ON
           make -j test_ormpp
           export LLVM_PROFILE_FILE="test_ormpp-%m.profraw"
           ./tests/test_ormpp
