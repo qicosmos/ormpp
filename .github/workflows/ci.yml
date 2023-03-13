@@ -32,26 +32,26 @@ jobs:
             compiler: msvc
 
     steps:
-    - name: Checkout Code
-      uses: actions/checkout@v2
+      - name: Checkout Code
+        uses: actions/checkout@v2
 
-    - name: SetUp MySQL
-      uses: ankane/setup-mysql@v1
-      with: 
-        mysql-version: 8.0
-        database: test_ormppdb
+      - name: SetUp MySQL
+        uses: ankane/setup-mysql@v1
+        with: 
+          mysql-version: 8.0
+          database: test_ormppdb
 
-    - name: Verify MySQL Connections
-      run:  mysql -uroot -e'show databases;'
+      - name: Verify MySQL Connections
+        run:  mysql -uroot -e'show databases;'
 
-    - name: Configure (${{ matrix.configuration }})
-      run:  cmake -S . -Bbuild -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
+      - name: Configure (${{ matrix.configuration }})
+        run:  cmake -S . -Bbuild -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
 
-    - name: Build with ${{ matrix.compiler }}
-      run:  cmake --build build --config ${{ matrix.configuration }}
+      - name: Build with ${{ matrix.compiler }}
+        run:  cmake --build build --config ${{ matrix.configuration }}
 
-    - name: Test
-      working-directory: build
-      env:
-        CTEST_OUTPUT_ON_FAILURE: 1
-      run: ctest -C ${{ matrix.configuration }}
+      - name: Test
+        working-directory: build
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest -C ${{ matrix.configuration }}

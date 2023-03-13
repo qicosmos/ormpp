@@ -11,8 +11,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
-        with:
-          fetch-depth: 2
 
       - name: SetUp MySQL
         uses: ankane/setup-mysql@v1
@@ -40,6 +38,11 @@ jobs:
         run: |
           choco install OpenCppCoverage -y
           echo "C:\Program Files\OpenCppCoverage" >> $env:GITHUB_PATH
+
+      - name: Setup QtIFW 4.x
+        uses: jmarrec/setup-qtifw@v1
+        with:
+          qtifw-version: '4.x'
 
       - name: Generate Report
         shell: cmd
