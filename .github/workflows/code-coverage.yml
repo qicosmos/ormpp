@@ -12,8 +12,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v2
         with:
-          fetch-depth: ‘2’
-        id: checkout_code
+          fetch-depth: 2
 
       - name: SetUp MySQL
         uses: ankane/setup-mysql@v1
@@ -38,13 +37,11 @@ jobs:
           cmake --build ${{github.workspace}}/build --config Release
 
       - name: Setup OpenCppCoverage
-        id: setup_opencppcoverage
         run: |
           choco install OpenCppCoverage -y
           echo "C:\Program Files\OpenCppCoverage" >> $env:GITHUB_PATH
 
       - name: Generate Report
-        id: generate_test_report
         shell: cmd
         run: OpenCppCoverage.exe --sources ${{github.workspace}} --export_type cobertura:ormppCov.xml -- "${{github.workspace}}/build/tests/test_ormpp.exe"
 
