@@ -15,17 +15,19 @@ jobs:
           fetch-depth: ‘2’
         id: checkout_code
 
-      - name: Setup MSBuild and add to PATH
-        uses: microsoft/setup-msbuild@v1.0.2
-        id: setup_msbuild
+      - name: Install ninja-build tool
+        uses: seanmiddleditch/gha-setup-ninja@v3
 
-      - name: Run MSBuild
-        id: run_msbuild
-        run: msbuild /p:Configuration=Debug /p:Platform=x86 ormpp.sln
+      - name: Enable Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1.12.0
+        with:
+          arch: amd64
 
-      - name: Setup VSTest and add to PATH
-        uses: darenm/Setup-VSTest@v1
-        id: setup_vstest
+      - name: Configure CMake
+        run: cmake -DCMAKE_BUILD_TYPE=Release -G Ninja -B ${{github.workspace}}/build
+
+      - name: Build
+        run: cmake --build ${{github.workspace}}/build --config Release
 
       - name: Setup OpenCppCoverage and add to PATH
         id: setup_opencppcoverage
@@ -36,7 +38,7 @@ jobs:
       - name: Generate Report
         id: generate_test_report
         shell: cmd
-        run: OpenCppCoverage.exe --sources .. --export_type cobertura:ormppCov.xml -- "vstest.test_ormpp.exe"
+        run: OpenCppCoverage.exe --sources ${{github.workspace}} --export_type cobertura:ormppCov.xml -- "${{github.workspace}}/build/tests/Release/test_ormpp.exe"
 
       - name: Upload Report to Codecov
         uses: codecov/codecov-action@v2
