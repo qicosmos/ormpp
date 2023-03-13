@@ -36,13 +36,13 @@ jobs:
       uses: actions/checkout@v2
 
     - name: SetUp MySQL
-        uses: ankane/setup-mysql@v1
-        with: 
-          mysql-version: 8.0
-          database: test_ormppdb
+      uses: ankane/setup-mysql@v1
+      with: 
+        mysql-version: 8.0
+        database: test_ormppdb
 
     - name: Verify MySQL Connections
-        run: mysql -uroot -e'show databases;'
+      run: mysql -uroot -e'show databases;'
 
     - name: Configure (${{ matrix.configuration }})
       run: cmake -S . -Bbuild -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
