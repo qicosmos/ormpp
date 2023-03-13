@@ -1,6 +1,6 @@
 name: Windows Server 2022
 
-on: [ push ]
+on: [ push, pull_request ]
 
 jobs:
   build_on_windows:

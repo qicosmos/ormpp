@@ -1,6 +1,6 @@
 name: Ubuntu 20.04 (gcc)
 
-on: [ push ]
+on: [ push, pull_request ]
       
 jobs:
   build_by_gcc:

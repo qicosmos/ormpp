@@ -1,6 +1,6 @@
 name: macOS Monterey 12
 
-on: [ push ]
+on: [ push, pull_request ]
 
 jobs:
   build_on_mac:
