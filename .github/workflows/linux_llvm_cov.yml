@@ -27,9 +27,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Verify MySQL Connections
-        run: mysql -uroot -e'show databases;'
-
       - name: Install Dependencies
         run: |
           sudo apt-get install openssl
