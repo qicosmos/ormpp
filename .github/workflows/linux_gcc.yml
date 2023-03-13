@@ -26,14 +26,11 @@ jobs:
           --health-cmd "mysqladmin ping --silent"
           -e MYSQL_ALLOW_EMPTY_PASSWORD=yes
           -e MYSQL_DATABASE=test_ormppdb
-          
+
         ports:
           - "3306:3306"
 
     steps:
-      - name: Verify MySQL connection from host
-        run: mysql --host mysql --port 3306 -uroot -p -e "SHOW DATABASES"
-
       - name: Checkout
         uses: actions/checkout@v3
 
