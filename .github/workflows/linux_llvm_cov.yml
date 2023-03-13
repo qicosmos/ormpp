@@ -1,15 +1,29 @@
-name: Ubuntu 22.04 (llvm cov)
+name: Ubuntu 20.04 (llvm cov)
 
 on:
-  pull_request_target:
+  push:
     branches:
-      - main
       - master
-      - cpp20_base
+
+  pull_request:
+    branches:
+      - master
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
+
+    services:
+      mysql:
+        image: "mysql:8.0"
+
+        options: >-
+          --health-cmd "mysqladmin ping --silent"
+          -e MYSQL_ALLOW_EMPTY_PASSWORD=yes
+          -e MYSQL_DATABASE=test_ormppdb
+
+        ports:
+          - "3306:3306"
 
     steps:
       - name: Checkout

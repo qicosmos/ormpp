@@ -2,31 +2,19 @@ name: Windows Server 2022
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
   build_on_windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     strategy:
       matrix:
         mode: [ Release ] #[ Release, Debug ]
         arch: [ amd64 ] #[ amd64, x86 ]
         ssl: [ OFF ] #[ ON, OFF ]
-
-    services:
-      mysql:
-        image: "mysql:8.0"
-
-        options: >-
-          --health-cmd "mysqladmin ping --silent"
-          -e MYSQL_ALLOW_EMPTY_PASSWORD=yes
-          -e MYSQL_DATABASE=test_ormppdb
-
-        ports:
-          - "3306:3306"
 
     steps:
       - name: Checkout
