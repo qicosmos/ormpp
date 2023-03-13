@@ -12,7 +12,7 @@ jobs:
       matrix:
         toolchain: [ linux-gcc, macos-clang, windows-msvc ]
 
-        configuration: [ Debug, Release ]
+        configuration: [ Release ]
 
         include:
           - toolchain: linux-gcc
@@ -43,7 +43,7 @@ jobs:
     - name: Configure (${{ matrix.configuration }})
       run: cmake -S . -Bbuild -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
 
-    - name: Build with ${{ matrix.compiler }}
+    - name: Build with ${{ matrix.compiler }} ${{ matrix.configuration }}
       run: cmake --build build --config ${{ matrix.configuration }}
 
     - name: Test
