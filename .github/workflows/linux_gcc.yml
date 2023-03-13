@@ -2,12 +2,10 @@ name: Ubuntu 20.04 (gcc)
 
 on:
   push:
-    branches:
-      - master
-      
+    branches: [ master ]
+    
   pull_request:
-    branches:
-      - master
+    branches: [ master ]
       
 jobs:
   build_by_gcc:
@@ -15,8 +13,8 @@ jobs:
   
     strategy:
       matrix:
-        mode: [Debug, Release]
-        ssl: [ON, OFF]
+        mode: [ Debug, Release ]
+        ssl: [ ON, OFF ]
 
     services:
       mysql:
@@ -33,6 +31,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: Verify MySQL Connections
+        run: mysql -uroot -e'show databases;'
 
       - name: Configure CMake
         run: CXX=g++ CC=gcc cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.mode}}

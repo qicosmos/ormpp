@@ -2,12 +2,10 @@ name: macOS Monterey 12
 
 on:
   push:
-    branches:
-      - main
-
+    branches: [ master ]
+    
   pull_request:
-    branches:
-      - main
+    branches: [ master ]
 
 jobs:
   build_on_mac:
@@ -15,8 +13,8 @@ jobs:
 
     strategy:
       matrix:
-        mode: [Debug, Release]
-        ssl: [ON, OFF]
+        mode: [ Debug, Release ]
+        ssl: [ ON, OFF ]
 
     steps:
       - name: Checkout
@@ -25,9 +23,15 @@ jobs:
       - name: SetUp HomeBrew
         id: set-up-homebrew
         uses: Homebrew/actions/setup-homebrew@master
+
+      - name: SetUp MySQL
+        uses: ankane/setup-mysql@v1
+        with: 
+          mysql-version: 8.0
+          database: test_ormppdb
         
-      - name: Install MySQL
-        run: brew install mysql
+      - name: Verify MySQL Connections
+        run: mysql -uroot -e'show databases;'
 
       - name: Configure CMake
         run: CXX=clang++ CC=clang cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.mode}}

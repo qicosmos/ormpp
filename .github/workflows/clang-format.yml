@@ -2,16 +2,13 @@ name: Clang Format Diff
 
 on:
   push:
-    branches:
-      - master
-
+    branches: [ master ]
+    
   pull_request:
-    branches:
-      - master
+    branches: [ master ]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -19,8 +16,10 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+
       - name: install clang-format
         run:  sudo apt install clang-format
+        
       - name: check-diff
         run: |
           diff=`git-clang-format --diff HEAD^`

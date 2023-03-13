@@ -2,12 +2,10 @@ name: Ubuntu 22.04 (llvm cov)
 
 on:
   push:
-    branches:
-      - master
-
+    branches: [ master ]
+    
   pull_request:
-    branches:
-      - master
+    branches: [ master ]
 
 jobs:
   build:
@@ -28,6 +26,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: Verify MySQL Connections
+        run: mysql -uroot -e'show databases;'
 
       - name: Install Dependencies
         run: |
