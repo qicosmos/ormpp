@@ -14,17 +14,16 @@ jobs:
           - os: ubuntu-latest
             compiler: gcc
             toolchain: linux-gcc
-            configuration: [ Debug, Release ]
 
           - os: macos-latest
             compiler: clang
             toolchain: macos-clang
-            configuration: [ Debug, Release ]
 
           - os: windows-latest
             compiler: msvc
             toolchain: windows-msvc
-            configuration: [ Release ]
+
+        configuration: [ Release ]
 
     steps:
       - name: Checkout Code
@@ -36,10 +35,10 @@ jobs:
           mysql-version: 8.0
           database: test_ormppdb
 
-      - name: Verify MySQL Connections
+      - name: Verify MySQL
         run:  mysql -uroot -e'show databases;'
 
-      - name: Configure CMake
+      - name: CMake configure
         run:  cmake -B${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
 
       - name: Build with ${{ matrix.compiler }}
