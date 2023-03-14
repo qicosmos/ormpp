@@ -48,7 +48,7 @@ jobs:
         with:
           flags: ${{ runner.os }}
           name:  ${{ runner.os }}-coverage
-          files: ${{github.workspace}}/build/ormppCov.xml
+          files: ${{github.workspace}}/ormppCov.xml
 
       - name: Upload Binary installer to release
         if: contains(github.ref, 'refs/tags')
