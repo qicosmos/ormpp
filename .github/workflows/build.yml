@@ -1,29 +1,31 @@
-name: CI
+name: build
 
 on: [ push, pull_request ]
 
 jobs:
   build-and-test:
 
-    name: ${{ matrix.toolchain }} ${{ matrix.configuration }}
+    name: ${{ matrix.toolchain }} (${{ matrix.configuration }})
     runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
-        include:
-          - os: ubuntu-latest
-            compiler: gcc
-            toolchain: linux-gcc
-
-          - os: macos-latest
-            compiler: clang
-            toolchain: macos-clang
-
-          - os: windows-latest
-            compiler: msvc
-            toolchain: windows-msvc
+        toolchain: [ linux-gcc, macos-clang, windows-msvc ]
 
         configuration: [ Release ]
+        
+        include:
+          - toolchain: linux-gcc
+            os: ubuntu-latest
+            compiler: gcc
+
+          - toolchain: macos-clang
+            os: macos-latest
+            compiler: clang
+
+          - toolchain: windows-msvc
+            os: windows-latest
+            compiler: msvc
 
     steps:
       - name: Checkout Code
@@ -38,7 +40,7 @@ jobs:
       - name: Verify MySQL
         run:  mysql -uroot -e'show databases;'
 
-      - name: CMake configure
+      - name: Configure cmake
         run:  cmake -B${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
 
       - name: Build with ${{ matrix.compiler }}
