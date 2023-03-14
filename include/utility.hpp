@@ -128,7 +128,7 @@ inline std::string get_fields() {
     if (i) {
       fileds += ",";
     }
-    fileds += arr[i];
+    fileds += arr[i].data();
   }
 
   return fileds;

@@ -13,9 +13,9 @@ else()
 endif()
 
 if (BUILD_UNIT_TESTS)
-    add_subdirectory(${ormpp_SOURCE_DIR}/tests)
+    add_subdirectory(${CMAKE_SOURCE_DIR}/tests)
 endif ()
 
 if (BUILD_EXAMPLES)
-    add_subdirectory(${ormpp_SOURCE_DIR}/example)
+    add_subdirectory(${CMAKE_SOURCE_DIR}/example)
 endif ()

@@ -1,2 +1,2 @@
 # 3rd-party package load
-add_subdirectory(${ormpp_SOURCE_DIR}/thirdparty)
+add_subdirectory(${CMAKE_SOURCE_DIR}/thirdparty)
