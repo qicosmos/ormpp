@@ -44,18 +44,12 @@ jobs:
         run: OpenCppCoverage.exe --sources ${{github.workspace}} --export_type cobertura:ormppCov.xml --cover_children -- ctest -C Release
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v3
         with:
+          verbose: true
+          fail_ci_if_error: true
           flags: ${{ runner.os }}
+          directory: ./coverage/reports/
           name:  ${{ runner.os }}-coverage
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{github.workspace}}/ormppCov.xml
-
-      - name: Upload Binary installer to release
-        if: contains(github.ref, 'refs/tags')
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: build/_CPack_Packages/win64/IFW/*.exe
-          tag: ${{ github.ref }}
-          overwrite: true
-          file_glob: true
