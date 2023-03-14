@@ -5,7 +5,6 @@ on: [ push, pull_request ]
 jobs:
   build-and-test:
 
-    name: ${{ matrix.toolchain }} (${{ matrix.configuration }})
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -13,17 +12,17 @@ jobs:
         configuration: [ Release ]
 
         include:
-          - toolchain: linux-gcc
-            os: ubuntu-latest
+          - os: ubuntu-latest
             compiler: gcc
+            toolchain: linux-gcc
 
-          - toolchain: macos-clang
-            os: macos-latest
+          - os: macos-latest
             compiler: clang
+            toolchain: macos-clang
 
-          - toolchain: windows-msvc
-            os: windows-latest
+          - os: windows-latest
             compiler: msvc
+            toolchain: windows-msvc
 
     steps:
       - name: Checkout Code
