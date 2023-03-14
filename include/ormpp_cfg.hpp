@@ -6,13 +6,13 @@
 #define ORMPP_CONFIG_MANAGER_HPP
 
 #include <fstream>
-#include <iguana/json.hpp>
 #include <string>
 #include <string_view>
 
+#include "iguana/json.hpp"
+
 namespace ormpp {
 struct ormpp_cfg {
-
   std::string db_ip;
   std::string user_name;
   std::string pwd;
@@ -21,7 +21,8 @@ struct ormpp_cfg {
   int db_conn_num;
   int db_port;
 };
-REFLECTION(ormpp_cfg, db_ip, user_name, pwd, db_name, timeout, db_conn_num, db_port);
+REFLECTION(ormpp_cfg, db_ip, user_name, pwd, db_name, timeout, db_conn_num,
+           db_port);
 
 /*
         int max_thread_num = config_manager::get<int>("max_thread_num",
@@ -32,7 +33,7 @@ REFLECTION(ormpp_cfg, db_ip, user_name, pwd, db_name, timeout, db_conn_num, db_p
         config_manager::set("log_path", std::string("/tmp/"), "ormpp.cfg");
         */
 class config_manager {
-public:
+ public:
   config_manager() = delete;
 
   template <typename T>
@@ -106,7 +107,8 @@ public:
     return true;
   }
 
-  template <typename T, typename U> inline static void assign(T &t, U &u) {
+  template <typename T, typename U>
+  inline static void assign(T &t, U &u) {
     if constexpr (std::is_same_v<U, T>) {
       t = u;
     }
@@ -125,5 +127,5 @@ public:
     return true;
   }
 };
-} // namespace ormpp
-#endif // ORMPP_CONFIG_MANAGER_HPP
+}  // namespace ormpp
+#endif  // ORMPP_CONFIG_MANAGER_HPP

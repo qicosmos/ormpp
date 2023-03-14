@@ -22,4 +22,4 @@ struct ormpp_unique {
   std::string fields;
 };
 
-#endif // ORM_ENTITY_HPP
+#endif  // ORM_ENTITY_HPP

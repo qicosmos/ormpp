@@ -1,17 +1,19 @@
 //
 // Created by qiyu on 10/28/17.
 //
-#include "utility.hpp"
-#include <climits>
 #include <sqlite3.h>
+
+#include <climits>
 #include <string>
 #include <vector>
+
+#include "utility.hpp"
 
 #ifndef ORM_SQLITE_HPP
 #define ORM_SQLITE_HPP
 namespace ormpp {
 class sqlite {
-public:
+ public:
   ~sqlite() { disconnect(); }
 
   void set_last_error(std::string last_error) {
@@ -21,7 +23,8 @@ public:
 
   std::string get_last_error() const { return last_error_; }
 
-  template <typename... Args> bool connect(Args &&...args) {
+  template <typename... Args>
+  bool connect(Args &&...args) {
     auto r = sqlite3_open(std::forward<Args>(args)..., &handle_);
     if (r == SQLITE_OK) {
       return true;
@@ -30,7 +33,8 @@ public:
     return false;
   }
 
-  template <typename... Args> bool disconnect(Args &&...args) {
+  template <typename... Args>
+  bool disconnect(Args &&...args) {
     if (handle_ != nullptr) {
       auto r = sqlite3_close(handle_);
       handle_ = nullptr;
@@ -110,8 +114,8 @@ public:
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
   template <typename T, typename... Args>
-  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>>
-  query(Args &&...args) {
+  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
+      Args &&...args) {
     std::string sql = generate_query_sql<T>(args...);
 
     int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
@@ -144,14 +148,14 @@ public:
   }
 
   template <typename T, typename Arg, typename... Args>
-  std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>>
-  query(const Arg &s, Args &&...args) {
+  std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(
+      const Arg &s, Args &&...args) {
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
 
     std::string sql = s;
     constexpr auto Args_Size = sizeof...(Args);
-    if constexpr(Args_Size != 0) {
+    if constexpr (Args_Size != 0) {
       if (Args_Size != std::count(sql.begin(), sql.end(), '?'))
         return {};
 
@@ -187,7 +191,8 @@ public:
                 assign(t.*ele, index++);
               });
               item = std::move(t);
-            } else {
+            }
+            else {
               assign(item, index++);
             }
           },
@@ -244,7 +249,7 @@ public:
     return true;
   }
 
-private:
+ private:
   template <typename T, typename... Args>
   std::string generate_createtb_sql(Args &&...args) {
     const auto type_name_arr = get_type_names<T>(DBType::sqlite);
@@ -276,7 +281,8 @@ private:
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
               if (item.fields.find(field_name.data()) == item.fields.end())
                 return;
-            } else {
+            }
+            else {
               if (item.fields != field_name.data())
                 return;
             }
@@ -287,29 +293,32 @@ private:
               }
               append(sql, " NOT NULL");
               has_add_field = true;
-            } else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
+            }
+            else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
               }
 
               append(sql, " PRIMARY KEY ");
               has_add_field = true;
-            } else if constexpr (std::is_same_v<decltype(item),
-                                                ormpp_auto_key>) {
+            }
+            else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
               }
               append(sql, " PRIMARY KEY AUTOINCREMENT");
               auto_key_map_[name.data()] = item.fields;
               has_add_field = true;
-            } else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
+            }
+            else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
               }
 
               append(sql, ", UNIQUE(", item.fields, ")");
               has_add_field = true;
-            } else {
+            }
+            else {
               append(sql, field_name.data(), " ", type_name_arr[i]);
             }
           },
@@ -341,48 +350,60 @@ private:
     }
   };
 
-  template <typename T> bool set_param_bind(T &&value, int i) {
+  template <typename T>
+  bool set_param_bind(T &&value, int i) {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (std::is_integral_v<U> &&
-                  !iguana::is_int64_v<U>) { // double, int64
+                  !iguana::is_int64_v<U>) {  // double, int64
       return SQLITE_OK == sqlite3_bind_int(stmt_, i, value);
-    } else if constexpr (iguana::is_int64_v<U>) {
+    }
+    else if constexpr (iguana::is_int64_v<U>) {
       return SQLITE_OK == sqlite3_bind_int64(stmt_, i, value);
-    } else if constexpr (std::is_floating_point_v<U>) {
+    }
+    else if constexpr (std::is_floating_point_v<U>) {
       return SQLITE_OK == sqlite3_bind_double(stmt_, i, value);
-    } else if constexpr (std::is_same_v<std::string, U>) {
+    }
+    else if constexpr (std::is_same_v<std::string, U>) {
       return SQLITE_OK == sqlite3_bind_text(stmt_, i, value.data(),
                                             (int)value.size(), nullptr);
-    } else if constexpr (is_char_array_v<U>) {
+    }
+    else if constexpr (is_char_array_v<U>) {
       return SQLITE_OK ==
              sqlite3_bind_text(stmt_, i, value, sizeof(U), nullptr);
-    } else {
+    }
+    else {
       std::cout << "this type has not supported yet" << std::endl;
       return false;
     }
   }
 
-  template <typename T> void assign(T &&value, int i) {
+  template <typename T>
+  void assign(T &&value, int i) {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (std::is_integral_v<U> &&
-                  !iguana::is_int64_v<U>) { // double, int64
+                  !iguana::is_int64_v<U>) {  // double, int64
       if constexpr (std::is_same_v<U, char>) {
         value = (char)sqlite3_column_int(stmt_, i);
       }
       else {
         value = sqlite3_column_int(stmt_, i);
       }
-    } else if constexpr (iguana::is_int64_v<U>) {
+    }
+    else if constexpr (iguana::is_int64_v<U>) {
       value = sqlite3_column_int64(stmt_, i);
-    } else if constexpr (std::is_floating_point_v<U>) {
+    }
+    else if constexpr (std::is_floating_point_v<U>) {
       value = sqlite3_column_double(stmt_, i);
-    } else if constexpr (std::is_same_v<std::string, U>) {
+    }
+    else if constexpr (std::is_same_v<std::string, U>) {
       value.reserve(sqlite3_column_bytes(stmt_, i));
       value.assign((const char *)sqlite3_column_text(stmt_, i),
                    (size_t)sqlite3_column_bytes(stmt_, i));
-    } else if constexpr (is_char_array_v<U>) {
+    }
+    else if constexpr (is_char_array_v<U>) {
       memcpy(value, sqlite3_column_text(stmt_, i), sizeof(U));
-    } else {
+    }
+    else {
       std::cout << "this type has not supported yet" << std::endl;
     }
   }
@@ -498,9 +519,8 @@ private:
   }
 
   template <typename T>
-  inline std::string
-  generate_auto_insert_sql0(std::map<std::string, std::string> &auto_key_map_,
-                            bool replace) {
+  inline std::string generate_auto_insert_sql0(
+      std::map<std::string, std::string> &auto_key_map_, bool replace) {
     std::string sql = replace ? "replace into " : "insert into ";
     constexpr auto SIZE = iguana::get_value<T>();
     auto name = get_name<T>();
@@ -519,7 +539,8 @@ private:
       if (i < SIZE - 1) {
         fields += ", ";
         values += ", ";
-      } else {
+      }
+      else {
         fields += ")";
         values += ")";
       }
@@ -534,5 +555,5 @@ private:
   std::string last_error_;
   //        std::string auto_key_ = "";
 };
-} // namespace ormpp
-#endif // ORM_SQLITE_HPP
+}  // namespace ormpp
+#endif  // ORM_SQLITE_HPP
