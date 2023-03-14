@@ -10,8 +10,6 @@ jobs:
 
     strategy:
       matrix:
-        toolchain: [ linux-gcc, macos-clang, windows-msvc ]
-
         configuration: [ Release ]
 
         include:

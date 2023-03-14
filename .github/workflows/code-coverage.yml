@@ -48,4 +48,4 @@ jobs:
         with:
           flags: ${{ runner.os }}
           name:  ${{ runner.os }}-coverage
-          files: ${{github.workspace}}/coverage/reports/ormppCov.xml
+          files: ./ormppCov.xml
