@@ -50,5 +50,4 @@ jobs:
           flags: ${{ runner.os }}
           directory: ./coverage/reports/
           name:  ${{ runner.os }}-coverage
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ${{github.workspace}}/ormppCov.xml
+          files: ${{github.workspace}}/coverage/ormppCov.xml
