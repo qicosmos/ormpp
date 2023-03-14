@@ -5,6 +5,7 @@ on: [ push, pull_request ]
 jobs:
   build-and-test:
 
+    name: ${{ matrix.toolchain }}
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -13,14 +14,17 @@ jobs:
           - os: ubuntu-latest
             compiler: gcc
             toolchain: linux-gcc
+            configuration: [ Debug, Release ]
 
           - os: macos-latest
             compiler: clang
             toolchain: macos-clang
+            configuration: [ Debug, Release ]
 
           - os: windows-latest
             compiler: msvc
             toolchain: windows-msvc
+            configuration: [ Release ]
 
     steps:
       - name: Checkout Code
@@ -36,13 +40,13 @@ jobs:
         run:  mysql -uroot -e'show databases;'
 
       - name: Configure CMake
-        run:  cmake -B${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release
+        run:  cmake -B${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
 
       - name: Build with ${{ matrix.compiler }}
-        run:  cmake --build ${{github.workspace}}/build --config Release
+        run:  cmake --build ${{github.workspace}}/build --config ${{ matrix.configuration }}
 
       - name: Test
         working-directory: ${{github.workspace}}/build
         env:
           CTEST_OUTPUT_ON_FAILURE: 1
-        run: ctest -C Release
+        run: ctest -C ${{ matrix.configuration }}
