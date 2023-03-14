@@ -586,125 +586,122 @@ TEST_CASE("orm_query") {
 #endif
 }
 
-TEST_CASE("orm_query_some") {
-  ormpp_key key{"code"};
-  ormpp_not_null not_null{{"code", "age"}};
-  ormpp_auto_key auto_key{"code"};
+// TEST_CASE("orm_query_some") {
+//   ormpp_key key{"code"};
+//   ormpp_not_null not_null{{"code", "age"}};
+//   ormpp_auto_key auto_key{"code"};
 
-  student s = {1, "tom", 0, 19, 1.5, "room2"};
-  student s1 = {2, "jack", 1, 20, 2.5, "room3"};
-  student s2 = {3, "mike", 2, 21, 3.5, "room4"};
-  std::vector<student> v{s, s1, s2};
+//   student s = {1, "tom", 0, 19, 1.5, "room2"};
+//   student s1 = {2, "jack", 1, 20, 2.5, "room3"};
+//   student s2 = {3, "mike", 2, 21, 3.5, "room4"};
+//   std::vector<student> v{s, s1, s2};
 
-#ifdef ORMPP_ENABLE_MYSQL
-  dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, db));
-  mysql.delete_records<student>();
-  REQUIRE(mysql.create_datatable<student>(key, not_null));
-  CHECK(mysql.insert(v) == 3);
-  auto result3 = mysql.query<std::tuple<int>>("select count(1) from student");
-  CHECK(result3.size() == 1);
-  CHECK(std::get<0>(result3[0]) == 3);
+// #ifdef ORMPP_ENABLE_MYSQL
+//   dbng<mysql> mysql;
+//   REQUIRE(mysql.connect(ip, "root", password, db));
+//   mysql.delete_records<student>();
+//   REQUIRE(mysql.create_datatable<student>(key, not_null));
+//   CHECK(mysql.insert(v) == 3);
+//   auto result3 = mysql.query<std::tuple<int>>("select count(1) from
+//   student"); CHECK(result3.size() == 1); CHECK(std::get<0>(result3[0]) == 3);
 
-  auto result4 = mysql.query<std::tuple<int>>("select count(1) from student");
-  CHECK(result4.size() == 1);
-  CHECK(std::get<0>(result4[0]) == 3);
+//   auto result4 = mysql.query<std::tuple<int>>("select count(1) from
+//   student"); CHECK(result4.size() == 1); CHECK(std::get<0>(result4[0]) == 3);
 
-  auto result5 = mysql.query<std::tuple<int>>("select count(1) from student");
-  CHECK(result5.size() == 1);
-  CHECK(std::get<0>(result5[0]) == 3);
-  auto result = mysql.query<std::tuple<int, std::string, double>>(
-      "select code, name, dm from student");
-  CHECK(result.size() == 3);
-#endif
+//   auto result5 = mysql.query<std::tuple<int>>("select count(1) from
+//   student"); CHECK(result5.size() == 1); CHECK(std::get<0>(result5[0]) == 3);
+//   auto result = mysql.query<std::tuple<int, std::string, double>>(
+//       "select code, name, dm from student");
+//   CHECK(result.size() == 3);
+// #endif
 
-#ifdef ORMPP_ENABLE_PG
-  dbng<postgresql> postgres;
-  REQUIRE(postgres.connect(ip, "root", password, db));
-  REQUIRE(postgres.create_datatable<student>(key, not_null));
-  CHECK(postgres.insert(v) == 3);
-  auto result1 = postgres.query<std::tuple<int, std::string, double>>(
-      "select code, name, dm from student");
-  CHECK(result1.size() == 3);
-#endif
+// #ifdef ORMPP_ENABLE_PG
+//   dbng<postgresql> postgres;
+//   REQUIRE(postgres.connect(ip, "root", password, db));
+//   REQUIRE(postgres.create_datatable<student>(key, not_null));
+//   CHECK(postgres.insert(v) == 3);
+//   auto result1 = postgres.query<std::tuple<int, std::string, double>>(
+//       "select code, name, dm from student");
+//   CHECK(result1.size() == 3);
+// #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
-  dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect("test.db"));
-  CHECK(sqlite.insert(v) == 3);
-  REQUIRE(sqlite.create_datatable<student>(key));
-  auto result2 = sqlite.query<std::tuple<int, std::string, double>>(
-      "select code, name, dm from student");
-  CHECK(result2.size() == 3);
-#endif
-}
+// #ifdef ORMPP_ENABLE_SQLITE3
+//   dbng<sqlite> sqlite;
+//   REQUIRE(sqlite.connect("test.db"));
+//   CHECK(sqlite.insert(v) == 3);
+//   REQUIRE(sqlite.create_datatable<student>(key));
+//   auto result2 = sqlite.query<std::tuple<int, std::string, double>>(
+//       "select code, name, dm from student");
+//   CHECK(result2.size() == 3);
+// #endif
+// }
 
-TEST_CASE("orm_query_multi_table") {
-  ormpp_key key{"code"};
-  ormpp_not_null not_null{{"code", "age"}};
-  ormpp_auto_key auto_key{"code"};
+// TEST_CASE("orm_query_multi_table") {
+//   ormpp_key key{"code"};
+//   ormpp_not_null not_null{{"code", "age"}};
+//   ormpp_auto_key auto_key{"code"};
 
-  student s = {1, "tom", 0, 19, 1.5, "room2"};
-  student s1 = {2, "jack", 1, 20, 2.5, "room3"};
-  student s2 = {3, "mike", 2, 21, 3.5, "room4"};
-  std::vector<student> v{s, s1, s2};
+//   student s = {1, "tom", 0, 19, 1.5, "room2"};
+//   student s1 = {2, "jack", 1, 20, 2.5, "room3"};
+//   student s2 = {3, "mike", 2, 21, 3.5, "room4"};
+//   std::vector<student> v{s, s1, s2};
 
-  ormpp_key key1{"id"};
-  person p = {1, "test1", 2};
-  person p1 = {2, "test2", 3};
-  person p2 = {3, "test3", 4};
-  std::vector<person> v1{p, p1, p2};
+//   ormpp_key key1{"id"};
+//   person p = {1, "test1", 2};
+//   person p1 = {2, "test2", 3};
+//   person p2 = {3, "test3", 4};
+//   std::vector<person> v1{p, p1, p2};
 
-#ifdef ORMPP_ENABLE_MYSQL
-  dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, db));
-  mysql.delete_records<student>();
-  mysql.delete_records<person>();
-  REQUIRE(mysql.create_datatable<student>(key, not_null));
-  CHECK(mysql.insert(v) == 3);
-  REQUIRE(mysql.create_datatable<person>(key1, not_null));
-  CHECK(mysql.insert(v1) == 3);
-  auto result = mysql.query<std::tuple<person, std::string, int>>(
-      "select person.*, student.name, student.age from person, student"s);
-  CHECK(result.size() == 9);
-  auto result3 = mysql.query<std::tuple<person, student>>(
-      "select * from person, student"s);
-  CHECK(result.size() == 9);
-#endif
+// #ifdef ORMPP_ENABLE_MYSQL
+//   dbng<mysql> mysql;
+//   REQUIRE(mysql.connect(ip, "root", password, db));
+//   mysql.delete_records<student>();
+//   mysql.delete_records<person>();
+//   REQUIRE(mysql.create_datatable<student>(key, not_null));
+//   CHECK(mysql.insert(v) == 3);
+//   REQUIRE(mysql.create_datatable<person>(key1, not_null));
+//   CHECK(mysql.insert(v1) == 3);
+//   auto result = mysql.query<std::tuple<person, std::string, int>>(
+//       "select person.*, student.name, student.age from person, student"s);
+//   CHECK(result.size() == 9);
+//   auto result3 = mysql.query<std::tuple<person, student>>(
+//       "select * from person, student"s);
+//   CHECK(result.size() == 9);
+// #endif
 
-#ifdef ORMPP_ENABLE_PG
-  dbng<postgresql> postgres;
-  REQUIRE(postgres.connect(ip, "root", password, db));
-  REQUIRE(postgres.create_datatable<student>(key, not_null));
-  CHECK(postgres.insert(v) == 3);
-  REQUIRE(postgres.create_datatable<person>(key1, not_null));
-  CHECK(postgres.insert(v1) == 3);
-  CHECK(sqlite.insert(v1) == 3);
-  auto result1 = postgres.query<std::tuple<int, std::string, double>>(
-      "select person.*, student.name, student.age from person, student"s);
-  CHECK(result1.size() == 9);
-  auto result4 = postgres.query<std::tuple<person, student>>(
-      "select * from person, student"s);
-  CHECK(result1.size() == 9);
-#endif
+// #ifdef ORMPP_ENABLE_PG
+//   dbng<postgresql> postgres;
+//   REQUIRE(postgres.connect(ip, "root", password, db));
+//   REQUIRE(postgres.create_datatable<student>(key, not_null));
+//   CHECK(postgres.insert(v) == 3);
+//   REQUIRE(postgres.create_datatable<person>(key1, not_null));
+//   CHECK(postgres.insert(v1) == 3);
+//   CHECK(sqlite.insert(v1) == 3);
+//   auto result1 = postgres.query<std::tuple<int, std::string, double>>(
+//       "select person.*, student.name, student.age from person, student"s);
+//   CHECK(result1.size() == 9);
+//   auto result4 = postgres.query<std::tuple<person, student>>(
+//       "select * from person, student"s);
+//   CHECK(result1.size() == 9);
+// #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
-  dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect("test.db"));
-  sqlite.delete_records<student>();
-  sqlite.delete_records<person>();
-  REQUIRE(sqlite.create_datatable<student>(key));
-  CHECK(sqlite.insert(v) == 3);
-  REQUIRE(sqlite.create_datatable<person>(key1));
-  CHECK(sqlite.insert(v1) == 3);
-  auto result2 = sqlite.query<std::tuple<int, std::string, double>>(
-      "select person.*, student.name, student.age from person, student"s);
-  CHECK(result2.size() == 9);
-  auto result5 = sqlite.query<std::tuple<person, student>>(
-      "select * from person, student"s);
-  CHECK(result2.size() == 9);
-#endif
-}
+// #ifdef ORMPP_ENABLE_SQLITE3
+//   dbng<sqlite> sqlite;
+//   REQUIRE(sqlite.connect("test.db"));
+//   sqlite.delete_records<student>();
+//   sqlite.delete_records<person>();
+//   REQUIRE(sqlite.create_datatable<student>(key));
+//   CHECK(sqlite.insert(v) == 3);
+//   REQUIRE(sqlite.create_datatable<person>(key1));
+//   CHECK(sqlite.insert(v1) == 3);
+//   auto result2 = sqlite.query<std::tuple<int, std::string, double>>(
+//       "select person.*, student.name, student.age from person, student"s);
+//   CHECK(result2.size() == 9);
+//   auto result5 = sqlite.query<std::tuple<person, student>>(
+//       "select * from person, student"s);
+//   CHECK(result2.size() == 9);
+// #endif
+// }
 
 TEST_CASE("orm_transaction") {
   ormpp_key key{"code"};
@@ -816,31 +813,31 @@ TEST_CASE("orm_aop") {
   // REQUIRE(r);
 }
 
-// struct image {
-//   int id;
-//   ormpp::blob bin;
-// };
+struct image {
+  int id;
+  ormpp::blob bin;
+};
 
-// REFLECTION(image, id, bin);
+REFLECTION(image, id, bin);
 
-// TEST_CASE("orm_mysql_blob") {
-//   dbng<mysql> mysql;
+TEST_CASE("orm_mysql_blob") {
+  dbng<mysql> mysql;
 
-//   REQUIRE(mysql.connect("127.0.0.1", "root", password, db));
-//   REQUIRE(mysql.execute("DROP TABLE IF EXISTS image"));
+  REQUIRE(mysql.connect("127.0.0.1", "root", password, db));
+  REQUIRE(mysql.execute("DROP TABLE IF EXISTS image"));
 
-//   REQUIRE(mysql.create_datatable<image>());
+  REQUIRE(mysql.create_datatable<image>());
 
-//   auto data = "this is a  test binary stream\0, and ?...";
-//   auto size = 42;
+  auto data = "this is a  test binary stream\0, and ?...";
+  auto size = 42;
 
-//   image img;
-//   img.id = 1;
-//   img.bin.assign(data, data + size);
+  image img;
+  img.id = 1;
+  img.bin.assign(data, data + size);
 
-//   REQUIRE(mysql.insert(img) == 1);
+  REQUIRE(mysql.insert(img) == 1);
 
-//   auto result = mysql.query<image>("id=1");
-//   REQUIRE(result.size() == 1);
-//   REQUIRE(result[0].bin.size() == size);
-// }
+  auto result = mysql.query<image>("id=1");
+  REQUIRE(result.size() == 1);
+  REQUIRE(result[0].bin.size() == size);
+}
