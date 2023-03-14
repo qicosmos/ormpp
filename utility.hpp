@@ -32,7 +32,7 @@ template <typename T> inline void append_impl(std::string &sql, const T &str) {
     if (str.empty())
       return;
   } else {
-    if constexpr(sizeof(str) == 0) {
+    if constexpr (sizeof(str) == 0) {
       return;
     }
   }
@@ -66,24 +66,25 @@ enum class DBType { mysql, sqlite, postgresql, unknown };
 template <typename T> inline constexpr auto get_type_names(DBType type) {
   constexpr auto SIZE = iguana::get_value<T>();
   std::array<std::string, SIZE> arr = {};
-  iguana::for_each(T{}, [&](auto &/*item*/, auto i) {
+  iguana::for_each(T{}, [&](auto & /*item*/, auto i) {
     constexpr auto Idx = decltype(i)::value;
     using U =
         std::remove_reference_t<decltype(iguana::get<Idx>(std::declval<T>()))>;
     std::string s;
-    if(type==DBType::unknown) {}
-#ifdef ORMPP_ENABLE_MYSQL    
-    else if(type==DBType::mysql) {
+    if (type == DBType::unknown) {
+    }
+#ifdef ORMPP_ENABLE_MYSQL
+    else if (type == DBType::mysql) {
       s = ormpp_mysql::type_to_name(identity<U>{});
     }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
-    else if(type==DBType::sqlite) {
+    else if (type == DBType::sqlite) {
       s = ormpp_sqlite::type_to_name(identity<U>{});
     }
 #endif
 #ifdef ORMPP_ENABLE_PG
-    else if(type==DBType::postgresql) {
+    else if (type == DBType::postgresql) {
       s = ormpp_postgresql::type_to_name(identity<U>{});
     }
 #endif
@@ -112,17 +113,16 @@ inline std::string get_name() {
 }
 
 template <typename T, typename = std::enable_if_t<iguana::is_reflection_v<T>>>
-inline std::string get_fields()
-{
+inline std::string get_fields() {
   std::string fileds = "";
   static auto arr = iguana::Reflect_members<T>::arr();
   for (int i = 0; i < arr.size(); ++i) {
     if (i) {
       fileds += ",";
     }
-    fileds += arr[i];
+    fileds += arr[i].data();
   }
-  
+
   return fileds;
 }
 
@@ -132,7 +132,7 @@ template <typename T> inline std::string generate_insert_sql(bool replace) {
   auto name = get_name<T>();
   auto fileds = get_fields<T>();
   append(sql, name.data(), "(", fileds.data(), ")", "values(");
-  
+
   for (size_t i = 0; i < SIZE; ++i) {
     sql += "?";
     if (i < SIZE - 1)
@@ -146,7 +146,7 @@ template <typename T> inline std::string generate_insert_sql(bool replace) {
 
 template <typename T>
 inline std::string
-generate_auto_insert_sql(std::map<std::string, std::string> &/*auto_key_map_*/,
+generate_auto_insert_sql(std::map<std::string, std::string> & /*auto_key_map_*/,
                          bool replace) {
   std::string sql = replace ? "replace into " : "insert into ";
   constexpr auto SIZE = iguana::get_value<T>();
@@ -235,7 +235,7 @@ inline std::string generate_query_sql(Args &&...args) {
   append(sql, fields.data(), "from", name.data());
 
   std::string where_sql = "";
-  if constexpr(param_size > 0) {
+  if constexpr (param_size > 0) {
     where_sql = " where 1=1 and ";
   }
   sql.append(where_sql);

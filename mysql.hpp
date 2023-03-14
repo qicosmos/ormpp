@@ -75,7 +75,7 @@ public:
   }
 
   template <typename T, typename... Args>
-  constexpr bool create_datatable(Args &&...args) {
+  bool create_datatable(Args &&...args) {
     reset_error();
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
     sql += " DEFAULT CHARSET=utf8";
@@ -88,7 +88,7 @@ public:
   }
 
   template <typename T, typename... Args>
-  constexpr int insert(const std::vector<T> &t, Args &&...args) {
+  int insert(const std::vector<T> &t, Args &&...args) {
     reset_error();
     auto name = get_name<T>();
     std::string sql = auto_key_map_[name].empty()
@@ -99,7 +99,7 @@ public:
   }
 
   template <typename T, typename... Args>
-  constexpr int update(const std::vector<T> &t, Args &&...args) {
+  int update(const std::vector<T> &t, Args &&...args) {
     reset_error();
     std::string sql = generate_insert_sql<T>(true);
 
@@ -107,7 +107,7 @@ public:
   }
 
   template <typename T, typename... Args>
-  constexpr int insert(const T &t, Args &&...args) {
+  int insert(const T &t, Args &&...args) {
     reset_error();
     // insert into person values(?, ?, ?);
     auto name = get_name<T>();
@@ -119,7 +119,7 @@ public:
   }
 
   template <typename T, typename... Args>
-  constexpr int update(const T &t, Args &&...args) {
+  int update(const T &t, Args &&...args) {
     reset_error();
     std::string sql = generate_insert_sql<T>(true);
     return insert_impl(sql, t, std::forward<Args>(args)...);
@@ -141,7 +141,7 @@ public:
 
   // for tuple and string with args...
   template <typename T, typename Arg, typename... Args>
-  constexpr std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>>
+  std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>>
   query(const Arg &s, Args &&...args) {
     reset_error();
     static_assert(iguana::is_tuple<T>::value);
@@ -149,7 +149,7 @@ public:
 
     std::string sql = s;
     constexpr auto Args_Size = sizeof...(Args);
-    if constexpr(Args_Size != 0) {
+    if constexpr (Args_Size != 0) {
       if (Args_Size != std::count(sql.begin(), sql.end(), '?')) {
         has_error_ = true;
         return {};
@@ -196,8 +196,8 @@ public:
             param_binds[index].buffer_length = 65536;
             index++;
           } else if constexpr (iguana::is_reflection_v<U>) {
-            iguana::for_each(item, [&param_binds, &mp, &item, &index](auto &ele,
-                                                                      auto /*i*/) {
+            iguana::for_each(item, [&param_binds, &mp, &item,
+                                    &index](auto &ele, auto /*i*/) {
               using V =
                   std::remove_reference_t<decltype(std::declval<U>().*ele)>;
               if constexpr (std::is_arithmetic_v<V>) {
@@ -263,31 +263,43 @@ public:
       iguana::for_each(
           tp,
           [&mp, &it, &column, this](auto &item, auto /*i*/) {
-            using U = std::remove_reference_t<decltype(item)>;
-            if constexpr (std::is_same_v<std::string, U>) {
+            using W = std::remove_reference_t<decltype(item)>;
+            if constexpr (std::is_arithmetic_v<W>) {
+              item = *(W *)(&(*it)[0]);
+              it++;
+            } else if constexpr (std::is_same_v<std::string, W>) {
               item = std::string(&(*it)[0], strlen((*it).data()));
               it++;
-            } else if constexpr (is_char_array_v<U>) {
-              memcpy(item, &(*it)[0], sizeof(U));
-            } else if constexpr (iguana::is_reflection_v<U>) {
-              iguana::for_each(item, [&it, &item, & column, this](auto ele, auto /*i*/) {
+            } else if constexpr (is_char_array_v<W>) {
+              memcpy(item, &(*it)[0], sizeof(W));
+              it++;
+            } else if constexpr (iguana::is_reflection_v<W>) {
+              iguana::for_each(item, [&it, &item, &column, this](auto ele,
+                                                                 auto /*i*/) {
                 using V =
-                    std::remove_reference_t<decltype(std::declval<U>().*ele)>;
-                if constexpr (std::is_same_v<std::string, V>) {
+                    std::remove_reference_t<decltype(std::declval<W>().*ele)>;
+                if constexpr (std::is_arithmetic_v<V>) {
+                  item.*ele = *(V *)(&(*it)[0]);
+                } else if constexpr (std::is_same_v<std::string, V>) {
                   item.*ele = std::string(&(*it)[0], strlen((*it).data()));
                   it++;
                 } else if constexpr (is_char_array_v<V>) {
                   memcpy(item.*ele, &(*it)[0], sizeof(V));
                 } else if constexpr (std::is_same_v<blob, V>) {
-                  item.assign((*it).data(), (*it).data() + get_blob_len(column));
+                  item.*ele.assign((*it).data(),
+                                   (*it).data() + get_blob_len(column));
                   it++;
+                } else {
+                  static_assert(!sizeof(V), "not support");
                 }
               });
               ++column;
               return;
-            } else if constexpr (std::is_same_v<blob, U>) {
+            } else if constexpr (std::is_same_v<blob, W>) {
               item.assign((*it).data(), (*it).data() + get_blob_len(column));
               it++;
+            } else {
+              static_assert(!sizeof(W), "not support");
             }
             ++column;
           },
@@ -302,7 +314,7 @@ public:
 
   // if there is a sql error, how to tell the user? throw exception?
   template <typename T, typename... Args>
-  constexpr std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>>
+  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>>
   query(Args &&...args) {
     reset_error();
     std::string sql = generate_query_sql<T>(args...);
@@ -386,9 +398,8 @@ public:
           auto &vec = mp[decltype(i)::value];
           memcpy(t.*item, vec.data(), vec.size());
         } else if constexpr (std::is_same_v<blob, U>) {
-          auto& vec = mp[decltype(i)::value];
-          t.*item = blob(
-              vec.data(), vec.data() + get_blob_len(column));
+          auto &vec = mp[decltype(i)::value];
+          t.*item = blob(vec.data(), vec.data() + get_blob_len(column));
         }
         ++column;
       });
@@ -425,7 +436,6 @@ public:
 
     return static_cast<int>(data_len);
   }
-
 
   bool has_error() { return has_error_; }
   void reset_error() {
@@ -576,7 +586,7 @@ private:
       param.buffer_length = (unsigned long)strlen(value);
     } else if constexpr (std::is_same_v<blob, U>) {
       param.buffer_type = MYSQL_TYPE_BLOB;
-      param.buffer = (void*)(value.data());
+      param.buffer = (void *)(value.data());
       param.buffer_length = (unsigned long)value.size();
     }
     param_binds.push_back(param);
@@ -627,8 +637,7 @@ private:
   };
 
   template <typename T, typename... Args>
-  constexpr int insert_impl(const std::string &sql, const T &t,
-                            Args &&...args) {
+  int insert_impl(const std::string &sql, const T &t, Args &&...args) {
     stmt_ = mysql_stmt_init(con_);
     if (!stmt_)
       return INT_MIN;
@@ -646,8 +655,8 @@ private:
   }
 
   template <typename T, typename... Args>
-  constexpr int insert_impl(const std::string &sql, const std::vector<T> &t,
-                            Args &&...args) {
+  int insert_impl(const std::string &sql, const std::vector<T> &t,
+                  Args &&...args) {
     stmt_ = mysql_stmt_init(con_);
     if (!stmt_)
       return INT_MIN;
@@ -681,15 +690,13 @@ private:
       auto [c, s1, s2, s3, s4, i] = tp;
       timeout = i;
       return std::make_tuple(c, s1, s2, s3, s4, 0, nullptr, 0);
-    }
-    else if constexpr (sizeof...(Args) == 6) {
+    } else if constexpr (sizeof...(Args) == 6) {
       auto [c, s1, s2, s3, s4, i, port] = tp;
       timeout = i;
       return std::make_tuple(c, s1, s2, s3, s4, port, nullptr, 0);
-    }
-    else {
+    } else {
       return std::tuple_cat(tp, std::make_tuple(0, nullptr, 0));
-    } 
+    }
   }
 
 private:
