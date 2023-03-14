@@ -46,8 +46,6 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
-          fail_ci_if_error: true
           flags: ${{ runner.os }}
-          directory: ./coverage/reports/
           name:  ${{ runner.os }}-coverage
-          files: ${{github.workspace}}/coverage/ormppCov.xml
+          files: ${{github.workspace}}/coverage/reports/ormppCov.xml
