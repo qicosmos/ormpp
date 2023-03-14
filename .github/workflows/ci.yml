@@ -10,7 +10,7 @@ jobs:
 
     strategy:
       matrix:
-        toolchain: [ linux-gcc, linux-clang, macos-clang, windows-msvc ]
+        toolchain: [ linux-gcc, macos-clang, windows-msvc ]
 
         configuration: [ Release ]
 
@@ -18,10 +18,6 @@ jobs:
           - toolchain: linux-gcc
             os: ubuntu-latest
             compiler: gcc
-
-          - toolchain: linux-clang
-            os: ubuntu-latest
-            compiler: clang
 
           - toolchain: macos-clang
             os: macos-latest
