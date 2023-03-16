@@ -823,24 +823,24 @@ struct image {
 
 REFLECTION(image, id, bin);
 
-// TEST_CASE("orm_mysql_blob") {
-//   dbng<mysql> mysql;
+TEST_CASE("orm_mysql_blob") {
+  dbng<mysql> mysql;
 
-//   REQUIRE(mysql.connect("127.0.0.1", "root", password, db));
-//   REQUIRE(mysql.execute("DROP TABLE IF EXISTS image"));
+  REQUIRE(mysql.connect("127.0.0.1", "root", password, db));
+  REQUIRE(mysql.execute("DROP TABLE IF EXISTS image"));
 
-//   REQUIRE(mysql.create_datatable<image>());
+  REQUIRE(mysql.create_datatable<image>());
 
-//   auto data = "this is a  test binary stream\0, and ?...";
-//   auto size = 42;
+  auto data = "this is a  test binary stream\0, and ?...";
+  auto size = 42;
 
-//   image img;
-//   img.id = 1;
-//   img.bin.assign(data, data + size);
+  image img;
+  img.id = 1;
+  img.bin.assign(data, data + size);
 
-//   REQUIRE(mysql.insert(img) == 1);
+  REQUIRE(mysql.insert(img) == 1);
 
-//   auto result = mysql.query<image>("id=1");
-//   REQUIRE(result.size() == 1);
-//   REQUIRE(result[0].bin.size() == size);
-// }
+  auto result = mysql.query<image>("id=1");
+  REQUIRE(result.size() == 1);
+  REQUIRE(result[0].bin.size() == size);
+}
