@@ -3,49 +3,36 @@ name: Upload CodeCov Report
 on: [ push, pull_request ]
 
 jobs:
-  run:
-
-    runs-on: windows-latest
-    name: Upload Code Coverage Report
+  build:
+  
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 2
+    
+    - name: Setup MySQL
+      uses: ankane/setup-mysql@v1
+      with: 
+        mysql-version: 8.0
+        database: test_ormppdb
 
-      - name: SetUp MySQL
-        uses: ankane/setup-mysql@v1
-        with: 
-          mysql-version: 8.0
-          database: test_ormppdb
+    - name: Verify MySQL
+      run:  mysql -uroot -e'show databases;'
 
-      - name: Verify MySQL Connections
-        run:  mysql -uroot -e'show databases;'
+    - name: Configure cmake
+      run:  cmake -B${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Debug
 
-      - name: Install ninja-build tool
-        uses: seanmiddleditch/gha-setup-ninja@v3
+    - name: Build with ${{ matrix.compiler }}
+      run:  cmake --build ${{github.workspace}}/build --config Debug
+      
+    - name: Test
+      working-directory: ${{github.workspace}}/build
+      env:
+        CTEST_OUTPUT_ON_FAILURE: 1
+      run: ctest -C ${{ matrix.configuration }}
 
-      - name: Enable Developer Command Prompt
-        uses: ilammy/msvc-dev-cmd@v1.12.0
-        with:
-          arch: amd64
-
-      - name: CMake configure & build
-        run: |
-          cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=Release -G Ninja
-          cmake --build ${{github.workspace}}/build --config Release
-
-      - name: Setup OpenCppCoverage
-        run: |
-          choco install OpenCppCoverage -y
-          echo "C:\Program Files\OpenCppCoverage" >> $env:GITHUB_PATH
-
-      - name: Generate Report
-        working-directory: ${{github.workspace}}/build
-        run: OpenCppCoverage.exe --sources ${{github.workspace}} --export_type cobertura:ormppCov.xml --cover_children -- ctest -C Release
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          flags: ${{ runner.os }}
-          name:  ${{ runner.os }}-coverage
-          files: ../ormppCov.xml
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
