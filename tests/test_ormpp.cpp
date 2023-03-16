@@ -832,7 +832,7 @@ TEST_CASE("orm_mysql_blob") {
   REQUIRE(mysql.create_datatable<image>());
 
   auto data = "this is a test binary stream\0, and ?...";
-  auto size = 42;
+  auto size = 40;
 
   image img;
   img.id = 1;
