@@ -276,8 +276,7 @@ class mysql {
           [&mp, &it, &column, this](auto &item, auto /*i*/) {
             using W = std::remove_reference_t<decltype(item)>;
             if constexpr (std::is_arithmetic_v<W>) {
-              item = *(W *)(&(*it)[0]);
-              it++;
+              return;
             }
             else if constexpr (std::is_same_v<std::string, W>) {
               item = std::string(&(*it)[0], strlen((*it).data()));

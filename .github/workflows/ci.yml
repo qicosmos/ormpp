@@ -12,7 +12,7 @@ jobs:
       matrix:
         toolchain: [ linux-gcc, macos-clang, windows-msvc ]
 
-        configuration: [ Release ]
+        configuration: [ Debug, Release ]
         
         include:
           - toolchain: linux-gcc
@@ -31,7 +31,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v2
 
-      - name: SetUp MySQL
+      - name: Setup MySQL
         uses: ankane/setup-mysql@v1
         with: 
           mysql-version: 8.0

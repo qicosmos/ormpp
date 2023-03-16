@@ -8,6 +8,9 @@ add_executable(${PROJECT_NAME} ${ORMPP_EXAMPLE})
 
 if (ENABLE_MYSQL)
         target_link_libraries(${PROJECT_NAME} ${MYSQL_LIBRARY})
+        if (MSVC)
+        set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "/MD")
+        endif()
 endif()
 
 if (ENABLE_SQLITE3)
