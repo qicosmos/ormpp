@@ -51,3 +51,4 @@ jobs:
         verbose: true
         token: ${{ secrets.CODECOV_TOKEN }}
         files: ./coverage1.xml,./coverage2.xml,!./cache
+        directory: ${{github.workspace}}/build
