@@ -107,6 +107,19 @@ TEST_CASE("random_reflection_order") {
   CHECK(v.front().name == name);
 }
 
+struct custom_name {
+  int id;
+  std::string name;
+};
+REFLECTIONWITHNAME(custom_name, "test_order", id, name);
+
+TEST_CASE("orm_custom_name") {
+  dbng<mysql> mysql;
+  REQUIRE(mysql.connect(ip, "root", password, db));
+  auto v = mysql.query<custom_name>();
+  CHECK(v.size() > 0);
+}
+
 struct dummy {
   int id;
   std::string name;
