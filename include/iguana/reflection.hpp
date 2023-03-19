@@ -584,7 +584,7 @@ namespace iguana {
   MAKE_META_DATA(STRUCT_NAME, #STRUCT_NAME, GET_ARG_COUNT(__VA_ARGS__), \
                  __VA_ARGS__)
 
-#define REFLECTIONWITHNAME(STRUCT_NAME, TABLE_NAME, ...)              \
+#define REFLECTION_WITH_NAME(STRUCT_NAME, TABLE_NAME, ...)            \
   MAKE_META_DATA(STRUCT_NAME, TABLE_NAME, GET_ARG_COUNT(__VA_ARGS__), \
                  __VA_ARGS__)
 

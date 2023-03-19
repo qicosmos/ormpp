@@ -111,7 +111,7 @@ struct custom_name {
   int id;
   std::string name;
 };
-REFLECTIONWITHNAME(custom_name, "test_order", id, name);
+REFLECTION_WITH_NAME(custom_name, "test_order", id, name);
 
 TEST_CASE("orm_custom_name") {
   dbng<mysql> mysql;
