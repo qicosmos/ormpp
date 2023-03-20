@@ -556,8 +556,9 @@ namespace iguana::detail {
       }                                                                       \
       using size_type =                                                       \
           std::integral_constant<size_t, GET_ARG_COUNT(__VA_ARGS__)>;         \
-      constexpr static std::string_view name() {                              \
-        return std::string_view(#STRUCT_NAME, sizeof(#STRUCT_NAME) - 1);      \
+      constexpr static std::string_view name() { return name_##STRUCT_NAME; } \
+      constexpr static std::string_view fields() {                            \
+        return fields_##STRUCT_NAME;                                          \
       }                                                                       \
       constexpr static size_t value() { return size_type::value; }            \
       constexpr static std::array<std::string_view, size_type::value> arr() { \
@@ -567,17 +568,25 @@ namespace iguana::detail {
     return reflect_members{};                                                 \
   }
 
-#define MAKE_META_DATA(STRUCT_NAME, N, ...)                              \
+#define MAKE_META_DATA(STRUCT_NAME, TABLE_NAME, N, ...)                  \
   constexpr inline std::array<std::string_view, N> arr_##STRUCT_NAME = { \
       MARCO_EXPAND(MACRO_CONCAT(CON_STR, N)(__VA_ARGS__))};              \
+  constexpr inline std::string_view fields_##STRUCT_NAME = {             \
+      MAKE_NAMES(__VA_ARGS__)};                                          \
+  constexpr inline std::string_view name_##STRUCT_NAME = TABLE_NAME;     \
   MAKE_META_DATA_IMPL(STRUCT_NAME,                                       \
                       MAKE_ARG_LIST(N, &STRUCT_NAME::FIELD, __VA_ARGS__))
 
 }  // namespace iguana::detail
 
 namespace iguana {
-#define REFLECTION(STRUCT_NAME, ...) \
-  MAKE_META_DATA(STRUCT_NAME, GET_ARG_COUNT(__VA_ARGS__), __VA_ARGS__)
+#define REFLECTION(STRUCT_NAME, ...)                                    \
+  MAKE_META_DATA(STRUCT_NAME, #STRUCT_NAME, GET_ARG_COUNT(__VA_ARGS__), \
+                 __VA_ARGS__)
+
+#define REFLECTION_WITH_NAME(STRUCT_NAME, TABLE_NAME, ...)            \
+  MAKE_META_DATA(STRUCT_NAME, TABLE_NAME, GET_ARG_COUNT(__VA_ARGS__), \
+                 __VA_ARGS__)
 
 template <typename T>
 using Reflect_members = decltype(iguana_reflect_members(std::declval<T>()));
@@ -647,6 +656,12 @@ template <typename T>
 constexpr const std::string_view get_name() {
   using M = decltype(iguana_reflect_members(std::declval<T>()));
   return M::name();
+}
+
+template <typename T>
+constexpr const std::string_view get_fields() {
+  using M = decltype(iguana_reflect_members(std::declval<T>()));
+  return M::fields();
 }
 
 template <typename T>

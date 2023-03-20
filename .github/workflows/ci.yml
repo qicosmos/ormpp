@@ -5,27 +5,13 @@ on: [ push, pull_request ]
 jobs:
   build-and-test:
 
-    name: ${{ matrix.toolchain }} (${{ matrix.configuration }})
+    name: ${{ matrix.os }} (${{ matrix.configuration }})
     runs-on: ${{ matrix.os }}
 
     strategy:
       matrix:
-        toolchain: [ linux-gcc, macos-clang, windows-msvc ]
-
         configuration: [ Debug, Release ]
-        
-        include:
-          - toolchain: linux-gcc
-            os: ubuntu-latest
-            compiler: gcc
-
-          - toolchain: macos-clang
-            os: macos-latest
-            compiler: clang
-
-          - toolchain: windows-msvc
-            os: windows-latest
-            compiler: msvc
+        os: [ macos-latest, ubuntu-latest, windows-latest ]
 
     steps:
       - name: Checkout Code
@@ -40,10 +26,10 @@ jobs:
       - name: Verify MySQL
         run:  mysql -uroot -e'show databases;'
 
-      - name: Configure cmake
+      - name: Configure CMake
         run:  cmake -B${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
 
-      - name: Build with ${{ matrix.compiler }}
+      - name: Build
         run:  cmake --build ${{github.workspace}}/build --config ${{ matrix.configuration }}
 
       - name: Test

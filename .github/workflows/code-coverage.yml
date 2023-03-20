@@ -22,10 +22,10 @@ jobs:
     - name: Verify MySQL
       run:  mysql -uroot -e'show databases;'
 
-    - name: Configure cmake
+    - name: Configure CMake
       run:  cmake -B${{github.workspace}}/build -DCOVERAGE_TEST=ON -DCMAKE_BUILD_TYPE=Debug
 
-    - name: Build with ${{ matrix.compiler }}
+    - name: Build
       run:  cmake --build ${{github.workspace}}/build --config Debug
       
     - name: Test
