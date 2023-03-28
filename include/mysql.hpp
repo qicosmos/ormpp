@@ -302,7 +302,7 @@ class mysql {
                   memcpy(item.*ele, &(*it)[0], sizeof(V));
                 }
                 else if constexpr (std::is_same_v<blob, V>) {
-                  item.*ele.assign((*it).data(),
+                  (item.*ele).assign((*it).data(),
                                    (*it).data() + get_blob_len(column));
                   it++;
                 }
