@@ -232,7 +232,7 @@ class mysql {
                 param_binds[index].buffer_length = 65536;
               }
               else {
-                std::cout << typeid(V).name() << std::endl;
+                static_assert(!sizeof(V), "not support");
               }
               index++;
             });
@@ -254,7 +254,7 @@ class mysql {
             index++;
           }
           else {
-            std::cout << typeid(U).name() << std::endl;
+            static_assert(!sizeof(U), "not support");
           }
         },
         std::make_index_sequence<SIZE>{});
