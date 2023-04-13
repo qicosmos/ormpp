@@ -224,12 +224,15 @@ class mysql {
                 param_binds[index].buffer = &(mp.back()[0]);
                 param_binds[index].buffer_length = (unsigned long)sizeof(V);
               }
-              else if constexpr (std::is_same_v<blob, U>) {
+              else if constexpr (std::is_same_v<blob, V>) {
                 std::vector<char> tmp(65536, 0);
                 mp.emplace_back(std::move(tmp));
                 param_binds[index].buffer_type = MYSQL_TYPE_BLOB;
                 param_binds[index].buffer = &(mp.back()[0]);
                 param_binds[index].buffer_length = 65536;
+              }
+              else {
+                static_assert(!sizeof(V), "not support");
               }
               index++;
             });
@@ -251,7 +254,7 @@ class mysql {
             index++;
           }
           else {
-            std::cout << typeid(U).name() << std::endl;
+            static_assert(!sizeof(U), "not support");
           }
         },
         std::make_index_sequence<SIZE>{});
@@ -276,7 +279,7 @@ class mysql {
           [&mp, &it, &column, this](auto &item, auto /*i*/) {
             using W = std::remove_reference_t<decltype(item)>;
             if constexpr (std::is_arithmetic_v<W>) {
-              return;
+              // return; // don't return, need ++column at end.
             }
             else if constexpr (std::is_same_v<std::string, W>) {
               item = std::string(&(*it)[0], strlen((*it).data()));
@@ -292,7 +295,7 @@ class mysql {
                 using V =
                     std::remove_reference_t<decltype(std::declval<W>().*ele)>;
                 if constexpr (std::is_arithmetic_v<V>) {
-                  item.*ele = *(V *)(&(*it)[0]);
+                  // item.*ele = *(V *)(&(*it)[0]);
                 }
                 else if constexpr (std::is_same_v<std::string, V>) {
                   item.*ele = std::string(&(*it)[0], strlen((*it).data()));
@@ -302,15 +305,15 @@ class mysql {
                   memcpy(item.*ele, &(*it)[0], sizeof(V));
                 }
                 else if constexpr (std::is_same_v<blob, V>) {
-                  item.*ele.assign((*it).data(),
-                                   (*it).data() + get_blob_len(column));
+                  (item.*ele).assign((*it).data(),
+                                     (*it).data() + get_blob_len(column));
                   it++;
                 }
                 else {
                   static_assert(!sizeof(V), "not support");
                 }
+                ++column;
               });
-              ++column;
               return;
             }
             else if constexpr (std::is_same_v<blob, W>) {
