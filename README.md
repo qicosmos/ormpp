@@ -1,14 +1,16 @@
+<p align="center">
+<a href="https://github.com/qicosmos/ormpp/actions/workflows/ci.yml">
+<img alt="build" src="https://github.com/qicosmos/ormpp/actions/workflows/ci.yml/badge.svg?branch=main">
+</a>
+<img alt="language" src="https://img.shields.io/github/languages/top/qicosmos/ormpp?style=flat-square">
+<img alt="last commit" src="https://img.shields.io/github/last-commit/qicosmos/ormpp?style=flat-square">
+</p>
+
 # 一个很酷的Modern C++ ORM库----ormpp
 
 <p align="center">
   <a href="https://github.com/qicosmos/ormpp/tree/master/lang/english/README.md">English</a> | <span>中文</span>
 </p>
-
-| OS (Compiler Version)                          | Status                                                                                                   |
-|------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| macos-latest                    | ![win](https://github.com/qicosmos/ormpp/actions/workflows/ci.yml/badge.svg?branch=main) |
-| ubuntu-latest                      | ![win](https://github.com/qicosmos/ormpp/actions/workflows/ci.yml/badge.svg?branch=main)   |
-| windows-latest | ![win](https://github.com/qicosmos/ormpp/actions/workflows/ci.yml/badge.svg?branch=main)    
 
 感谢Selina同学将中文wiki翻译为英文
 ## 目录
