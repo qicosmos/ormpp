@@ -1,5 +1,9 @@
 # A Cool Modern C ++ ORM Library - ormpp
 
+<p align="center">
+  <span>English</span> | <a href="https://github.com/qicosmos/ormpp">中文</a>
+</p>
+
 ## Dictionary
 
 * [motiviations](#motiviations)
