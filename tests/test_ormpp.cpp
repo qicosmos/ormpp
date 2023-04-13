@@ -862,4 +862,47 @@ TEST_CASE("orm_mysql_blob") {
   REQUIRE(result.size() == 1);
   REQUIRE(result[0].bin.size() == size);
 }
+
+struct image_ex {
+  int id;
+  ormpp::blob bin;
+  std::string time;
+};
+
+REFLECTION(image_ex, id, bin, time);
+
+TEST_CASE("orm_mysql_blob_tuple") {
+  dbng<mysql> mysql;
+
+  REQUIRE(mysql.connect("127.0.0.1", "root", password, db));
+  REQUIRE(mysql.execute("DROP TABLE IF EXISTS image_ex"));
+
+  REQUIRE(mysql.create_datatable<image_ex>());
+
+  auto data = "this is a test binary stream\0, and ?...";
+  auto size = 40;
+
+  image_ex img_ex;
+  img_ex.id = 1;
+  img_ex.bin.assign(data, data + size);
+  img_ex.time = "2023-03-29 13:55:00";
+
+  REQUIRE(mysql.insert(img_ex) == 1);
+
+  auto result = mysql.query<image_ex>("id=1");
+  REQUIRE(result.size() == 1);
+  REQUIRE(result[0].bin.size() == size);
+
+  using image_t = std::tuple<image, std::string>;
+  auto ex_results =
+      mysql.query<image_t>("select id,bin,time from image_ex where id=1;");
+  REQUIRE(ex_results.size() == 1);
+
+  auto &img = std::get<0>(ex_results[0]);
+  auto &time = std::get<1>(ex_results[0]);
+
+  REQUIRE(img.id == 1);
+  REQUIRE(img.bin.size() == size);
+  REQUIRE(time == img_ex.time);
+}
 #endif

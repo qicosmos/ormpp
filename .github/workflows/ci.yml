@@ -29,7 +29,7 @@ jobs:
       - name: Configure cmake
         run:  cmake -B${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_MYSQL=ON
 
-      - name: Build with ${{ matrix.compiler }}
+      - name: Build
         run:  cmake --build ${{github.workspace}}/build --config ${{ matrix.configuration }}
 
       - name: Test
