@@ -50,19 +50,26 @@ if(ENABLE_SANITIZER AND NOT MSVC)
     endif()
 endif()
 
-SET(ENABLE_SQLITE3 OFF)
-SET(ENABLE_MYSQL ON)
-SET(ENABLE_PG OFF)
-
+option(ENABLE_SQLITE3 "Enable sqlite3" OFF)
 if (ENABLE_SQLITE3)
+    message(STATUS "ENABLE_SQLITE3")
     add_definitions(-DORMPP_ENABLE_SQLITE3)
 endif()
 
+option(ENABLE_MYSQL "Enable mysql" OFF)
 if (ENABLE_MYSQL)
     include(cmake/mysql.cmake)
+    message(STATUS "ENABLE_MYSQL")
     add_definitions(-DORMPP_ENABLE_MYSQL)
+
 endif()
 
+option(ENABLE_PG "Enable pg" OFF)
 if (ENABLE_PG)
+    message(STATUS "ENABLE_PG")
     add_definitions(-DORMPP_ENABLE_PG)
+endif()
+
+if (NOT ENABLE_SQLITE3 AND NOT ENABLE_MYSQL AND NOT ENABLE_PG)
+message(FATAL_ERROR "please enable a option")
 endif()

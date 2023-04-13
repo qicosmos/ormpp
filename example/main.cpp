@@ -19,16 +19,28 @@ const char *password = "";
 const char *ip = "127.0.0.1";
 const char *db = "test_ormppdb";
 
-int main() {
-  dbng<mysql> mysql;
+struct person {
+  int id;
+  std::string name;
+  int age;
+};
+REFLECTION(person, id, name, age)
 
+int main() {
 #ifdef ORMPP_ENABLE_MYSQL
-  if (mysql.connect(ip, "root", password, "world")) {
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, "root", password, db)) {
     std::cout << "connect success" << std::endl;
   }
   else {
     std::cout << "connect fail" << std::endl;
   }
+#endif
+
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  sqlite.connect(db);
+  sqlite.create_datatable<person>(ormpp_auto_key{"id"});
 #endif
 
   return 0;
