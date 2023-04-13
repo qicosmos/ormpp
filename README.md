@@ -2,6 +2,9 @@
 <a href="https://github.com/qicosmos/ormpp/actions/workflows/ci.yml">
 <img alt="build" src="https://github.com/qicosmos/ormpp/actions/workflows/ci.yml/badge.svg?branch=main">
 </a>
+<a href="https://codecov.io/gh/qicosmos/ormpp">
+<img alt="codecov" src="https://codecov.io/gh/qicosmos/ormpp/branch/master/graph/badge.svg">
+</a>
 <img alt="language" src="https://img.shields.io/github/languages/top/qicosmos/ormpp?style=flat-square">
 <img alt="last commit" src="https://img.shields.io/github/last-commit/qicosmos/ormpp?style=flat-square">
 </p>
