@@ -1,6 +1,6 @@
 <p align="center">
 <a href="https://github.com/qicosmos/ormpp/actions/workflows/ci.yml">
-<img alt="build" src="https://github.com/qicosmos/ormpp/actions/workflows/ci.yml/badge.svg?branch=main">
+<img alt="build" src="https://github.com/qicosmos/ormpp/actions/workflows/ci.yml/badge.svg?branch=master">
 </a>
 <a href="https://codecov.io/gh/qicosmos/ormpp">
 <img alt="codecov" src="https://codecov.io/gh/qicosmos/ormpp/branch/master/graph/badge.svg">
