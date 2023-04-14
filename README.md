@@ -9,13 +9,14 @@
 <img alt="last commit" src="https://img.shields.io/github/last-commit/qicosmos/ormpp?style=flat-square">
 </p>
 
-# 一个很酷的Modern C++ ORM库----ormpp
-
 <p align="center">
   <a href="https://github.com/qicosmos/ormpp/tree/master/lang/english/README.md">English</a> | <span>中文</span>
 </p>
 
+# 一个很酷的Modern C++ ORM库----ormpp
+
 感谢Selina同学将中文wiki翻译为英文
+
 ## 目录
 
 * [ormpp的目标](#ormpp的目标)
