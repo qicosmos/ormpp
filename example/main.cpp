@@ -26,6 +26,13 @@ struct person {
 };
 REFLECTION(person, id, name, age)
 
+struct student {
+  int id;
+  std::string name;
+  int age;
+};
+REFLECTION_WITH_NAME(student, "t_student", id, name, age)
+
 int main() {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
@@ -41,6 +48,7 @@ int main() {
   dbng<sqlite> sqlite;
   sqlite.connect(db);
   sqlite.create_datatable<person>(ormpp_auto_key{"id"});
+  sqlite.create_datatable<student>(ormpp_auto_key{"id"});
 #endif
 
   return 0;
