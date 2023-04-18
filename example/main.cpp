@@ -51,5 +51,6 @@ int main() {
   sqlite.create_datatable<student>(ormpp_auto_key{"id"});
 #endif
 
+  int a=0;
   return 0;
 }
