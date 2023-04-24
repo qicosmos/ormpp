@@ -22,7 +22,7 @@ const char *db = "test_ormppdb";
 struct person {
   int id;
   std::string name;
-  int age;
+  std::optional<int> age;
 };
 REFLECTION(person, id, name, age)
 
@@ -49,6 +49,9 @@ int main() {
   sqlite.connect(db);
   sqlite.create_datatable<person>(ormpp_auto_key{"id"});
   sqlite.create_datatable<student>(ormpp_auto_key{"id"});
+
+  sqlite.insert<person>({-1, "purecpp"});
+  sqlite.insert<person>({-1, "purecpp", 666});
 #endif
 
   return 0;
