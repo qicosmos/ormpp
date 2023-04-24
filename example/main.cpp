@@ -12,6 +12,7 @@
 
 #include <iostream>
 
+#include "../include/connection_pool.hpp"
 #include "../include/dbng.hpp"
 
 using namespace ormpp;
