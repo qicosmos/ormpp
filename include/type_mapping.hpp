@@ -122,37 +122,6 @@ inline constexpr auto type_to_name(identity<std::array<char, N>>) noexcept {
   std::string s = "varchar(" + std::to_string(N) + ")";
   return s;
 }
-
-inline constexpr auto type_to_name(identity<std::optional<bool>>) noexcept {
-  return "INTEGER"sv;
-}
-inline constexpr auto type_to_name(identity<std::optional<char>>) noexcept {
-  return "INTEGER"sv;
-}
-inline constexpr auto type_to_name(identity<std::optional<short>>) noexcept {
-  return "INTEGER"sv;
-}
-inline constexpr auto type_to_name(identity<std::optional<int>>) noexcept {
-  return "INTEGER"sv;
-}
-inline constexpr auto type_to_name(identity<std::optional<float>>) noexcept {
-  return "FLOAT"sv;
-}
-inline constexpr auto type_to_name(identity<std::optional<double>>) noexcept {
-  return "DOUBLE"sv;
-}
-inline constexpr auto type_to_name(identity<std::optional<int64_t>>) noexcept {
-  return "INTEGER"sv;
-}
-inline auto type_to_name(identity<std::optional<std::string>>) noexcept {
-  return "TEXT"sv;
-}
-template <size_t N>
-inline constexpr auto type_to_name(
-    identity<std::optional<std::array<char, N>>>) noexcept {
-  std::string s = "varchar(" + std::to_string(N) + ")";
-  return s;
-}
 }  // namespace ormpp_sqlite
 #endif
 #ifdef ORMPP_ENABLE_PG
