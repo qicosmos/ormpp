@@ -51,9 +51,9 @@ int main() {
 
     auto conn = connection_pool<dbng<mysql>>::instance().get();
     conn_guard guard(conn);
-    conn->create_datatable<person>(ormpp_auto_key{"id"});
-    conn->insert(person{1, "2", 3});
-    auto val = conn->query<person>();
+    conn->create_datatable<student>(ormpp_auto_key{"id"});
+    conn->insert(student{1, "2", 3});
+    auto val = conn->query<student>();
   }
 
 #endif
