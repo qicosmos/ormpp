@@ -354,34 +354,10 @@ class sqlite {
   bool set_param_bind(T &&value, int i) {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (is_optional_v<U>) {
-      if (!value.has_value()) {
-        return SQLITE_OK == sqlite3_bind_null(stmt_, i);
+      if (value.has_value()) {
+        return set_param_bind(std::move(value.value()), i);
       }
-      else if constexpr (std::is_integral_v<U::value_type> &&
-                         !iguana::is_int64_v<
-                             std::in_place_type_t<U::value_type>>) {  // double,
-                                                                      // int64
-        return SQLITE_OK == sqlite3_bind_int(stmt_, i, value.value());
-      }
-      else if constexpr (iguana::is_int64_v<U::value_type>) {
-        return SQLITE_OK == sqlite3_bind_int64(stmt_, i, value.value());
-      }
-      else if constexpr (std::is_floating_point_v<U::value_type>) {
-        return SQLITE_OK == sqlite3_bind_double(stmt_, i, value.value());
-      }
-      else if constexpr (std::is_same_v<std::string, U::value_type>) {
-        return SQLITE_OK == sqlite3_bind_text(stmt_, i, value.value().data(),
-                                              (int)value.value().size(),
-                                              nullptr);
-      }
-      else if constexpr (is_char_array_v<std::optional<U::value_type>>) {
-        return SQLITE_OK ==
-               sqlite3_bind_text(stmt_, i, value.value(), sizeof(U), nullptr);
-      }
-      else {
-        std::cout << "this type has not supported yet" << std::endl;
-        return false;
-      }
+      return SQLITE_OK == sqlite3_bind_null(stmt_, i);
     }
     else if constexpr (std::is_integral_v<U> &&
                        !iguana::is_int64_v<U>) {  // double, int64

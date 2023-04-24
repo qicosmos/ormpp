@@ -91,9 +91,7 @@ inline constexpr auto get_type_names(DBType type) {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
     else if (type == DBType::sqlite) {
-      if constexpr (!is_optional_v<U>) {
-        s = ormpp_sqlite::type_to_name(identity<U>{});
-      }
+      s = ormpp_sqlite::type_to_name(identity<U>{});
     }
 #endif
 #ifdef ORMPP_ENABLE_PG
