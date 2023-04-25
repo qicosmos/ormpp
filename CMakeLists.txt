@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.15)
 project(ormpp)
 
 include(cmake/build.cmake)
-include(cmake/platform.cmake)
 include(cmake/develop.cmake)
+include(cmake/platform.cmake)
 include(cmake/dependency.cmake)
 
 if (ENABLE_MYSQL)
@@ -13,9 +13,9 @@ else()
 endif()
 
 if (BUILD_UNIT_TESTS)
-    add_subdirectory(${CMAKE_SOURCE_DIR}/tests)
+    add_subdirectory(${ormpp_SOURCE_DIR}/tests)
 endif ()
 
 if (BUILD_EXAMPLES)
-    add_subdirectory(${CMAKE_SOURCE_DIR}/example)
+    add_subdirectory(${ormpp_SOURCE_DIR}/example)
 endif ()

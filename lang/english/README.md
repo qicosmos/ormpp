@@ -1,3 +1,7 @@
+<p align="center">
+  <span>English</span> | <a href="https://github.com/qicosmos/ormpp">中文</a>
+</p>
+
 # A Cool Modern C ++ ORM Library - ormpp
 
 ## Dictionary
@@ -84,20 +88,21 @@ This example demonstrates how to use ormpp to add, delete, update datatable and 
 
 ## compile
 
+The following options are supported:
+	1.	ENABLE_SQLITE3
+	2.	ENABLE_MYSQL
+	3.	ENABLE_PG
+
+cmake -B build -DENABLE_SQLITE3=ON -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --config Debug
+
 ### Compiler support
 
 Require compiler supporting C++ 17. gcc7.2, clang 4.0, vs2017 update5+
 
 ### Database installation
 
-Because ormpp supports mysql, postgresql and sqlite, so you need to install mysql, postgresql, libpq. After installation, configure the directory and the library path in CMakeLists.txt.
-
-### Third part library
-
-Depend on iguana, git clone https://github.com/qicosmos/iguana.git in ormpp directory.
-
-After the above three steps you can compile ormpp directly.
-
+Because ormpp supports mysql and postgresql, so you need to install mysql, postgresql, libpq. After installation, configure the directory and the library path in CMakeLists.txt.
 
 ## interface
 

@@ -353,8 +353,14 @@ class sqlite {
   template <typename T>
   bool set_param_bind(T &&value, int i) {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
-    if constexpr (std::is_integral_v<U> &&
-                  !iguana::is_int64_v<U>) {  // double, int64
+    if constexpr (is_optional_v<U>::value) {
+      if (value.has_value()) {
+        return set_param_bind(std::move(value.value()), i);
+      }
+      return SQLITE_OK == sqlite3_bind_null(stmt_, i);
+    }
+    else if constexpr (std::is_integral_v<U> &&
+                       !iguana::is_int64_v<U>) {  // double, int64
       return SQLITE_OK == sqlite3_bind_int(stmt_, i, value);
     }
     else if constexpr (iguana::is_int64_v<U>) {
@@ -372,8 +378,7 @@ class sqlite {
              sqlite3_bind_text(stmt_, i, value, sizeof(U), nullptr);
     }
     else {
-      std::cout << "this type has not supported yet" << std::endl;
-      return false;
+      static_assert(!sizeof(T), "this type has not supported yet");
     }
   }
 
@@ -404,7 +409,7 @@ class sqlite {
       memcpy(value, sqlite3_column_text(stmt_, i), sizeof(U));
     }
     else {
-      std::cout << "this type has not supported yet" << std::endl;
+      static_assert(!sizeof(T), "this type has not supported yet");
     }
   }
 

@@ -92,6 +92,7 @@ struct test_order {
 REFLECTION(test_order, name, id);
 
 TEST_CASE("random_reflection_order") {
+#ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   REQUIRE(mysql.connect(ip, "root", password, db,
                         /*timeout_seconds=*/5, 3306));
@@ -105,6 +106,7 @@ TEST_CASE("random_reflection_order") {
   REQUIRE(v.size() > 0);
   CHECK(v.front().id == id);
   CHECK(v.front().name == name);
+#endif
 }
 
 struct custom_name {
@@ -114,10 +116,12 @@ struct custom_name {
 REFLECTION_WITH_NAME(custom_name, "test_order", id, name);
 
 TEST_CASE("orm_custom_name") {
+#ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   REQUIRE(mysql.connect(ip, "root", password, db));
   auto v = mysql.query<custom_name>();
   CHECK(v.size() > 0);
+#endif
 }
 
 struct dummy {
@@ -829,6 +833,7 @@ TEST_CASE("orm_aop") {
   // REQUIRE(r);
 }
 
+#ifdef ORMPP_ENABLE_MYSQL
 struct image {
   int id;
   ormpp::blob bin;
@@ -900,3 +905,4 @@ TEST_CASE("orm_mysql_blob_tuple") {
   REQUIRE(img.bin.size() == size);
   REQUIRE(time == img_ex.time);
 }
+#endif
