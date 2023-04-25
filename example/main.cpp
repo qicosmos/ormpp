@@ -40,7 +40,10 @@ int main() {
   {
     dbng<mysql> mysql;
     if (mysql.connect(ip, "root", password, db)) {
-      std::cout << "connect success" << std::endl;
+      mysql.create_datatable<person>(ormpp_auto_key{"id"});
+      mysql.insert<person>({0, "purecpp"});
+      mysql.insert<person>({0, "purecpp", 6});
+      mysql.insert<person>({0, "purecpp", 6, "123456"});
     }
     else {
       std::cout << "connect fail" << std::endl;
@@ -66,9 +69,9 @@ int main() {
   sqlite.create_datatable<person>(ormpp_auto_key{"id"});
   sqlite.create_datatable<student>(ormpp_auto_key{"id"});
 
-  sqlite.insert<person>({-1, "purecpp"});
-  sqlite.insert<person>({-1, "purecpp", 666});
-  sqlite.insert<person>({-1, "purecpp", 666, "123456"});
+  sqlite.insert<person>({0, "purecpp"});
+  sqlite.insert<person>({0, "purecpp", 6});
+  sqlite.insert<person>({0, "purecpp", 6, "123456"});
 #endif
 
   return 0;

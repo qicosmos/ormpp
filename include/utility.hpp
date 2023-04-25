@@ -86,7 +86,12 @@ inline constexpr auto get_type_names(DBType type) {
     }
 #ifdef ORMPP_ENABLE_MYSQL
     else if (type == DBType::mysql) {
-      s = ormpp_mysql::type_to_name(identity<U>{});
+      if constexpr (is_optional_v<U>::value) {
+        s = ormpp_mysql::type_to_name(identity<U::value_type>{});
+      }
+      else {
+        s = ormpp_mysql::type_to_name(identity<U>{});
+      }
     }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -101,7 +106,12 @@ inline constexpr auto get_type_names(DBType type) {
 #endif
 #ifdef ORMPP_ENABLE_PG
     else if (type == DBType::postgresql) {
-      s = ormpp_postgresql::type_to_name(identity<U>{});
+      if constexpr (is_optional_v<U>::value) {
+        s = ormpp_postgresql::type_to_name(identity<U::value_type>{});
+      }
+      else {
+        s = ormpp_postgresql::type_to_name(identity<U>{});
+      }
     }
 #endif
 
