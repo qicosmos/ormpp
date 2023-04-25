@@ -11,6 +11,12 @@
 
 namespace ormpp {
 
+template <typename T>
+struct is_optional_v : std::false_type {};
+
+template <typename T>
+struct is_optional_v<std::optional<T>> : std::true_type {};
+
 template <typename... Args>
 struct value_of;
 
@@ -194,12 +200,6 @@ inline bool is_empty(const std::string &t) { return t.empty(); }
 template <class T>
 constexpr bool is_char_array_v = std::is_array_v<T>
     &&std::is_same_v<char, std::remove_pointer_t<std::decay_t<T>>>;
-
-template <typename T>
-struct is_optional_v : std::false_type {};
-
-template <typename T>
-struct is_optional_v<std::optional<T>> : std::true_type {};
 
 template <size_t N>
 inline constexpr size_t char_array_size(char (&)[N]) {
