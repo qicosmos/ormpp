@@ -353,7 +353,7 @@ class sqlite {
   template <typename T>
   bool set_param_bind(T &&value, int i) {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
-    if constexpr (is_optional_v<U>) {
+    if constexpr (is_optional_v<U>::value) {
       if (value.has_value()) {
         return set_param_bind(std::move(value.value()), i);
       }

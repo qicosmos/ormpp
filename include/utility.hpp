@@ -91,7 +91,7 @@ inline constexpr auto get_type_names(DBType type) {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
     else if (type == DBType::sqlite) {
-      if constexpr (is_optional_v<U>) {
+      if constexpr (is_optional_v<U>::value) {
         s = ormpp_sqlite::type_to_name(identity<U::value_type>{});
       }
       else {
@@ -185,8 +185,11 @@ template <class T>
 constexpr bool is_char_array_v = std::is_array_v<T>
     &&std::is_same_v<char, std::remove_pointer_t<std::decay_t<T>>>;
 
-template <class T>
-constexpr bool is_optional_v = std::is_same_v<std::optional<int>, T>;
+template <typename T>
+struct is_optional_v : std::false_type {};
+
+template <typename T>
+struct is_optional_v<std::optional<T>> : std::true_type {};
 
 template <size_t N>
 inline constexpr size_t char_array_size(char (&)[N]) {

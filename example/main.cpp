@@ -24,8 +24,9 @@ struct person {
   int id;
   std::string name;
   std::optional<int> age;
+  std::optional<std::string> phone;
 };
-REFLECTION(person, id, name, age)
+REFLECTION(person, id, name, age, phone)
 
 struct student {
   int id;
@@ -67,6 +68,7 @@ int main() {
 
   sqlite.insert<person>({-1, "purecpp"});
   sqlite.insert<person>({-1, "purecpp", 666});
+  sqlite.insert<person>({-1, "purecpp", 666, "123456"});
 #endif
 
   return 0;
