@@ -12,8 +12,8 @@
 
 #include <iostream>
 
-#include "../include/connection_pool.hpp"
-#include "../include/dbng.hpp"
+#include "connection_pool.hpp"
+#include "dbng.hpp"
 
 using namespace ormpp;
 const char *password = "";

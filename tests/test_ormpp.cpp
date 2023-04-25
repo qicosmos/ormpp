@@ -255,7 +255,7 @@ TEST_CASE("orm_connect") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect("test.db"));
+  REQUIRE(sqlite.connect(db));
   REQUIRE(sqlite.disconnect());
 #endif
 }
@@ -280,7 +280,7 @@ TEST_CASE("orm_create_table") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect("test.db"));
+  REQUIRE(sqlite.connect(db));
   REQUIRE(sqlite.create_datatable<person>());
   REQUIRE(sqlite.create_datatable<person>(key));
   REQUIRE(sqlite.create_datatable<person>(not_null));
@@ -333,7 +333,7 @@ TEST_CASE("orm_insert_query") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect("test.db"));
+  REQUIRE(sqlite.connect(db));
   auto vv2 = sqlite.query(FID(simple::id), "<", "5");
 #endif
 
@@ -348,8 +348,8 @@ TEST_CASE("orm_insert_query") {
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
-    CHECK(sqlite.delete_records<student>());
     REQUIRE(sqlite.create_datatable<student>(auto_key));
+    CHECK(sqlite.delete_records<student>());
     CHECK(sqlite.insert(s) == 1);
     auto result3 = sqlite.query<student>();
     CHECK(result3.size() == 1);
@@ -364,8 +364,8 @@ TEST_CASE("orm_insert_query") {
   // key
   {
 #ifdef ORMPP_ENABLE_MYSQL
-    // CHECK(mysql.delete_records<student>());
     REQUIRE(mysql.create_datatable<student>(auto_key, not_null));
+    CHECK(mysql.delete_records<student>());
     CHECK(mysql.insert(s) == 1);
     auto result1 = mysql.query<student>("limit 3");
     CHECK(result1.size() == 1);
@@ -382,7 +382,6 @@ TEST_CASE("orm_insert_query") {
     CHECK(mysql.insert(s) == 1);
     auto result11 = mysql.query<student>();
     CHECK(result11.size() == 5);
-    // CHECK(mysql.insert(s) < 0);
     CHECK(mysql.delete_records<student>());
     CHECK(mysql.insert(v) == 2);
     auto result44 = mysql.query<student>();
@@ -403,7 +402,7 @@ TEST_CASE("orm_insert_query") {
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
-    REQUIRE(sqlite.create_datatable<student>(key));
+    REQUIRE(sqlite.create_datatable<student>(auto_key));
     CHECK(sqlite.insert(s) == 1);
     auto result3 = sqlite.query<student>();
     CHECK(result3.size() == 4);
@@ -453,7 +452,7 @@ TEST_CASE("orm_update") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect("test.db"));
+  REQUIRE(sqlite.connect(db));
   CHECK(sqlite.delete_records<student>());
   REQUIRE(sqlite.create_datatable<student>(key));
   CHECK(sqlite.insert(v) == 3);
@@ -491,7 +490,7 @@ TEST_CASE("orm_multi_update") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect("test.db"));
+  REQUIRE(sqlite.connect(db));
   CHECK(sqlite.delete_records<student>());
   REQUIRE(sqlite.create_datatable<student>(key));
   CHECK(sqlite.insert(v) == 3);
@@ -548,7 +547,7 @@ TEST_CASE("orm_delete") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect("test.db"));
+  REQUIRE(sqlite.connect(db));
   REQUIRE(sqlite.create_datatable<student>(key));
   sqlite.delete_records<student>();
   CHECK(sqlite.insert(v) == 3);
@@ -581,9 +580,9 @@ TEST_CASE("orm_query") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect("test.db"));
-  sqlite.delete_records<simple>();
+  REQUIRE(sqlite.connect(db));
   REQUIRE(sqlite.create_datatable<simple>(key));
+  sqlite.delete_records<simple>();
   CHECK(sqlite.insert(v) == 3);
   auto result2 = sqlite.query<simple>();
   CHECK(result2.size() == 3);
@@ -647,7 +646,7 @@ TEST_CASE("orm_query_some") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect("test.db"));
+  REQUIRE(sqlite.connect(db));
   CHECK(sqlite.insert(v) == 3);
   REQUIRE(sqlite.create_datatable<student>(key));
   auto result2 = sqlite.query<std::tuple<int, std::string, double>>(
@@ -707,7 +706,7 @@ TEST_CASE("orm_query_multi_table") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect("test.db"));
+  REQUIRE(sqlite.connect(db));
   sqlite.delete_records<student>();
   sqlite.delete_records<person>();
   REQUIRE(sqlite.create_datatable<student>(key));
@@ -771,7 +770,7 @@ TEST_CASE("orm_transaction") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect("test.db"));
+  REQUIRE(sqlite.connect(db));
   REQUIRE(sqlite.create_datatable<student>(key));
   REQUIRE(sqlite.begin());
   for (int i = 0; i < 10; ++i) {
