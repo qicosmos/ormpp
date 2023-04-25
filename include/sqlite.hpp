@@ -409,7 +409,7 @@ class sqlite {
       memcpy(value, sqlite3_column_text(stmt_, i), sizeof(U));
     }
     else {
-      std::cout << "this type has not supported yet" << std::endl;
+      static_assert(false, "this type has not supported yet");
     }
   }
 
