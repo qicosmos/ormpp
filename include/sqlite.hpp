@@ -378,8 +378,7 @@ class sqlite {
              sqlite3_bind_text(stmt_, i, value, sizeof(U), nullptr);
     }
     else {
-      std::cout << "this type has not supported yet" << std::endl;
-      return false;
+      static_assert(false, "this type has not supported yet");
     }
   }
 
