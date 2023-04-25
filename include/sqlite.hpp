@@ -378,7 +378,7 @@ class sqlite {
              sqlite3_bind_text(stmt_, i, value, sizeof(U), nullptr);
     }
     else {
-      static_assert(false, "this type has not supported yet");
+      static_assert(!sizeof(T), "this type has not supported yet");
     }
   }
 
@@ -409,7 +409,7 @@ class sqlite {
       memcpy(value, sqlite3_column_text(stmt_, i), sizeof(U));
     }
     else {
-      static_assert(false, "this type has not supported yet");
+      static_assert(!sizeof(T), "this type has not supported yet");
     }
   }
 
