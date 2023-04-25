@@ -339,13 +339,13 @@ single table query example:
     TEST_CHECK(result2.size()==3);
 
 	//可以根据条件查询
-    auto result3 = mysql.query<person>("where id=1");
+    auto result3 = mysql.query<person>("id=1");
     TEST_CHECK(result3.size()==1);
 
-    auto result4 = postgres.query<person>("where id=2");
+    auto result4 = postgres.query<person>("id=2");
     TEST_CHECK(result4.size()==1);
 
-    auto result5 = sqlite.query<person>("where id=3");
+    auto result5 = sqlite.query<person>("id=3");
 
 返回值：std::vector<T>，成功vector不为空，失败则为空.
 
