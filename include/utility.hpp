@@ -11,6 +11,12 @@
 
 namespace ormpp {
 
+template <typename T>
+struct is_optional_v : std::false_type {};
+
+template <typename T>
+struct is_optional_v<std::optional<T>> : std::true_type {};
+
 template <typename... Args>
 struct value_of;
 
@@ -86,13 +92,18 @@ inline constexpr auto get_type_names(DBType type) {
     }
 #ifdef ORMPP_ENABLE_MYSQL
     else if (type == DBType::mysql) {
-      s = ormpp_mysql::type_to_name(identity<U>{});
+      if constexpr (is_optional_v<U>::value) {
+        s = ormpp_mysql::type_to_name(identity<typename U::value_type>{});
+      }
+      else {
+        s = ormpp_mysql::type_to_name(identity<U>{});
+      }
     }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
     else if (type == DBType::sqlite) {
       if constexpr (is_optional_v<U>::value) {
-        s = ormpp_sqlite::type_to_name(identity<U::value_type>{});
+        s = ormpp_sqlite::type_to_name(identity<typename U::value_type>{});
       }
       else {
         s = ormpp_sqlite::type_to_name(identity<U>{});
@@ -101,7 +112,12 @@ inline constexpr auto get_type_names(DBType type) {
 #endif
 #ifdef ORMPP_ENABLE_PG
     else if (type == DBType::postgresql) {
-      s = ormpp_postgresql::type_to_name(identity<U>{});
+      if constexpr (is_optional_v<U>::value) {
+        s = ormpp_postgresql::type_to_name(identity<typename U::value_type>{});
+      }
+      else {
+        s = ormpp_postgresql::type_to_name(identity<U>{});
+      }
     }
 #endif
 
@@ -184,12 +200,6 @@ inline bool is_empty(const std::string &t) { return t.empty(); }
 template <class T>
 constexpr bool is_char_array_v = std::is_array_v<T>
     &&std::is_same_v<char, std::remove_pointer_t<std::decay_t<T>>>;
-
-template <typename T>
-struct is_optional_v : std::false_type {};
-
-template <typename T>
-struct is_optional_v<std::optional<T>> : std::true_type {};
 
 template <size_t N>
 inline constexpr size_t char_array_size(char (&)[N]) {

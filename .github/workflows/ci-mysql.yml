@@ -1,0 +1,40 @@
+name: CI-MySQL
+
+on: [ push, pull_request ]
+
+jobs:
+  build-and-test:
+
+    name: ${{ matrix.os }} (${{ matrix.configuration }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [ Debug, Release ]
+        os: [ macos-latest, ubuntu-latest, windows-latest ]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Setup MySQL
+        uses: ankane/setup-mysql@v1
+        with: 
+          mysql-version: 8.0
+          database: test_ormppdb
+
+      - name: Verify MySQL
+        run:  mysql -uroot -e'show databases;'
+
+      - name: Configure cmake
+        run:  cmake -B${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_MYSQL=ON
+
+      - name: Build
+        run:  cmake --build ${{github.workspace}}/build --config ${{ matrix.configuration }}
+
+      - name: Test
+        working-directory: ${{github.workspace}}/build
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest -C ${{ matrix.configuration }} -j `nproc` -V
