@@ -1,6 +1,9 @@
 <p align="center">
-<a href="https://github.com/qicosmos/ormpp/actions/workflows/ci.yml">
-<img alt="build" src="https://github.com/qicosmos/ormpp/actions/workflows/ci.yml/badge.svg?branch=master">
+<a href="https://github.com/qicosmos/ormpp/actions/workflows/ci-sqlite.yml">
+<img alt="ci-sqlite" src="https://github.com/qicosmos/ormpp/actions/workflows/ci-sqlite.yml/badge.svg?branch=master">
+</a>
+<a href="https://github.com/qicosmos/ormpp/actions/workflows/ci-mysql.yml">
+<img alt="ci-mysql" src="https://github.com/qicosmos/ormpp/actions/workflows/ci-mysql.yml/badge.svg?branch=master">
 </a>
 <a href="https://codecov.io/gh/qicosmos/ormpp">
 <img alt="codecov" src="https://codecov.io/gh/qicosmos/ormpp/branch/master/graph/badge.svg">
