@@ -232,7 +232,7 @@ class mysql {
                 param_binds[index].buffer_length = 65536;
               }
               else {
-                static_assert(!sizeof(V), "not support");
+                static_assert(!sizeof(V), "this type has not supported yet");
               }
               index++;
             });
@@ -254,7 +254,7 @@ class mysql {
             index++;
           }
           else {
-            static_assert(!sizeof(U), "not support");
+            static_assert(!sizeof(U), "this type has not supported yet");
           }
         },
         std::make_index_sequence<SIZE>{});
@@ -310,7 +310,7 @@ class mysql {
                   it++;
                 }
                 else {
-                  static_assert(!sizeof(V), "not support");
+                  static_assert(!sizeof(V), "this type has not supported yet");
                 }
                 ++column;
               });
@@ -321,7 +321,7 @@ class mysql {
               it++;
             }
             else {
-              static_assert(!sizeof(W), "not support");
+              static_assert(!sizeof(W), "this type has not supported yet");
             }
             ++column;
           },
@@ -602,7 +602,15 @@ class mysql {
     MYSQL_BIND param = {};
 
     using U = std::remove_const_t<std::remove_reference_t<T>>;
-    if constexpr (std::is_arithmetic_v<U>) {
+    if constexpr (is_optional_v<U>::value) {
+      if (value.has_value()) {
+        return set_param_bind(param_binds, std::move(value.value()));
+      }
+      else {
+        param.buffer_type = MYSQL_TYPE_NULL;
+      }
+    }
+    else if constexpr (std::is_arithmetic_v<U>) {
       param.buffer_type =
           (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
       param.buffer = const_cast<void *>(static_cast<const void *>(&value));
@@ -621,6 +629,9 @@ class mysql {
       param.buffer_type = MYSQL_TYPE_BLOB;
       param.buffer = (void *)(value.data());
       param.buffer_length = (unsigned long)value.size();
+    }
+    else {
+      static_assert(!sizeof(U), "this type has not supported yet");
     }
     param_binds.push_back(param);
   }
