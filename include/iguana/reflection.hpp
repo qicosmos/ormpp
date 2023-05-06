@@ -557,6 +557,9 @@ namespace iguana::detail {
       using size_type =                                                       \
           std::integral_constant<size_t, GET_ARG_COUNT(__VA_ARGS__)>;         \
       constexpr static std::string_view name() { return name_##STRUCT_NAME; } \
+      constexpr static std::string_view struct_name() {                       \
+        return std::string_view(#STRUCT_NAME, sizeof(#STRUCT_NAME) - 1);      \
+      }                                                                       \
       constexpr static std::string_view fields() {                            \
         return fields_##STRUCT_NAME;                                          \
       }                                                                       \
