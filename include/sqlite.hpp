@@ -58,6 +58,9 @@ class sqlite {
     //            }
 
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
+#if ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
     if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr) !=
         SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
@@ -102,6 +105,9 @@ class sqlite {
   template <typename T, typename... Args>
   bool delete_records(Args &&...where_conditon) {
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
+#if ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
     if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr) !=
         SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
@@ -117,7 +123,9 @@ class sqlite {
   std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
       Args &&...args) {
     std::string sql = generate_query_sql<T>(args...);
-
+#if ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
     int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
                                     &stmt_, nullptr);
     if (result != SQLITE_OK) {
@@ -154,6 +162,9 @@ class sqlite {
     constexpr auto SIZE = std::tuple_size_v<T>;
 
     std::string sql = s;
+#if ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
     constexpr auto Args_Size = sizeof...(Args);
     if constexpr (Args_Size != 0) {
       if (Args_Size != std::count(sql.begin(), sql.end(), '?'))
@@ -416,6 +427,9 @@ class sqlite {
   template <typename T, typename... Args>
   int insert_impl(bool is_update, const std::string &sql, const T &t,
                   Args &&...args) {
+#if ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
     int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
                                     &stmt_, nullptr);
     if (result != SQLITE_OK) {
@@ -461,6 +475,9 @@ class sqlite {
   template <typename T, typename... Args>
   int insert_impl(bool is_update, const std::string &sql,
                   const std::vector<T> &v, Args &&...args) {
+#if ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
     int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
                                     &stmt_, nullptr);
     if (result != SQLITE_OK) {

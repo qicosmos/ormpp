@@ -50,6 +50,12 @@ if(ENABLE_SANITIZER AND NOT MSVC)
     endif()
 endif()
 
+# open log
+option(ENABLE_LOG "Enable log" OFF)
+if(ENABLE_LOG)
+    add_definitions(-DORMPP_ENABLE_LOG)
+endif()
+
 option(ENABLE_SQLITE3 "Enable sqlite3" OFF)
 if (ENABLE_SQLITE3)
     message(STATUS "ENABLE_SQLITE3")
