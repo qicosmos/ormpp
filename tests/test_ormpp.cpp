@@ -121,6 +121,10 @@ TEST_CASE("orm_custom_name") {
   REQUIRE(mysql.connect(ip, "root", password, db));
   auto v = mysql.query<custom_name>();
   CHECK(v.size() > 0);
+  {
+    auto v = mysql.query(FID(custom_name::name), "=", "hello");
+    CHECK(v.size() > 0);
+  }
 #endif
 }
 

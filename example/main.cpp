@@ -41,6 +41,7 @@ int main() {
     dbng<mysql> mysql;
     if (mysql.connect(ip, "root", password, db)) {
       mysql.create_datatable<person>(ormpp_auto_key{"id"});
+      mysql.delete_records<person>();
       mysql.insert<person>({0, "purecpp"});
       mysql.insert<person>({0, "purecpp", 6});
       mysql.insert<person>({0, "purecpp", 6, "123456"});
