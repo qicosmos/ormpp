@@ -661,14 +661,9 @@ class mysql {
           set_param_bind(param_binds, t.*v);
         });
 
-    if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
-      //                fprintf(stderr, "%s\n", mysql_error(con_));
-      return INT_MIN;
-    }
-
-    if (mysql_stmt_execute(stmt_)) {
+    if (mysql_stmt_bind_param(stmt_, &param_binds[0]) ||
+        mysql_stmt_execute(stmt_)) {
       set_last_error(mysql_error(con_));
-      //fprintf(stderr, "%s\n", mysql_error(con_));
       return INT_MIN;
     }
 
