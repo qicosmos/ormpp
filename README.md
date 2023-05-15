@@ -20,6 +20,8 @@
 
 感谢Selina同学将中文wiki翻译为英文
 
+[谁在用ormpp](https://github.com/qicosmos/ormpp/wiki), 也希望ormpp用户帮助编辑用户列表，也是为了让更多用户把ormpp用起来，也是对ormpp 最大的支持，用户列表的用户问题会优先处理。
+
 ## 目录
 
 * [ormpp的目标](#ormpp的目标)
