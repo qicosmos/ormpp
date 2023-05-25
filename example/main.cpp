@@ -41,7 +41,6 @@ int main() {
     if (mysql.connect(ip, "root", password, db)) {
       mysql.create_datatable<person>(ormpp_auto_key{"id"});
       mysql.delete_records<person>();
-      mysql.insert<person>({0});
       mysql.insert<person>({0, "purecpp"});
       mysql.insert<person>({0, "purecpp", 6});
     }
@@ -53,7 +52,6 @@ int main() {
   {
     connection_pool<dbng<mysql>>::instance().init(4, ip, "root", password, db,
                                                   5, 3306);
-
     auto conn = connection_pool<dbng<mysql>>::instance().get();
     conn_guard guard(conn);
     conn->create_datatable<student>(ormpp_auto_key{"id"});
@@ -68,8 +66,6 @@ int main() {
   sqlite.connect(db);
   sqlite.create_datatable<person>(ormpp_auto_key{"id"});
   sqlite.create_datatable<student>(ormpp_auto_key{"id"});
-
-  sqlite.insert<person>({0});
   sqlite.insert<person>({0, "purecpp"});
   sqlite.insert<person>({0, "purecpp", 6});
 #endif
