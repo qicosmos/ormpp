@@ -22,11 +22,10 @@ const char *db = "test_ormppdb";
 
 struct person {
   int id;
-  std::string name;
+  std::optional<std::string> name;
   std::optional<int> age;
-  std::optional<std::string> phone;
 };
-REFLECTION(person, id, name, age, phone)
+REFLECTION(person, id, name, age)
 
 struct student {
   int id;
@@ -42,9 +41,9 @@ int main() {
     if (mysql.connect(ip, "root", password, db)) {
       mysql.create_datatable<person>(ormpp_auto_key{"id"});
       mysql.delete_records<person>();
+      mysql.insert<person>({0});
       mysql.insert<person>({0, "purecpp"});
       mysql.insert<person>({0, "purecpp", 6});
-      mysql.insert<person>({0, "purecpp", 6, "123456"});
     }
     else {
       std::cout << "connect fail" << std::endl;
@@ -70,9 +69,9 @@ int main() {
   sqlite.create_datatable<person>(ormpp_auto_key{"id"});
   sqlite.create_datatable<student>(ormpp_auto_key{"id"});
 
+  sqlite.insert<person>({0});
   sqlite.insert<person>({0, "purecpp"});
   sqlite.insert<person>({0, "purecpp", 6});
-  sqlite.insert<person>({0, "purecpp", 6, "123456"});
 #endif
 
   return 0;
