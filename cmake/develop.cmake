@@ -67,7 +67,6 @@ if (ENABLE_MYSQL)
     include(cmake/mysql.cmake)
     message(STATUS "ENABLE_MYSQL")
     add_definitions(-DORMPP_ENABLE_MYSQL)
-
 endif()
 
 option(ENABLE_PG "Enable pg" OFF)

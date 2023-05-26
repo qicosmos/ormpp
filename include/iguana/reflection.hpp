@@ -591,6 +591,52 @@ namespace iguana {
   MAKE_META_DATA(STRUCT_NAME, TABLE_NAME, GET_ARG_COUNT(__VA_ARGS__), \
                  __VA_ARGS__)
 
+inline std::unordered_map<
+    std::string_view,
+    std::vector<std::pair<std::string_view, std::string_view>>>
+    g_iguana_custom_map;
+
+inline std::string_view trim_sv(std::string_view str) {
+  std::string_view whitespaces(" \t\f\v\n\r");
+  auto first = str.find_first_not_of(whitespaces);
+  auto last = str.find_last_not_of(whitespaces);
+  if (first == std::string_view::npos || last == std::string_view::npos)
+    return std::string_view();
+  return str.substr(first, last - first + 1);
+}
+
+inline int add_custom_fields(std::string_view key,
+                             std::vector<std::string_view> v) {
+  std::vector<std::pair<std::string_view, std::string_view>> vec;
+  for (auto val : v) {
+    std::string_view str = {val.data() + 1, val.size() - 2};
+    size_t pos = str.find(',');
+    if (pos == std::string_view::npos || pos == str.size() - 1) {
+      continue;
+    }
+
+    std::string_view origin = str.substr(0, pos);
+    std::string_view alias = str.substr(pos + 1);
+
+    vec.push_back(std::make_pair(trim_sv(origin), trim_sv(alias)));
+  }
+  g_iguana_custom_map.emplace(key, std::move(vec));
+  return 0;
+}
+
+#ifdef _MSC_VER
+#define IGUANA_UNIQUE_VARIABLE(str) MACRO_CONCAT(str, __COUNTER__)
+#else
+#define IGUANA_UNIQUE_VARIABLE(str) MACRO_CONCAT(str, __LINE__)
+#endif
+
+#define CUSTOM_FIELDS_IMPL(STRUCT_NAME, N, ...)                                \
+  inline auto IGUANA_UNIQUE_VARIABLE(STRUCT_NAME) = iguana::add_custom_fields( \
+      #STRUCT_NAME, {MARCO_EXPAND(MACRO_CONCAT(CON_STR, N)(__VA_ARGS__))});
+
+#define CUSTOM_FIELDS(STRUCT_NAME, ...) \
+  CUSTOM_FIELDS_IMPL(STRUCT_NAME, GET_ARG_COUNT(__VA_ARGS__), __VA_ARGS__)
+
 template <typename T>
 using Reflect_members = decltype(iguana_reflect_members(std::declval<T>()));
 
@@ -682,6 +728,35 @@ template <typename T>
 constexpr auto get_array() {
   using M = decltype(iguana_reflect_members(std::declval<T>()));
   return M::arr();
+}
+
+template <typename T>
+inline bool has_custom_fields(std::string_view key = "") {
+  if (key.empty()) {
+    return !g_iguana_custom_map.empty();
+  }
+
+  return g_iguana_custom_map.find(key) != g_iguana_custom_map.end();
+}
+
+template <typename T>
+inline std::string_view get_custom_fields(std::string_view origin) {
+  constexpr std::string_view name = get_name<T>();
+  auto it = g_iguana_custom_map.find(name);
+  if (it == g_iguana_custom_map.end()) {
+    return "";
+  }
+
+  auto& vec = it->second;
+  auto find_it = std::find_if(vec.begin(), vec.end(), [origin](auto& pair) {
+    return pair.first == origin;
+  });
+
+  if (find_it == vec.end()) {
+    return "";
+  }
+
+  return (*find_it).second;
 }
 
 template <typename T>
