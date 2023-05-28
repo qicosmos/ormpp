@@ -419,6 +419,12 @@ class sqlite {
     else if constexpr (is_char_array_v<U>) {
       memcpy(value, sqlite3_column_text(stmt_, i), sizeof(U));
     }
+    else if constexpr (is_optional_v<U>::value) {
+      using value_type = typename U::value_type;
+      value_type item;
+      assign(item, i);
+      value = std::move(item);
+    }
     else {
       static_assert(!sizeof(U), "this type has not supported yet");
     }
