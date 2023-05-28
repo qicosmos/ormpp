@@ -68,6 +68,12 @@ int main() {
   sqlite.create_datatable<student>(ormpp_auto_key{"id"});
   sqlite.insert<person>({0, "purecpp"});
   sqlite.insert<person>({0, "purecpp", 6});
+
+  auto vec = sqlite.query<person>();
+  for (auto &[id, name, age] : vec) {
+    std::cout << id << ", " << *name << ", " << *age << "\n";
+  }
+
 #endif
 
   return 0;
