@@ -210,7 +210,7 @@ mysql.connect("127.0.0.1", "root", "12345", "testdb", 5, 3306);
   
 postgres.connect("127.0.0.1", "root", "12345", "testdb");
 
-sqlite.connect("127.0.0.1", "root", "12345", "testdb");
+sqlite.connect("127.0.0.1", "testdb");
 ```
 
 返回值：bool，成功返回true，失败返回false.
