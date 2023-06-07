@@ -18,7 +18,7 @@
 using namespace std::string_literals;
 
 using namespace ormpp;
-const char *password = "";
+const char *password = "123456";
 const char *ip = "127.0.0.1";
 const char *db = "test_ormppdb";
 
@@ -102,10 +102,26 @@ TEST_CASE("test_optional") {
     auto v1 = mysql.query<test_optional>();
     auto v2 = mysql.query<test_optional>("select * from test_optional;");
     REQUIRE(v1.size() > 0);
-    CHECK(v1.front().age == 200);
+    CHECK(*v1.front().age == 200);
     CHECK(v1.front().name == "purecpp");
     REQUIRE(v2.size() > 0);
-    CHECK(v2.front().age == 200);
+    CHECK(*v2.front().age == 200);
+    CHECK(v2.front().name == "purecpp");
+  }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.create_datatable<test_optional>(ormpp_auto_key{"id"});
+    sqlite.delete_records<test_optional>();
+    sqlite.insert<test_optional>({0, "purecpp", 200});
+    auto v1 = sqlite.query<test_optional>();
+    auto v2 = sqlite.query<test_optional>("select * from test_optional;");
+    REQUIRE(v1.size() > 0);
+    CHECK(*v1.front().age == 200);
+    CHECK(v1.front().name == "purecpp");
+    REQUIRE(v2.size() > 0);
+    CHECK(*v2.front().age == 200);
     CHECK(v2.front().name == "purecpp");
   }
 #endif
