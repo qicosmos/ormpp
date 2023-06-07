@@ -344,8 +344,8 @@ class mysql {
   }
 
   template <typename T>
-  constexpr void set_param_bind(MYSQL_BIND &param_bind, T &&value, int i,
-                                std::map<size_t, std::vector<char>> &mp) {
+  void set_param_bind(MYSQL_BIND &param_bind, T &&value, int i,
+                      std::map<size_t, std::vector<char>> &mp) {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (is_optional_v<U>::value) {
       return set_param_bind(param_bind, *value, i, mp);
@@ -379,8 +379,8 @@ class mysql {
   }
 
   template <typename T>
-  constexpr void set_value(MYSQL_BIND &param_bind, T &&value, int i,
-                           std::map<size_t, std::vector<char>> &mp) {
+  void set_value(MYSQL_BIND &param_bind, T &&value, int i,
+                 std::map<size_t, std::vector<char>> &mp) {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (is_optional_v<U>::value) {
       using value_type = typename U::value_type;
