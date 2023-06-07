@@ -383,10 +383,15 @@ class mysql {
                            std::map<size_t, std::vector<char>> &mp) {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (is_optional_v<U>::value) {
-      return set_value(param_bind, *value, i, mp);
-    }
-    else if constexpr (std::is_arithmetic_v<U>) {
-      value = *(U *)param_bind.buffer;
+      using value_type = typename U::value_type;
+      if constexpr (std::is_arithmetic_v<value_type>) {
+        value = *(U *)param_bind.buffer;
+      }
+      else {
+        value_type item;
+        value = std::move(item);
+        return set_value(param_bind, *value, i, mp);
+      }
     }
     else if constexpr (std::is_same_v<std::string, U>) {
       auto &vec = mp[i];
