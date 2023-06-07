@@ -118,7 +118,7 @@ TEST_CASE("test_optional") {
     auto v1 = sqlite.query<test_optional>();
     auto v2 = sqlite.query<test_optional>("select * from test_optional;");
     REQUIRE(v1.size() > 0);
-    CHECK(v1.front().age == 199);
+    CHECK(*v1.front().age == 200);
     CHECK(*v1.front().name == "purecpp");
     REQUIRE(v2.size() > 0);
     CHECK(*v2.front().age == 200);
