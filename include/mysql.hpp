@@ -395,7 +395,7 @@ class mysql {
     }
     else if constexpr (std::is_same_v<std::string, U>) {
       auto &vec = mp[i];
-      value = std::string(&vec[0], strlen(vec.data()));
+      value = std::string(vec.data(), vec.size());
     }
     else if constexpr (is_char_array_v<U>) {
       auto &vec = mp[i];
