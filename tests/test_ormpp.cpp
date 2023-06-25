@@ -102,11 +102,11 @@ TEST_CASE("test_optional") {
     auto v1 = mysql.query<test_optional>();
     auto v2 = mysql.query<test_optional>("select * from test_optional;");
     REQUIRE(v1.size() > 0);
-    CHECK(*v1.front().age == 200);
-    CHECK(*v1.front().name == "purecpp");
+    CHECK(v1.front().age.value() == 200);
+    CHECK(v1.front().name.value() == "purecpp");
     REQUIRE(v2.size() > 0);
-    CHECK(*v2.front().age == 200);
-    CHECK(*v2.front().name == "purecpp");
+    CHECK(v2.front().age.value() == 200);
+    CHECK(v2.front().name.value() == "purecpp");
   }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -118,11 +118,11 @@ TEST_CASE("test_optional") {
     auto v1 = sqlite.query<test_optional>();
     auto v2 = sqlite.query<test_optional>("select * from test_optional;");
     REQUIRE(v1.size() > 0);
-    CHECK(*v1.front().age == 200);
-    CHECK(*v1.front().name == "purecpp");
+    CHECK(v1.front().age.value() == 200);
+    CHECK(v1.front().name.value() == "purecpp");
     REQUIRE(v2.size() > 0);
-    CHECK(*v2.front().age == 200);
-    CHECK(*v2.front().name == "purecpp");
+    CHECK(v2.front().age.value() == 200);
+    CHECK(v2.front().name.value() == "purecpp");
   }
 #endif
 }
