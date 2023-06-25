@@ -385,7 +385,9 @@ class mysql {
     if constexpr (is_optional_v<U>::value) {
       using value_type = typename U::value_type;
       if constexpr (std::is_arithmetic_v<value_type>) {
-        value = *(U *)param_bind.buffer;
+        value_type item;
+        memcpy(&item, param_bind.buffer, sizeof(value_type));
+        value = std::move(item);
       }
       else {
         value_type item;
@@ -460,7 +462,7 @@ class mysql {
     while (mysql_stmt_fetch(stmt_) == 0) {
       iguana::for_each(t, [&mp, &param_binds, &t, this](auto item, auto i) {
         constexpr auto Idx = decltype(i)::value;
-        set_value(param_binds.at(Idx), t.*item, Idx, mp);
+        set_value(param_binds[Idx], t.*item, Idx, mp);
       });
 
       for (auto &p : mp) {
