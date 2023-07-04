@@ -440,7 +440,8 @@ class mysql {
     T t{};
     int index = 0;
     iguana::for_each(t, [&](auto item, auto i) {
-      set_param_bind(param_binds.at(index++), t.*item, index, mp);
+      set_param_bind(param_binds[index], t.*item, index, mp);
+      index++;
     });
 
     if (index == 0) {
@@ -462,7 +463,7 @@ class mysql {
     while (mysql_stmt_fetch(stmt_) == 0) {
       iguana::for_each(t, [&mp, &param_binds, &t, this](auto item, auto i) {
         constexpr auto Idx = decltype(i)::value;
-        set_value(param_binds[Idx], t.*item, Idx, mp);
+        set_value(param_binds.at(Idx), t.*item, Idx, mp);
       });
 
       for (auto &p : mp) {
