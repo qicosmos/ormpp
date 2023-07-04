@@ -343,6 +343,72 @@ class mysql {
     return v;
   }
 
+  template <typename T>
+  void set_param_bind(MYSQL_BIND &param_bind, T &&value, int i,
+                      std::map<size_t, std::vector<char>> &mp) {
+    using U = std::remove_const_t<std::remove_reference_t<T>>;
+    if constexpr (is_optional_v<U>::value) {
+      return set_param_bind(param_bind, *value, i, mp);
+    }
+    else if constexpr (std::is_arithmetic_v<U>) {
+      param_bind.buffer_type =
+          (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
+      param_bind.buffer = const_cast<void *>(static_cast<const void *>(&value));
+    }
+    else if constexpr (std::is_same_v<std::string, U>) {
+      param_bind.buffer_type = MYSQL_TYPE_STRING;
+      std::vector<char> tmp(65536, 0);
+      mp.emplace(i, std::move(tmp));
+      param_bind.buffer = &(mp.rbegin()->second[0]);
+      param_bind.buffer_length = 65536;
+    }
+    else if constexpr (is_char_array_v<U>) {
+      param_bind.buffer_type = MYSQL_TYPE_VAR_STRING;
+      std::vector<char> tmp(sizeof(U), 0);
+      mp.emplace(i, std::move(tmp));
+      param_bind.buffer = &(mp.rbegin()->second[0]);
+      param_bind.buffer_length = (unsigned long)sizeof(U);
+    }
+    else if constexpr (std::is_same_v<blob, U>) {
+      param_bind.buffer_type = MYSQL_TYPE_BLOB;
+      std::vector<char> tmp(65536, 0);
+      mp.emplace(i, std::move(tmp));
+      param_bind.buffer = &(mp.rbegin()->second[0]);
+      param_bind.buffer_length = 65536;
+    }
+  }
+
+  template <typename T>
+  void set_value(MYSQL_BIND &param_bind, T &&value, int i,
+                 std::map<size_t, std::vector<char>> &mp) {
+    using U = std::remove_const_t<std::remove_reference_t<T>>;
+    if constexpr (is_optional_v<U>::value) {
+      using value_type = typename U::value_type;
+      if constexpr (std::is_arithmetic_v<value_type>) {
+        value_type item;
+        memcpy(&item, param_bind.buffer, sizeof(value_type));
+        value = std::move(item);
+      }
+      else {
+        value_type item;
+        value = std::move(item);
+        return set_value(param_bind, *value, i, mp);
+      }
+    }
+    else if constexpr (std::is_same_v<std::string, U>) {
+      auto &vec = mp[i];
+      value = std::string(&vec[0], strlen(vec.data()));
+    }
+    else if constexpr (is_char_array_v<U>) {
+      auto &vec = mp[i];
+      memcpy(value, vec.data(), vec.size());
+    }
+    else if constexpr (std::is_same_v<blob, U>) {
+      auto &vec = mp[i];
+      value = blob(vec.data(), vec.data() + get_blob_len(i));
+    }
+  }
+
   // if there is a sql error, how to tell the user? throw exception?
   template <typename T, typename... Args>
   std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
@@ -374,38 +440,8 @@ class mysql {
     T t{};
     int index = 0;
     iguana::for_each(t, [&](auto item, auto i) {
-      constexpr auto Idx = decltype(i)::value;
-      using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
-      if constexpr (std::is_arithmetic_v<U>) {
-        param_binds[Idx].buffer_type =
-            (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
-        param_binds[Idx].buffer = &(t.*item);
-        index++;
-      }
-      else if constexpr (std::is_same_v<std::string, U>) {
-        param_binds[Idx].buffer_type = MYSQL_TYPE_STRING;
-        std::vector<char> tmp(65536, 0);
-        mp.emplace(decltype(i)::value, tmp);
-        param_binds[Idx].buffer = &(mp.rbegin()->second[0]);
-        param_binds[Idx].buffer_length = (unsigned long)tmp.size();
-        index++;
-      }
-      else if constexpr (is_char_array_v<U>) {
-        param_binds[Idx].buffer_type = MYSQL_TYPE_VAR_STRING;
-        std::vector<char> tmp(sizeof(U), 0);
-        mp.emplace(decltype(i)::value, tmp);
-        param_binds[Idx].buffer = &(mp.rbegin()->second[0]);
-        param_binds[Idx].buffer_length = (unsigned long)sizeof(U);
-        index++;
-      }
-      else if constexpr (std::is_same_v<blob, U>) {
-        std::vector<char> tmp(65536, 0);
-        mp.emplace(decltype(i)::value, std::move(tmp));
-        param_binds[index].buffer_type = MYSQL_TYPE_BLOB;
-        param_binds[index].buffer = &(mp.rbegin()->second[0]);
-        param_binds[index].buffer_length = 65536;
-        index++;
-      }
+      set_param_bind(param_binds[index], t.*item, index, mp);
+      index++;
     });
 
     if (index == 0) {
@@ -425,22 +461,9 @@ class mysql {
     }
 
     while (mysql_stmt_fetch(stmt_) == 0) {
-      auto column = 0;
-      iguana::for_each(t, [&mp, &t, &column, this](auto item, auto i) {
-        using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
-        if constexpr (std::is_same_v<std::string, U>) {
-          auto &vec = mp[decltype(i)::value];
-          t.*item = std::string(&vec[0], strlen(vec.data()));
-        }
-        else if constexpr (is_char_array_v<U>) {
-          auto &vec = mp[decltype(i)::value];
-          memcpy(t.*item, vec.data(), vec.size());
-        }
-        else if constexpr (std::is_same_v<blob, U>) {
-          auto &vec = mp[decltype(i)::value];
-          t.*item = blob(vec.data(), vec.data() + get_blob_len(column));
-        }
-        ++column;
+      iguana::for_each(t, [&mp, &param_binds, &t, this](auto item, auto i) {
+        constexpr auto Idx = decltype(i)::value;
+        set_value(param_binds.at(Idx), t.*item, Idx, mp);
       });
 
       for (auto &p : mp) {
@@ -612,6 +635,7 @@ class mysql {
   constexpr void set_param_bind(std::vector<MYSQL_BIND> &param_binds,
                                 T &&value) {
     MYSQL_BIND param = {};
+
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (is_optional_v<U>::value) {
       if (value.has_value()) {

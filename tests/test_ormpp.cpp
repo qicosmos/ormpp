@@ -85,6 +85,48 @@ constexpr size_t size(T (&)[N]) {
   return N;
 }
 
+struct test_optional {
+  int id;
+  std::optional<std::string> name;
+  std::optional<int> age;
+};
+REFLECTION(test_optional, id, name, age);
+
+TEST_CASE("test_optional") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, "root", password, db)) {
+    mysql.create_datatable<test_optional>(ormpp_auto_key{"id"});
+    mysql.delete_records<test_optional>();
+    mysql.insert<test_optional>({0, "purecpp", 200});
+    auto v1 = mysql.query<test_optional>();
+    auto v2 = mysql.query<test_optional>("select * from test_optional;");
+    REQUIRE(v1.size() > 0);
+    CHECK(v1.front().age.value() == 200);
+    CHECK(v1.front().name.value() == "purecpp");
+    REQUIRE(v2.size() > 0);
+    CHECK(v2.front().age.value() == 200);
+    CHECK(v2.front().name.value() == "purecpp");
+  }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.create_datatable<test_optional>(ormpp_auto_key{"id"});
+    sqlite.delete_records<test_optional>();
+    sqlite.insert<test_optional>({0, "purecpp", 200});
+    auto v1 = sqlite.query<test_optional>();
+    auto v2 = sqlite.query<test_optional>("select * from test_optional;");
+    REQUIRE(v1.size() > 0);
+    CHECK(v1.front().age.value() == 200);
+    CHECK(v1.front().name.value() == "purecpp");
+    REQUIRE(v2.size() > 0);
+    CHECK(v2.front().age.value() == 200);
+    CHECK(v2.front().name.value() == "purecpp");
+  }
+#endif
+}
+
 struct test_order {
   int id;
   std::string name;
