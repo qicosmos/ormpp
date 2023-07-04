@@ -55,8 +55,7 @@ int main() {
     auto conn = connection_pool<dbng<mysql>>::instance().get();
     conn_guard guard(conn);
     conn->create_datatable<student>(ormpp_auto_key{"id"});
-    conn->insert(student{1, "2", 3});
-    auto val = conn->query<student>();
+    auto vec = conn->query<student>();
   }
 
 #endif
@@ -66,12 +65,35 @@ int main() {
   sqlite.connect(db);
   sqlite.create_datatable<person>(ormpp_auto_key{"id"});
   sqlite.create_datatable<student>(ormpp_auto_key{"id"});
-  sqlite.insert<person>({0, "purecpp"});
-  sqlite.insert<person>({0, "purecpp", 6});
 
-  auto vec = sqlite.query<person>();
-  for (auto &[id, name, age] : vec) {
-    std::cout << id << ", " << *name << ", " << *age << "\n";
+  {
+    sqlite.delete_records<person>();
+    sqlite.insert<person>({0, "purecpp"});
+    sqlite.insert<person>({0, "purecpp", 6});
+    auto vec = sqlite.query<person>();
+    for (auto &[id, name, age] : vec) {
+      std::cout << id << ", " << *name << ", " << *age << "\n";
+    }
+  }
+
+  {
+    sqlite.delete_records<student>();
+    sqlite.insert<student>({0, "purecpp", 1});
+    sqlite.insert<student>({0, "purecpp", 2});
+    sqlite.insert<student>({0, "purecpp", 3});
+    sqlite.insert<student>({0, "purecpp", 3});
+    {
+      auto vec = sqlite.query<student>("name='purecpp'", "order by age desc");
+      for (auto &[id, name, age] : vec) {
+        std::cout << id << ", " << name << ", " << age << "\n";
+      }
+    }
+    {
+      auto vec = sqlite.query<student>("age=3", "order by id desc", "limit 1");
+      for (auto &[id, name, age] : vec) {
+        std::cout << id << ", " << name << ", " << age << "\n";
+      }
+    }
   }
 
 #endif
