@@ -28,7 +28,7 @@ class postgresql {
 
     con_ = PQconnectdb(sql.data());
     if (PQstatus(con_) != CONNECTION_OK) {
-      std::cout << PQerrorMessage(con_) << std::endl;
+      ORMPP_LOG_TRACE << PQerrorMessage(con_) << std::endl;
       return false;
     }
 
@@ -66,11 +66,11 @@ class postgresql {
 
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
 #if ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
+    ORMPP_LOG_TRACE << sql << std::endl;
 #endif
     res_ = PQexec(con_, sql.data());
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      std::cout << PQerrorMessage(con_) << std::endl;
+      ORMPP_LOG_TRACE << PQerrorMessage(con_) << std::endl;
       PQclear(res_);
       return false;
     }
@@ -177,7 +177,7 @@ class postgresql {
       Args &&...args) {
     std::string sql = generate_query_sql<T>(std::forward<Args>(args)...);
 #if ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
+    ORMPP_LOG_TRACE << sql << std::endl;
 #endif
     constexpr auto SIZE = iguana::get_value<T>();
 
@@ -214,7 +214,7 @@ class postgresql {
 
     std::string sql = s;
 #if ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
+    ORMPP_LOG_TRACE << sql << std::endl;
 #endif
     constexpr auto Args_Size = sizeof...(Args);
     if (Args_Size != 0) {
@@ -266,7 +266,7 @@ class postgresql {
   constexpr bool delete_records(Args &&...where_conditon) {
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
 #if ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
+    ORMPP_LOG_TRACE << sql << std::endl;
 #endif
     res_ = PQexec(con_, sql.data());
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
@@ -283,7 +283,7 @@ class postgresql {
     res_ = PQexec(con_, sql.data());
     auto guard = guard_result(res_);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      //                std::cout<<PQerrorMessage(con_)<<std::endl;
+      //                ORMPP_LOG_TRACE<<PQerrorMessage(con_)<<std::endl;
       return false;
     }
 
@@ -295,7 +295,7 @@ class postgresql {
     res_ = PQexec(con_, "begin;");
     auto guard = guard_result(res_);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      //                std::cout<<PQerrorMessage(con_)<<std::endl;
+      //                ORMPP_LOG_TRACE<<PQerrorMessage(con_)<<std::endl;
       return false;
     }
 
@@ -306,7 +306,7 @@ class postgresql {
     res_ = PQexec(con_, "commit;");
     auto guard = guard_result(res_);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      //                std::cout<<PQerrorMessage(con_)<<std::endl;
+      //                ORMPP_LOG_TRACE<<PQerrorMessage(con_)<<std::endl;
       return false;
     }
 
@@ -317,7 +317,7 @@ class postgresql {
     res_ = PQexec(con_, "rollback;");
     auto guard = guard_result(res_);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      //                std::cout<<PQerrorMessage(con_)<<std::endl;
+      //                ORMPP_LOG_TRACE<<PQerrorMessage(con_)<<std::endl;
       return false;
     }
 
@@ -373,7 +373,7 @@ class postgresql {
         status_ = PQresultStatus(res_);
 
       if (status_ != PGRES_COMMAND_OK)
-        std::cout << PQresultErrorMessage(res_) << std::endl;
+        ORMPP_LOG_TRACE << PQresultErrorMessage(res_) << std::endl;
     }
 
    private:
@@ -480,7 +480,7 @@ class postgresql {
     res_ =
         PQprepare(con_, "", sql.data(), (int)iguana::get_value<T>(), nullptr);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      std::cout << PQresultErrorMessage(res_) << std::endl;
+      ORMPP_LOG_TRACE << PQresultErrorMessage(res_) << std::endl;
       PQclear(res_);
       return false;
     }
@@ -513,7 +513,7 @@ class postgresql {
   constexpr int insert_impl(const std::string &sql, const T &t,
                             Args &&...args) {
 #if ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
+    ORMPP_LOG_TRACE << sql << std::endl;
 #endif
     std::vector<std::vector<char>> param_values;
     auto it = auto_key_map_.find(iguana::get_name<T>().data());
@@ -538,7 +538,7 @@ class postgresql {
                           param_values_buf.data(), NULL, NULL, 0);
 
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      std::cout << PQresultErrorMessage(res_) << std::endl;
+      ORMPP_LOG_TRACE << PQresultErrorMessage(res_) << std::endl;
       PQclear(res_);
       return INT_MIN;
     }
@@ -571,7 +571,7 @@ class postgresql {
       std::vector<char> temp = {};
       std::copy(value.data(), value.data() + value.size() + 1,
                 std::back_inserter(temp));
-      //                    std::cout<<value.size()<<std::endl;
+      //                    ORMPP_LOG_TRACE<<value.size()<<std::endl;
       param_values.push_back(std::move(temp));
     }
     else if constexpr (is_char_array_v<U>) {
@@ -580,7 +580,7 @@ class postgresql {
       param_values.push_back(std::move(temp));
     }
     else {
-      std::cout << "this type has not supported yet" << std::endl;
+      ORMPP_LOG_TRACE << "this type has not supported yet" << std::endl;
     }
   }
 
@@ -604,7 +604,7 @@ class postgresql {
       memcpy(value, p, sizeof(U));
     }
     else {
-      std::cout << "this type has not supported yet" << std::endl;
+      ORMPP_LOG_TRACE << "this type has not supported yet" << std::endl;
     }
   }
 

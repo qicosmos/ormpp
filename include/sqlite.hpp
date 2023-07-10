@@ -18,7 +18,7 @@ class sqlite {
 
   void set_last_error(std::string last_error) {
     last_error_ = std::move(last_error);
-    // std::cout << last_error_ << std::endl;//todo, write to log file
+    // std::cerr << last_error_ << std::endl;//todo, write to log file
   }
 
   std::string get_last_error() const { return last_error_; }
@@ -59,7 +59,7 @@ class sqlite {
 
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
 #if ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
+    ORMPP_LOG_TRACE << sql << std::endl;
 #endif
     if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr) !=
         SQLITE_OK) {
@@ -106,7 +106,7 @@ class sqlite {
   bool delete_records(Args &&...where_conditon) {
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
 #if ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
+    ORMPP_LOG_TRACE << sql << std::endl;
 #endif
     if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr) !=
         SQLITE_OK) {
@@ -124,7 +124,7 @@ class sqlite {
       Args &&...args) {
     std::string sql = generate_query_sql<T>(args...);
 #if ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
+    ORMPP_LOG_TRACE << sql << std::endl;
 #endif
     int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
                                     &stmt_, nullptr);
@@ -163,7 +163,7 @@ class sqlite {
 
     std::string sql = s;
 #if ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
+    ORMPP_LOG_TRACE << sql << std::endl;
 #endif
     constexpr auto Args_Size = sizeof...(Args);
     if constexpr (Args_Size != 0) {
@@ -434,7 +434,7 @@ class sqlite {
   int insert_impl(bool is_update, const std::string &sql, const T &t,
                   Args &&...args) {
 #if ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
+    ORMPP_LOG_TRACE << sql << std::endl;
 #endif
     int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
                                     &stmt_, nullptr);
@@ -482,7 +482,7 @@ class sqlite {
   int insert_impl(bool is_update, const std::string &sql,
                   const std::vector<T> &v, Args &&...args) {
 #if ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
+    ORMPP_LOG_TRACE << sql << std::endl;
 #endif
     int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
                                     &stmt_, nullptr);

@@ -15,6 +15,16 @@
 #include "connection_pool.hpp"
 #include "dbng.hpp"
 
+//log redirection
+#ifdef ORMPP_ENABLE_LOG
+class LogHandler : public ormpp::ILogHandler {
+public:
+	void log(std::string message, ormpp::LogLevel level) override {
+		std::cout << message;
+	}
+};
+#endif
+
 using namespace ormpp;
 const char *password = "";
 const char *ip = "127.0.0.1";
@@ -35,6 +45,11 @@ struct student {
 REFLECTION_WITH_NAME(student, "t_student", id, name, age)
 
 int main() {
+
+#ifdef ORMPP_ENABLE_LOG
+	auto logHander = std::make_shared<LogHandler>();
+	ormpp::logger::setHandler(logHander.get());
+#endif
 #ifdef ORMPP_ENABLE_MYSQL
   {
     dbng<mysql> mysql;
