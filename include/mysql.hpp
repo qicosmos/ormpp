@@ -606,7 +606,12 @@ class mysql {
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
               if (!has_add_field) {
-                append(sql, field_name.data(), " ", type_name_arr[i]);
+                if (type_name_arr[i] == "TEXT") {
+                  append(sql, field_name.data(), " ", "varchar(512)");
+                }
+                else {
+                  append(sql, field_name.data(), " ", type_name_arr[i]);
+                }
               }
 
               append(sql, ", UNIQUE(", item.fields, ")");
