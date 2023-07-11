@@ -878,6 +878,17 @@ TEST_CASE("orm_aop") {
   // REQUIRE(r);
 }
 
+#ifdef ORMPP_ENABLE_SQLITE3
+TEST_CASE("test create table with unique") {
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists person");
+    CHECK(sqlite.create_datatable<person>(ormpp_auto_key{"id"},
+                                          ormpp_unique{"name"}));
+  }
+}
+#endif
+
 #ifdef ORMPP_ENABLE_MYSQL
 struct image {
   int id;
