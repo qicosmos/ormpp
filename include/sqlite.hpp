@@ -18,7 +18,7 @@ class sqlite {
 
   void set_last_error(std::string last_error) {
     last_error_ = std::move(last_error);
-    // std::cout << last_error_ << std::endl;//todo, write to log file
+    std::cout << last_error_ << std::endl;  // todo, write to log file
   }
 
   std::string get_last_error() const { return last_error_; }
@@ -282,13 +282,14 @@ class sqlite {
 
     auto tp = sort_tuple(std::make_tuple(std::forward<Args>(args)...));
     const size_t arr_size = arr.size();
+    std::string unique_field;
     for (size_t i = 0; i < arr_size; ++i) {
       auto field_name = arr[i];
       bool has_add_field = false;
       for_each0(
           tp,
-          [&sql, &i, &has_add_field, field_name, type_name_arr, name,
-           this](auto item) {
+          [&sql, &i, &has_add_field, &unique_field, field_name, type_name_arr,
+           name, this](auto item) {
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
               if (item.fields.find(field_name.data()) == item.fields.end())
                 return;
@@ -326,7 +327,7 @@ class sqlite {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
               }
 
-              append(sql, ", UNIQUE(", item.fields, ")");
+              append(unique_field, ", UNIQUE(", item.fields, ")");
               has_add_field = true;
             }
             else {
@@ -341,6 +342,10 @@ class sqlite {
 
       if (i < arr_size - 1)
         sql += ", ";
+    }
+
+    if (!unique_field.empty()) {
+      append(sql, unique_field.data());
     }
 
     sql += ")";
