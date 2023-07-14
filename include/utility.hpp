@@ -239,6 +239,10 @@ inline void get_sql_conditions(std::string &sql, const std::string &arg,
     sql = arg;
   }
   else {
+    if (arg.find("order by") != std::string::npos) {
+      auto pos = sql.find("where");
+      sql = sql.substr(0, pos);
+    }
     if (arg.find("limit") != std::string::npos) {
       auto pos = sql.find("where");
       sql = sql.substr(0, pos);
