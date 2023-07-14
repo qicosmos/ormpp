@@ -952,13 +952,17 @@ TEST_CASE("orm_mysql_blob_tuple") {
 }
 #endif
 
-TEST_CASE("test create table with unique") {
+TEST_CASE("test create table with unique and test query") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, "root", password, db)) {
     mysql.execute("drop table if exists person");
     CHECK(mysql.create_datatable<person>(ormpp_auto_key{"id"},
                                          ormpp_unique{"name"}));
+    mysql.insert<person>({0, "purecpp", 200});
+    auto v1 = mysql.query<person>("order by id");
+    auto v2 = mysql.query<person>("limit 1");
+    CHECK(v1.size() == 1 && v2.size() == 1);
   }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -967,6 +971,10 @@ TEST_CASE("test create table with unique") {
     sqlite.execute("drop table if exists person");
     CHECK(sqlite.create_datatable<person>(ormpp_auto_key{"id"},
                                           ormpp_unique{"name"}));
+    sqlite.insert<person>({0, "purecpp", 200});
+    auto v1 = sqlite.query<person>("order by id");
+    auto v2 = sqlite.query<person>("limit 1");
+    CHECK(v1.size() == 1 && v2.size() == 1);
   }
 #endif
 }
