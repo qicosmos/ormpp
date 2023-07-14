@@ -962,7 +962,8 @@ TEST_CASE("test create table with unique and test query") {
     mysql.insert<person>({0, "purecpp", 200});
     auto v1 = mysql.query<person>("order by id");
     auto v2 = mysql.query<person>("limit 1");
-    CHECK(v1.size() == 1 && v2.size() == 1);
+    CHECK(v1.size() == 1);
+    CHECK(v2.size() == 1);
   }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -974,7 +975,8 @@ TEST_CASE("test create table with unique and test query") {
     sqlite.insert<person>({0, "purecpp", 200});
     auto v1 = sqlite.query<person>("order by id");
     auto v2 = sqlite.query<person>("limit 1");
-    CHECK(v1.size() == 1 && v2.size() == 1);
+    CHECK(v1.size() == 1);
+    CHECK(v2.size() == 1);
   }
 #endif
 }
