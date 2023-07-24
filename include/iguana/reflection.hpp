@@ -14,11 +14,14 @@
 #include <string_view>
 #include <tuple>
 #include <type_traits>
+#include <variant>
 #include <vector>
 
 #include "detail/itoa.hpp"
 #include "detail/string_stream.hpp"
 #include "detail/traits.hpp"
+#include "frozen/string.h"
+#include "frozen/unordered_map.h"
 
 namespace iguana::detail {
 /******************************************/
@@ -549,7 +552,7 @@ namespace iguana::detail {
   MACRO_CONCAT(CON_STR, GET_ARG_COUNT(__VA_ARGS__))(__VA_ARGS__)
 
 #define MAKE_META_DATA_IMPL(STRUCT_NAME, ...)                                 \
-  inline auto iguana_reflect_members(STRUCT_NAME const&) {                    \
+  inline auto iguana_reflect_members(STRUCT_NAME const &) {                   \
     struct reflect_members {                                                  \
       constexpr decltype(auto) static apply_impl() {                          \
         return std::make_tuple(__VA_ARGS__);                                  \
@@ -564,29 +567,69 @@ namespace iguana::detail {
         return fields_##STRUCT_NAME;                                          \
       }                                                                       \
       constexpr static size_t value() { return size_type::value; }            \
-      constexpr static std::array<std::string_view, size_type::value> arr() { \
+      constexpr static std::array<frozen::string, size_type::value> arr() {   \
         return arr_##STRUCT_NAME;                                             \
       }                                                                       \
     };                                                                        \
     return reflect_members{};                                                 \
   }
 
-#define MAKE_META_DATA(STRUCT_NAME, TABLE_NAME, N, ...)                  \
-  constexpr inline std::array<std::string_view, N> arr_##STRUCT_NAME = { \
-      MARCO_EXPAND(MACRO_CONCAT(CON_STR, N)(__VA_ARGS__))};              \
-  constexpr inline std::string_view fields_##STRUCT_NAME = {             \
-      MAKE_NAMES(__VA_ARGS__)};                                          \
-  constexpr inline std::string_view name_##STRUCT_NAME = TABLE_NAME;     \
-  MAKE_META_DATA_IMPL(STRUCT_NAME,                                       \
+#define MAKE_META_DATA(STRUCT_NAME, TABLE_NAME, N, ...)                \
+  constexpr inline std::array<frozen::string, N> arr_##STRUCT_NAME = { \
+      MARCO_EXPAND(MACRO_CONCAT(CON_STR, N)(__VA_ARGS__))};            \
+  constexpr inline std::string_view fields_##STRUCT_NAME = {           \
+      MAKE_NAMES(__VA_ARGS__)};                                        \
+  constexpr inline std::string_view name_##STRUCT_NAME = TABLE_NAME;   \
+  MAKE_META_DATA_IMPL(STRUCT_NAME,                                     \
                       MAKE_ARG_LIST(N, &STRUCT_NAME::FIELD, __VA_ARGS__))
 
+#define MAKE_META_DATA_IMPL_EMPTY(STRUCT_NAME)                              \
+  inline auto iguana_reflect_members(STRUCT_NAME const &) {                 \
+    struct reflect_members {                                                \
+      constexpr decltype(auto) static apply_impl() {                        \
+        return std::make_tuple();                                           \
+      }                                                                     \
+      using size_type = std::integral_constant<size_t, 0>;                  \
+      constexpr static std::string_view name() {                            \
+        return std::string_view(#STRUCT_NAME, sizeof(#STRUCT_NAME) - 1);    \
+      }                                                                     \
+      constexpr static size_t value() { return size_type::value; }          \
+      constexpr static std::array<frozen::string, size_type::value> arr() { \
+        return arr_##STRUCT_NAME;                                           \
+      }                                                                     \
+    };                                                                      \
+    return reflect_members{};                                               \
+  }
+
+#define MAKE_META_DATA_EMPTY(STRUCT_NAME)                                \
+  constexpr inline std::array<frozen::string, 0> arr_##STRUCT_NAME = {}; \
+  MAKE_META_DATA_IMPL_EMPTY(STRUCT_NAME)
+
+template <typename... Args>
+inline auto get_value_type(std::tuple<Args...>) {
+  return std::variant<Args...>{};
+}
+
+inline constexpr frozen::string filter_str(const frozen::string &str) {
+  if (str.size() > 3 && str[0] == '_' && str[1] == '_' && str[2] == '_') {
+    auto ptr = str.data() + 3;
+    return frozen::string(ptr, str.size() - 3);
+  }
+  return str;
+}
+
+template <typename T, size_t... Is>
+inline constexpr auto get_iguana_struct_map_impl(
+    const std::array<frozen::string, sizeof...(Is)> &arr, T &&t,
+    std::index_sequence<Is...>) {
+  using ValueType = decltype(get_value_type(t));
+  return frozen::unordered_map<frozen::string, ValueType, sizeof...(Is)>{
+      {filter_str(arr[Is]),
+       ValueType{std::in_place_index<Is>, std::get<Is>(t)}}...};
+}
 }  // namespace iguana::detail
 
 namespace iguana {
-#define REFLECTION(STRUCT_NAME, ...)                                    \
-  MAKE_META_DATA(STRUCT_NAME, #STRUCT_NAME, GET_ARG_COUNT(__VA_ARGS__), \
-                 __VA_ARGS__)
-
 #define REFLECTION_WITH_NAME(STRUCT_NAME, TABLE_NAME, ...)            \
   MAKE_META_DATA(STRUCT_NAME, TABLE_NAME, GET_ARG_COUNT(__VA_ARGS__), \
                  __VA_ARGS__)
@@ -595,6 +638,55 @@ inline std::unordered_map<
     std::string_view,
     std::vector<std::pair<std::string_view, std::string_view>>>
     g_iguana_custom_map;
+template <typename T>
+inline constexpr auto get_iguana_struct_map() {
+  using reflect_members = decltype(iguana_reflect_members(std::declval<T>()));
+  if constexpr (reflect_members::value() == 0) {
+    return std::array<int, 0>{};
+  }
+  else {
+    return detail::get_iguana_struct_map_impl(
+        reflect_members::arr(), reflect_members::apply_impl(),
+        std::make_index_sequence<reflect_members::value()>{});
+  }
+}
+
+#define REFLECTION(STRUCT_NAME, ...)                                    \
+  MAKE_META_DATA(STRUCT_NAME, #STRUCT_NAME, GET_ARG_COUNT(__VA_ARGS__), \
+                 __VA_ARGS__)
+
+#define REFLECTION_EMPTY(STRUCT_NAME) MAKE_META_DATA_EMPTY(STRUCT_NAME)
+
+#ifdef _MSC_VER
+#define IGUANA_UNIQUE_VARIABLE(str) MACRO_CONCAT(str, __COUNTER__)
+#else
+#define IGUANA_UNIQUE_VARIABLE(str) MACRO_CONCAT(str, __LINE__)
+#endif
+template <typename T>
+struct iguana_required_struct;
+#define REQUIRED_IMPL(STRUCT_NAME, N, ...)                      \
+  template <>                                                   \
+  struct iguana::iguana_required_struct<STRUCT_NAME> {          \
+    inline static constexpr auto requied_arr() {                \
+      std::array<std::string_view, N> arr_required = {          \
+          MARCO_EXPAND(MACRO_CONCAT(CON_STR, N)(__VA_ARGS__))}; \
+      return arr_required;                                      \
+    }                                                           \
+  };
+
+#define REQUIRED(STRUCT_NAME, ...) \
+  REQUIRED_IMPL(STRUCT_NAME, GET_ARG_COUNT(__VA_ARGS__), __VA_ARGS__)
+
+template <class T, class = void>
+struct has_iguana_required_arr : std::false_type {};
+
+template <class T>
+struct has_iguana_required_arr<
+    T, std::void_t<decltype(iguana_required_struct<T>::requied_arr())>>
+    : std::true_type {};
+
+template <class T>
+constexpr bool has_iguana_required_arr_v = has_iguana_required_arr<T>::value;
 
 inline std::string_view trim_sv(std::string_view str) {
   std::string_view whitespaces(" \t\f\v\n\r");
@@ -650,8 +742,32 @@ struct is_reflection<T, std::void_t<decltype(Reflect_members<T>::arr())>>
 template <typename T>
 inline constexpr bool is_reflection_v = is_reflection<T>::value;
 
+template <std::size_t index, template <typename...> typename Condition,
+          typename Tuple, typename Owner>
+constexpr int element_index_helper() {
+  if constexpr (index == std::tuple_size_v<Tuple>) {
+    return index;
+  }
+  else {
+    using type_v = decltype(std::declval<Owner>().*
+                            std::declval<std::tuple_element_t<index, Tuple>>());
+    using item_type = std::decay_t<type_v>;
+
+    return Condition<item_type>::value
+               ? index
+               : element_index_helper<index + 1, Condition, Tuple, Owner>();
+  }
+}
+
+template <template <typename...> typename Condition, typename T>
+constexpr int tuple_element_index() {
+  using M = decltype(iguana_reflect_members(std::declval<T>()));
+  using Tuple = decltype(M::apply_impl());
+  return element_index_helper<0, Condition, Tuple, T>();
+}
+
 template <size_t I, typename T>
-constexpr decltype(auto) get(T&& t) {
+constexpr decltype(auto) get(T &&t) {
   using M = decltype(iguana_reflect_members(std::forward<T>(t)));
   using U = decltype(std::forward<T>(t).*(std::get<I>(M::apply_impl())));
 
@@ -665,37 +781,42 @@ constexpr decltype(auto) get(T&& t) {
     return std::forward<T>(t).*(std::get<I>(M::apply_impl()));
 }
 
+template <template <typename...> typename Condition, typename T>
+constexpr size_t get_type_index() {
+  return tuple_element_index<Condition, T>();
+}
+
 template <typename T, size_t... Is>
-constexpr auto get_impl(T const& t, std::index_sequence<Is...>) {
+constexpr auto get_impl(T const &t, std::index_sequence<Is...>) {
   return std::make_tuple(get<Is>(t)...);
 }
 
 template <typename T, size_t... Is>
-constexpr auto get_impl(T& t, std::index_sequence<Is...>) {
+constexpr auto get_impl(T &t, std::index_sequence<Is...>) {
   return std::make_tuple(std::ref(get<Is>(t))...);
 }
 
 template <typename T>
-constexpr auto get(T const& t) {
+constexpr auto get(T const &t) {
   using M = decltype(iguana_reflect_members(t));
   return get_impl(t, std::make_index_sequence<M::value()>{});
 }
 
 template <typename T>
-constexpr auto get_ref(T& t) {
+constexpr auto get_ref(T &t) {
   using M = decltype(iguana_reflect_members(t));
   return get_impl(t, std::make_index_sequence<M::value()>{});
 }
 
 template <typename T, size_t I>
-constexpr const std::string_view get_name() {
+constexpr const auto get_name() {
   using M = decltype(iguana_reflect_members(std::declval<T>()));
   static_assert(I < M::value(), "out of range");
   return M::arr()[I];
 }
 
 template <typename T>
-constexpr const std::string_view get_name(size_t i) {
+constexpr const auto get_name(size_t i) {
   using M = decltype(iguana_reflect_members(std::declval<T>()));
   //		static_assert(I<M::value(), "out of range");
   return M::arr()[i];
@@ -709,7 +830,7 @@ constexpr const std::string_view get_name() {
 
 template <typename T>
 constexpr const std::string_view get_fields() {
-  using M = decltype(iguana_reflect_members(std::declval<T>()));
+  using M = Reflect_members<T>;
   return M::fields();
 }
 
@@ -747,8 +868,8 @@ inline std::string_view get_custom_fields(std::string_view origin) {
     return "";
   }
 
-  auto& vec = it->second;
-  auto find_it = std::find_if(vec.begin(), vec.end(), [origin](auto& pair) {
+  auto &vec = it->second;
+  auto find_it = std::find_if(vec.begin(), vec.end(), [origin](auto &pair) {
     return pair.first == origin;
   });
 
@@ -772,7 +893,7 @@ constexpr auto get_index(std::string_view name) {
 }
 
 template <class Tuple, class F, std::size_t... Is>
-void tuple_switch(std::size_t i, Tuple&& t, F&& f, std::index_sequence<Is...>) {
+void tuple_switch(std::size_t i, Tuple &&t, F &&f, std::index_sequence<Is...>) {
   ((i == Is &&
     ((std::forward<F>(f)(std::get<Is>(std::forward<Tuple>(t)))), false)),
    ...);
@@ -781,29 +902,29 @@ void tuple_switch(std::size_t i, Tuple&& t, F&& f, std::index_sequence<Is...>) {
 //-------------------------------------------------------------------------------------------------------------//
 //-------------------------------------------------------------------------------------------------------------//
 template <typename... Args, typename F, std::size_t... Idx>
-constexpr void for_each(std::tuple<Args...>& t, F&& f,
+constexpr void for_each(std::tuple<Args...> &t, F &&f,
                         std::index_sequence<Idx...>) {
   (std::forward<F>(f)(std::get<Idx>(t), std::integral_constant<size_t, Idx>{}),
    ...);
 }
 
 template <typename... Args, typename F, std::size_t... Idx>
-constexpr void for_each(const std::tuple<Args...>& t, F&& f,
+constexpr void for_each(const std::tuple<Args...> &t, F &&f,
                         std::index_sequence<Idx...>) {
   (std::forward<F>(f)(std::get<Idx>(t), std::integral_constant<size_t, Idx>{}),
    ...);
 }
 
 template <typename T, typename F>
-constexpr std::enable_if_t<is_reflection<T>::value> for_each(T&& t, F&& f) {
+constexpr std::enable_if_t<is_reflection<T>::value> for_each(T &&t, F &&f) {
   using M = decltype(iguana_reflect_members(std::forward<T>(t)));
   for_each(M::apply_impl(), std::forward<F>(f),
            std::make_index_sequence<M::value()>{});
 }
 
 template <typename T, typename F>
-constexpr std::enable_if_t<is_tuple<std::decay_t<T>>::value> for_each(T&& t,
-                                                                      F&& f) {
+constexpr std::enable_if_t<is_tuple<std::decay_t<T>>::value> for_each(T &&t,
+                                                                      F &&f) {
   // using M = decltype(iguana_reflect_members(std::forward<T>(t)));
   constexpr const size_t SIZE = std::tuple_size_v<std::decay_t<T>>;
   for_each(std::forward<T>(t), std::forward<F>(f),
