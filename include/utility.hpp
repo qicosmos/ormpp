@@ -307,7 +307,7 @@ template <typename U>
 constexpr std::string_view get_field_name(std::string_view full_name) {
   using T = decltype(iguana_reflect_members(
       std::declval<typename field_attribute<U>::type>()));
-  return full_name.substr(T::name().length() + 2, full_name.length());
+  return full_name.substr(T::struct_name().length() + 2, full_name.length());
 }
 
 #define FID(field)                                                       \

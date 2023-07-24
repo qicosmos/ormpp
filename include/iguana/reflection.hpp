@@ -551,26 +551,27 @@ namespace iguana::detail {
 #define MAKE_STR_LIST(...) \
   MACRO_CONCAT(CON_STR, GET_ARG_COUNT(__VA_ARGS__))(__VA_ARGS__)
 
-#define MAKE_META_DATA_IMPL(STRUCT_NAME, ...)                               \
-  inline auto iguana_reflect_members(STRUCT_NAME const &) {                 \
-    struct reflect_members {                                                \
-      constexpr decltype(auto) static apply_impl() {                        \
-        return std::make_tuple(__VA_ARGS__);                                \
-      }                                                                     \
-      using size_type =                                                     \
-          std::integral_constant<size_t, GET_ARG_COUNT(__VA_ARGS__)>;       \
-      constexpr static std::string_view name() {                            \
-        return std::string_view(#STRUCT_NAME, sizeof(#STRUCT_NAME) - 1);    \
-      }                                                                     \
-      constexpr static std::string_view fields() {                          \
-        return fields_##STRUCT_NAME;                                        \
-      }                                                                     \
-      constexpr static size_t value() { return size_type::value; }          \
-      constexpr static std::array<frozen::string, size_type::value> arr() { \
-        return arr_##STRUCT_NAME;                                           \
-      }                                                                     \
-    };                                                                      \
-    return reflect_members{};                                               \
+#define MAKE_META_DATA_IMPL(STRUCT_NAME, ...)                                 \
+  inline auto iguana_reflect_members(STRUCT_NAME const &) {                   \
+    struct reflect_members {                                                  \
+      constexpr decltype(auto) static apply_impl() {                          \
+        return std::make_tuple(__VA_ARGS__);                                  \
+      }                                                                       \
+      using size_type =                                                       \
+          std::integral_constant<size_t, GET_ARG_COUNT(__VA_ARGS__)>;         \
+      constexpr static std::string_view name() { return name_##STRUCT_NAME; } \
+      constexpr static std::string_view struct_name() {                       \
+        return std::string_view(#STRUCT_NAME, sizeof(#STRUCT_NAME) - 1);      \
+      }                                                                       \
+      constexpr static std::string_view fields() {                            \
+        return fields_##STRUCT_NAME;                                          \
+      }                                                                       \
+      constexpr static size_t value() { return size_type::value; }            \
+      constexpr static std::array<frozen::string, size_type::value> arr() {   \
+        return arr_##STRUCT_NAME;                                             \
+      }                                                                       \
+    };                                                                        \
+    return reflect_members{};                                                 \
   }
 
 #define MAKE_META_DATA(STRUCT_NAME, TABLE_NAME, N, ...)                \
