@@ -5,6 +5,7 @@
 #ifndef SERIALIZE_TRAITS_HPP
 #define SERIALIZE_TRAITS_HPP
 
+#include "iguana/define.h"
 #include <deque>
 #include <list>
 #include <map>
@@ -14,6 +15,7 @@
 #include <vector>
 
 namespace iguana {
+
 template <class T>
 struct is_signed_intergral_like
     : std::integral_constant<bool, (std::is_integral<T>::value) &&
@@ -57,8 +59,7 @@ struct is_emplace_back_able
                     is_template_instant_of<std::list, T>::value ||
                     is_template_instant_of<std::vector, T>::value> {};
 
-template <typename T, typename Tuple>
-struct has_type;
+template <typename T, typename Tuple> struct has_type;
 
 template <typename T, typename... Us>
 struct has_type<T, std::tuple<Us...>>
@@ -67,5 +68,5 @@ struct has_type<T, std::tuple<Us...>>
 template <typename T>
 inline constexpr bool is_int64_v =
     std::is_same_v<T, int64_t> || std::is_same_v<T, uint64_t>;
-}  // namespace iguana
-#endif  // SERIALIZE_TRAITS_HPP
+} // namespace iguana
+#endif // SERIALIZE_TRAITS_HPP
