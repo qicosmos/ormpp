@@ -23,13 +23,13 @@
 #ifndef FROZEN_LETITGO_STRING_H
 #define FROZEN_LETITGO_STRING_H
 
+#include <cstring>
+#include <functional>
+
 #include "frozen/bits/defines.h"
 #include "frozen/bits/elsa.h"
 #include "frozen/bits/hash_string.h"
 #include "frozen/bits/version.h"
-
-#include <cstring>
-#include <functional>
 
 #ifdef FROZEN_LETITGO_HAS_STRING_VIEW
 #include <string_view>
@@ -37,13 +37,14 @@
 
 namespace frozen {
 
-template <typename _CharT> class basic_string {
+template <typename _CharT>
+class basic_string {
   using chr_t = _CharT;
 
   chr_t const *data_;
   std::size_t size_;
 
-public:
+ public:
   template <std::size_t N>
   constexpr basic_string(chr_t const (&data)[N]) : data_(data), size_(N - 1) {}
   constexpr basic_string(chr_t const *data, std::size_t size)
@@ -89,7 +90,8 @@ public:
   constexpr const chr_t *end() const { return data() + size(); }
 };
 
-template <typename _CharT> struct elsa<basic_string<_CharT>> {
+template <typename _CharT>
+struct elsa<basic_string<_CharT>> {
   constexpr std::size_t operator()(basic_string<_CharT> value) const {
     return hash_string(value);
   }
@@ -132,16 +134,17 @@ constexpr u8string operator"" _s(const char8_t *data, std::size_t size) {
 }
 #endif
 
-} // namespace string_literals
+}  // namespace string_literals
 
-} // namespace frozen
+}  // namespace frozen
 
 namespace std {
-template <typename _CharT> struct hash<frozen::basic_string<_CharT>> {
+template <typename _CharT>
+struct hash<frozen::basic_string<_CharT>> {
   size_t operator()(frozen::basic_string<_CharT> s) const {
     return frozen::elsa<frozen::basic_string<_CharT>>{}(s);
   }
 };
-} // namespace std
+}  // namespace std
 
 #endif

@@ -23,6 +23,9 @@
 #ifndef FROZEN_LETITGO_UNORDERED_MAP_H
 #define FROZEN_LETITGO_UNORDERED_MAP_H
 
+#include <functional>
+#include <tuple>
+
 #include "frozen/bits/basic_types.h"
 #include "frozen/bits/constexpr_assert.h"
 #include "frozen/bits/elsa.h"
@@ -31,28 +34,26 @@
 #include "frozen/bits/version.h"
 #include "frozen/random.h"
 
-#include <functional>
-#include <tuple>
-
 namespace frozen {
 
 namespace bits {
 
 struct GetKey {
-  template <class KV> constexpr auto const &operator()(KV const &kv) const {
+  template <class KV>
+  constexpr auto const &operator()(KV const &kv) const {
     return kv.first;
   }
 };
 
-} // namespace bits
+}  // namespace bits
 
 template <class Key, class Value, std::size_t N, typename Hash = anna<Key>,
           class KeyEqual = std::equal_to<Key>>
 class unordered_map {
   static constexpr std::size_t storage_size =
       bits::next_highest_power_of_two(N) *
-      (N < 32 ? 2 : 1); // size adjustment to prevent high collision rate for
-                        // small sets
+      (N < 32 ? 2 : 1);  // size adjustment to prevent high collision rate for
+                         // small sets
   using container_type = bits::carray<std::pair<Key, Value>, N>;
   using tables_type = bits::pmh_tables<storage_size, Hash>;
 
@@ -60,7 +61,7 @@ class unordered_map {
   container_type items_;
   tables_type tables_;
 
-public:
+ public:
   /* typedefs */
   using Self = unordered_map<Key, Value, N, Hash, KeyEqual>;
   using key_type = Key;
@@ -77,15 +78,15 @@ public:
   using iterator = typename container_type::iterator;
   using const_iterator = typename container_type::const_iterator;
 
-public:
+ public:
   /* constructors */
   unordered_map(unordered_map const &) = default;
   constexpr unordered_map(container_type items, Hash const &hash,
                           KeyEqual const &equal)
-      : equal_{equal}, items_{items}, tables_{
-                                          bits::make_pmh_tables<storage_size>(
-                                              items_, hash, bits::GetKey{},
-                                              default_prg_t{})} {}
+      : equal_{equal},
+        items_{items},
+        tables_{bits::make_pmh_tables<storage_size>(
+            items_, hash, bits::GetKey{}, default_prg_t{})} {}
   explicit constexpr unordered_map(container_type items)
       : unordered_map{items, Hash{}, KeyEqual{}} {}
 
@@ -135,10 +136,12 @@ public:
                       Equal const &equal) {
     return at_impl(*this, key, hash, equal);
   }
-  template <class KeyType> constexpr Value const &at(KeyType const &key) const {
+  template <class KeyType>
+  constexpr Value const &at(KeyType const &key) const {
     return at(key, hash_function(), key_eq());
   }
-  template <class KeyType> constexpr Value &at(KeyType const &key) {
+  template <class KeyType>
+  constexpr Value &at(KeyType const &key) {
     return at(key, hash_function(), key_eq());
   }
 
@@ -156,24 +159,25 @@ public:
   constexpr const_iterator find(KeyType const &key) const {
     return find(key, hash_function(), key_eq());
   }
-  template <class KeyType> constexpr iterator find(KeyType const &key) {
+  template <class KeyType>
+  constexpr iterator find(KeyType const &key) {
     return find(key, hash_function(), key_eq());
   }
 
   template <class KeyType, class Hasher, class Equal>
-  constexpr std::pair<const_iterator, const_iterator>
-  equal_range(KeyType const &key, Hasher const &hash,
-              Equal const &equal) const {
+  constexpr std::pair<const_iterator, const_iterator> equal_range(
+      KeyType const &key, Hasher const &hash, Equal const &equal) const {
     return equal_range_impl(*this, key, hash, equal);
   }
   template <class KeyType, class Hasher, class Equal>
-  constexpr std::pair<iterator, iterator>
-  equal_range(KeyType const &key, Hasher const &hash, Equal const &equal) {
+  constexpr std::pair<iterator, iterator> equal_range(KeyType const &key,
+                                                      Hasher const &hash,
+                                                      Equal const &equal) {
     return equal_range_impl(*this, key, hash, equal);
   }
   template <class KeyType>
-  constexpr std::pair<const_iterator, const_iterator>
-  equal_range(KeyType const &key) const {
+  constexpr std::pair<const_iterator, const_iterator> equal_range(
+      KeyType const &key) const {
     return equal_range(key, hash_function(), key_eq());
   }
   template <class KeyType>
@@ -189,7 +193,7 @@ public:
   constexpr const hasher &hash_function() const { return tables_.hash_; }
   constexpr const key_equal &key_eq() const { return equal_; }
 
-private:
+ private:
   template <class This, class KeyType, class Hasher, class Equal>
   static inline constexpr auto &at_impl(This &&self, KeyType const &key,
                                         Hasher const &hash,
@@ -266,6 +270,6 @@ constexpr auto make_unordered_map(std::array<std::pair<T, U>, N> const &items,
   return unordered_map<T, U, N, Hasher, Equal>{items, hash, equal};
 }
 
-} // namespace frozen
+}  // namespace frozen
 
 #endif

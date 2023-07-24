@@ -8,8 +8,7 @@ namespace frozen {
 template <typename String>
 constexpr std::size_t hash_string(const String &value) {
   std::size_t d = 5381;
-  for (const auto &c : value)
-    d = d * 33 + static_cast<size_t>(c);
+  for (const auto &c : value) d = d * 33 + static_cast<size_t>(c);
   return d;
 }
 
@@ -23,6 +22,6 @@ constexpr std::size_t hash_string(const String &value, std::size_t seed) {
   return d >> 8;
 }
 
-} // namespace frozen
+}  // namespace frozen
 
-#endif // FROZEN_LETITGO_BITS_HASH_STRING_H
+#endif  // FROZEN_LETITGO_BITS_HASH_STRING_H

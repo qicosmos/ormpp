@@ -23,6 +23,8 @@
 #ifndef FROZEN_LETITGO_UNORDERED_SET_H
 #define FROZEN_LETITGO_UNORDERED_SET_H
 
+#include <utility>
+
 #include "frozen/bits/basic_types.h"
 #include "frozen/bits/constexpr_assert.h"
 #include "frozen/bits/elsa.h"
@@ -30,27 +32,26 @@
 #include "frozen/bits/version.h"
 #include "frozen/random.h"
 
-#include <utility>
-
 namespace frozen {
 
 namespace bits {
 
 struct Get {
-  template <class T> constexpr T const &operator()(T const &key) const {
+  template <class T>
+  constexpr T const &operator()(T const &key) const {
     return key;
   }
 };
 
-} // namespace bits
+}  // namespace bits
 
 template <class Key, std::size_t N, typename Hash = elsa<Key>,
           class KeyEqual = std::equal_to<Key>>
 class unordered_set {
   static constexpr std::size_t storage_size =
       bits::next_highest_power_of_two(N) *
-      (N < 32 ? 2 : 1); // size adjustment to prevent high collision rate for
-                        // small sets
+      (N < 32 ? 2 : 1);  // size adjustment to prevent high collision rate for
+                         // small sets
   using container_type = bits::carray<Key, N>;
   using tables_type = bits::pmh_tables<storage_size, Hash>;
 
@@ -58,7 +59,7 @@ class unordered_set {
   container_type keys_;
   tables_type tables_;
 
-public:
+ public:
   /* typedefs */
   using key_type = Key;
   using value_type = Key;
@@ -73,14 +74,15 @@ public:
   using const_iterator = const_pointer;
   using iterator = const_iterator;
 
-public:
+ public:
   /* constructors */
   unordered_set(unordered_set const &) = default;
   constexpr unordered_set(container_type keys, Hash const &hash,
                           KeyEqual const &equal)
-      : equal_{equal}, keys_{keys}, tables_{bits::make_pmh_tables<storage_size>(
-                                        keys_, hash, bits::Get{},
-                                        default_prg_t{})} {}
+      : equal_{equal},
+        keys_{keys},
+        tables_{bits::make_pmh_tables<storage_size>(keys_, hash, bits::Get{},
+                                                    default_prg_t{})} {}
   explicit constexpr unordered_set(container_type keys)
       : unordered_set{keys, Hash{}, KeyEqual{}} {}
 
@@ -133,9 +135,8 @@ public:
   }
 
   template <class KeyType, class Hasher, class Equal>
-  constexpr std::pair<const_iterator, const_iterator>
-  equal_range(KeyType const &key, Hasher const &hash,
-              Equal const &equal) const {
+  constexpr std::pair<const_iterator, const_iterator> equal_range(
+      KeyType const &key, Hasher const &hash, Equal const &equal) const {
     auto const &k = lookup(key, hash);
     if (equal(k, key))
       return {&k, &k + 1};
@@ -143,8 +144,8 @@ public:
       return {keys_.end(), keys_.end()};
   }
   template <class KeyType>
-  constexpr std::pair<const_iterator, const_iterator>
-  equal_range(KeyType const &key) const {
+  constexpr std::pair<const_iterator, const_iterator> equal_range(
+      KeyType const &key) const {
     return equal_range(key, hash_function(), key_eq());
   }
 
@@ -156,7 +157,7 @@ public:
   constexpr const hasher &hash_function() const { return tables_.hash_; }
   constexpr const key_equal &key_eq() const { return equal_; }
 
-private:
+ private:
   template <class KeyType, class Hasher>
   constexpr auto const &lookup(KeyType const &key, Hasher const &hash) const {
     return keys_[tables_.lookup(key, hash)];
@@ -192,6 +193,6 @@ unordered_set(T, Args...) -> unordered_set<T, sizeof...(Args) + 1>;
 
 #endif
 
-} // namespace frozen
+}  // namespace frozen
 
 #endif

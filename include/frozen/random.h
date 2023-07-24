@@ -23,16 +23,15 @@
 #ifndef FROZEN_LETITGO_RANDOM_H
 #define FROZEN_LETITGO_RANDOM_H
 
-#include "frozen/bits/algorithms.h"
-#include "frozen/bits/version.h"
-
 #include <cstdint>
 #include <type_traits>
+
+#include "frozen/bits/algorithms.h"
+#include "frozen/bits/version.h"
 
 namespace frozen {
 template <class UIntType, UIntType a, UIntType c, UIntType m>
 class linear_congruential_engine {
-
   static_assert(std::is_unsigned<UIntType>::value,
                 "UIntType must be an unsigned integral type");
 
@@ -47,7 +46,7 @@ class linear_congruential_engine {
     return static_cast<UIntType>(val % M);
   }
 
-public:
+ public:
   using result_type = UIntType;
   static constexpr result_type multiplier = a;
   static constexpr result_type increment = c;
@@ -68,8 +67,7 @@ public:
     return state_;
   }
   constexpr void discard(unsigned long long n) {
-    while (n--)
-      operator()();
+    while (n--) operator()();
   }
   static constexpr result_type min() { return increment == 0u ? 1u : 0u; }
   static constexpr result_type max() { return modulus - 1u; }
@@ -82,7 +80,7 @@ public:
     return !(self == other);
   }
 
-private:
+ private:
   result_type state_ = default_seed;
 };
 
@@ -94,6 +92,6 @@ using minstd_rand =
 // This generator is used by default in unordered frozen containers
 using default_prg_t = minstd_rand;
 
-} // namespace frozen
+}  // namespace frozen
 
 #endif

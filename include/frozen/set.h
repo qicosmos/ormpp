@@ -23,22 +23,23 @@
 #ifndef FROZEN_SET_H
 #define FROZEN_SET_H
 
+#include <utility>
+
 #include "frozen/bits/algorithms.h"
 #include "frozen/bits/basic_types.h"
 #include "frozen/bits/constexpr_assert.h"
 #include "frozen/bits/defines.h"
 #include "frozen/bits/version.h"
 
-#include <utility>
-
 namespace frozen {
 
-template <class Key, std::size_t N, class Compare = std::less<Key>> class set {
+template <class Key, std::size_t N, class Compare = std::less<Key>>
+class set {
   using container_type = bits::carray<Key, N>;
   Compare less_than_;
   container_type keys_;
 
-public:
+ public:
   /* container typedefs*/
   using key_type = Key;
   using value_type = Key;
@@ -55,7 +56,7 @@ public:
   using const_iterator = iterator;
   using const_reverse_iterator = reverse_iterator;
 
-public:
+ public:
   /* constructors */
   constexpr set(const set &other) = default;
 
@@ -96,8 +97,8 @@ public:
   }
 
   template <class KeyType>
-  constexpr std::pair<const_iterator, const_iterator>
-  equal_range(KeyType const &key) const {
+  constexpr std::pair<const_iterator, const_iterator> equal_range(
+      KeyType const &key) const {
     auto const lower = lower_bound(key);
     if (lower == end())
       return {lower, lower};
@@ -159,11 +160,12 @@ public:
   }
 };
 
-template <class Key, class Compare> class set<Key, 0, Compare> {
-  using container_type = bits::carray<Key, 0>; // just for the type definitions
+template <class Key, class Compare>
+class set<Key, 0, Compare> {
+  using container_type = bits::carray<Key, 0>;  // just for the type definitions
   Compare less_than_;
 
-public:
+ public:
   /* container typedefs*/
   using key_type = Key;
   using value_type = Key;
@@ -180,7 +182,7 @@ public:
   using const_iterator = const_pointer;
   using const_reverse_iterator = const_pointer;
 
-public:
+ public:
   /* constructors */
   constexpr set(const set &other) = default;
   constexpr set(bits::carray<Key, 0>, Compare const &) {}
@@ -198,7 +200,8 @@ public:
   constexpr size_type max_size() const { return 0; }
 
   /* lookup */
-  template <class KeyType> constexpr std::size_t count(KeyType const &) const {
+  template <class KeyType>
+  constexpr std::size_t count(KeyType const &) const {
     return 0;
   }
 
@@ -208,8 +211,8 @@ public:
   }
 
   template <class KeyType>
-  constexpr std::pair<const_iterator, const_iterator>
-  equal_range(KeyType const &) const {
+  constexpr std::pair<const_iterator, const_iterator> equal_range(
+      KeyType const &) const {
     return {end(), end()};
   }
 
@@ -240,9 +243,9 @@ public:
 };
 
 template <typename T>
-constexpr auto
-make_set(bits::ignored_arg =
-             {} /* for consistency with the initializer below for N = 0*/) {
+constexpr auto make_set(
+    bits::ignored_arg =
+        {} /* for consistency with the initializer below for N = 0*/) {
   return set<T, 0>{};
 }
 
@@ -273,8 +276,8 @@ constexpr auto make_set(std::array<T, N> const &args,
 template <class T, class... Args>
 set(T, Args...) -> set<T, sizeof...(Args) + 1>;
 
-#endif // FROZEN_LETITGO_HAS_DEDUCTION_GUIDES
+#endif  // FROZEN_LETITGO_HAS_DEDUCTION_GUIDES
 
-} // namespace frozen
+}  // namespace frozen
 
 #endif

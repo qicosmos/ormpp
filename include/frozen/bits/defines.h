@@ -23,8 +23,8 @@
 #ifndef FROZEN_LETITGO_DEFINES_H
 #define FROZEN_LETITGO_DEFINES_H
 
-#if defined(_MSVC_LANG) &&                                                     \
-    !(defined(__EDG__) && defined(__clang__)) // TRANSITION, VSO#273681
+#if defined(_MSVC_LANG) && \
+    !(defined(__EDG__) && defined(__clang__))  // TRANSITION, VSO#273681
 #define FROZEN_LETITGO_IS_MSVC
 #endif
 
@@ -46,8 +46,8 @@
 // End if taken code
 
 #if FROZEN_LETITGO_HAS_CXX17 == 1 && defined(FROZEN_LETITGO_IS_MSVC)
-#define FROZEN_LETITGO_HAS_STRING_VIEW // We assume Visual Studio always has
-                                       // string_view in C++17
+#define FROZEN_LETITGO_HAS_STRING_VIEW  // We assume Visual Studio always has
+                                        // string_view in C++17
 #else
 #if FROZEN_LETITGO_HAS_CXX17 == 1 && __has_include(<string_view>)
 #define FROZEN_LETITGO_HAS_STRING_VIEW
@@ -66,4 +66,4 @@
 #define FROZEN_LETITGO_HAS_CONSTEXPR_STRING
 #endif
 
-#endif // FROZEN_LETITGO_DEFINES_H
+#endif  // FROZEN_LETITGO_DEFINES_H

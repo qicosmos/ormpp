@@ -23,10 +23,10 @@
 #ifndef FROZEN_LETITGO_BITS_ALGORITHMS_H
 #define FROZEN_LETITGO_BITS_ALGORITHMS_H
 
-#include "frozen/bits/basic_types.h"
-
 #include <limits>
 #include <tuple>
+
+#include "frozen/bits/basic_types.h"
 
 namespace frozen {
 
@@ -36,13 +36,13 @@ auto constexpr next_highest_power_of_two(std::size_t v) {
   // https://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2
   constexpr auto trip_count = std::numeric_limits<decltype(v)>::digits;
   v--;
-  for (std::size_t i = 1; i < trip_count; i <<= 1)
-    v |= v >> i;
+  for (std::size_t i = 1; i < trip_count; i <<= 1) v |= v >> i;
   v++;
   return v;
 }
 
-template <class T> auto constexpr log(T v) {
+template <class T>
+auto constexpr log(T v) {
   std::size_t n = 0;
   while (v > 1) {
     n += 1;
@@ -81,7 +81,8 @@ constexpr auto min_element(Iter begin, const Iter end, Compare const &compare) {
   return result;
 }
 
-template <class T> constexpr void cswap(T &a, T &b) {
+template <class T>
+constexpr void cswap(T &a, T &b) {
   auto tmp = a;
   a = b;
   b = tmp;
@@ -139,7 +140,8 @@ constexpr bits::carray<T, N> quicksort(bits::carray<T, N> const &array,
   return res;
 }
 
-template <class T, class Compare> struct LowerBound {
+template <class T, class Compare>
+struct LowerBound {
   T const &value_;
   Compare const &compare_;
   constexpr LowerBound(T const &value, Compare const &compare)
@@ -181,7 +183,8 @@ template <class T, class Compare> struct LowerBound {
           it + 1, std::integral_constant<std::size_t, next>{},
           std::integral_constant<bool, next_highest_power_of_two(next) - 1 ==
                                            next>{});
-    } else
+    }
+    else
       return doit_fast(first,
                        std::integral_constant<std::size_t, next_start>{});
   }
@@ -231,7 +234,7 @@ constexpr bool lexicographical_compare(InputIt1 first1, InputIt1 last1,
   return (first1 == last1) && (first2 != last2);
 }
 
-} // namespace bits
-} // namespace frozen
+}  // namespace bits
+}  // namespace frozen
 
 #endif
