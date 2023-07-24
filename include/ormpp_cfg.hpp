@@ -9,7 +9,8 @@
 #include <string>
 #include <string_view>
 
-#include "iguana/json.hpp"
+#include "iguana/json_reader.hpp"
+#include "iguana/json_writer.hpp"
 
 namespace ormpp {
 struct ormpp_cfg {
@@ -99,10 +100,7 @@ class config_manager {
 
     in.read(str.data(), len);
 
-    bool r = iguana::json::from_json(t, str.data(), len);
-    if (!r) {
-      return false;
-    }
+    iguana::from_json(t, str);
 
     return true;
   }
@@ -117,12 +115,12 @@ class config_manager {
   template <typename T>
   inline static bool to_file(T &t, std::string_view file_path) {
     iguana::string_stream ss;
-    iguana::json::to_json(ss, t);
+    iguana::to_json(t, ss);
     std::ofstream out(file_path.data(), std::ios::binary);
     if (!out.is_open()) {
       return false;
     }
-    out.write(ss.str().data(), ss.str().size());
+    out.write(ss.data(), ss.size());
     out.close();
     return true;
   }
