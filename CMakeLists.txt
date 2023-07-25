@@ -12,6 +12,8 @@ else()
     include_directories(include)
 endif()
 
+include_directories(./)
+
 if (BUILD_UNIT_TESTS)
     add_subdirectory(${ormpp_SOURCE_DIR}/tests)
 endif ()
