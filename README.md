@@ -53,6 +53,7 @@ ormpp是modern c++(c++11/14/17)开发的ORM库，目前支持了三种数据库�
 ```C++
 #include "dbng.hpp"
 #include "mysql.hpp"//注意，使用什么数据库时就需要include对应的hpp文件，里面是对相关函数的反射封装
+//#include "sqlite.hpp" //例如使用sqlite时，则包含sqlite.hpp
 using namespace ormpp;
 
 struct person {
@@ -177,6 +178,7 @@ bool rollback();
 
 ```C++
 #include "dbng.hpp"
+//#include "mysql.hpp"...等等，别忘记了
 using namespace ormpp;
 
 struct person {
