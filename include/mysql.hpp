@@ -461,14 +461,10 @@ class mysql {
       return {};
     }
 
-    auto vv1 = mysql_stmt_affected_rows(stmt_);
-    auto vv2 = stmt_->affected_rows;
-
     while (mysql_stmt_fetch(stmt_) == 0) {
       iguana::for_each(t, [&mp, &param_binds, &t, this](auto item, auto i) {
         constexpr auto Idx = decltype(i)::value;
         set_value(param_binds.at(Idx), t.*item, Idx, mp);
-        auto res = mysql_stmt_result_metadata(stmt_);
       });
 
       for (auto &p : mp) {
@@ -483,9 +479,6 @@ class mysql {
         }
       });
     }
-
-    auto vv3 = mysql_stmt_affected_rows(stmt_);
-    auto vv4 = stmt_->affected_rows;
 
     return v;
   }
