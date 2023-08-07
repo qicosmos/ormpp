@@ -71,35 +71,38 @@ class sqlite {
   }
 
   template <typename T, typename... Args>
-  int insert(const T &t, Args &&...args) {
+  int insert(const T &t, bool get_insert_id = false, Args &&...args) {
     std::string sql = auto_key_map_.empty()
                           ? generate_insert_sql<T>(false)
                           : generate_auto_insert_sql0<T>(auto_key_map_, false);
 
-    return insert_impl(false, sql, t, std::forward<Args>(args)...);
+    return insert_impl(false, sql, t, get_insert_id,
+                       std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  int insert(const std::vector<T> &t, Args &&...args) {
+  int insert(const std::vector<T> &t, bool get_insert_id = false,
+             Args &&...args) {
     std::string sql = auto_key_map_.empty()
                           ? generate_insert_sql<T>(false)
                           : generate_auto_insert_sql0<T>(auto_key_map_, false);
 
-    return insert_impl(false, sql, t, std::forward<Args>(args)...);
+    return insert_impl(false, sql, t, get_insert_id,
+                       std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   int update(const T &t, Args &&...args) {
     std::string sql = generate_insert_sql<T>(true);
 
-    return insert_impl(true, sql, t, std::forward<Args>(args)...);
+    return insert_impl(true, sql, t, false, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   int update(const std::vector<T> &t, Args &&...args) {
     std::string sql = generate_insert_sql<T>(true);
 
-    return insert_impl(true, sql, t, std::forward<Args>(args)...);
+    return insert_impl(true, sql, t, false, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
@@ -437,7 +440,7 @@ class sqlite {
 
   template <typename T, typename... Args>
   int insert_impl(bool is_update, const std::string &sql, const T &t,
-                  Args &&...args) {
+                  bool get_insert_id = false, Args &&...args) {
 #if ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -480,12 +483,13 @@ class sqlite {
       return INT_MIN;
     }
 
-    return 1;
+    return get_insert_id ? sqlite3_last_insert_rowid(handle_) : 1;
   }
 
   template <typename T, typename... Args>
   int insert_impl(bool is_update, const std::string &sql,
-                  const std::vector<T> &v, Args &&...args) {
+                  const std::vector<T> &v, bool get_insert_id = false,
+                  Args &&...args) {
 #if ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -548,7 +552,9 @@ class sqlite {
 
     b = commit();
 
-    return b ? (int)v.size() : INT_MIN;
+    return b ? (get_insert_id ? sqlite3_last_insert_rowid(handle_)
+                              : (int)v.size())
+             : INT_MIN;
   }
 
   template <typename T>

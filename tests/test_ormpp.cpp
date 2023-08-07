@@ -980,3 +980,28 @@ TEST_CASE("test create table with unique and test query") {
   }
 #endif
 }
+
+TEST_CASE("get_insert_id") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, "root", password, db)) {
+    mysql.execute("drop table if exists person");
+    mysql.create_datatable<person>(ormpp_auto_key{"id"});
+    mysql.insert<person>({0, "purecpp", 200});
+    mysql.insert<person>({0, "purecpp", 200});
+    int id = mysql.insert<person>({0, "purecpp", 200}, true);
+    CHECK(id == 3);
+  }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists person");
+    sqlite.create_datatable<person>(ormpp_auto_key{"id"});
+    sqlite.insert<person>({0, "purecpp", 200});
+    sqlite.insert<person>({0, "purecpp", 200});
+    int id = sqlite.insert<person>({0, "purecpp", 200}, true);
+    CHECK(id == 3);
+  }
+#endif
+}

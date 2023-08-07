@@ -34,13 +34,14 @@ class dbng {
   }
 
   template <typename T, typename... Args>
-  int insert(const T &t, Args &&...args) {
-    return db_.insert(t, std::forward<Args>(args)...);
+  int insert(const T &t, bool get_insert_id = false, Args &&...args) {
+    return db_.insert(t, get_insert_id, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  int insert(const std::vector<T> &t, Args &&...args) {
-    return db_.insert(t, std::forward<Args>(args)...);
+  int insert(const std::vector<T> &t, bool get_insert_id = false,
+             Args &&...args) {
+    return db_.insert(t, get_insert_id, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
