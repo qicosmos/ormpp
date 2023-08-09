@@ -111,8 +111,13 @@ class sqlite {
 #if ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr) !=
-        SQLITE_OK) {
+    if (sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(), &stmt_,
+                           nullptr) != SQLITE_OK) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return false;
+    }
+
+    if (sqlite3_step(stmt_) != SQLITE_DONE) {
       set_last_error(sqlite3_errmsg(handle_));
       return false;
     }

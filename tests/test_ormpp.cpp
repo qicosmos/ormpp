@@ -1005,3 +1005,30 @@ TEST_CASE("get_insert_id") {
   }
 #endif
 }
+
+TEST_CASE("test delete_records") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, "root", password, db)) {
+    mysql.execute("drop table if exists person");
+    mysql.create_datatable<person>(ormpp_auto_key{"id"});
+    mysql.insert<person>({0, "purecpp", 200});
+    mysql.insert<person>({0, "other", 200});
+    mysql.delete_records<person>("name = 'purecpp';drop table person");
+    auto vec = mysql.query<person>();
+    CHECK(vec.size() == 1);
+  }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists person");
+    sqlite.create_datatable<person>(ormpp_auto_key{"id"});
+    sqlite.insert<person>({0, "purecpp", 200});
+    sqlite.insert<person>({0, "other", 200});
+    sqlite.delete_records<person>("name = 'purecpp';drop table person");
+    auto vec = sqlite.query<person>();
+    CHECK(vec.size() == 1);
+  }
+#endif
+}
