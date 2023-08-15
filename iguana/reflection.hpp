@@ -616,6 +616,9 @@ constexpr std::array<frozen::string, N> get_alias_arr(Args... pairs) {
       }                                                                       \
       static std::string_view fields() {                                      \
         static std::string alisa_fields;                                      \
+        if (!alisa_fields.empty()) {                                          \
+          return alisa_fields;                                                \
+        }                                                                     \
         for (const auto &it : arr()) {                                        \
           alisa_fields += it.data();                                          \
           alisa_fields += ",";                                                \
