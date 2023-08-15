@@ -191,7 +191,7 @@ REFLECTION(dummy, id, name);
 TEST_CASE("mysql_pool") {
   //	dbng<sqlite> sqlite;
   //	sqlite.connect(db);
-  //	sqlite.create_datatable<test_tb>(ormpp_unique{ "name" });
+  //	sqlite.create_datatable<test_tb>(ormpp_unique{{"name"}});
   //	test_tb tb{ 1, "aa" };
   //	sqlite.insert(tb);
   //	auto vt = sqlite.query<test_tb>();
@@ -205,7 +205,7 @@ TEST_CASE("mysql_pool") {
   //    }
   //	auto con = pool.get();
   //	auto v = con->query<std::tuple<test_tb>>("select * from test_tb");
-  //	con->create_datatable<test_tb>(ormpp_unique{"name"});
+  //	con->create_datatable<test_tb>(ormpp_unique{{"name"}});
   //    for (int i = 0; i < 10; ++i) {
   //        auto conn = pool.get();
   ////        conn_guard guard(conn);
@@ -958,12 +958,15 @@ TEST_CASE("test create table with unique and test query") {
   if (mysql.connect(ip, "root", password, db)) {
     mysql.execute("drop table if exists person");
     CHECK(mysql.create_datatable<person>(ormpp_auto_key{"id"},
-                                         ormpp_unique{"name"}));
+                                         ormpp_unique{{"name", "age"}}));
     mysql.insert<person>({0, "purecpp", 200});
     auto v1 = mysql.query<person>("order by id");
     auto v2 = mysql.query<person>("limit 1");
     CHECK(v1.size() == 1);
     CHECK(v2.size() == 1);
+    mysql.insert<person>({0, "purecpp", 200});
+    auto v3 = mysql.query<person>();
+    CHECK(v3.size() == 1);
   }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -971,12 +974,15 @@ TEST_CASE("test create table with unique and test query") {
   if (sqlite.connect(db)) {
     sqlite.execute("drop table if exists person");
     CHECK(sqlite.create_datatable<person>(ormpp_auto_key{"id"},
-                                          ormpp_unique{"name"}));
+                                          ormpp_unique{{"name", "age"}}));
     sqlite.insert<person>({0, "purecpp", 200});
     auto v1 = sqlite.query<person>("order by id");
     auto v2 = sqlite.query<person>("limit 1");
     CHECK(v1.size() == 1);
     CHECK(v2.size() == 1);
+    sqlite.insert<person>({0, "purecpp", 200});
+    auto v3 = sqlite.query<person>();
+    CHECK(v3.size() == 1);
   }
 #endif
 }

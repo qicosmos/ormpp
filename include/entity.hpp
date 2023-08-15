@@ -19,7 +19,7 @@ struct ormpp_auto_key {
 };
 
 struct ormpp_unique {
-  std::string fields;
+  std::set<std::string> fields;
 };
 
 #endif  // ORM_ENTITY_HPP

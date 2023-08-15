@@ -566,14 +566,16 @@ class mysql {
     }
     auto tp = sort_tuple(std::make_tuple(std::forward<Args>(args)...));
     const size_t arr_size = arr.size();
+    std::set<std::string> unique_fields;
     for (size_t i = 0; i < arr_size; ++i) {
       auto field_name = arr[i];
       bool has_add_field = false;
       for_each0(
           tp,
-          [&sql, &i, &has_add_field, field_name, type_name_arr, name,
-           this](auto item) {
-            if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
+          [&sql, &i, &has_add_field, &unique_fields, field_name, type_name_arr,
+           name, this](auto item) {
+            if constexpr (std::is_same_v<decltype(item), ormpp_not_null> ||
+                          std::is_same_v<decltype(item), ormpp_unique>) {
               if (item.fields.find(field_name.data()) == item.fields.end())
                 return;
             }
@@ -614,8 +616,7 @@ class mysql {
                   append(sql, field_name.data(), " ", type_name_arr[i]);
                 }
               }
-
-              append(sql, ", UNIQUE(", item.fields, ")");
+              unique_fields.insert(field_name.data());
               has_add_field = true;
             }
             else {
@@ -630,6 +631,14 @@ class mysql {
 
       if (i < arr_size - 1)
         sql += ", ";
+    }
+
+    if (!unique_fields.empty()) {
+      sql += ", UNIQUE(";
+      for (const auto &it : unique_fields) {
+        sql += it + ",";
+      }
+      sql.back() = ')';
     }
 
     sql += ")";
