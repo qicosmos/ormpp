@@ -1028,7 +1028,37 @@ TEST_CASE("test delete_records") {
     sqlite.insert<person>({0, "purecpp", 200});
     sqlite.delete_records<person>("name = 'other';drop table person");
     auto vec = sqlite.query<person>();
-    CHECK(vec.size() == 1);
+    CHECK(vec.size() == 0);
+  }
+#endif
+}
+
+struct alias {
+  int id;
+  std::string name;
+};
+REFLECTION_ALIAS(alias, "t_alias", FLDALIAS(&alias::id, "alias_id"),
+                 FLDALIAS(&alias::name, "alias_name"));
+
+TEST_CASE("test alias") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, "root", password, db)) {
+    mysql.create_datatable<alias>(ormpp_auto_key{"alias_id"});
+    mysql.delete_records<alias>();
+    mysql.insert<alias>({0, "purecpp"});
+    auto vec = mysql.query<alias>();
+    CHECK(vec.front().name == "purecpp");
+  }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.create_datatable<alias>(ormpp_auto_key{"alias_id"});
+    sqlite.delete_records<alias>();
+    sqlite.insert<alias>({0, "purecpp"});
+    auto vec = sqlite.query<alias>();
+    CHECK(vec.front().name == "purecpp");
   }
 #endif
 }

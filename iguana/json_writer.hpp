@@ -12,12 +12,19 @@ template <typename Stream, typename T,
           std::enable_if_t<refletable_v<T>, int> = 0>
 IGUANA_INLINE void to_json(T &&t, Stream &s);
 
+template <typename Stream, typename T>
+IGUANA_INLINE void render_json_value(Stream &ss, std::optional<T> &val);
+
+template <typename Stream, typename T,
+          std::enable_if_t<fixed_array_v<T>, int> = 0>
+IGUANA_INLINE void render_json_value(Stream &ss, const T &t);
+
 template <typename Stream, typename T,
           std::enable_if_t<sequence_container_v<T>, int> = 0>
 IGUANA_INLINE void render_json_value(Stream &ss, const T &v);
 
 template <typename Stream, typename T,
-          std::enable_if_t<unique_ptr_v<T>, int> = 0>
+          std::enable_if_t<smart_ptr_v<T>, int> = 0>
 IGUANA_INLINE void render_json_value(Stream &ss, const T &v);
 
 template <typename Stream, typename T,
@@ -25,7 +32,10 @@ template <typename Stream, typename T,
 IGUANA_INLINE void render_json_value(Stream &ss, const T &o);
 
 template <typename Stream, typename T, std::enable_if_t<tuple_v<T>, int> = 0>
-IGUANA_INLINE void render_json_value(Stream &ss, const T &v);
+IGUANA_INLINE void render_json_value(Stream &s, T &&t);
+
+template <typename Stream, typename T, std::enable_if_t<variant_v<T>, int> = 0>
+IGUANA_INLINE void render_json_value(Stream &s, T &&t);
 
 template <typename Stream, typename InputIt, typename T, typename F>
 IGUANA_INLINE void join(Stream &ss, InputIt first, InputIt last, const T &delim,
@@ -99,7 +109,22 @@ IGUANA_INLINE void render_json_value(Stream &ss, T &&t) {
 
 template <typename Stream, typename T, std::enable_if_t<enum_v<T>, int> = 0>
 IGUANA_INLINE void render_json_value(Stream &ss, T val) {
-  render_json_value(ss, static_cast<std::underlying_type_t<T>>(val));
+  static constexpr auto enum_to_str = get_enum_map<false, std::decay_t<T>>();
+  if constexpr (bool_v<decltype(enum_to_str)>) {
+    render_json_value(ss, static_cast<std::underlying_type_t<T>>(val));
+  } else {
+    auto it = enum_to_str.find(val);
+    if (it != enum_to_str.end())
+      IGUANA_LIKELY {
+        auto str = it->second;
+        render_json_value(ss, std::string_view(str.data(), str.size()));
+      }
+    else {
+      throw std::runtime_error(
+          std::to_string(static_cast<std::underlying_type_t<T>>(val)) +
+          " is a missing value in enum_value");
+    }
+  }
 }
 
 template <typename Stream, typename T>
@@ -120,8 +145,7 @@ IGUANA_INLINE void render_array(Stream &ss, const T &v) {
   ss.push_back(']');
 }
 
-template <typename Stream, typename T,
-          std::enable_if_t<fixed_array_v<T>, int> = 0>
+template <typename Stream, typename T, std::enable_if_t<fixed_array_v<T>, int>>
 IGUANA_INLINE void render_json_value(Stream &ss, const T &t) {
   if constexpr (std::is_same_v<char, std::remove_reference_t<
                                          decltype(std::declval<T>()[0])>>) {
@@ -174,7 +198,7 @@ constexpr auto write_json_key = [](auto &s, auto i,
   s.push_back('"');
 };
 
-template <typename Stream, typename T, std::enable_if_t<unique_ptr_v<T>, int>>
+template <typename Stream, typename T, std::enable_if_t<smart_ptr_v<T>, int>>
 IGUANA_INLINE void render_json_value(Stream &ss, const T &v) {
   if (v) {
     render_json_value(ss, *v);
@@ -183,7 +207,7 @@ IGUANA_INLINE void render_json_value(Stream &ss, const T &v) {
   }
 }
 
-template <typename Stream, typename T, std::enable_if_t<tuple_v<T>, int> = 0>
+template <typename Stream, typename T, std::enable_if_t<tuple_v<T>, int>>
 IGUANA_INLINE void render_json_value(Stream &s, T &&t) {
   using U = typename std::decay_t<T>;
   s.push_back('[');
@@ -198,27 +222,26 @@ IGUANA_INLINE void render_json_value(Stream &s, T &&t) {
   s.push_back(']');
 }
 
+template <typename Stream, typename T, std::enable_if_t<variant_v<T>, int>>
+IGUANA_INLINE void render_json_value(Stream &s, T &&t) {
+  std::visit([&s](auto value) { render_json_value(s, value); }, t);
+}
+
 template <typename Stream, typename T, std::enable_if_t<refletable_v<T>, int>>
 IGUANA_INLINE void to_json(T &&t, Stream &s) {
   s.push_back('{');
   for_each(std::forward<T>(t),
            [&t, &s](const auto &v, auto i) IGUANA__INLINE_LAMBDA {
-             using M = decltype(iguana_reflect_members(std::forward<T>(t)));
+             using M = decltype(iguana_reflect_type(std::forward<T>(t)));
              constexpr auto Idx = decltype(i)::value;
              constexpr auto Count = M::value();
              static_assert(Idx < Count);
 
              write_json_key(s, i, t);
              s.push_back(':');
-
-             if constexpr (!is_reflection<decltype(v)>::value) {
-               render_json_value(s, t.*v);
-             } else {
-               to_json(t.*v, s);
-             }
-
+             render_json_value(s, t.*v);
              if (Idx < Count - 1)
-               s.push_back(',');
+               IGUANA_LIKELY { s.push_back(','); }
            });
   s.push_back('}');
 }
