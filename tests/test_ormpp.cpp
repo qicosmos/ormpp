@@ -1028,7 +1028,7 @@ TEST_CASE("get_insert_id") {
 //     sqlite.insert<person>({0, "purecpp", 200});
 //     sqlite.delete_records<person>("name = 'other';drop table person");
 //     auto vec = sqlite.query<person>();
-//     CHECK(vec.size() == 0);
+//     CHECK(vec.size() == 2);
 //   }
 // #endif
 // }

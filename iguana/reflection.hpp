@@ -618,7 +618,9 @@ constexpr std::array<frozen::string, N> get_alias_arr(Args... pairs) {
         static std::string alisa_fields;                                      \
         for (const auto &it : arr()) {                                        \
           alisa_fields += it.data();                                          \
+          alisa_fields += ",";                                                \
         }                                                                     \
+        alisa_fields.back() = ' ';                                            \
         return alisa_fields;                                                  \
       }                                                                       \
       constexpr static size_t value() { return size_type::value; }            \
