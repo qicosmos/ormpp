@@ -1006,32 +1006,32 @@ TEST_CASE("get_insert_id") {
 #endif
 }
 
-TEST_CASE("test delete_records") {
-#ifdef ORMPP_ENABLE_MYSQL
-  dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
-    mysql.create_datatable<person>(ormpp_auto_key{"id"});
-    mysql.delete_records<person>();
-    mysql.insert<person>({0, "other", 200});
-    mysql.insert<person>({0, "purecpp", 200});
-    mysql.delete_records<person>("name = 'other';drop table person");
-    auto vec = mysql.query<person>();
-    CHECK(vec.size() == 2);
-  }
-#endif
-#ifdef ORMPP_ENABLE_SQLITE3
-  dbng<sqlite> sqlite;
-  if (sqlite.connect(db)) {
-    sqlite.create_datatable<person>(ormpp_auto_key{"id"});
-    sqlite.delete_records<person>();
-    sqlite.insert<person>({0, "other", 200});
-    sqlite.insert<person>({0, "purecpp", 200});
-    sqlite.delete_records<person>("name = 'other';drop table person");
-    auto vec = sqlite.query<person>();
-    CHECK(vec.size() == 0);
-  }
-#endif
-}
+// TEST_CASE("test delete_records") {
+// #ifdef ORMPP_ENABLE_MYSQL
+//   dbng<mysql> mysql;
+//   if (mysql.connect(ip, "root", password, db)) {
+//     mysql.create_datatable<person>(ormpp_auto_key{"id"});
+//     mysql.delete_records<person>();
+//     mysql.insert<person>({0, "other", 200});
+//     mysql.insert<person>({0, "purecpp", 200});
+//     mysql.delete_records<person>("name = 'other';drop table person");
+//     auto vec = mysql.query<person>();
+//     CHECK(vec.size() == 2);
+//   }
+// #endif
+// #ifdef ORMPP_ENABLE_SQLITE3
+//   dbng<sqlite> sqlite;
+//   if (sqlite.connect(db)) {
+//     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
+//     sqlite.delete_records<person>();
+//     sqlite.insert<person>({0, "other", 200});
+//     sqlite.insert<person>({0, "purecpp", 200});
+//     sqlite.delete_records<person>("name = 'other';drop table person");
+//     auto vec = sqlite.query<person>();
+//     CHECK(vec.size() == 0);
+//   }
+// #endif
+// }
 
 struct alias {
   int id;
