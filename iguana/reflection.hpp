@@ -614,18 +614,6 @@ constexpr std::array<frozen::string, N> get_alias_arr(Args... pairs) {
       constexpr static std::string_view struct_name() {                       \
         return std::string_view(#STRUCT_NAME, sizeof(#STRUCT_NAME) - 1);      \
       }                                                                       \
-      static std::string_view fields() {                                      \
-        static std::string alisa_fields;                                      \
-        if (!alisa_fields.empty()) {                                          \
-          return alisa_fields;                                                \
-        }                                                                     \
-        for (const auto &it : arr()) {                                        \
-          alisa_fields += it.data();                                          \
-          alisa_fields += ",";                                                \
-        }                                                                     \
-        alisa_fields.back() = ' ';                                            \
-        return alisa_fields;                                                  \
-      }                                                                       \
       constexpr static size_t value() { return size_type::value; }            \
       constexpr static std::array<frozen::string, size_type::value> arr() {   \
         return iguana::detail::get_alias_arr<size_type::value>(__VA_ARGS__);  \
@@ -921,12 +909,6 @@ template <typename T>
 constexpr const std::string_view get_name() {
   using M = decltype(iguana_reflect_type(std::declval<T>()));
   return M::name();
-}
-
-template <typename T>
-constexpr const std::string_view get_fields() {
-  using M = Reflect_members<T>;
-  return M::fields();
 }
 
 template <typename T>
