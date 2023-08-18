@@ -144,12 +144,26 @@ inline std::string get_name() {
   return quota_name;
 }
 
+template <typename T, typename = std::enable_if_t<iguana::is_reflection_v<T>>>
+inline std::string get_fields() {
+  static std::string alisa_fields;
+  if (!alisa_fields.empty()) {
+    return alisa_fields;
+  }
+  for (const auto &it : iguana::Reflect_members<T>::arr()) {
+    alisa_fields += it.data();
+    alisa_fields += ",";
+  }
+  alisa_fields.back() = ' ';
+  return alisa_fields;
+}
+
 template <typename T>
 inline std::string generate_insert_sql(bool replace) {
   std::string sql = replace ? "replace into " : "insert into ";
   constexpr size_t SIZE = iguana::get_value<T>();
   auto name = get_name<T>();
-  auto fields = iguana::get_fields<T>();
+  auto fields = get_fields<T>();
   append(sql, name.data(), "(", fields.data(), ")", "values(");
 
   for (size_t i = 0; i < SIZE; ++i) {
@@ -257,7 +271,7 @@ inline std::string generate_query_sql(Args &&...args) {
   static_assert(param_size == 0 || param_size > 0);
   std::string sql = "select ";
   auto name = get_name<T>();
-  auto fields = iguana::get_fields<T>();
+  auto fields = get_fields<T>();
   append(sql, fields.data(), "from", name.data());
 
   std::string where_sql = "";

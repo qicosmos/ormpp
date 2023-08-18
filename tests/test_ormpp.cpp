@@ -191,7 +191,7 @@ REFLECTION(dummy, id, name);
 TEST_CASE("mysql_pool") {
   //	dbng<sqlite> sqlite;
   //	sqlite.connect(db);
-  //	sqlite.create_datatable<test_tb>(ormpp_unique{ "name" });
+  //	sqlite.create_datatable<test_tb>(ormpp_unique{{"name"}});
   //	test_tb tb{ 1, "aa" };
   //	sqlite.insert(tb);
   //	auto vt = sqlite.query<test_tb>();
@@ -205,7 +205,7 @@ TEST_CASE("mysql_pool") {
   //    }
   //	auto con = pool.get();
   //	auto v = con->query<std::tuple<test_tb>>("select * from test_tb");
-  //	con->create_datatable<test_tb>(ormpp_unique{"name"});
+  //	con->create_datatable<test_tb>(ormpp_unique{{"name"}});
   //    for (int i = 0; i < 10; ++i) {
   //        auto conn = pool.get();
   ////        conn_guard guard(conn);
@@ -958,12 +958,15 @@ TEST_CASE("test create table with unique and test query") {
   if (mysql.connect(ip, "root", password, db)) {
     mysql.execute("drop table if exists person");
     CHECK(mysql.create_datatable<person>(ormpp_auto_key{"id"},
-                                         ormpp_unique{"name"}));
+                                         ormpp_unique{{"name", "age"}}));
     mysql.insert<person>({0, "purecpp", 200});
     auto v1 = mysql.query<person>("order by id");
     auto v2 = mysql.query<person>("limit 1");
     CHECK(v1.size() == 1);
     CHECK(v2.size() == 1);
+    mysql.insert<person>({0, "purecpp", 200});
+    auto v3 = mysql.query<person>();
+    CHECK(v3.size() == 1);
   }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -971,12 +974,15 @@ TEST_CASE("test create table with unique and test query") {
   if (sqlite.connect(db)) {
     sqlite.execute("drop table if exists person");
     CHECK(sqlite.create_datatable<person>(ormpp_auto_key{"id"},
-                                          ormpp_unique{"name"}));
+                                          ormpp_unique{{"name", "age"}}));
     sqlite.insert<person>({0, "purecpp", 200});
     auto v1 = sqlite.query<person>("order by id");
     auto v2 = sqlite.query<person>("limit 1");
     CHECK(v1.size() == 1);
     CHECK(v2.size() == 1);
+    sqlite.insert<person>({0, "purecpp", 200});
+    auto v3 = sqlite.query<person>();
+    CHECK(v3.size() == 1);
   }
 #endif
 }
@@ -1002,6 +1008,63 @@ TEST_CASE("get_insert_id") {
     sqlite.insert<person>({0, "purecpp", 200});
     int id = sqlite.insert<person>({0, "purecpp", 200}, true);
     CHECK(id == 3);
+  }
+#endif
+}
+
+// TEST_CASE("test delete_records") {
+// #ifdef ORMPP_ENABLE_MYSQL
+//   dbng<mysql> mysql;
+//   if (mysql.connect(ip, "root", password, db)) {
+//     mysql.create_datatable<person>(ormpp_auto_key{"id"});
+//     mysql.delete_records<person>();
+//     mysql.insert<person>({0, "other", 200});
+//     mysql.insert<person>({0, "purecpp", 200});
+//     mysql.delete_records<person>("name = 'other';drop table person");
+//     auto vec = mysql.query<person>();
+//     CHECK(vec.size() == 2);
+//   }
+// #endif
+// #ifdef ORMPP_ENABLE_SQLITE3
+//   dbng<sqlite> sqlite;
+//   if (sqlite.connect(db)) {
+//     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
+//     sqlite.delete_records<person>();
+//     sqlite.insert<person>({0, "other", 200});
+//     sqlite.insert<person>({0, "purecpp", 200});
+//     sqlite.delete_records<person>("name = 'other';drop table person");
+//     auto vec = sqlite.query<person>();
+//     CHECK(vec.size() == 2);
+//   }
+// #endif
+// }
+
+struct alias {
+  int id;
+  std::string name;
+};
+REFLECTION_ALIAS(alias, "t_alias", FLDALIAS(&alias::id, "alias_id"),
+                 FLDALIAS(&alias::name, "alias_name"));
+
+TEST_CASE("test alias") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, "root", password, db)) {
+    mysql.create_datatable<alias>(ormpp_auto_key{"alias_id"});
+    mysql.delete_records<alias>();
+    mysql.insert<alias>({0, "purecpp"});
+    auto vec = mysql.query<alias>();
+    CHECK(vec.front().name == "purecpp");
+  }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.create_datatable<alias>(ormpp_auto_key{"alias_id"});
+    sqlite.delete_records<alias>();
+    sqlite.insert<alias>({0, "purecpp"});
+    auto vec = sqlite.query<alias>();
+    CHECK(vec.front().name == "purecpp");
   }
 #endif
 }

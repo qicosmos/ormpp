@@ -266,9 +266,9 @@ postgres.create_datatable<person>(key1, not_null);
 sqlite.create_datatable<person>(key1);
 ```
 
-注意：目前只支持了key、unique和not null属性，并且只支持单键，还不支持组合键，将在下一个版本中支持组合键。
+注意：目前只支持了key、unique和not null属性。
 ```
-mysql.create_datatable<person>(ormpp_unique{"name"});
+mysql.create_datatable<person>(ormpp_unique{{"name"}});
 当在mysql中使用由unique声明的std::string成员创建表时，
 由于"BLOB/TEXT column 'NAME' used in key specification without a key length", 
 故在创建表时，如果是由unique声明的std::string成员对应的数据类型则为VARCHAR(512)，否则则为TEXT

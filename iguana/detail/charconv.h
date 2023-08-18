@@ -7,8 +7,7 @@
 namespace iguana {
 template <typename T>
 struct is_char_type
-    : std::disjunction<std::is_same<T, char>, std::is_same<T, unsigned char>,
-                       std::is_same<T, signed char>, std::is_same<T, wchar_t>,
+    : std::disjunction<std::is_same<T, char>, std::is_same<T, wchar_t>,
                        std::is_same<T, char16_t>, std::is_same<T, char32_t>> {};
 
 namespace detail {
@@ -34,8 +33,11 @@ template <typename T> char *to_chars(char *buffer, T value) noexcept {
     return xtoa(value, buffer, 10, 1); // int64_t
   } else if constexpr (std::is_unsigned_v<U> && (sizeof(U) >= 8)) {
     return xtoa(value, buffer, 10, 0); // uint64_t
-  } else if constexpr (std::is_integral_v<U> && !is_char_type<U>::value) {
+  } else if constexpr (std::is_integral_v<U> && (sizeof(U) > 1)) {
     return itoa_fwd(value, buffer); // only support more than 2 bytes intergal
+  } else if constexpr (!is_char_type<U>::value) {
+    return itoa_fwd(static_cast<int>(value),
+                    buffer); // only support more than 2 bytes intergal
   } else {
     static_assert(!sizeof(U), "only support arithmetic type except char type");
   }

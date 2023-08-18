@@ -285,15 +285,16 @@ class sqlite {
 
     auto tp = sort_tuple(std::make_tuple(std::forward<Args>(args)...));
     const size_t arr_size = arr.size();
-    std::string unique_field;
+    std::set<std::string> unique_fields;
     for (size_t i = 0; i < arr_size; ++i) {
       auto field_name = arr[i];
       bool has_add_field = false;
       for_each0(
           tp,
-          [&sql, &i, &has_add_field, &unique_field, field_name, type_name_arr,
+          [&sql, &i, &has_add_field, &unique_fields, field_name, type_name_arr,
            name, this](auto item) {
-            if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
+            if constexpr (std::is_same_v<decltype(item), ormpp_not_null> ||
+                          std::is_same_v<decltype(item), ormpp_unique>) {
               if (item.fields.find(field_name.data()) == item.fields.end())
                 return;
             }
@@ -313,7 +314,6 @@ class sqlite {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
               }
-
               append(sql, " PRIMARY KEY ");
               has_add_field = true;
             }
@@ -326,12 +326,7 @@ class sqlite {
               has_add_field = true;
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
-              if (!has_add_field) {
-                append(sql, field_name.data(), " ", type_name_arr[i]);
-              }
-
-              append(unique_field, ", UNIQUE(", item.fields, ")");
-              has_add_field = true;
+              unique_fields.insert(field_name.data());
             }
             else {
               append(sql, field_name.data(), " ", type_name_arr[i]);
@@ -347,8 +342,12 @@ class sqlite {
         sql += ", ";
     }
 
-    if (!unique_field.empty()) {
-      append(sql, unique_field.data());
+    if (!unique_fields.empty()) {
+      sql += ", UNIQUE(";
+      for (const auto &it : unique_fields) {
+        sql += it + ",";
+      }
+      sql.back() = ')';
     }
 
     sql += ")";
