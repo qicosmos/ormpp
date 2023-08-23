@@ -82,7 +82,7 @@ class mysql {
     reset_error();
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
     sql += " DEFAULT CHARSET=utf8";
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     if (mysql_query(con_, sql.data())) {
@@ -136,7 +136,7 @@ class mysql {
   bool delete_records(Args &&...where_conditon) {
     reset_error();
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     if (mysql_query(con_, sql.data())) {
@@ -158,7 +158,7 @@ class mysql {
     constexpr auto SIZE = std::tuple_size_v<T>;
 
     std::string sql = s;
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     constexpr auto Args_Size = sizeof...(Args);
@@ -417,7 +417,7 @@ class mysql {
       Args &&...args) {
     reset_error();
     std::string sql = generate_query_sql<T>(args...);
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     constexpr auto SIZE = iguana::get_value<T>();
@@ -743,7 +743,7 @@ class mysql {
   template <typename T, typename... Args>
   int insert_impl(const std::string &sql, const T &t,
                   bool get_insert_id = false, Args &&...args) {
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     stmt_ = mysql_stmt_init(con_);
@@ -759,13 +759,13 @@ class mysql {
     if (stmt_execute(t) < 0)
       return INT_MIN;
 
-    return get_insert_id ? stmt_->insert_id : 1;
+    return get_insert_id ? stmt_->mysql->insert_id : 1;
   }
 
   template <typename T, typename... Args>
   int insert_impl(const std::string &sql, const std::vector<T> &t,
                   bool get_insert_id = false, Args &&...args) {
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     stmt_ = mysql_stmt_init(con_);
@@ -792,7 +792,8 @@ class mysql {
     }
     b = commit();
 
-    return b ? (get_insert_id ? stmt_->insert_id : (int)t.size()) : INT_MIN;
+    return b ? (get_insert_id ? stmt_->mysql->insert_id : (int)t.size())
+             : INT_MIN;
   }
 
   template <typename... Args>

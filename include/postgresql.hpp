@@ -65,7 +65,7 @@ class postgresql {
     //            PQclear(res_);
 
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     res_ = PQexec(con_, sql.data());
@@ -176,7 +176,7 @@ class postgresql {
   constexpr std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
       Args &&...args) {
     std::string sql = generate_query_sql<T>(std::forward<Args>(args)...);
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     constexpr auto SIZE = iguana::get_value<T>();
@@ -213,7 +213,7 @@ class postgresql {
     constexpr auto SIZE = std::tuple_size_v<T>;
 
     std::string sql = s;
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     constexpr auto Args_Size = sizeof...(Args);
@@ -265,7 +265,7 @@ class postgresql {
   template <typename T, typename... Args>
   constexpr bool delete_records(Args &&...where_conditon) {
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     res_ = PQexec(con_, sql.data());
@@ -515,7 +515,7 @@ class postgresql {
   template <typename T, typename... Args>
   constexpr int insert_impl(const std::string &sql, const T &t,
                             Args &&...args) {
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     std::vector<std::vector<char>> param_values;

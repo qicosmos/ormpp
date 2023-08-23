@@ -10,17 +10,33 @@ IF (MYSQL_INCLUDE_DIR)
   SET(MYSQL_FIND_QUIETLY TRUE)
 ENDIF (MYSQL_INCLUDE_DIR)
 
-FIND_PATH(MYSQL_INCLUDE_DIR mysql.h
-  /usr/local/include/mysql
-  /usr/include/mysql
-)
+IF (UNIX)
+  FIND_PATH(MYSQL_INCLUDE_DIR mysql.h
+    /usr/local/include/mysql
+    /usr/include/mysql
+  )
+ELSEIF (WIN32)
+  FIND_PATH(MYSQL_INCLUDE_DIR mysql.h
+    $ENV{PROGRAMFILES}/MySQL/*/include
+    $ENV{SYSTEMDRIVE}/MySQL/*/include
+  )
+ENDIF()
 
 SET(MYSQL_NAMES mysqlclient mysqlclient_r)
-FIND_LIBRARY(MYSQL_LIBRARY
-  NAMES ${MYSQL_NAMES}
-  PATHS /usr/lib /usr/local/lib
-  PATH_SUFFIXES mysql
-)
+IF (UNIX)
+  FIND_LIBRARY(MYSQL_LIBRARY
+    NAMES ${MYSQL_NAMES}
+    PATHS /usr/lib /usr/local/lib
+    PATH_SUFFIXES mysql
+  )
+ELSEIF (WIN32)
+  FIND_LIBRARY(MYSQL_LIBRARY
+    NAMES ${MYSQL_NAMES}
+    PATHS $ENV{PROGRAMFILES}/MySQL/*/lib 
+    $ENV{SYSTEMDRIVE}/MySQL/*/lib
+    PATH_SUFFIXES mysql
+  )
+ENDIF()
 
 IF (MYSQL_INCLUDE_DIR AND MYSQL_LIBRARY)
   SET(MYSQL_FOUND TRUE)
