@@ -346,7 +346,7 @@ class mysql {
 
   template <typename T, typename B>
   void set_param_bind(MYSQL_BIND &param_bind, T &&value, int i,
-                      std::map<size_t, std::vector<char>> &mp, B &&is_null) {
+                      std::map<size_t, std::vector<char>> &mp, B &is_null) {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (is_optional_v<U>::value) {
       return set_param_bind(param_bind, *value, i, mp, is_null);
@@ -377,7 +377,7 @@ class mysql {
       param_bind.buffer = &(mp.rbegin()->second[0]);
       param_bind.buffer_length = 65536;
     }
-    param_bind.is_null = is_null;
+    param_bind.is_null = (B)&is_null;
   }
 
   template <typename T>
