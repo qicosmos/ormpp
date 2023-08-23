@@ -89,10 +89,11 @@ struct test_optional {
   int id;
   std::optional<std::string> name;
   std::optional<int> age;
+  std::optional<int> empty;
 };
 REFLECTION(test_optional, id, name, age);
 
-TEST_CASE("test_optional") {
+TEST_CASE("test optional") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, "root", password, db)) {
@@ -104,9 +105,11 @@ TEST_CASE("test_optional") {
     REQUIRE(v1.size() > 0);
     CHECK(v1.front().age.value() == 200);
     CHECK(v1.front().name.value() == "purecpp");
+    CHECK(v1.front().empty.has_value() == false);
     REQUIRE(v2.size() > 0);
     CHECK(v2.front().age.value() == 200);
     CHECK(v2.front().name.value() == "purecpp");
+    CHECK(v2.front().empty.has_value() == false);
   }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -120,9 +123,11 @@ TEST_CASE("test_optional") {
     REQUIRE(v1.size() > 0);
     CHECK(v1.front().age.value() == 200);
     CHECK(v1.front().name.value() == "purecpp");
+    CHECK(v1.front().empty.has_value() == false);
     REQUIRE(v2.size() > 0);
     CHECK(v2.front().age.value() == 200);
     CHECK(v2.front().name.value() == "purecpp");
+    CHECK(v2.front().empty.has_value() == false);
   }
 #endif
 }
