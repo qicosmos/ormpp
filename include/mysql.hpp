@@ -346,10 +346,10 @@ class mysql {
 
   template <typename T>
   void set_param_bind(MYSQL_BIND &param_bind, T &&value, int i,
-                      std::map<size_t, std::vector<char>> &mp) {
+                      std::map<size_t, std::vector<char>> &mp, bool &is_null) {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (is_optional_v<U>::value) {
-      return set_param_bind(param_bind, *value, i, mp);
+      return set_param_bind(param_bind, *value, i, mp, is_null);
     }
     else if constexpr (std::is_arithmetic_v<U>) {
       param_bind.buffer_type =
@@ -377,6 +377,7 @@ class mysql {
       param_bind.buffer = &(mp.rbegin()->second[0]);
       param_bind.buffer_length = 65536;
     }
+    param_bind.is_null = &is_null;
   }
 
   template <typename T>
@@ -436,12 +437,13 @@ class mysql {
 
     std::array<MYSQL_BIND, SIZE> param_binds = {};
     std::map<size_t, std::vector<char>> mp;
+    std::array<bool, SIZE> nulls = {};
 
     std::vector<T> v;
     T t{};
     int index = 0;
-    iguana::for_each(t, [&](auto item, auto i) {
-      set_param_bind(param_binds[index], t.*item, index, mp);
+    iguana::for_each(t, [&](auto item, auto /*i*/) {
+      set_param_bind(param_binds[index], t.*item, index, mp, nulls[index]);
       index++;
     });
 
@@ -471,13 +473,20 @@ class mysql {
         p.second.assign(p.second.size(), 0);
       }
 
-      v.push_back(std::move(t));
-      iguana::for_each(t, [&mp, &t](auto item, auto /*i*/) {
-        using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
-        if constexpr (std::is_arithmetic_v<U>) {
-          memset(&(t.*item), 0, sizeof(U));
+      iguana::for_each(t, [&nulls, &t](auto item, auto i) {
+        constexpr auto Idx = decltype(i)::value;
+        if (nulls.at(Idx)) {
+          using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
+          if constexpr (is_optional_v<U>::value) {
+            t.*item = {};
+          }
+          else if constexpr (std::is_arithmetic_v<U>) {
+            t.*item = {};
+          }
         }
       });
+
+      v.push_back(std::move(t));
     }
 
     return v;
