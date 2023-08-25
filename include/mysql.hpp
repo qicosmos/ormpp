@@ -153,8 +153,7 @@ class mysql {
   int get_last_affect_rows() { return (int)mysql_affected_rows(con_); }
 
   template <typename T>
-  void set_param_bind(std::vector<MYSQL_BIND> &param_binds,
-                                T &&value) {
+  void set_param_bind(std::vector<MYSQL_BIND> &param_binds, T &&value) {
     MYSQL_BIND param = {};
 
     using U = std::remove_const_t<std::remove_reference_t<T>>;
