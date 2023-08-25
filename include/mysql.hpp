@@ -153,7 +153,8 @@ class mysql {
   int get_last_affect_rows() { return (int)mysql_affected_rows(con_); }
 
   template <typename T>
-  void set_param_bind(std::vector<MYSQL_BIND> &param_binds, T &&value) {
+  constexpr void set_param_bind(std::vector<MYSQL_BIND> &param_binds,
+                                T &&value) {
     MYSQL_BIND param = {};
 
     using U = std::remove_const_t<std::remove_reference_t<T>>;
@@ -192,9 +193,8 @@ class mysql {
   }
 
   template <typename T, typename B>
-  constexpr void set_param_bind(MYSQL_BIND &param_bind, T &&value, int i,
-                                std::map<size_t, std::vector<char>> &mp,
-                                B &is_null) {
+  void set_param_bind(MYSQL_BIND &param_bind, T &&value, int i,
+                      std::map<size_t, std::vector<char>> &mp, B &is_null) {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (is_optional_v<U>::value) {
       return set_param_bind(param_bind, *value, i, mp, is_null);
