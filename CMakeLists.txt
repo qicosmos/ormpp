@@ -8,6 +8,8 @@ include(cmake/dependency.cmake)
 
 if (ENABLE_MYSQL)
     include_directories(${MYSQL_INCLUDE_DIR} include)
+elseif(ENABLE_MARIADB)
+    include_directories(${MARIADB_INCLUDE_DIR} include)
 else()
     include_directories(include)
 endif()

@@ -14,6 +14,10 @@ if (ENABLE_MYSQL)
         endif()
 endif()
 
+if (ENABLE_MARIADB)
+        target_link_libraries(${PROJECT_NAME} ${MARIADB_LIBRARY})
+endif()
+
 if (ENABLE_SQLITE3)
         target_link_libraries(${PROJECT_NAME} sqlite3 doctest)
 endif()

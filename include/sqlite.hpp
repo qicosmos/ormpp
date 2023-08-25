@@ -58,7 +58,7 @@ class sqlite {
     //            }
 
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr) !=
@@ -108,7 +108,7 @@ class sqlite {
   template <typename T, typename... Args>
   bool delete_records(Args &&...where_conditon) {
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr) !=
@@ -126,7 +126,7 @@ class sqlite {
   std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
       Args &&...args) {
     std::string sql = generate_query_sql<T>(args...);
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
@@ -165,7 +165,7 @@ class sqlite {
     constexpr auto SIZE = std::tuple_size_v<T>;
 
     std::string sql = s;
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     constexpr auto Args_Size = sizeof...(Args);
@@ -440,7 +440,7 @@ class sqlite {
   template <typename T, typename... Args>
   int insert_impl(bool is_update, const std::string &sql, const T &t,
                   bool get_insert_id = false, Args &&...args) {
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
@@ -489,7 +489,7 @@ class sqlite {
   int insert_impl(bool is_update, const std::string &sql,
                   const std::vector<T> &v, bool get_insert_id = false,
                   Args &&...args) {
-#if ORMPP_ENABLE_LOG
+#ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
