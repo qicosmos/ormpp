@@ -22,6 +22,8 @@ class mysql {
  public:
   ~mysql() { disconnect(); }
 
+  bool has_error() { return has_error_; }
+
   void reset_error() {
     has_error_ = false;
     last_error_ = {};
