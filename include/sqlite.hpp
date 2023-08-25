@@ -16,7 +16,15 @@ class sqlite {
  public:
   ~sqlite() { disconnect(); }
 
+  bool has_error() { return has_error_; }
+
+  void reset_error() {
+    has_error_ = false;
+    last_error_ = {};
+  }
+
   void set_last_error(std::string last_error) {
+    has_error_ = true;
     last_error_ = std::move(last_error);
     std::cout << last_error_ << std::endl;  // todo, write to log file
   }
@@ -25,6 +33,7 @@ class sqlite {
 
   template <typename... Args>
   bool connect(Args &&...args) {
+    reset_error();
     auto r = sqlite3_open(std::forward<Args>(args)..., &handle_);
     if (r == SQLITE_OK) {
       return true;
@@ -50,13 +59,7 @@ class sqlite {
 
   template <typename T, typename... Args>
   bool create_datatable(Args &&...args) {
-    //            std::string droptb = "DROP TABLE IF EXISTS ";
-    //            droptb += iguana::get_name<T>();
-    //            if (sqlite3_exec(handle_, droptb.data(), nullptr, nullptr,
-    //            nullptr)!=SQLITE_OK) {
-    //                return false;
-    //            }
-
+    reset_error();
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -107,6 +110,7 @@ class sqlite {
 
   template <typename T, typename... Args>
   bool delete_records(Args &&...where_conditon) {
+    reset_error();
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -125,6 +129,7 @@ class sqlite {
   template <typename T, typename... Args>
   std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
       Args &&...args) {
+    reset_error();
     std::string sql = generate_query_sql<T>(args...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -161,6 +166,7 @@ class sqlite {
   template <typename T, typename Arg, typename... Args>
   std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(
       const Arg &s, Args &&...args) {
+    reset_error();
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
 
@@ -221,6 +227,7 @@ class sqlite {
 
   // just support execute string sql without placeholders
   bool execute(const std::string &sql) {
+    reset_error();
     if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr) !=
         SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
@@ -234,6 +241,7 @@ class sqlite {
 
   // transaction
   bool begin() {
+    reset_error();
     if (sqlite3_exec(handle_, "BEGIN", nullptr, nullptr, nullptr) !=
         SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
@@ -244,6 +252,7 @@ class sqlite {
   }
 
   bool commit() {
+    reset_error();
     if (sqlite3_exec(handle_, "COMMIT", nullptr, nullptr, nullptr) !=
         SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
@@ -254,6 +263,7 @@ class sqlite {
   }
 
   bool rollback() {
+    reset_error();
     if (sqlite3_exec(handle_, "ROLLBACK", nullptr, nullptr, nullptr) !=
         SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
@@ -360,11 +370,13 @@ class sqlite {
     sqlite3_stmt *stmt_ = nullptr;
     int status_ = 0;
     ~guard_statment() {
-      if (stmt_ != nullptr)
+      if (stmt_ != nullptr) {
         status_ = sqlite3_finalize(stmt_);
+      }
 
-      if (status_)
+      if (status_) {
         fprintf(stderr, "close statment error code %d\n", status_);
+      }
     }
   };
 
@@ -440,6 +452,7 @@ class sqlite {
   template <typename T, typename... Args>
   int insert_impl(bool is_update, const std::string &sql, const T &t,
                   bool get_insert_id = false, Args &&...args) {
+    reset_error();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -489,6 +502,7 @@ class sqlite {
   int insert_impl(bool is_update, const std::string &sql,
                   const std::vector<T> &v, bool get_insert_id = false,
                   Args &&...args) {
+    reset_error();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -587,11 +601,13 @@ class sqlite {
     return sql;
   }
 
+ private:
+  bool has_error_ = false;
+  std::string last_error_;
   sqlite3 *handle_ = nullptr;
   sqlite3_stmt *stmt_ = nullptr;
-  std::map<std::string, std::string> auto_key_map_;
-  std::string last_error_;
-  //        std::string auto_key_ = "";
+  inline static std::map<std::string, std::string> auto_key_map_;
 };
 }  // namespace ormpp
+
 #endif  // ORM_SQLITE_HPP

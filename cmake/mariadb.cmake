@@ -10,30 +10,30 @@ IF (MARIADB_INCLUDE_DIR)
   SET(MARIADB_FIND_QUIETLY TRUE)
 ENDIF (MARIADB_INCLUDE_DIR)
 
-IF (UNIX)
-  FIND_PATH(MARIADB_INCLUDE_DIR mysql.h
-    /usr/local/include/mariadb
-    /usr/include/mariadb
-  )
-ELSEIF (WIN32)
+IF (WIN32)
   FIND_PATH(MARIADB_INCLUDE_DIR mysql.h
     $ENV{PROGRAMFILES}/MariaDB*/include
     $ENV{SYSTEMDRIVE}/MariaDB*/include
   )
+ELSE ()
+  FIND_PATH(MARIADB_INCLUDE_DIR mysql.h
+    /usr/local/include/mariadb
+    /usr/include/mariadb
+  )
 ENDIF()
 
 SET(MARIADB_NAMES mariadb)
-IF (UNIX)
-  FIND_LIBRARY(MARIADB_LIBRARY
-    NAMES ${MARIADB_NAMES}
-    PATHS /usr/lib /usr/local/lib
-    PATH_SUFFIXES mariadb
-  )
-ELSEIF (WIN32)
+IF (WIN32)
   FIND_LIBRARY(MARIADB_LIBRARY
     NAMES ${MARIADB_NAMES}
     PATHS $ENV{PROGRAMFILES}/MariaDB*/lib 
     $ENV{SYSTEMDRIVE}/MariaDB*/lib
+    PATH_SUFFIXES mariadb
+  )
+ELSE ()
+  FIND_LIBRARY(MARIADB_LIBRARY
+    NAMES ${MARIADB_NAMES}
+    PATHS /usr/lib /usr/local/lib
     PATH_SUFFIXES mariadb
   )
 ENDIF()

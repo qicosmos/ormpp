@@ -100,16 +100,16 @@ TEST_CASE("test optional") {
     mysql.create_datatable<test_optional>(ormpp_auto_key{"id"});
     mysql.delete_records<test_optional>();
     mysql.insert<test_optional>({0, "purecpp", 200});
-    auto v1 = mysql.query<test_optional>();
-    auto v2 = mysql.query<test_optional>("select * from test_optional;");
-    REQUIRE(v1.size() > 0);
-    CHECK(v1.front().age.value() == 200);
-    CHECK(v1.front().name.value() == "purecpp");
-    CHECK(v1.front().empty.has_value() == false);
-    REQUIRE(v2.size() > 0);
-    CHECK(v2.front().age.value() == 200);
-    CHECK(v2.front().name.value() == "purecpp");
-    CHECK(v2.front().empty.has_value() == false);
+    auto vec1 = mysql.query<test_optional>();
+    REQUIRE(vec1.size() > 0);
+    CHECK(vec1.front().age.value() == 200);
+    CHECK(vec1.front().name.value() == "purecpp");
+    CHECK(vec1.front().empty.has_value() == false);
+    auto vec2 = mysql.query<test_optional>("select * from test_optional;");
+    REQUIRE(vec2.size() > 0);
+    CHECK(vec2.front().age.value() == 200);
+    CHECK(vec2.front().name.value() == "purecpp");
+    CHECK(vec2.front().empty.has_value() == false);
   }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -118,16 +118,16 @@ TEST_CASE("test optional") {
     sqlite.create_datatable<test_optional>(ormpp_auto_key{"id"});
     sqlite.delete_records<test_optional>();
     sqlite.insert<test_optional>({0, "purecpp", 200});
-    auto v1 = sqlite.query<test_optional>();
-    auto v2 = sqlite.query<test_optional>("select * from test_optional;");
-    REQUIRE(v1.size() > 0);
-    CHECK(v1.front().age.value() == 200);
-    CHECK(v1.front().name.value() == "purecpp");
-    CHECK(v1.front().empty.has_value() == false);
-    REQUIRE(v2.size() > 0);
-    CHECK(v2.front().age.value() == 200);
-    CHECK(v2.front().name.value() == "purecpp");
-    CHECK(v2.front().empty.has_value() == false);
+    auto vec1 = sqlite.query<test_optional>();
+    REQUIRE(vec1.size() > 0);
+    CHECK(vec1.front().age.value() == 200);
+    CHECK(vec1.front().name.value() == "purecpp");
+    CHECK(vec1.front().empty.has_value() == false);
+    auto vec2 = sqlite.query<test_optional>("select * from test_optional;");
+    REQUIRE(vec2.size() > 0);
+    CHECK(vec2.front().age.value() == 200);
+    CHECK(vec2.front().name.value() == "purecpp");
+    CHECK(vec2.front().empty.has_value() == false);
   }
 #endif
 }
@@ -141,18 +141,19 @@ REFLECTION(test_order, name, id);
 TEST_CASE("random_reflection_order") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, db,
-                        /*timeout_seconds=*/5, 3306));
-  REQUIRE(mysql.execute(
-      "create table if not exists `test_order` (id int, name text);"));
-  mysql.delete_records<test_order>();
-  int id = 666;
-  std::string name = "hello";
-  mysql.insert(test_order{id, name});
-  auto v = mysql.query<test_order>();
-  REQUIRE(v.size() > 0);
-  CHECK(v.front().id == id);
-  CHECK(v.front().name == name);
+  if (mysql.connect(ip, "root", password, db,
+                    /*timeout_seconds=*/5, 3306)) {
+    REQUIRE(mysql.execute(
+        "create table if not exists `test_order` (id int, name text);"));
+    mysql.delete_records<test_order>();
+    int id = 666;
+    std::string name = "hello";
+    mysql.insert(test_order{id, name});
+    auto vec = mysql.query<test_order>();
+    REQUIRE(vec.size() > 0);
+    CHECK(vec.front().id == id);
+    CHECK(vec.front().name == name);
+  }
 #endif
 }
 
@@ -165,12 +166,11 @@ REFLECTION_WITH_NAME(custom_name, "test_order", id, name);
 TEST_CASE("orm_custom_name") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, db));
-  auto v = mysql.query<custom_name>();
-  CHECK(v.size() > 0);
-  {
-    auto v = mysql.query(FID(custom_name::name), "=", "hello");
-    CHECK(v.size() > 0);
+  if (mysql.connect(ip, "root", password, db)) {
+    auto vec1 = mysql.query<custom_name>();
+    CHECK(vec1.size() > 0);
+    auto vec2 = mysql.query(FID(custom_name::name), "=", "hello");
+    CHECK(vec2.size() > 0);
   }
 #endif
 }
@@ -242,8 +242,8 @@ TEST_CASE("test_ormpp_cfg") {
   }
 
   auto conn1 = pool.get();
-  auto result1 = conn1->query<student>();
-  std::cout << result1.size() << std::endl;
+  auto vec = conn1->query<student>();
+  std::cout << vec.size() << std::endl;
 #endif
 }
 
@@ -308,6 +308,7 @@ TEST_CASE("orm_connect") {
   dbng<sqlite> sqlite;
   REQUIRE(sqlite.connect(db));
   REQUIRE(sqlite.disconnect());
+  REQUIRE(sqlite.connect(db));
 #endif
 }
 
@@ -368,96 +369,93 @@ TEST_CASE("orm_insert_query") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, db));
-  auto vv0 = mysql.query(FID(simple::id), "<", "5");
-  auto vv = mysql.query(FID(simple::id), "<", 5);
-  auto vv3 = mysql.query(FID(person::name), "<", "5");
-  auto vv5 = mysql.query(FID(person::name), "<", 5);
-  mysql.delete_records(FID(simple::id), "=", 3);
+  if (mysql.connect(ip, "root", password, db)) {
+    auto vec1 = mysql.query(FID(simple::id), "<", "5");
+    auto vec2 = mysql.query(FID(simple::id), "<", 5);
+    auto vec3 = mysql.query(FID(person::name), "<", "5");
+    auto vec4 = mysql.query(FID(person::name), "<", 5);
+  }
 #endif
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  REQUIRE(postgres.connect(ip, "root", password, db));
-  auto vv1 = postgres.query(FID(simple::id), "<", "5");
+  if (postgres.connect(ip, "root", password, db)) {
+    auto vec = postgres.query(FID(simple::id), "<", "5");
+  }
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect(db));
-  auto vv2 = sqlite.query(FID(simple::id), "<", "5");
+  if (sqlite.connect(db)) {
+    auto vec = sqlite.query(FID(simple::id), "<", "5");
+  }
 #endif
 
   // auto key
   {
 #ifdef ORMPP_ENABLE_PG
-    REQUIRE(postgres.create_datatable<student>(auto_key, not_null));
+    postgres.create_datatable<student>(auto_key, not_null);
+    postgres.delete_records<student>();
     CHECK(postgres.insert(s) == 1);
-    auto result2 = postgres.query<student>();
-    CHECK(result2.size() == 1);
+    auto vec = postgres.query<student>();
+    CHECK(vec.size() == 1);
     CHECK(postgres.insert(v) == 2);
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
-    REQUIRE(sqlite.create_datatable<student>(auto_key));
-    CHECK(sqlite.delete_records<student>());
+    sqlite.create_datatable<student>(auto_key);
+    sqlite.delete_records<student>();
     CHECK(sqlite.insert(s) == 1);
-    auto result3 = sqlite.query<student>();
-    CHECK(result3.size() == 1);
+    auto vec1 = sqlite.query<student>();
+    CHECK(vec1.size() == 1);
     CHECK(sqlite.insert(v) == 2);
-    auto result6 = sqlite.query<student>();
-    CHECK(result6.size() == 3);
-    auto v2 = sqlite.query(FID(student::code), "<", "5");
-    auto v3 = sqlite.query<student>("limit 2");
+    auto vec2 = sqlite.query<student>();
+    CHECK(vec2.size() == 3);
+    auto vec3 = sqlite.query(FID(student::code), "<", "5");
+    auto vec4 = sqlite.query<student>("limit 2");
 #endif
   }
 
   // key
   {
 #ifdef ORMPP_ENABLE_MYSQL
-    REQUIRE(mysql.create_datatable<student>(auto_key, not_null));
-    CHECK(mysql.delete_records<student>());
+    mysql.create_datatable<student>(auto_key, not_null);
+    mysql.delete_records<student>();
     CHECK(mysql.insert(s) == 1);
-    auto result1 = mysql.query<student>("limit 3");
-    CHECK(result1.size() == 1);
+    auto vec1 = mysql.query<student>("limit 3");
+    CHECK(vec1.size() == 1);
     CHECK(mysql.insert(s) == 1);
     CHECK(mysql.insert(v) == 2);
-    auto result4 = mysql.query<student>();
-    CHECK(result4.size() == 4);
-    auto result5 = mysql.query<student>();
-    CHECK(result5.size() == 4);
-
-    REQUIRE(mysql.create_datatable<student>(key, not_null));
+    auto vec2 = mysql.query<student>();
+    CHECK(vec2.size() == 4);
+    auto vec3 = mysql.query<student>();
+    CHECK(vec3.size() == 4);
     v[0].code = 1;
     v[1].code = 2;
     CHECK(mysql.insert(s) == 1);
-    auto result11 = mysql.query<student>();
-    CHECK(result11.size() == 5);
-    CHECK(mysql.delete_records<student>());
+    auto vec4 = mysql.query<student>();
+    CHECK(vec4.size() == 5);
+    mysql.delete_records<student>();
     CHECK(mysql.insert(v) == 2);
-    auto result44 = mysql.query<student>();
-    CHECK(result44.size() == 2);
-    auto result55 = mysql.query<student>();
-    CHECK(result55.size() == 2);
-    auto result6 = mysql.query<student>();
-    CHECK(result6.size() == 2);
+    auto vec5 = mysql.query<student>();
+    CHECK(vec5.size() == 2);
 #endif
 
 #ifdef ORMPP_ENABLE_PG
-    REQUIRE(postgres.create_datatable<student>(key, not_null));
+    postgres.create_datatable<student>(key, not_null);
     CHECK(postgres.insert(s) == 1);
     auto result2 = postgres.query<student>();
     CHECK(result2.size() == 1);
-    CHECK(postgres.delete_records<student>());
+    postgres.delete_records<student>();
     CHECK(postgres.insert(v) == 2);
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
-    REQUIRE(sqlite.create_datatable<student>(auto_key));
+    sqlite.create_datatable<student>(auto_key);
     CHECK(sqlite.insert(s) == 1);
     auto result3 = sqlite.query<student>();
     CHECK(result3.size() == 4);
-    CHECK(sqlite.delete_records<student>());
+    sqlite.delete_records<student>();
     CHECK(sqlite.insert(v) == 2);
 #endif
   }
@@ -475,42 +473,47 @@ TEST_CASE("orm_update") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-
-  REQUIRE(mysql.connect(ip, "root", password, db));
-  CHECK(mysql.delete_records<student>());
-  REQUIRE(mysql.create_datatable<student>(key, not_null));
-  CHECK(mysql.insert(v) == 3);
-
-  v[0].name = "test1";
-  v[1].name = "test2";
-
-  CHECK(mysql.update(v[0]) == 1);
-  auto result = mysql.query<student>();
-  CHECK(mysql.update(v[1]) == 1);
-  auto result1 = mysql.query<student>();
+  if (mysql.connect(ip, "root", password, db)) {
+    mysql.create_datatable<student>(key, not_null);
+    mysql.delete_records<student>();
+    CHECK(mysql.insert(v) == 3);
+    v[0].name = "test1";
+    v[1].name = "test2";
+    CHECK(mysql.update(v[0]) == 1);
+    auto vec1 = mysql.query<student>();
+    CHECK(mysql.update(v[1]) == 1);
+    auto vec2 = mysql.query<student>();
+  }
 #endif
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  REQUIRE(postgres.connect(ip, "root", password, db));
-  REQUIRE(postgres.create_datatable<student>(key, not_null));
-  CHECK(postgres.insert(v) == 3);
-  CHECK(postgres.update(v[0]) == 1);
-  auto result2 = postgres.query<student>();
-  CHECK(postgres.update(v[1]) == 1);
-  auto result3 = postgres.query<student>();
+  if (postgres.connect(ip, "root", password, db)) {
+    postgres.create_datatable<student>(key, not_null);
+    postgres.delete_records<student>();
+    CHECK(postgres.insert(v) == 3);
+    v[0].name = "test1";
+    v[1].name = "test2";
+    CHECK(postgres.update(v[0]) == 1);
+    auto vec1 = postgres.query<student>();
+    CHECK(postgres.update(v[1]) == 1);
+    auto vec2 = postgres.query<student>();
+  }
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect(db));
-  CHECK(sqlite.delete_records<student>());
-  REQUIRE(sqlite.create_datatable<student>(key));
-  CHECK(sqlite.insert(v) == 3);
-  CHECK(sqlite.update(v[0]) == 1);
-  auto result4 = sqlite.query<student>();
-  CHECK(sqlite.update(v[1]) == 1);
-  auto result5 = sqlite.query<student>();
+  if (sqlite.connect(db)) {
+    sqlite.create_datatable<student>(key);
+    sqlite.delete_records<student>();
+    CHECK(sqlite.insert(v) == 3);
+    v[0].name = "test1";
+    v[1].name = "test2";
+    CHECK(sqlite.update(v[0]) == 1);
+    auto vec1 = sqlite.query<student>();
+    CHECK(sqlite.update(v[1]) == 1);
+    auto vec2 = sqlite.query<student>();
+  }
 #endif
 }
 
@@ -526,38 +529,46 @@ TEST_CASE("orm_multi_update") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, db));
-  REQUIRE(mysql.create_datatable<student>(key, not_null));
-  CHECK(mysql.delete_records<student>());
-  CHECK(mysql.insert(v) == 3);
-  v[0].name = "test1";
-  v[1].name = "test2";
-  v[2].name = "test3";
-
-  CHECK(mysql.update(v) == 3);
-  auto result = mysql.query<student>();
-  CHECK(result.size() == 3);
-#endif
-
-#ifdef ORMPP_ENABLE_SQLITE3
-  dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect(db));
-  CHECK(sqlite.delete_records<student>());
-  REQUIRE(sqlite.create_datatable<student>(key));
-  CHECK(sqlite.insert(v) == 3);
-  CHECK(sqlite.update(v) == 3);
-  auto result4 = sqlite.query<student>();
-  CHECK(result4.size() == 3);
+  if (mysql.connect(ip, "root", password, db)) {
+    mysql.create_datatable<student>(key, not_null);
+    mysql.delete_records<student>();
+    CHECK(mysql.insert(v) == 3);
+    v[0].name = "test1";
+    v[1].name = "test2";
+    v[2].name = "test3";
+    CHECK(mysql.update(v) == 3);
+    auto vec = mysql.query<student>();
+    CHECK(vec.size() == 3);
+  }
 #endif
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  REQUIRE(postgres.connect(ip, "root", password, db));
-  REQUIRE(postgres.create_datatable<student>(key, not_null));
-  CHECK(postgres.insert(v) == 3);
-  CHECK(postgres.update(v) == 3);
-  auto result2 = postgres.query<student>();
-  CHECK(result2.size() == 3);
+  if (postgres.connect(ip, "root", password, db)) {
+    postgres.create_datatable<student>(key, not_null);
+    postgres.insert(v) == 3;
+    v[0].name = "test1";
+    v[1].name = "test2";
+    v[2].name = "test3";
+    CHECK(postgres.update(v) == 3);
+    auto vec = postgres.query<student>();
+    CHECK(vec.size() == 3);
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.delete_records<student>();
+    sqlite.create_datatable<student>(key);
+    CHECK(sqlite.insert(v) == 3);
+    v[0].name = "test1";
+    v[1].name = "test2";
+    v[2].name = "test3";
+    CHECK(sqlite.update(v) == 3);
+    auto vec = sqlite.query<student>();
+    CHECK(vec.size() == 3);
+  }
 #endif
 }
 
@@ -573,40 +584,47 @@ TEST_CASE("orm_delete") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, db));
-  mysql.delete_records<student>();
-  REQUIRE(mysql.create_datatable<student>(key, not_null));
-  CHECK(mysql.insert(v) == 3);
-  REQUIRE(mysql.delete_records<student>("code=1"));
-  CHECK(mysql.query<student>().size() == 2);
-  REQUIRE(mysql.delete_records<student>(""));
-  auto result = mysql.query<student>();
-  CHECK(result.size() == 0);
+  if (mysql.connect(ip, "root", password, db)) {
+    mysql.create_datatable<student>(key, not_null);
+    mysql.delete_records<student>();
+    CHECK(mysql.insert(v) == 3);
+    mysql.delete_records<student>("code=1");
+    auto vec1 = mysql.query<student>();
+    CHECK(vec1.size() == 2);
+    mysql.delete_records<student>("");
+    auto vec2 = mysql.query<student>();
+    CHECK(vec2.size() == 0);
+  }
 #endif
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  REQUIRE(postgres.connect(ip, "root", password, db));
-  REQUIRE(postgres.create_datatable<student>(key, not_null));
-  CHECK(postgres.insert(v) == 3);
-  REQUIRE(postgres.delete_records<student>("code=1"));
-  CHECK(postgres.query<student>().size() == 2);
-  REQUIRE(postgres.delete_records<student>(""));
-  auto result1 = postgres.query<student>();
-  CHECK(result1.size() == 0);
+  if (postgres.connect(ip, "root", password, db)) {
+    postgres.create_datatable<student>(key, not_null);
+    postgres.delete_records<student>();
+    CHECK(postgres.insert(v) == 3);
+    postgres.delete_records<student>("code=1");
+    auto vec1 = postgres.query<student>();
+    CHECK(vec1.size() == 2);
+    postgres.delete_records<student>("");
+    auto vec2 = postgres.query<student>();
+    CHECK(vec2.size() == 0);
+  }
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect(db));
-  REQUIRE(sqlite.create_datatable<student>(key));
-  sqlite.delete_records<student>();
-  CHECK(sqlite.insert(v) == 3);
-  REQUIRE(sqlite.delete_records<student>("code=1"));
-  CHECK(sqlite.query<student>().size() == 2);
-  REQUIRE(sqlite.delete_records<student>(""));
-  auto result2 = sqlite.query<student>();
-  CHECK(result2.size() == 0);
+  if (sqlite.connect(db)) {
+    sqlite.create_datatable<student>(key);
+    sqlite.delete_records<student>();
+    CHECK(sqlite.insert(v) == 3);
+    REQUIRE(sqlite.delete_records<student>("code=1"));
+    auto vec1 = sqlite.query<student>();
+    CHECK(vec1.size() == 2);
+    REQUIRE(sqlite.delete_records<student>(""));
+    auto vec2 = sqlite.query<student>();
+    CHECK(vec2.size() == 0);
+  }
 #endif
 }
 
@@ -619,37 +637,41 @@ TEST_CASE("orm_query") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, db));
-  mysql.delete_records<simple>();
-  REQUIRE(mysql.create_datatable<simple>(key));
-  CHECK(mysql.insert(v) == 3);
-  auto result = mysql.query<simple>();
-  CHECK(result.size() == 3);
-  auto result3 = mysql.query<simple>("id=1");
-  CHECK(result3.size() == 1);
-#endif
-
-#ifdef ORMPP_ENABLE_SQLITE3
-  dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect(db));
-  REQUIRE(sqlite.create_datatable<simple>(key));
-  sqlite.delete_records<simple>();
-  CHECK(sqlite.insert(v) == 3);
-  auto result2 = sqlite.query<simple>();
-  CHECK(result2.size() == 3);
-  auto result5 = sqlite.query<simple>("id=3");
-  CHECK(result5.size() == 1);
+  if (mysql.connect(ip, "root", password, db)) {
+    mysql.create_datatable<simple>(key);
+    mysql.delete_records<simple>();
+    CHECK(mysql.insert(v) == 3);
+    auto vec1 = mysql.query<simple>();
+    CHECK(vec1.size() == 3);
+    auto vec2 = mysql.query<simple>("id=1");
+    CHECK(vec2.size() == 1);
+  }
 #endif
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  REQUIRE(postgres.connect(ip, "root", password, db));
-  REQUIRE(postgres.create_datatable<simple>(key));
-  CHECK(postgres.insert(v) == 3);
-  auto result1 = postgres.query<simple>();
-  CHECK(result1.size() == 3);
-  auto result4 = postgres.query<simple>("where id=2");
-  CHECK(result4.size() == 1);
+  if (postgres.connect(ip, "root", password, db)) {
+    postgres.create_datatable<simple>(key);
+    postgres.delete_records<simple>();
+    CHECK(postgres.insert(v) == 3);
+    auto vec1 = postgres.query<simple>();
+    CHECK(vec1.size() == 3);
+    auto vec2 = postgres.query<simple>("where id=2");
+    CHECK(vec2.size() == 1);
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.create_datatable<simple>(key);
+    sqlite.delete_records<simple>();
+    CHECK(sqlite.insert(v) == 3);
+    auto vec1 = sqlite.query<simple>();
+    CHECK(vec1.size() == 3);
+    auto vec2 = sqlite.query<simple>("id=3");
+    CHECK(vec2.size() == 1);
+  }
 #endif
 }
 
@@ -665,44 +687,47 @@ TEST_CASE("orm_query_some") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, db));
-  mysql.delete_records<student>();
-  REQUIRE(mysql.create_datatable<student>(key, not_null));
-  CHECK(mysql.insert(v) == 3);
-  auto result3 = mysql.query<std::tuple<int>>("select count(1) from student");
-  CHECK(result3.size() == 1);
-  CHECK(std::get<0>(result3[0]) == 3);
-
-  auto result4 = mysql.query<std::tuple<int>>("select count(1) from student");
-  CHECK(result4.size() == 1);
-  CHECK(std::get<0>(result4[0]) == 3);
-
-  auto result5 = mysql.query<std::tuple<int>>("select count(1) from student");
-  CHECK(result5.size() == 1);
-  CHECK(std::get<0>(result5[0]) == 3);
-  auto result = mysql.query<std::tuple<int, std::string, double>>(
-      "select code, name, dm from student");
-  CHECK(result.size() == 3);
+  if (mysql.connect(ip, "root", password, db)) {
+    mysql.create_datatable<student>(key, not_null);
+    mysql.delete_records<student>();
+    CHECK(mysql.insert(v) == 3);
+    auto vec1 = mysql.query<std::tuple<int>>("select count(1) from student");
+    CHECK(vec1.size() == 1);
+    CHECK(std::get<0>(vec1[0]) == 3);
+    auto vec2 = mysql.query<std::tuple<int, std::string, double>>(
+        "select code, name, dm from student");
+    CHECK(vec2.size() == 3);
+  }
 #endif
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  REQUIRE(postgres.connect(ip, "root", password, db));
-  REQUIRE(postgres.create_datatable<student>(key, not_null));
-  CHECK(postgres.insert(v) == 3);
-  auto result1 = postgres.query<std::tuple<int, std::string, double>>(
-      "select code, name, dm from student");
-  CHECK(result1.size() == 3);
+  if (postgres.connect(ip, "root", password, db)) {
+    postgres.create_datatable<student>(key, not_null);
+    postgres.delete_records<student>();
+    CHECK(postgres.insert(v) == 3);
+    auto vec1 = postgres.query<std::tuple<int>>("select count(1) from student");
+    CHECK(vec1.size() == 1);
+    CHECK(std::get<0>(vec1[0]) == 3);
+    auto vec2 = postgres.query<std::tuple<int, std::string, double>>(
+        "select code, name, dm from student");
+    CHECK(vec2.size() == 3);
+  }
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect(db));
-  CHECK(sqlite.insert(v) == 3);
-  REQUIRE(sqlite.create_datatable<student>(key));
-  auto result2 = sqlite.query<std::tuple<int, std::string, double>>(
-      "select code, name, dm from student");
-  CHECK(result2.size() == 3);
+  if (sqlite.connect(db)) {
+    sqlite.create_datatable<student>(key);
+    sqlite.delete_records<student>();
+    CHECK(sqlite.insert(v) == 3);
+    auto vec1 = sqlite.query<std::tuple<int>>("select count(1) from student");
+    CHECK(vec1.size() == 1);
+    CHECK(std::get<0>(vec1[0]) == 3);
+    auto vec2 = sqlite.query<std::tuple<int, std::string, double>>(
+        "select code, name, dm from student");
+    CHECK(vec2.size() == 3);
+  }
 #endif
 }
 
@@ -724,52 +749,56 @@ TEST_CASE("orm_query_multi_table") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, db));
-  mysql.delete_records<student>();
-  mysql.delete_records<person>();
-  REQUIRE(mysql.create_datatable<student>(key, not_null));
-  CHECK(mysql.insert(v) == 3);
-  REQUIRE(mysql.create_datatable<person>(key1, not_null));
-  CHECK(mysql.insert(v1) == 3);
-  auto result = mysql.query<std::tuple<person, std::string, int>>(
-      "select person.*, student.name, student.age from person, student"s);
-  CHECK(result.size() == 9);
-  auto result3 = mysql.query<std::tuple<person, student>>(
-      "select * from person, student"s);
-  CHECK(result.size() == 9);
+  if (mysql.connect(ip, "root", password, db)) {
+    mysql.create_datatable<student>(key, not_null);
+    mysql.create_datatable<person>(key1, not_null);
+    mysql.delete_records<student>();
+    mysql.delete_records<person>();
+    CHECK(mysql.insert(v) == 3);
+    CHECK(mysql.insert(v1) == 3);
+    auto vec1 = mysql.query<std::tuple<person, std::string, int>>(
+        "select person.*, student.name, student.age from person, student"s);
+    CHECK(vec1.size() == 9);
+    auto vec2 = mysql.query<std::tuple<person, student>>(
+        "select * from person, student"s);
+    CHECK(vec2.size() == 9);
+  }
 #endif
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  REQUIRE(postgres.connect(ip, "root", password, db));
-  REQUIRE(postgres.create_datatable<student>(key, not_null));
-  CHECK(postgres.insert(v) == 3);
-  REQUIRE(postgres.create_datatable<person>(key1, not_null));
-  CHECK(postgres.insert(v1) == 3);
-  CHECK(sqlite.insert(v1) == 3);
-  auto result1 = postgres.query<std::tuple<int, std::string, double>>(
-      "select person.*, student.name, student.age from person, student"s);
-  CHECK(result1.size() == 9);
-  auto result4 = postgres.query<std::tuple<person, student>>(
-      "select * from person, student"s);
-  CHECK(result1.size() == 9);
+  if (postgres.connect(ip, "root", password, db)) {
+    postgres.create_datatable<student>(key, not_null);
+    postgres.create_datatable<person>(key1, not_null);
+    postgres.delete_records<student>();
+    postgres.delete_records<person>();
+    CHECK(postgres.insert(v) == 3);
+    CHECK(postgres.insert(v1) == 3);
+    auto vec1 = postgres.query<std::tuple<int, std::string, double>>(
+        "select person.*, student.name, student.age from person, student"s);
+    CHECK(vec1.size() == 9);
+    auto vec2 = postgres.query<std::tuple<person, student>>(
+        "select * from person, student"s);
+    CHECK(vec2.size() == 9);
+  }
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect(db));
-  sqlite.delete_records<student>();
-  sqlite.delete_records<person>();
-  REQUIRE(sqlite.create_datatable<student>(key));
-  CHECK(sqlite.insert(v) == 3);
-  REQUIRE(sqlite.create_datatable<person>(key1));
-  CHECK(sqlite.insert(v1) == 3);
-  auto result2 = sqlite.query<std::tuple<int, std::string, double>>(
-      "select person.*, student.name, student.age from person, student"s);
-  CHECK(result2.size() == 9);
-  auto result5 = sqlite.query<std::tuple<person, student>>(
-      "select * from person, student"s);
-  CHECK(result2.size() == 9);
+  if (sqlite.connect(db)) {
+    sqlite.create_datatable<student>(key);
+    sqlite.create_datatable<person>(key1);
+    sqlite.delete_records<student>();
+    sqlite.delete_records<person>();
+    CHECK(sqlite.insert(v) == 3);
+    CHECK(sqlite.insert(v1) == 3);
+    auto vec1 = sqlite.query<std::tuple<int, std::string, double>>(
+        "select person.*, student.name, student.age from person, student"s);
+    CHECK(vec1.size() == 9);
+    auto vec2 = sqlite.query<std::tuple<person, student>>(
+        "select * from person, student"s);
+    CHECK(vec2.size() == 9);
+  }
 #endif
 }
 
@@ -785,55 +814,59 @@ TEST_CASE("orm_transaction") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, db));
-  mysql.delete_records<student>();
-  REQUIRE(mysql.create_datatable<student>(key, not_null));
-
-  REQUIRE(mysql.begin());
-  for (int i = 0; i < 10; ++i) {
-    student st = {i, "tom", 0, 19, 1.5, "room2"};
-    if (!mysql.insert(st)) {
-      mysql.rollback();
-      return;
+  if (mysql.connect(ip, "root", password, db)) {
+    mysql.create_datatable<student>(key, not_null);
+    mysql.delete_records<student>();
+    mysql.begin();
+    for (int i = 0; i < 10; ++i) {
+      student st = {i + 1, "tom", 0, 19, 1.5, "room2"};
+      if (!mysql.insert(st)) {
+        mysql.rollback();
+        return;
+      }
     }
+    mysql.commit();
+    auto vec = mysql.query<student>();
+    CHECK(vec.size() == 10);
   }
-  REQUIRE(mysql.commit());
-  auto result = mysql.query<student>();
-  // CHECK(result.size() == 10);
 #endif
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  REQUIRE(postgres.connect(ip, "root", password, db));
-  REQUIRE(postgres.create_datatable<student>(key, not_null));
-  REQUIRE(postgres.begin());
-  for (int i = 0; i < 10; ++i) {
-    student s = {i, "tom", 0, 19, 1.5, "room2"};
-    if (!postgres.insert(s)) {
-      postgres.rollback();
-      return;
+  if (postgres.connect(ip, "root", password, db)) {
+    postgres.create_datatable<student>(key, not_null);
+    postgres.delete_records<student>();
+    postgres.begin();
+    for (int i = 0; i < 10; ++i) {
+      student s = {i + 1, "tom", 0, 19, 1.5, "room2"};
+      if (!postgres.insert(s)) {
+        postgres.rollback();
+        return;
+      }
     }
+    postgres.commit();
+    auto vec = postgres.query<student>();
+    CHECK(vec.size() == 10);
   }
-  REQUIRE(postgres.commit());
-  auto result1 = postgres.query<student>();
-  CHECK(result1.size() == 10);
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
-  REQUIRE(sqlite.connect(db));
-  REQUIRE(sqlite.create_datatable<student>(key));
-  REQUIRE(sqlite.begin());
-  for (int i = 0; i < 10; ++i) {
-    student st = {i, "tom", 0, 19, 1.5, "room2"};
-    if (!sqlite.insert(st)) {
-      sqlite.rollback();
-      return;
+  if (sqlite.connect(db)) {
+    sqlite.create_datatable<student>(key);
+    sqlite.delete_records<student>();
+    sqlite.begin();
+    for (int i = 0; i < 10; ++i) {
+      student st = {i + 1, "tom", 0, 19, 1.5, "room2"};
+      if (!sqlite.insert(st)) {
+        sqlite.rollback();
+        return;
+      }
     }
+    sqlite.commit();
+    auto vec = sqlite.query<student>();
+    CHECK(vec.size() == 10);
   }
-  REQUIRE(sqlite.commit());
-  auto result2 = sqlite.query<student>();
-  CHECK(result2.size() == 10);
 #endif
 }
 
@@ -865,9 +898,10 @@ struct validate {
   }
 };
 
+#ifdef ORMPP_ENABLE_MYSQL
 TEST_CASE("orm_aop") {
   // dbng<mysql> mysql;
-  // auto r = mysql.wraper_connect<log, validate>("127.0.0.1", "root", password,
+  // auto r = mysql.wraper_connect<log, validate>(ip, "root", password,
   // db); REQUIRE(r);
 
   // r = mysql.wraper_execute("drop table if exists person");
@@ -883,34 +917,27 @@ TEST_CASE("orm_aop") {
   // REQUIRE(r);
 }
 
-#ifdef ORMPP_ENABLE_MYSQL
 struct image {
   int id;
   ormpp::blob bin;
 };
-
 REFLECTION(image, id, bin);
 
 TEST_CASE("orm_mysql_blob") {
   dbng<mysql> mysql;
-
-  REQUIRE(mysql.connect("127.0.0.1", "root", password, db));
-  REQUIRE(mysql.execute("DROP TABLE IF EXISTS image"));
-
-  REQUIRE(mysql.create_datatable<image>());
-
-  auto data = "this is a test binary stream\0, and ?...";
-  auto size = 40;
-
-  image img;
-  img.id = 1;
-  img.bin.assign(data, data + size);
-
-  REQUIRE(mysql.insert(img) == 1);
-
-  auto result = mysql.query<image>("id=1");
-  REQUIRE(result.size() == 1);
-  REQUIRE(result[0].bin.size() == size);
+  if (mysql.connect(ip, "root", password, db)) {
+    mysql.execute("DROP TABLE IF EXISTS image");
+    mysql.create_datatable<image>();
+    auto data = "this is a test binary stream\0, and ?...";
+    auto size = 40;
+    image img;
+    img.id = 1;
+    img.bin.assign(data, data + size);
+    CHECK(mysql.insert(img) == 1);
+    auto vec = mysql.query<image>("id=1");
+    CHECK(vec.size() == 1);
+    CHECK(vec[0].bin.size() == size);
+  }
 }
 
 struct image_ex {
@@ -918,76 +945,68 @@ struct image_ex {
   ormpp::blob bin;
   std::string time;
 };
-
 REFLECTION(image_ex, id, bin, time);
 
 TEST_CASE("orm_mysql_blob_tuple") {
   dbng<mysql> mysql;
-
-  REQUIRE(mysql.connect("127.0.0.1", "root", password, db));
-  REQUIRE(mysql.execute("DROP TABLE IF EXISTS image_ex"));
-
-  REQUIRE(mysql.create_datatable<image_ex>());
-
-  auto data = "this is a test binary stream\0, and ?...";
-  auto size = 40;
-
-  image_ex img_ex;
-  img_ex.id = 1;
-  img_ex.bin.assign(data, data + size);
-  img_ex.time = "2023-03-29 13:55:00";
-
-  REQUIRE(mysql.insert(img_ex) == 1);
-
-  auto result = mysql.query<image_ex>("id=1");
-  REQUIRE(result.size() == 1);
-  REQUIRE(result[0].bin.size() == size);
-
-  using image_t = std::tuple<image, std::string>;
-  auto ex_results =
-      mysql.query<image_t>("select id,bin,time from image_ex where id=1;");
-  REQUIRE(ex_results.size() == 1);
-
-  auto &img = std::get<0>(ex_results[0]);
-  auto &time = std::get<1>(ex_results[0]);
-
-  REQUIRE(img.id == 1);
-  REQUIRE(img.bin.size() == size);
-  REQUIRE(time == img_ex.time);
+  if (mysql.connect(ip, "root", password, db)) {
+    mysql.execute("DROP TABLE IF EXISTS image_ex");
+    mysql.create_datatable<image_ex>();
+    auto data = "this is a test binary stream\0, and ?...";
+    auto size = 40;
+    image_ex img_ex;
+    img_ex.id = 1;
+    img_ex.bin.assign(data, data + size);
+    img_ex.time = "2023-03-29 13:55:00";
+    CHECK(mysql.insert(img_ex) == 1);
+    auto vec1 = mysql.query<image_ex>("id=1");
+    CHECK(vec1.size() == 1);
+    CHECK(vec1[0].bin.size() == size);
+    using image_t = std::tuple<image, std::string>;
+    auto vec2 =
+        mysql.query<image_t>("select id,bin,time from image_ex where id=1;");
+    CHECK(vec2.size() == 1);
+    auto &img = std::get<0>(vec2[0]);
+    auto &time = std::get<1>(vec2[0]);
+    CHECK(img.id == 1);
+    CHECK(img.bin.size() == size);
+    CHECK(time == img_ex.time);
+  }
 }
 #endif
 
-TEST_CASE("test create table with unique and test query") {
+TEST_CASE("test create `table with unique and test query") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, "root", password, db)) {
     mysql.execute("drop table if exists person");
-    CHECK(mysql.create_datatable<person>(ormpp_auto_key{"id"},
-                                         ormpp_unique{{"name", "age"}}));
+    mysql.create_datatable<person>(ormpp_auto_key{"id"},
+                                   ormpp_unique{{"name", "age"}});
     mysql.insert<person>({0, "purecpp", 200});
-    auto v1 = mysql.query<person>("order by id");
-    auto v2 = mysql.query<person>("limit 1");
-    CHECK(v1.size() == 1);
-    CHECK(v2.size() == 1);
+    auto vec1 = mysql.query<person>("order by id");
+    auto vec2 = mysql.query<person>("limit 1");
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
     mysql.insert<person>({0, "purecpp", 200});
-    auto v3 = mysql.query<person>();
-    CHECK(v3.size() == 1);
+    auto vec3 = mysql.query<person>();
+    CHECK(vec3.size() == 1);
   }
 #endif
+
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
     sqlite.execute("drop table if exists person");
-    CHECK(sqlite.create_datatable<person>(ormpp_auto_key{"id"},
-                                          ormpp_unique{{"name", "age"}}));
+    sqlite.create_datatable<person>(ormpp_auto_key{"id"},
+                                    ormpp_unique{{"name", "age"}});
     sqlite.insert<person>({0, "purecpp", 200});
-    auto v1 = sqlite.query<person>("order by id");
-    auto v2 = sqlite.query<person>("limit 1");
-    CHECK(v1.size() == 1);
-    CHECK(v2.size() == 1);
+    auto vec1 = sqlite.query<person>("order by id");
+    auto vec2 = sqlite.query<person>("limit 1");
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
     sqlite.insert<person>({0, "purecpp", 200});
-    auto v3 = sqlite.query<person>();
-    CHECK(v3.size() == 1);
+    auto vec3 = sqlite.query<person>();
+    CHECK(vec3.size() == 1);
   }
 #endif
 }
@@ -1004,6 +1023,7 @@ TEST_CASE("get_insert_id") {
     CHECK(id == 3);
   }
 #endif
+
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
@@ -1030,6 +1050,7 @@ TEST_CASE("get_insert_id") {
 //     CHECK(vec.size() == 2);
 //   }
 // #endif
+
 // #ifdef ORMPP_ENABLE_SQLITE3
 //   dbng<sqlite> sqlite;
 //   if (sqlite.connect(db)) {
@@ -1062,6 +1083,7 @@ TEST_CASE("test alias") {
     CHECK(vec.front().name == "purecpp");
   }
 #endif
+
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
