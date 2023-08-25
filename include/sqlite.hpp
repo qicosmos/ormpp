@@ -606,7 +606,7 @@ class sqlite {
   std::string last_error_;
   sqlite3 *handle_ = nullptr;
   sqlite3_stmt *stmt_ = nullptr;
-  inline staticstd::map<std::string, std::string> auto_key_map_;
+  inline static std::map<std::string, std::string> auto_key_map_;
 };
 }  // namespace ormpp
 
