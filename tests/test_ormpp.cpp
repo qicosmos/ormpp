@@ -898,9 +898,10 @@ struct validate {
   }
 };
 
+#ifdef ORMPP_ENABLE_MYSQL
 TEST_CASE("orm_aop") {
   // dbng<mysql> mysql;
-  // auto r = mysql.wraper_connect<log, validate>("127.0.0.1", "root", password,
+  // auto r = mysql.wraper_connect<log, validate>(ip, "root", password,
   // db); REQUIRE(r);
 
   // r = mysql.wraper_execute("drop table if exists person");
@@ -916,18 +917,15 @@ TEST_CASE("orm_aop") {
   // REQUIRE(r);
 }
 
-#ifdef ORMPP_ENABLE_MYSQL
 struct image {
   int id;
   ormpp::blob bin;
 };
-
 REFLECTION(image, id, bin);
 
 TEST_CASE("orm_mysql_blob") {
   dbng<mysql> mysql;
-
-  if (mysql.connect("127.0.0.1", "root", password, db)) {
+  if (mysql.connect(ip, "root", password, db)) {
     mysql.execute("DROP TABLE IF EXISTS image");
     mysql.create_datatable<image>();
     auto data = "this is a test binary stream\0, and ?...";
@@ -947,13 +945,11 @@ struct image_ex {
   ormpp::blob bin;
   std::string time;
 };
-
 REFLECTION(image_ex, id, bin, time);
 
 TEST_CASE("orm_mysql_blob_tuple") {
   dbng<mysql> mysql;
-
-  if (mysql.connect("127.0.0.1", "root", password, db)) {
+  if (mysql.connect(ip, "root", password, db)) {
     mysql.execute("DROP TABLE IF EXISTS image_ex");
     mysql.create_datatable<image_ex>();
     auto data = "this is a test binary stream\0, and ?...";
@@ -979,7 +975,7 @@ TEST_CASE("orm_mysql_blob_tuple") {
 }
 #endif
 
-TEST_CASE("test create table with unique and test query") {
+TEST_CASE("test create `table with unique and test query") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, "root", password, db)) {
@@ -996,6 +992,7 @@ TEST_CASE("test create table with unique and test query") {
     CHECK(vec3.size() == 1);
   }
 #endif
+
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
@@ -1026,6 +1023,7 @@ TEST_CASE("get_insert_id") {
     CHECK(id == 3);
   }
 #endif
+
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
@@ -1052,6 +1050,7 @@ TEST_CASE("get_insert_id") {
 //     CHECK(vec.size() == 2);
 //   }
 // #endif
+
 // #ifdef ORMPP_ENABLE_SQLITE3
 //   dbng<sqlite> sqlite;
 //   if (sqlite.connect(db)) {
@@ -1084,6 +1083,7 @@ TEST_CASE("test alias") {
     CHECK(vec.front().name == "purecpp");
   }
 #endif
+
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
