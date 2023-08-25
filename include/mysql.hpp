@@ -24,6 +24,7 @@ class mysql {
 
   template <typename... Args>
   bool connect(Args &&...args) {
+    reset_error();
     if (con_ != nullptr) {
       mysql_close(con_);
     }
@@ -52,8 +53,6 @@ class mysql {
       set_last_error(mysql_error(con_));
       return false;
     }
-
-    reset_error();
 
     return true;
   }
@@ -97,7 +96,6 @@ class mysql {
   template <typename T, typename... Args>
   int insert(const std::vector<T> &t, bool get_insert_id = false,
              Args &&...args) {
-    reset_error();
     auto name = get_name<T>();
     std::string sql = auto_key_map_[name].empty()
                           ? generate_insert_sql<T>(false)
@@ -108,7 +106,6 @@ class mysql {
 
   template <typename T, typename... Args>
   int update(const std::vector<T> &t, Args &&...args) {
-    reset_error();
     std::string sql = generate_insert_sql<T>(true);
 
     return insert_impl(sql, t, false, std::forward<Args>(args)...);
@@ -116,7 +113,6 @@ class mysql {
 
   template <typename T, typename... Args>
   int insert(const T &t, bool get_insert_id = false, Args &&...args) {
-    reset_error();
     // insert into person values(?, ?, ?);
     auto name = get_name<T>();
     std::string sql = auto_key_map_[name].empty()
@@ -128,7 +124,6 @@ class mysql {
 
   template <typename T, typename... Args>
   int update(const T &t, Args &&...args) {
-    reset_error();
     std::string sql = generate_insert_sql<T>(true);
     return insert_impl(sql, t, false, std::forward<Args>(args)...);
   }
@@ -444,6 +439,7 @@ class mysql {
   }
 
   int get_blob_len(int column) {
+    reset_error();
     unsigned long data_len = 0;
 
     MYSQL_BIND param;
@@ -468,6 +464,7 @@ class mysql {
 
   // just support execute string sql without placeholders
   bool execute(const std::string &sql) {
+    reset_error();
     if (mysql_query(con_, sql.data()) != 0) {
       set_last_error(mysql_error(con_));
       return false;
@@ -478,6 +475,7 @@ class mysql {
 
   // transaction
   bool begin() {
+    reset_error();
     if (mysql_query(con_, "BEGIN")) {
       set_last_error(mysql_error(con_));
       return false;
@@ -487,6 +485,7 @@ class mysql {
   }
 
   bool commit() {
+    reset_error();
     if (mysql_query(con_, "COMMIT")) {
       set_last_error(mysql_error(con_));
       return false;
@@ -496,6 +495,7 @@ class mysql {
   }
 
   bool rollback() {
+    reset_error();
     if (mysql_query(con_, "ROLLBACK")) {
       set_last_error(mysql_error(con_));
       return false;
@@ -608,6 +608,7 @@ class mysql {
 
   template <typename T>
   int stmt_execute(const T &t) {
+    reset_error();
     std::vector<MYSQL_BIND> param_binds;
     auto it = auto_key_map_.find(get_name<T>());
     std::string auto_key = (it == auto_key_map_.end()) ? "" : it->second;
@@ -653,6 +654,7 @@ class mysql {
   template <typename T, typename... Args>
   int insert_impl(const std::string &sql, const T &t,
                   bool get_insert_id = false, Args &&...args) {
+    reset_error();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -680,6 +682,7 @@ class mysql {
   template <typename T, typename... Args>
   int insert_impl(const std::string &sql, const std::vector<T> &t,
                   bool get_insert_id = false, Args &&...args) {
+    reset_error();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
