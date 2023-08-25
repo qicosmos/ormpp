@@ -22,6 +22,19 @@ class mysql {
  public:
   ~mysql() { disconnect(); }
 
+  void reset_error() {
+    has_error_ = false;
+    last_error_ = {};
+  }
+
+  void set_last_error(std::string last_error) {
+    has_error_ = true;
+    last_error_ = std::move(last_error);
+    std::cout << last_error_ << std::endl;
+  }
+
+  std::string get_last_error() const { return last_error_; }
+
   template <typename... Args>
   bool connect(Args &&...args) {
     reset_error();
@@ -56,14 +69,6 @@ class mysql {
 
     return true;
   }
-
-  void set_last_error(std::string last_error) {
-    has_error_ = true;
-    last_error_ = std::move(last_error);
-    std::cout << last_error_ << std::endl;  // todo, write to log file
-  }
-
-  std::string get_last_error() const { return last_error_; }
 
   bool ping() { return mysql_ping(con_) == 0; }
 
@@ -456,12 +461,6 @@ class mysql {
     return static_cast<int>(data_len);
   }
 
-  bool has_error() { return has_error_; }
-  void reset_error() {
-    has_error_ = false;
-    last_error_ = {};
-  }
-
   // just support execute string sql without placeholders
   bool execute(const std::string &sql) {
     reset_error();
@@ -736,10 +735,10 @@ class mysql {
   }
 
  private:
-  MYSQL *con_ = nullptr;
-  MYSQL_STMT *stmt_ = nullptr;
   bool has_error_ = false;
   std::string last_error_;
+  MYSQL *con_ = nullptr;
+  MYSQL_STMT *stmt_ = nullptr;
   inline static std::map<std::string, std::string> auto_key_map_;
 };
 }  // namespace ormpp
