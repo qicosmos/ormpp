@@ -15,18 +15,12 @@ IF (WIN32)
     $ENV{PROGRAMFILES}/MySQL/*/include
     $ENV{SYSTEMDRIVE}/MySQL/*/include
   )
-ELSEIF (UNIX)
+ELSE (WIN32)
   FIND_PATH(MYSQL_INCLUDE_DIR mysql.h
     /usr/local/include/mysql
     /usr/include/mysql
   )
-ELSEIF (MACROS)
-  FIND_PATH(MYSQL_INCLUDE_DIR mysql.h
-    /usr/local/opt/mysql*/include
-    /usr/local/include/mysql
-    /usr/include/mysql
-  )
-ENDIF()
+ENDIF(WIN32)
 
 SET(MYSQL_NAMES mysqlclient mysqlclient_r)
 IF (WIN32)
@@ -36,19 +30,14 @@ IF (WIN32)
     $ENV{SYSTEMDRIVE}/MySQL/*/lib
     PATH_SUFFIXES mysql
   )
-ELSEIF (UNIX)
+ELSE (WIN32)
   FIND_LIBRARY(MYSQL_LIBRARY
     NAMES ${MYSQL_NAMES}
-    PATHS /usr/lib /usr/local/lib
+    PATHS /usr/lib 
+    /usr/local/lib
     PATH_SUFFIXES mysql
   )
-ELSEIF (MACROS)
-  FIND_LIBRARY(MYSQL_LIBRARY
-    NAMES ${MYSQL_NAMES}
-    PATHS /usr/lib /usr/local/lib /usr/local/opt/mysql*/lib
-    PATH_SUFFIXES mysql
-  )
-ENDIF()
+ENDIF(WIN32)
 
 IF (MYSQL_INCLUDE_DIR AND MYSQL_LIBRARY)
   SET(MYSQL_FOUND TRUE)
