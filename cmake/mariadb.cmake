@@ -23,6 +23,7 @@ ELSEIF (UNIX)
 ELSEIF (MACROS)
   FIND_PATH(MARIADB_INCLUDE_DIR mysql.h
     /usr/local/opt/mariadb*/include
+    /usr/local/include/mariadb
     /usr/include/mariadb
   )
 ENDIF()
@@ -44,7 +45,7 @@ ELSEIF (UNIX)
 ELSEIF (MACROS)
   FIND_LIBRARY(MARIADB_LIBRARY
     NAMES ${MARIADB_NAMES}
-    PATHS /usr/lib /usr/local/opt/mariadb*/lib
+    PATHS /usr/lib /usr/local/lib /usr/local/opt/mariadb*/lib
     PATH_SUFFIXES mariadb
   )
 ENDIF()

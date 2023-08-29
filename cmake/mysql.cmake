@@ -23,6 +23,7 @@ ELSEIF (UNIX)
 ELSEIF (MACROS)
   FIND_PATH(MYSQL_INCLUDE_DIR mysql.h
     /usr/local/opt/mysql*/include
+    /usr/local/include/mysql
     /usr/include/mysql
   )
 ENDIF()
@@ -44,7 +45,7 @@ ELSEIF (UNIX)
 ELSEIF (MACROS)
   FIND_LIBRARY(MYSQL_LIBRARY
     NAMES ${MYSQL_NAMES}
-    PATHS /usr/lib /usr/local/opt/mysql*/lib
+    PATHS /usr/lib /usr/local/lib /usr/local/opt/mysql*/lib
     PATH_SUFFIXES mysql
   )
 ENDIF()
