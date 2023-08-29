@@ -6,6 +6,10 @@
 #include "frozen/unordered_map.h"
 
 namespace iguana {
+
+#if defined(__clang__) || defined(_MSC_VER) ||                                 \
+    (defined(__GNUC__) && __GNUC__ > 8)
+
 template <typename T> constexpr std::string_view get_raw_name() {
 #ifdef _MSC_VER
   return __FUNCSIG__;
@@ -130,6 +134,8 @@ get_str_to_enum_map(const std::array<std::string_view, N> &enum_names,
       {enum_names[Is], enum_values[Is]}...};
 }
 
+#endif
+
 // the default generic enum_value
 // if the user has not defined a specialization template, this will be called
 template <typename T> struct enum_value {
@@ -137,6 +143,8 @@ template <typename T> struct enum_value {
 };
 
 template <bool str_to_enum, typename E> constexpr inline auto get_enum_map() {
+#if defined(__clang__) || defined(_MSC_VER) ||                                 \
+    (defined(__GNUC__) && __GNUC__ > 8)
   constexpr auto &arr = enum_value<E>::value;
   constexpr auto arr_size = arr.size();
   if constexpr (arr_size > 0) {
@@ -156,6 +164,9 @@ template <bool str_to_enum, typename E> constexpr inline auto get_enum_map() {
   } else {
     return false;
   }
+#else
+  return false;
+#endif
 }
 
 #if defined(__clang__) && (__clang_major__ >= 17)
