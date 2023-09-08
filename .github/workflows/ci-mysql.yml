@@ -27,20 +27,14 @@ jobs:
       - name: Verify MySQL
         run:  mysql -uroot -e'show databases;'
 
-      - name: Test
-        if  : startsWith(matrix.os, 'macos')
-        run : |
-          sudo find / -name "mysql.h"
-          sudo find / -name "mysqlclient*"
-      
       - name: Configure cmake
-        run:  cmake -B${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_MYSQL=ON
+        run:  cmake -B${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_MYSQL=ON
 
       - name: Build
-        run:  cmake --build ${{ github.workspace }}/build --config ${{ matrix.configuration }}
+        run:  cmake --build ${{github.workspace}}/build --config ${{ matrix.configuration }}
 
       - name: Test
-        working-directory: ${{ github.workspace }}/build
+        working-directory: ${{github.workspace}}/build
         env:
           CTEST_OUTPUT_ON_FAILURE: 1
         run: ctest -C ${{ matrix.configuration }} -j `nproc` -V
