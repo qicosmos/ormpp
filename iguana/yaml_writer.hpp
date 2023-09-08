@@ -58,7 +58,8 @@ IGUANA_INLINE void render_yaml_value(Stream &ss, T value, size_t min_spaces) {
   if constexpr (bool_v<decltype(enum_to_str)>) {
     render_yaml_value(ss, static_cast<std::underlying_type_t<T>>(value),
                       min_spaces);
-  } else {
+  }
+  else {
     auto it = enum_to_str.find(value);
     if (it != enum_to_str.end())
       IGUANA_LIKELY {
@@ -113,7 +114,7 @@ IGUANA_INLINE void render_yaml_value(Stream &ss, const T &t,
   ss.push_back('\n');
   for (const auto &[k, v] : t) {
     ss.append(min_spaces, ' ');
-    render_yaml_value<false>(ss, k, 0); // key must be plaint type
+    render_yaml_value<false>(ss, k, 0);  // key must be plaint type
     ss.append(": ");
     render_yaml_value(ss, v, min_spaces + 1);
   }
@@ -125,7 +126,8 @@ IGUANA_INLINE void render_yaml_value(Stream &ss, const T &val,
   if (!val) {
     ss.append("null");
     ss.push_back('\n');
-  } else {
+  }
+  else {
     render_yaml_value(ss, *val, min_spaces);
   }
 }
@@ -135,7 +137,8 @@ IGUANA_INLINE void render_yaml_value(Stream &ss, const T &val,
                                      size_t min_spaces) {
   if (!val) {
     ss.push_back('\n');
-  } else {
+  }
+  else {
     render_yaml_value(ss, *val, min_spaces);
   }
 }
@@ -159,7 +162,8 @@ IGUANA_INLINE void to_yaml(T &&t, Stream &s, size_t min_spaces) {
              s.append(": ");
              if constexpr (!is_reflection<std::decay_t<decltype(v)>>::value) {
                render_yaml_value(s, t.*v, min_spaces + 1);
-             } else {
+             }
+             else {
                s.push_back('\n');
                to_yaml(t.*v, s, min_spaces + 1);
              }
@@ -176,4 +180,4 @@ IGUANA_INLINE void to_yaml(T &&t, Stream &s) {
     static_assert(!sizeof(T), "don't suppport this type");
 }
 
-} // namespace iguana
+}  // namespace iguana

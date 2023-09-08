@@ -6,13 +6,13 @@ namespace iguana {
 // return true when it==end
 template <typename It>
 IGUANA_INLINE bool skip_space_till_end(It &&it, It &&end) {
-  while (it != end && *it < 33)
-    ++it;
+  while (it != end && *it < 33) ++it;
   return it == end;
 }
 
 // will not skip  '\n'
-template <typename It> IGUANA_INLINE auto skip_till_newline(It &&it, It &&end) {
+template <typename It>
+IGUANA_INLINE auto skip_till_newline(It &&it, It &&end) {
   if (it == end)
     IGUANA_UNLIKELY { return it; }
   std::decay_t<decltype(it)> res = it;
@@ -20,8 +20,7 @@ template <typename It> IGUANA_INLINE auto skip_till_newline(It &&it, It &&end) {
     if (*it == ' ')
       IGUANA_UNLIKELY {
         res = it;
-        while (it != end && *it == ' ')
-          ++it;
+        while (it != end && *it == ' ') ++it;
       }
     else if (*it == '#')
       IGUANA_UNLIKELY {
@@ -31,7 +30,8 @@ template <typename It> IGUANA_INLINE auto skip_till_newline(It &&it, It &&end) {
             ++it;
           }
           return res;
-        } else {
+        }
+        else {
           ++it;
         }
       }
@@ -52,8 +52,7 @@ IGUANA_INLINE auto skip_till(It &&it, It &&end) {
     else if (*it == ' ')
       IGUANA_UNLIKELY {
         res = it;
-        while (it != end && *it == ' ')
-          ++it;
+        while (it != end && *it == ' ') ++it;
       }
     else if (*it == '#')
       IGUANA_UNLIKELY {
@@ -76,7 +75,7 @@ IGUANA_INLINE auto skip_till(It &&it, It &&end) {
       std::string error = std::string("Expected one of these: ").append(b);
       throw std::runtime_error(error);
     }
-  ++it; // skip
+  ++it;  // skip
   return (*(it - 2) == ' ') ? res : it - 1;
 }
 
@@ -101,15 +100,18 @@ IGUANA_INLINE size_t skip_space_and_lines(It &&it, It &&end, size_t minspaces) {
             it = start;
           }
         }
-    } else if (*it == ' ' || *it == '\t') {
+    }
+    else if (*it == ' ' || *it == '\t') {
       ++it;
       ++res;
-    } else if (*it == '#') {
+    }
+    else if (*it == '#') {
       while (it != end && *it != '\n') {
         ++it;
       }
       res = 0;
-    } else {
+    }
+    else {
       if constexpr (Throw) {
         if (res < minspaces)
           IGUANA_UNLIKELY { throw std::runtime_error("Indentation problem"); }
@@ -117,7 +119,7 @@ IGUANA_INLINE size_t skip_space_and_lines(It &&it, It &&end, size_t minspaces) {
       return res;
     }
   }
-  return res; // throw in certain situations ?
+  return res;  // throw in certain situations ?
 }
 
-} // namespace iguana
+}  // namespace iguana

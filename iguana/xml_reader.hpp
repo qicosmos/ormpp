@@ -1,8 +1,10 @@
 #pragma once
+#include <charconv>
+
 #include "detail/charconv.h"
 #include "detail/utf.hpp"
 #include "xml_util.hpp"
-#include <charconv>
+
 
 namespace iguana {
 namespace detail {
@@ -28,33 +30,40 @@ IGUANA_INLINE void parse_value(U &&value, It &&begin, It &&end) {
   using T = std::decay_t<U>;
   if constexpr (string_container_v<T>) {
     value = T(&*begin, static_cast<size_t>(std::distance(begin, end)));
-  } else if constexpr (num_v<T>) {
+  }
+  else if constexpr (num_v<T>) {
     auto size = std::distance(begin, end);
     const auto start = &*begin;
     auto [p, ec] = detail::from_chars(start, start + size, value);
     if (ec != std::errc{})
       IGUANA_UNLIKELY
     throw std::runtime_error("Failed to parse number");
-  } else if constexpr (char_v<T>) {
+  }
+  else if constexpr (char_v<T>) {
     if (static_cast<size_t>(std::distance(begin, end)) != 1)
       IGUANA_UNLIKELY { throw std::runtime_error("Expected one character"); }
     value = *begin;
-  } else if constexpr (bool_v<T>) {
+  }
+  else if constexpr (bool_v<T>) {
     auto bool_v = std::string_view(
         &*begin, static_cast<size_t>(std::distance(begin, end)));
     if (bool_v == "true") {
       value = true;
-    } else if (bool_v == "false") {
+    }
+    else if (bool_v == "false") {
       value = false;
-    } else
+    }
+    else
       IGUANA_UNLIKELY { throw std::runtime_error("Expected true or false"); }
-  } else if constexpr (enum_v<T>) {
+  }
+  else if constexpr (enum_v<T>) {
     static constexpr auto str_to_enum = get_enum_map<true, T>();
     if constexpr (bool_v<decltype(str_to_enum)>) {
       // not defined a specialization template
       parse_value(reinterpret_cast<std::underlying_type_t<T> &>(value), begin,
                   end);
-    } else {
+    }
+    else {
       auto enum_names = std::string_view(
           &*begin, static_cast<size_t>(std::distance(begin, end)));
       auto it = str_to_enum.find(enum_names);
@@ -117,7 +126,8 @@ IGUANA_INLINE void parse_item(U &value, It &&it, It &&end,
         if (*(it + 1) == '[') {
           --it;
           return;
-        } else {
+        }
+        else {
           skip_till<'>'>(it, end);
           ++it;
           skip_sapces_and_newline(it, end);
@@ -163,7 +173,8 @@ IGUANA_INLINE void parse_item(U &value, It &&it, It &&end,
     }
     parse_value(value.emplace(), value_begin, value_end);
     match_close_tag(it, end, name);
-  } else {
+  }
+  else {
     parse_item(value.emplace(), it, end, name);
   }
 }
@@ -173,7 +184,8 @@ IGUANA_INLINE void parse_item(U &value, It &&it, It &&end,
                               std::string_view name) {
   if constexpr (unique_ptr_v<U>) {
     value = std::make_unique<typename std::remove_cvref_t<U>::element_type>();
-  } else {
+  }
+  else {
     value = std::make_shared<typename std::remove_cvref_t<U>::element_type>();
   }
 
@@ -222,7 +234,7 @@ IGUANA_INLINE auto skip_till_key(T &value, It &&it, It &&end) {
     if (*it == '/')
       IGUANA_UNLIKELY {
         // </tag>
-        return true; // reach the close tag
+        return true;  // reach the close tag
       }
     else if (*it == '?')
       IGUANA_UNLIKELY {
@@ -244,7 +256,8 @@ IGUANA_INLINE auto skip_till_key(T &value, It &&it, It &&end) {
             match<']', '>'>(it, end);
             skip_sapces_and_newline(it, end);
             continue;
-          } else {
+          }
+          else {
             // if parse cdata
             ++it;
             match<'C', 'D', 'A', 'T', 'A', '['>(it, end);
@@ -256,7 +269,8 @@ IGUANA_INLINE auto skip_till_key(T &value, It &&it, It &&end) {
             if constexpr (string_view_v<VT>) {
               cdata_value.value() =
                   VT(&*vb, static_cast<size_t>(std::distance(vb, ve)));
-            } else {
+            }
+            else {
               cdata_value.value().append(
                   &*vb, static_cast<size_t>(std::distance(vb, ve)));
             }
@@ -264,7 +278,8 @@ IGUANA_INLINE auto skip_till_key(T &value, It &&it, It &&end) {
             skip_sapces_and_newline(it, end);
             continue;
           }
-        } else {
+        }
+        else {
           // <!-- -->
           // <!D
           skip_till<'>'>(it, end);
@@ -387,7 +402,7 @@ IGUANA_INLINE void parse_item(T &value, It &&it, It &&end,
   }
 }
 
-} // namespace detail
+}  // namespace detail
 
 template <typename It, typename U, std::enable_if_t<attr_v<U>, int> = 0>
 IGUANA_INLINE void from_xml(U &value, It &&it, It &&end) {
@@ -397,7 +412,8 @@ IGUANA_INLINE void from_xml(U &value, It &&it, It &&end) {
     if (*it == '?') {
       skip_till<'>'>(it, end);
       ++it;
-    } else {
+    }
+    else {
       break;
     }
   }
@@ -416,8 +432,9 @@ IGUANA_INLINE void from_xml(U &value, It &&it, It &&end) {
     match<'<'>(it, end);
     if (*it == '?') {
       skip_till<'>'>(it, end);
-      ++it; // skip >
-    } else {
+      ++it;  // skip >
+    }
+    else {
       break;
     }
   }
@@ -441,4 +458,4 @@ IGUANA_INLINE Num get_number(std::string_view str) {
   return num;
 }
 
-} // namespace iguana
+}  // namespace iguana
