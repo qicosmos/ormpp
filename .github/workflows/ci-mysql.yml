@@ -30,8 +30,8 @@ jobs:
       - name: Test
         if  : startsWith(matrix.os, 'macos')
         run : |
-          mdfind -name "mysql.h"
-          mdfind -name "mysqlclient*"
+          sudo find / -name "mysql.h"
+          sudo find / -name "mysqlclient*"
       
       - name: Configure cmake
         run:  cmake -B${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_MYSQL=ON
