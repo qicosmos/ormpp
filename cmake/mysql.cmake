@@ -17,7 +17,7 @@ IF (WIN32)
   )
 ELSE (WIN32)
   FIND_PATH(MYSQL_INCLUDE_DIR mysql.h
-    /usr/local/opt/mysql*/include
+    /usr/local/Cellar/mysql*/*/include/mysql
     /usr/local/include/mysql
     /usr/include/mysql
   )
@@ -36,7 +36,7 @@ ELSE (WIN32)
     NAMES ${MYSQL_NAMES}
     PATHS /usr/lib 
     /usr/local/lib
-    /usr/local/opt/mysql*/lib
+    /usr/local/Cellar/mysql*/*/lib
     PATH_SUFFIXES mysql
   )
 ENDIF(WIN32)
