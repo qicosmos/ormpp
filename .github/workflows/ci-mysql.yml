@@ -27,6 +27,10 @@ jobs:
       - name: Verify MySQL
         run:  mysql -uroot -e'show databases;'
 
+      - name: Test
+        if  : startsWith(matrix.os, 'macos')
+        run : find / -name "mysql.h"
+
       - name: Configure cmake
         run:  cmake -B${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_MYSQL=ON
 
