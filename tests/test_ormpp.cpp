@@ -7,6 +7,8 @@
 #endif
 
 #ifdef ORMPP_ENABLE_PG
+#include <thread>
+
 #include "postgresql.hpp"
 #endif
 

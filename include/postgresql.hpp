@@ -7,10 +7,11 @@
 
 #include <libpq-fe.h>
 
+#include <climits>
 #include <string>
 #include <type_traits>
 
-#include "iguana/reflection.hpp"
+#include "utility.hpp"
 
 using namespace std::string_literals;
 
@@ -19,15 +20,31 @@ class postgresql {
  public:
   ~postgresql() { disconnect(); }
 
+  bool has_error() { return has_error_; }
+
+  void reset_error() {
+    has_error_ = false;
+    last_error_ = {};
+  }
+
+  void set_last_error(std::string last_error) {
+    has_error_ = true;
+    last_error_ = std::move(last_error);
+    std::cout << last_error_ << std::endl;
+  }
+
+  std::string get_last_error() const { return last_error_; }
+
   // ip, user, pwd, db, timeout  the sequence must be fixed like this
   template <typename... Args>
   bool connect(Args &&...args) {
+    reset_error();
     auto sql = ""s;
     sql = generate_conn_sql(std::make_tuple(std::forward<Args>(args)...));
 
     con_ = PQconnectdb(sql.data());
     if (PQstatus(con_) != CONNECTION_OK) {
-      std::cout << PQerrorMessage(con_) << std::endl;
+      set_last_error(PQerrorMessage(con_));
       return false;
     }
 
@@ -46,30 +63,16 @@ class postgresql {
 
   bool ping() { return (PQstatus(con_) == CONNECTION_OK); }
 
-  bool has_error() {
-    return false;  // todo
-  }
-
   template <typename T, typename... Args>
   constexpr auto create_datatable(Args &&...args) {
-    //            std::string droptb = "DROP TABLE IF EXISTS ";
-    //            droptb += iguana::get_name<T>();
-    //
-    //            res_ = PQexec(con_, droptb.data());
-    //            if (PQresultStatus(res_) != PGRES_COMMAND_OK){
-    //                PQclear(res_);
-    //                return false;
-    //            }
-    //
-    //            PQclear(res_);
-
+    reset_error();
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     res_ = PQexec(con_, sql.data());
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      std::cout << PQerrorMessage(con_) << std::endl;
+      set_last_error(PQerrorMessage(con_));
       PQclear(res_);
       return false;
     }
@@ -174,7 +177,8 @@ class postgresql {
   template <typename T, typename... Args>
   constexpr std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
       Args &&...args) {
-    std::string sql = generate_query_sql<T>(std::forward<Args>(args)...);
+    reset_error();
+    std::string sql = generate_query_sql<T>(args...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -185,6 +189,7 @@ class postgresql {
 
     res_ = PQexec(con_, sql.data());
     if (PQresultStatus(res_) != PGRES_TUPLES_OK) {
+      set_last_error(PQresultErrorMessage(res_));
       PQclear(res_);
       return {};
     }
@@ -208,6 +213,7 @@ class postgresql {
   template <typename T, typename Arg, typename... Args>
   constexpr std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(
       const Arg &s, Args &&...args) {
+    reset_error();
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
 
@@ -228,6 +234,7 @@ class postgresql {
 
     res_ = PQexec(con_, sql.data());
     if (PQresultStatus(res_) != PGRES_TUPLES_OK) {
+      set_last_error(PQresultErrorMessage(res_));
       PQclear(res_);
       return {};
     }
@@ -263,12 +270,14 @@ class postgresql {
 
   template <typename T, typename... Args>
   constexpr bool delete_records(Args &&...where_conditon) {
+    reset_error();
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     res_ = PQexec(con_, sql.data());
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
+      set_last_error(PQresultErrorMessage(res_));
       PQclear(res_);
       return false;
     }
@@ -514,6 +523,7 @@ class postgresql {
   template <typename T, typename... Args>
   constexpr int insert_impl(const std::string &sql, const T &t,
                             Args &&...args) {
+    reset_error();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -540,7 +550,7 @@ class postgresql {
                           param_values_buf.data(), NULL, NULL, 0);
 
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      std::cout << PQresultErrorMessage(res_) << std::endl;
+      set_last_error(PQresultErrorMessage(res_));
       PQclear(res_);
       return INT_MIN;
     }
@@ -699,10 +709,13 @@ class postgresql {
     return sql;
   }
 
-  PGresult *res_ = nullptr;
+ private:
+  bool has_error_ = false;
+  std::string last_error_;
   PGconn *con_ = nullptr;
-  std::map<std::string, std::string> auto_key_map_;
-  std::map<std::string, std::string> key_map_;
+  PGresult *res_ = nullptr;
+  inline static std::map<std::string, std::string> key_map_;
+  inline static std::map<std::string, std::string> auto_key_map_;
 };
 }  // namespace ormpp
 #endif  // ORM_POSTGRESQL_HPP
