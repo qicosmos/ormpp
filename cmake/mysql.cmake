@@ -13,25 +13,22 @@ ENDIF (MYSQL_INCLUDE_DIR)
 IF (WIN32)
   FIND_PATH(MYSQL_INCLUDE_DIR mysql.h
     $ENV{PROGRAMFILES}/MySQL/*/include
-    $ENV{SYSTEMDRIVE}/MySQL/*/include
-  )
+    $ENV{SYSTEMDRIVE}/MySQL/*/include)
 ELSE (WIN32)
   FIND_PATH(MYSQL_INCLUDE_DIR mysql.h
     /usr/local/Cellar/mysql@8.0/*/include/mysql
     /opt/homebrew/include/mysql
     /usr/local/include/mysql
-    /usr/include/mysql
-  )
+    /usr/include/mysql)
 ENDIF(WIN32)
 
-SET(MYSQL_NAMES mysqlclient mysqlclient_r)
+SET(MYSQL_NAMES mysqlclient)
 IF (WIN32)
   FIND_LIBRARY(MYSQL_LIBRARY
     NAMES ${MYSQL_NAMES}
     PATHS $ENV{PROGRAMFILES}/MySQL/*/lib 
     $ENV{SYSTEMDRIVE}/MySQL/*/lib
-    PATH_SUFFIXES mysql
-  )
+    PATH_SUFFIXES mysql)
 ELSE (WIN32)
   FIND_LIBRARY(MYSQL_LIBRARY
     NAMES ${MYSQL_NAMES}
@@ -39,8 +36,7 @@ ELSE (WIN32)
     /usr/local/lib
     /opt/homebrew/lib
     /usr/local/Cellar/mysql@8.0/*/lib
-    PATH_SUFFIXES mysql
-  )
+    PATH_SUFFIXES mysql)
 ENDIF(WIN32)
 
 IF (MYSQL_INCLUDE_DIR AND MYSQL_LIBRARY)
@@ -62,7 +58,4 @@ ELSE (MYSQL_FOUND)
   ENDIF (MYSQL_FIND_REQUIRED)
 ENDIF (MYSQL_FOUND)
 
-MARK_AS_ADVANCED(
-  MYSQL_LIBRARY
-  MYSQL_INCLUDE_DIR
-  )
+MARK_AS_ADVANCED(MYSQL_LIBRARY MYSQL_INCLUDE_DIR)

@@ -1,14 +1,8 @@
 //
 // Created by qiyu on 10/23/17.
 //
-#ifdef _MSC_VER
 #ifdef ORMPP_ENABLE_MYSQL
 #include <mysql.h>
-#endif
-#else
-#ifdef ORMPP_ENABLE_MYSQL
-#include <mysql.h>
-#endif
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
 #include <sqlite3.h>

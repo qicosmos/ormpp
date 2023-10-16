@@ -251,8 +251,8 @@ TEST_CASE("test_ormpp_cfg") {
 TEST_CASE("postgres_pool") {
   auto &pool = connection_pool<dbng<postgresql>>::instance();
   try {
-    pool.init(3, ip, "root", password, db, 2);
-    pool.init(7, ip, "root", password, db, 2);
+    pool.init(3, ip, "root", password, db, 2, 5432);
+    pool.init(7, ip, "root", password, db, 2, 5432);
   } catch (const std::exception &e) {
     std::cout << e.what() << std::endl;
     return;
@@ -546,7 +546,7 @@ TEST_CASE("orm_multi_update") {
   dbng<postgresql> postgres;
   if (postgres.connect(ip, "root", password, db)) {
     postgres.create_datatable<student>(key, not_null);
-    postgres.insert(v) == 3;
+    CHECK(postgres.insert(v) == 3);
     v[0].name = "test1";
     v[1].name = "test2";
     v[2].name = "test3";

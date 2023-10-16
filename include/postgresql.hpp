@@ -5,13 +5,12 @@
 #ifndef ORM_POSTGRESQL_HPP
 #define ORM_POSTGRESQL_HPP
 
+#include <libpq-fe.h>
+
 #include <string>
 #include <type_traits>
-#ifdef _MSC_VER
-#include <include/libpq-fe.h>
-#else
-#include <postgresql/libpq-fe.h>
-#endif
+
+#include "iguana/reflection.hpp"
 
 using namespace std::string_literals;
 
