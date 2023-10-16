@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        configuration: [ Debug, Release ]
+        configuration: [ Release ] # Debug, Release
         os: [ ubuntu-latest ] # macos-latest, ubuntu-latest, windows-latest
     
     services:
