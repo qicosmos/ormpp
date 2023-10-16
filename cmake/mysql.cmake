@@ -18,6 +18,7 @@ IF (WIN32)
 ELSE (WIN32)
   FIND_PATH(MYSQL_INCLUDE_DIR mysql.h
     /usr/local/Cellar/mysql@8.0/*/include/mysql
+    /opt/homebrew/include/mysql
     /usr/local/include/mysql
     /usr/include/mysql
   )
@@ -36,6 +37,7 @@ ELSE (WIN32)
     NAMES ${MYSQL_NAMES}
     PATHS /usr/lib 
     /usr/local/lib
+    /opt/homebrew/lib
     /usr/local/Cellar/mysql@8.0/*/lib
     PATH_SUFFIXES mysql
   )
@@ -50,9 +52,9 @@ ELSE (MYSQL_INCLUDE_DIR AND MYSQL_LIBRARY)
 ENDIF (MYSQL_INCLUDE_DIR AND MYSQL_LIBRARY)
 
 IF (MYSQL_FOUND)
-  #IF (NOT MYSQL_FIND_QUIETLY)
+  IF (NOT MYSQL_FIND_QUIETLY)
     MESSAGE(STATUS "Found MySQL: ${MYSQL_LIBRARY}")
-  #ENDIF (NOT MYSQL_FIND_QUIETLY)
+  ENDIF (NOT MYSQL_FIND_QUIETLY)
 ELSE (MYSQL_FOUND)
   IF (MYSQL_FIND_REQUIRED)
     MESSAGE(STATUS "Looked for MySQL libraries named ${MYSQL_NAMES}.")
