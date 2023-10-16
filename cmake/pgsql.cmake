@@ -16,9 +16,9 @@ IF (WIN32)
     $ENV{SYSTEMDRIVE}/PostgreSQL/*/include)
 ELSE (WIN32)
   FIND_PATH(PGSQL_INCLUDE_DIR libpq-fe.h
-    /opt/homebrew/include/PostgreSQL
-    /usr/local/include/PostgreSQL
-    /usr/include/PostgreSQL)
+    /opt/homebrew/include/postgresql
+    /usr/local/include/postgresql
+    /usr/include/postgresql)
 ENDIF(WIN32)
 
 IF (WIN32)
