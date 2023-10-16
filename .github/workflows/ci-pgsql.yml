@@ -1,4 +1,4 @@
-name: CI-MySQL
+name: CI-PGSQL
 
 on: [ push, pull_request ]
 
@@ -13,19 +13,27 @@ jobs:
       matrix:
         configuration: [ Debug, Release ]
         os: [ macos-latest, ubuntu-latest, windows-latest ]
+    
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER: root
+          POSTGRES_DB: test_ormppdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
 
-      - name: Setup MySQL
-        uses: ankane/setup-mysql@v1
-        with: 
-          mysql-version: 8.0
-          database: test_ormppdb
-
       - name: Configure cmake
-        run:  cmake -B${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_MYSQL=ON
+        run:  cmake -B${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_PG=ON
 
       - name: Build
         run:  cmake --build ${{github.workspace}}/build --config ${{ matrix.configuration }}
