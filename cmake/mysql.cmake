@@ -36,6 +36,7 @@ ELSE (WIN32)
     NAMES ${MYSQL_NAMES}
     PATHS /usr/lib 
     /usr/local/lib
+    /usr/local/Cellar/mysql@8.0/*/lib
     PATH_SUFFIXES mysql
   )
 ENDIF(WIN32)
