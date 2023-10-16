@@ -26,6 +26,7 @@ const char *password = "123456";
 const char *password = "";
 #endif
 const char *ip = "127.0.0.1";
+const char *username = "root";
 const char *db = "test_ormppdb";
 
 struct person {
@@ -55,7 +56,7 @@ REFLECTION(simple, id, code, age);
 // TEST_CASE(mysql_performance){
 //    dbng<mysql> mysql;
 //
-//    REQUIRE(mysql.connect(ip, "root", password, db));
+//    REQUIRE(mysql.connect(ip, username, password, db));
 //    REQUIRE(mysql.execute("DROP TABLE IF EXISTS student"));
 //
 //    ormpp_auto_increment_key auto_key{"code"};
@@ -102,7 +103,7 @@ REFLECTION(test_optional, id, name, age);
 TEST_CASE("test optional") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
+  if (mysql.connect(ip, username, password, db)) {
     mysql.create_datatable<test_optional>(ormpp_auto_key{"id"});
     mysql.delete_records<test_optional>();
     mysql.insert<test_optional>({0, "purecpp", 200});
@@ -147,7 +148,7 @@ REFLECTION(test_order, name, id);
 TEST_CASE("random_reflection_order") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db,
+  if (mysql.connect(ip, username, password, db,
                     /*timeout_seconds=*/5, 3306)) {
     REQUIRE(mysql.execute(
         "create table if not exists `test_order` (id int, name text);"));
@@ -172,7 +173,7 @@ REFLECTION_WITH_NAME(custom_name, "test_order", id, name);
 TEST_CASE("orm_custom_name") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
+  if (mysql.connect(ip, username, password, db)) {
     auto vec1 = mysql.query<custom_name>();
     CHECK(vec1.size() > 0);
     auto vec2 = mysql.query(FID(custom_name::name), "=", "hello");
@@ -189,7 +190,7 @@ REFLECTION(dummy, id, name);
 
 // TEST_CASE("mysql_exist_tb") {
 //   dbng<mysql> mysql;
-//   REQUIRE(mysql.connect(ip, "root", password, db,
+//   REQUIRE(mysql.connect(ip, username, password, db,
 //                         /*timeout_seconds=*/5, 3306));
 //   dummy d{0, "tom"};
 //   dummy d1{0, "jerry"};
@@ -199,35 +200,77 @@ REFLECTION(dummy, id, name);
 //   std::cout << v.size() << "\n";
 // }
 
-TEST_CASE("mysql_pool") {
-  //	dbng<sqlite> sqlite;
-  //	sqlite.connect(db);
-  //	sqlite.create_datatable<test_tb>(ormpp_unique{{"name"}});
-  //	test_tb tb{ 1, "aa" };
-  //	sqlite.insert(tb);
-  //	auto vt = sqlite.query<test_tb>();
-  //	auto vt1 = sqlite.query<std::tuple<test_tb>>("select * from test_tb");
-  //    auto& pool = connection_pool<dbng<mysql>>::instance();
-  //    try {
-  //        pool.init(1, ip, "root", password, db, 2);
-  //    }catch(const std::exception& e){
-  //        std::cout<<e.what()<<std::endl;
-  //        return;
-  //    }
-  //	auto con = pool.get();
-  //	auto v = con->query<std::tuple<test_tb>>("select * from test_tb");
-  //	con->create_datatable<test_tb>(ormpp_unique{{"name"}});
-  //    for (int i = 0; i < 10; ++i) {
-  //        auto conn = pool.get();
-  ////        conn_guard guard(conn);
-  //        if(conn== nullptr){
-  //            std::cout<<"no available conneciton"<<std::endl;
-  //            break;
-  //        }
-  //
-  //        bool r = conn->create_datatable<person>();
-  //    }
-}
+// #ifdef ORMPP_ENABLE_MYSQL
+// TEST_CASE("mysql_pool") {
+//	dbng<sqlite> sqlite;
+//	sqlite.connect(db);
+//	sqlite.create_datatable<test_tb>(ormpp_unique{{"name"}});
+//	test_tb tb{ 1, "aa" };
+//	sqlite.insert(tb);
+//	auto vt = sqlite.query<test_tb>();
+//	auto vt1 = sqlite.query<std::tuple<test_tb>>("select * from test_tb");
+//    auto& pool = connection_pool<dbng<mysql>>::instance();
+//    try {
+//        pool.init(1, ip, username, password, db, 2);
+//    }catch(const std::exception& e){
+//        std::cout<<e.what()<<std::endl;
+//        return;
+//    }
+//	auto con = pool.get();
+//	auto v = con->query<std::tuple<test_tb>>("select * from test_tb");
+//	con->create_datatable<test_tb>(ormpp_unique{{"name"}});
+//    for (int i = 0; i < 10; ++i) {
+//        auto conn = pool.get();
+////        conn_guard guard(conn);
+//        if(conn== nullptr){
+//            std::cout<<"no available conneciton"<<std::endl;
+//            break;
+//        }
+//
+//        bool r = conn->create_datatable<person>();
+//    }
+// }
+// #endif
+
+// #ifdef ORMPP_ENABLE_PG
+// TEST_CASE("postgres_pool") {
+//   auto &pool = connection_pool<dbng<postgresql>>::instance();
+//   try {
+//     pool.init(3, ip, username, password, db, /*timeout_seconds=*/5, 5432);
+//     pool.init(7, ip, username, password, db, /*timeout_seconds=*/5, 5432);
+//   } catch (const std::exception &e) {
+//     std::cout << e.what() << std::endl;
+//     return;
+//   }
+
+//   auto conn1 = pool.get();
+//   auto conn2 = pool.get();
+//   auto conn3 = pool.get();
+
+//   std::thread thd([conn2, &pool] {
+//     std::this_thread::sleep_for(std::chrono::seconds(15));
+//     pool.return_back(conn2);
+//   });
+
+//   auto conn4 = pool.get();  // 10s later, timeout
+//   CHECK(conn4 == nullptr);
+//   auto conn5 = pool.get();
+//   CHECK(conn5 != nullptr);
+
+//   thd.join();
+
+//   for (int i = 0; i < 10; ++i) {
+//     auto conn = pool.get();
+//     // conn_guard guard(conn);
+//     if (conn == nullptr) {
+//       std::cout << "no available conneciton" << std::endl;
+//       continue;
+//     }
+
+//     bool r = conn->create_datatable<person>();
+//   }
+// }
+// #endif
 
 TEST_CASE("test_ormpp_cfg") {
   ormpp_cfg cfg{};
@@ -253,61 +296,21 @@ TEST_CASE("test_ormpp_cfg") {
 #endif
 }
 
-#ifdef ORMPP_ENABLE_PG
-TEST_CASE("postgres_pool") {
-  auto &pool = connection_pool<dbng<postgresql>>::instance();
-  try {
-    pool.init(3, ip, "root", password, db, 2, 5432);
-    pool.init(7, ip, "root", password, db, 2, 5432);
-  } catch (const std::exception &e) {
-    std::cout << e.what() << std::endl;
-    return;
-  }
-
-  auto conn1 = pool.get();
-  auto conn2 = pool.get();
-  auto conn3 = pool.get();
-
-  std::thread thd([conn2, &pool] {
-    std::this_thread::sleep_for(std::chrono::seconds(15));
-    pool.return_back(conn2);
-  });
-
-  auto conn4 = pool.get();  // 10s later, timeout
-  CHECK(conn4 == nullptr);
-  auto conn5 = pool.get();
-  CHECK(conn5 != nullptr);
-
-  thd.join();
-
-  for (int i = 0; i < 10; ++i) {
-    auto conn = pool.get();
-    // conn_guard guard(conn);
-    if (conn == nullptr) {
-      std::cout << "no available conneciton" << std::endl;
-      continue;
-    }
-
-    bool r = conn->create_datatable<person>();
-  }
-}
-#endif
-
 TEST_CASE("orm_connect") {
   int timeout = 5;
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  REQUIRE(postgres.connect(ip, "root", password, db));
+  REQUIRE(postgres.connect(ip, username, password, db));
   REQUIRE(postgres.disconnect());
-  REQUIRE(postgres.connect(ip, "root", password, db, timeout));
+  REQUIRE(postgres.connect(ip, username, password, db, timeout));
 #endif
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, db));
+  REQUIRE(mysql.connect(ip, username, password, db));
   REQUIRE(mysql.disconnect());
-  REQUIRE(mysql.connect(ip, "root", password, db, timeout));
+  REQUIRE(mysql.connect(ip, username, password, db, timeout));
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -325,7 +328,7 @@ TEST_CASE("orm_create_table") {
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  REQUIRE(postgres.connect(ip, "root", password, db));
+  REQUIRE(postgres.connect(ip, username, password, db));
   REQUIRE(postgres.create_datatable<person>());
   REQUIRE(postgres.create_datatable<person>(key));
   REQUIRE(postgres.create_datatable<person>(not_null));
@@ -351,7 +354,7 @@ TEST_CASE("orm_create_table") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  REQUIRE(mysql.connect(ip, "root", password, db));
+  REQUIRE(mysql.connect(ip, username, password, db));
   REQUIRE(mysql.create_datatable<person>());
   REQUIRE(mysql.create_datatable<person>(key));
   REQUIRE(mysql.create_datatable<person>(not_null));
@@ -375,58 +378,30 @@ TEST_CASE("orm_insert_query") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
-    auto vec1 = mysql.query(FID(simple::id), "<", "5");
-    auto vec2 = mysql.query(FID(simple::id), "<", 5);
-    auto vec3 = mysql.query(FID(person::name), "<", "5");
-    auto vec4 = mysql.query(FID(person::name), "<", 5);
+  if (mysql.connect(ip, username, password, db)) {
+    auto vec = mysql.query(FID(person::id), "<", "5");
   }
 #endif
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  if (postgres.connect(ip, "root", password, db)) {
-    auto vec = postgres.query(FID(simple::id), "<", "5");
+  if (postgres.connect(ip, username, password, db)) {
+    auto vec = postgres.query(FID(person::id), "<", "5");
   }
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
-    auto vec = sqlite.query(FID(simple::id), "<", "5");
+    auto vec = sqlite.query(FID(person::id), "<", "5");
   }
 #endif
 
   // auto key
   {
-#ifdef ORMPP_ENABLE_PG
-    postgres.create_datatable<student>(auto_key, not_null);
-    postgres.delete_records<student>();
-    CHECK(postgres.insert(s) == 1);
-    auto vec = postgres.query<student>();
-    CHECK(vec.size() == 1);
-    CHECK(postgres.insert(v) == 2);
-#endif
-
-#ifdef ORMPP_ENABLE_SQLITE3
-    sqlite.create_datatable<student>(auto_key);
-    sqlite.delete_records<student>();
-    CHECK(sqlite.insert(s) == 1);
-    auto vec1 = sqlite.query<student>();
-    CHECK(vec1.size() == 1);
-    CHECK(sqlite.insert(v) == 2);
-    auto vec2 = sqlite.query<student>();
-    CHECK(vec2.size() == 3);
-    auto vec3 = sqlite.query(FID(student::code), "<", "5");
-    auto vec4 = sqlite.query<student>("limit 2");
-#endif
-  }
-
-  // key
-  {
 #ifdef ORMPP_ENABLE_MYSQL
+    mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(auto_key, not_null);
-    mysql.delete_records<student>();
     CHECK(mysql.insert(s) == 1);
     auto vec1 = mysql.query<student>("limit 3");
     CHECK(vec1.size() == 1);
@@ -448,21 +423,52 @@ TEST_CASE("orm_insert_query") {
 #endif
 
 #ifdef ORMPP_ENABLE_PG
-    postgres.create_datatable<student>(key, not_null);
+    postgres.execute("drop table if exists student;");
+    postgres.create_datatable<student>(auto_key, not_null);
     CHECK(postgres.insert(s) == 1);
-    auto result2 = postgres.query<student>();
-    CHECK(result2.size() == 1);
-    postgres.delete_records<student>();
+    auto vec = postgres.query<student>();
+    CHECK(vec.size() == 1);
     CHECK(postgres.insert(v) == 2);
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
-    sqlite.create_datatable<student>(auto_key);
+    sqlite.execute("drop table if exists student;");
+    sqlite.create_datatable<student>(auto_key, not_null);
     CHECK(sqlite.insert(s) == 1);
-    auto result3 = sqlite.query<student>();
-    CHECK(result3.size() == 4);
-    sqlite.delete_records<student>();
+    auto vec1 = sqlite.query<student>();
+    CHECK(vec1.size() == 1);
     CHECK(sqlite.insert(v) == 2);
+    auto vec2 = sqlite.query<student>();
+    CHECK(vec2.size() == 3);
+    auto vec3 = sqlite.query(FID(student::code), "<", "5");
+    auto vec4 = sqlite.query<student>("limit 2");
+#endif
+  }
+
+  // key
+  {
+#ifdef ORMPP_ENABLE_MYSQL
+    mysql.execute("drop table if exists student;");
+    mysql.create_datatable<student>(key, not_null);
+    CHECK(mysql.insert(s) == 1);
+    auto result2 = mysql.query<student>();
+    CHECK(result2.size() == 1);
+#endif
+
+#ifdef ORMPP_ENABLE_PG
+    postgres.execute("drop table if exists student;");
+    postgres.create_datatable<student>(key, not_null);
+    CHECK(postgres.insert(s) == 1);
+    auto result2 = postgres.query<student>();
+    CHECK(result2.size() == 1);
+#endif
+
+#ifdef ORMPP_ENABLE_SQLITE3
+    sqlite.execute("drop table if exists student;");
+    sqlite.create_datatable<student>(key, not_null);
+    CHECK(sqlite.insert(s) == 1);
+    auto result2 = sqlite.query<student>();
+    CHECK(result2.size() == 1);
 #endif
   }
 }
@@ -479,7 +485,7 @@ TEST_CASE("orm_update") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
+  if (mysql.connect(ip, username, password, db)) {
     mysql.create_datatable<student>(key, not_null);
     mysql.delete_records<student>();
     CHECK(mysql.insert(v) == 3);
@@ -494,7 +500,7 @@ TEST_CASE("orm_update") {
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  if (postgres.connect(ip, "root", password, db)) {
+  if (postgres.connect(ip, username, password, db)) {
     postgres.create_datatable<student>(key, not_null);
     postgres.delete_records<student>();
     CHECK(postgres.insert(v) == 3);
@@ -535,8 +541,9 @@ TEST_CASE("orm_multi_update") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
-    mysql.create_datatable<student>(key, not_null);
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists student");
+    mysql.create_datatable<student>(auto_key, not_null);
     mysql.delete_records<student>();
     CHECK(mysql.insert(v) == 3);
     v[0].name = "test1";
@@ -550,8 +557,9 @@ TEST_CASE("orm_multi_update") {
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  if (postgres.connect(ip, "root", password, db)) {
-    postgres.create_datatable<student>(key, not_null);
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists student");
+    postgres.create_datatable<student>(auto_key, not_null);
     CHECK(postgres.insert(v) == 3);
     v[0].name = "test1";
     v[1].name = "test2";
@@ -565,8 +573,8 @@ TEST_CASE("orm_multi_update") {
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
-    sqlite.delete_records<student>();
-    sqlite.create_datatable<student>(key);
+    sqlite.execute("drop table if exists student");
+    sqlite.create_datatable<student>(auto_key, not_null);
     CHECK(sqlite.insert(v) == 3);
     v[0].name = "test1";
     v[1].name = "test2";
@@ -590,7 +598,7 @@ TEST_CASE("orm_delete") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
+  if (mysql.connect(ip, username, password, db)) {
     mysql.create_datatable<student>(key, not_null);
     mysql.delete_records<student>();
     CHECK(mysql.insert(v) == 3);
@@ -605,7 +613,7 @@ TEST_CASE("orm_delete") {
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  if (postgres.connect(ip, "root", password, db)) {
+  if (postgres.connect(ip, username, password, db)) {
     postgres.create_datatable<student>(key, not_null);
     postgres.delete_records<student>();
     CHECK(postgres.insert(v) == 3);
@@ -643,7 +651,7 @@ TEST_CASE("orm_query") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
+  if (mysql.connect(ip, username, password, db)) {
     mysql.create_datatable<simple>(key);
     mysql.delete_records<simple>();
     CHECK(mysql.insert(v) == 3);
@@ -656,13 +664,13 @@ TEST_CASE("orm_query") {
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  if (postgres.connect(ip, "root", password, db)) {
+  if (postgres.connect(ip, username, password, db)) {
     postgres.create_datatable<simple>(key);
     postgres.delete_records<simple>();
     CHECK(postgres.insert(v) == 3);
     auto vec1 = postgres.query<simple>();
     CHECK(vec1.size() == 3);
-    auto vec2 = postgres.query<simple>("where id=2");
+    auto vec2 = postgres.query<simple>("id=2");
     CHECK(vec2.size() == 1);
   }
 #endif
@@ -693,7 +701,7 @@ TEST_CASE("orm_query_some") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
+  if (mysql.connect(ip, username, password, db)) {
     mysql.create_datatable<student>(key, not_null);
     mysql.delete_records<student>();
     CHECK(mysql.insert(v) == 3);
@@ -708,7 +716,7 @@ TEST_CASE("orm_query_some") {
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  if (postgres.connect(ip, "root", password, db)) {
+  if (postgres.connect(ip, username, password, db)) {
     postgres.create_datatable<student>(key, not_null);
     postgres.delete_records<student>();
     CHECK(postgres.insert(v) == 3);
@@ -755,7 +763,7 @@ TEST_CASE("orm_query_multi_table") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
+  if (mysql.connect(ip, username, password, db)) {
     mysql.create_datatable<student>(key, not_null);
     mysql.create_datatable<person>(key1, not_null);
     mysql.delete_records<student>();
@@ -773,7 +781,7 @@ TEST_CASE("orm_query_multi_table") {
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  if (postgres.connect(ip, "root", password, db)) {
+  if (postgres.connect(ip, username, password, db)) {
     postgres.create_datatable<student>(key, not_null);
     postgres.create_datatable<person>(key1, not_null);
     postgres.delete_records<student>();
@@ -820,7 +828,7 @@ TEST_CASE("orm_transaction") {
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
+  if (mysql.connect(ip, username, password, db)) {
     mysql.create_datatable<student>(key, not_null);
     mysql.delete_records<student>();
     mysql.begin();
@@ -839,7 +847,7 @@ TEST_CASE("orm_transaction") {
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
-  if (postgres.connect(ip, "root", password, db)) {
+  if (postgres.connect(ip, username, password, db)) {
     postgres.create_datatable<student>(key, not_null);
     postgres.delete_records<student>();
     postgres.begin();
@@ -907,7 +915,7 @@ struct validate {
 #ifdef ORMPP_ENABLE_MYSQL
 TEST_CASE("orm_aop") {
   // dbng<mysql> mysql;
-  // auto r = mysql.wraper_connect<log, validate>(ip, "root", password,
+  // auto r = mysql.wraper_connect<log, validate>(ip, username, password,
   // db); REQUIRE(r);
 
   // r = mysql.wraper_execute("drop table if exists person");
@@ -931,7 +939,7 @@ REFLECTION(image, id, bin);
 
 TEST_CASE("orm_mysql_blob") {
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
+  if (mysql.connect(ip, username, password, db)) {
     mysql.execute("DROP TABLE IF EXISTS image");
     mysql.create_datatable<image>();
     auto data = "this is a test binary stream\0, and ?...";
@@ -955,7 +963,7 @@ REFLECTION(image_ex, id, bin, time);
 
 TEST_CASE("orm_mysql_blob_tuple") {
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
+  if (mysql.connect(ip, username, password, db)) {
     mysql.execute("DROP TABLE IF EXISTS image_ex");
     mysql.create_datatable<image_ex>();
     auto data = "this is a test binary stream\0, and ?...";
@@ -984,7 +992,7 @@ TEST_CASE("orm_mysql_blob_tuple") {
 TEST_CASE("test create `table with unique and test query") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
+  if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists person");
     mysql.create_datatable<person>(ormpp_auto_key{"id"},
                                    ormpp_unique{{"name", "age"}});
@@ -1020,7 +1028,7 @@ TEST_CASE("test create `table with unique and test query") {
 TEST_CASE("get_insert_id") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
+  if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists person");
     mysql.create_datatable<person>(ormpp_auto_key{"id"});
     mysql.insert<person>({0, "purecpp", 200});
@@ -1046,7 +1054,7 @@ TEST_CASE("get_insert_id") {
 // TEST_CASE("test delete_records") {
 // #ifdef ORMPP_ENABLE_MYSQL
 //   dbng<mysql> mysql;
-//   if (mysql.connect(ip, "root", password, db)) {
+//   if (mysql.connect(ip, username, password, db)) {
 //     mysql.create_datatable<person>(ormpp_auto_key{"id"});
 //     mysql.delete_records<person>();
 //     mysql.insert<person>({0, "other", 200});
@@ -1081,7 +1089,7 @@ REFLECTION_ALIAS(alias, "t_alias", FLDALIAS(&alias::id, "alias_id"),
 TEST_CASE("test alias") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
-  if (mysql.connect(ip, "root", password, db)) {
+  if (mysql.connect(ip, username, password, db)) {
     mysql.create_datatable<alias>(ormpp_auto_key{"alias_id"});
     mysql.delete_records<alias>();
     mysql.insert<alias>({0, "purecpp"});

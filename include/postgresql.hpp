@@ -39,9 +39,10 @@ class postgresql {
   template <typename... Args>
   bool connect(Args &&...args) {
     reset_error();
-    auto sql = ""s;
-    sql = generate_conn_sql(std::make_tuple(std::forward<Args>(args)...));
-
+    auto sql = generate_conn_sql(std::make_tuple(std::forward<Args>(args)...));
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
     con_ = PQconnectdb(sql.data());
     if (PQstatus(con_) != CONNECTION_OK) {
       set_last_error(PQerrorMessage(con_));
@@ -177,7 +178,6 @@ class postgresql {
   template <typename T, typename... Args>
   constexpr std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
       Args &&...args) {
-    reset_error();
     std::string sql = generate_query_sql<T>(args...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -213,7 +213,6 @@ class postgresql {
   template <typename T, typename Arg, typename... Args>
   constexpr std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(
       const Arg &s, Args &&...args) {
-    reset_error();
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
 
@@ -354,6 +353,12 @@ class postgresql {
                                                "dbname", "connect_timeout"),
                                tp, std::make_index_sequence<SIZE>{});
     }
+    else if constexpr (SIZE == 6) {
+      return generate_conn_sql(
+          std::make_tuple("host", "user", "password", "dbname",
+                          "connect_timeout", "port"),
+          tp, std::make_index_sequence<SIZE>{});
+    }
     else {
       return "";
     }
@@ -488,10 +493,11 @@ class postgresql {
 
   template <typename T>
   bool prepare(const std::string &sql) {
+    reset_error();
     res_ =
         PQprepare(con_, "", sql.data(), (int)iguana::get_value<T>(), nullptr);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      std::cout << PQresultErrorMessage(res_) << std::endl;
+      set_last_error(PQresultErrorMessage(res_));
       PQclear(res_);
       return false;
     }
@@ -528,15 +534,18 @@ class postgresql {
     std::cout << sql << std::endl;
 #endif
     std::vector<std::vector<char>> param_values;
-    auto it = auto_key_map_.find(iguana::get_name<T>().data());
+    auto name = iguana::get_name<T>().data();
+    auto it = auto_key_map_.find(name);
     std::string auto_key = (it == auto_key_map_.end()) ? "" : it->second;
 
-    iguana::for_each(t,
-                     [&t, &param_values, &auto_key, this](auto item, auto i) {
-                       /*if(!auto_key.empty()&&auto_key==iguana::get_name<T>(decltype(i)::value).data())
-                           return;*/
-                       set_param_values(param_values, t.*item);
-                     });
+    iguana::for_each(
+        t, [&t, &param_values, auto_key, name, this](auto item, auto i) {
+          if (!auto_key.empty() &&
+              auto_key == iguana::get_name<T>(decltype(i)::value).data()) {
+            return;
+          }
+          set_param_values(param_values, t.*item);
+        });
 
     if (param_values.empty())
       return INT_MIN;
@@ -686,8 +695,9 @@ class postgresql {
     int index = 0;
     for (auto i = 0; i < SIZE; ++i) {
       std::string field_name = iguana::get_name<T>(i).data();
-      // if(it!=auto_key_map_.end()&&it->second==field_name)
-      //    continue;
+      if (it != auto_key_map_.end() && it->second == field_name) {
+        continue;
+      }
 
       values += "$";
       char temp[20] = {};
