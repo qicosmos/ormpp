@@ -19,7 +19,7 @@ jobs:
         image: postgres
         env:
           POSTGRES_USER: root
-          POSTGRES_PASSWORD: root
+          POSTGRES_PASSWORD: 123456
           POSTGRES_DB: test_ormppdb
         options: >-
           --health-cmd pg_isready

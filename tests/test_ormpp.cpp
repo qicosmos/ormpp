@@ -20,7 +20,11 @@
 using namespace std::string_literals;
 
 using namespace ormpp;
+#ifdef ORMPP_ENABLE_PG
+const char *password = "123456";
+#else
 const char *password = "";
+#endif
 const char *ip = "127.0.0.1";
 const char *db = "test_ormppdb";
 
