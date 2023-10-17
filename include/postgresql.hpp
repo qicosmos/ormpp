@@ -48,7 +48,6 @@ class postgresql {
       set_last_error(PQerrorMessage(con_));
       return false;
     }
-
     return true;
   }
 
@@ -58,7 +57,6 @@ class postgresql {
       PQfinish(con_);
       con_ = nullptr;
     }
-
     return true;
   }
 
@@ -78,7 +76,6 @@ class postgresql {
       return false;
     }
     PQclear(res_);
-
     return true;
   }
 
@@ -281,53 +278,52 @@ class postgresql {
       return false;
     }
     PQclear(res_);
-
     return true;
   }
 
   // just support execute string sql without placeholders
   auto execute(const std::string &sql) {
+    reset_error();
     res_ = PQexec(con_, sql.data());
     auto guard = guard_result(res_);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      //                std::cout<<PQerrorMessage(con_)<<std::endl;
+      set_last_error(PQerrorMessage(con_));
       return false;
     }
-
     return true;
   }
 
   // transaction
   bool begin() {
+    reset_error();
     res_ = PQexec(con_, "begin;");
     auto guard = guard_result(res_);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      //                std::cout<<PQerrorMessage(con_)<<std::endl;
+      set_last_error(PQerrorMessage(con_));
       return false;
     }
-
     return true;
   }
 
   bool commit() {
+    reset_error();
     res_ = PQexec(con_, "commit;");
     auto guard = guard_result(res_);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      //                std::cout<<PQerrorMessage(con_)<<std::endl;
+      set_last_error(PQerrorMessage(con_));
       return false;
     }
-
     return true;
   }
 
   bool rollback() {
+    reset_error();
     res_ = PQexec(con_, "rollback;");
     auto guard = guard_result(res_);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      //                std::cout<<PQerrorMessage(con_)<<std::endl;
+      set_last_error(PQerrorMessage(con_));
       return false;
     }
-
     return true;
   }
 
@@ -376,23 +372,18 @@ class postgresql {
 
   struct guard_result {
     guard_result(PGresult *res) : res_(res) {}
-    void dismiss() { dismiss_ = true; }
 
     ~guard_result() {
-      if (dismiss_)
-        return;
-
-      if (res_ != nullptr)
-        status_ = PQresultStatus(res_);
-
-      if (status_ != PGRES_COMMAND_OK)
-        std::cout << PQresultErrorMessage(res_) << std::endl;
+      if (res_ != nullptr) {
+        if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
+          std::cout << PQresultErrorMessage(res_) << std::endl;
+        }
+        PQclear(res_);
+      }
     }
 
    private:
     PGresult *res_ = nullptr;
-    int status_ = 0;
-    bool dismiss_ = false;
   };
 
   template <typename T, typename... Args>
