@@ -43,19 +43,24 @@ template <typename Stream, typename T, std::enable_if_t<plain_v<T>, int> = 0>
 IGUANA_INLINE void render_value(Stream &ss, const T &value) {
   if constexpr (string_container_v<T>) {
     ss.append(value.data(), value.size());
-  } else if constexpr (num_v<T>) {
+  }
+  else if constexpr (num_v<T>) {
     char temp[65];
     auto p = detail::to_chars(temp, value);
     ss.append(temp, p - temp);
-  } else if constexpr (char_v<T>) {
+  }
+  else if constexpr (char_v<T>) {
     ss.push_back(value);
-  } else if constexpr (bool_v<T>) {
+  }
+  else if constexpr (bool_v<T>) {
     ss.append(value ? "true" : "false");
-  } else if constexpr (enum_v<T>) {
+  }
+  else if constexpr (enum_v<T>) {
     static constexpr auto enum_to_str = get_enum_map<false, std::decay_t<T>>();
     if constexpr (bool_v<decltype(enum_to_str)>) {
       render_value(ss, static_cast<std::underlying_type_t<T>>(value));
-    } else {
+    }
+    else {
       auto it = enum_to_str.find(value);
       if (it != enum_to_str.end())
         IGUANA_LIKELY {
@@ -68,7 +73,8 @@ IGUANA_INLINE void render_value(Stream &ss, const T &value) {
             " is a missing value in enum_value");
       }
     }
-  } else {
+  }
+  else {
     static_assert(!sizeof(T), "type is not supported");
   }
 }
@@ -106,7 +112,8 @@ IGUANA_INLINE void render_xml_value(Stream &ss, const T &value,
                                     std::string_view name) {
   if (value) {
     render_xml_value<pretty, spaces>(ss, *value, name);
-  } else {
+  }
+  else {
     render_tail<pretty, 0>(ss, name);
   }
 }
@@ -117,7 +124,8 @@ IGUANA_INLINE void render_xml_value(Stream &ss, const T &value,
                                     std::string_view name) {
   if (value) {
     render_xml_value<pretty, spaces>(ss, *value, name);
-  } else {
+  }
+  else {
     render_tail<pretty, 0>(ss, name);
   }
 }
@@ -139,7 +147,8 @@ IGUANA_INLINE void render_xml_value(Stream &ss, const T &value,
   for (const auto &v : value) {
     if constexpr (attr_v<value_type>) {
       render_xml_value<pretty, spaces>(ss, v, name);
-    } else {
+    }
+    else {
       render_head<pretty, spaces>(ss, name);
       render_xml_value<pretty, spaces>(ss, v, name);
     }
@@ -158,22 +167,26 @@ IGUANA_INLINE void render_xml_value(Stream &ss, T &&t, std::string_view name) {
              using value_type = underline_type_t<decltype(t.*v)>;
              constexpr auto Idx = decltype(i)::value;
              constexpr auto Count = M::value();
-             constexpr std::string_view tag_name =
+             [[maybe_unused]] constexpr std::string_view tag_name =
                  std::string_view(get_name<std::decay_t<T>, Idx>().data(),
                                   get_name<std::decay_t<T>, Idx>().size());
              static_assert(Idx < Count);
              if constexpr (sequence_container_v<value_type>) {
                render_xml_value<pretty, spaces + 1>(ss, t.*v, tag_name);
-             } else if constexpr (attr_v<value_type>) {
+             }
+             else if constexpr (attr_v<value_type>) {
                render_xml_value<pretty, spaces + 1>(ss, t.*v, tag_name);
-             } else if constexpr (cdata_v<value_type>) {
+             }
+             else if constexpr (cdata_v<value_type>) {
                if constexpr (pretty) {
                  ss.append(spaces + 1, '\t');
                  ss.append("<![CDATA[").append((t.*v).value()).append("]]>\n");
-               } else {
+               }
+               else {
                  ss.append("<![CDATA[").append((t.*v).value()).append("]]>");
                }
-             } else {
+             }
+             else {
                render_head<pretty, spaces + 1>(ss, tag_name);
                render_xml_value<pretty, spaces + 1>(ss, t.*v, tag_name);
              }
@@ -200,4 +213,4 @@ IGUANA_INLINE void to_xml(T &&t, Stream &s) {
   render_xml_value<pretty, 0>(s, std::forward<T>(t), root_name);
 }
 
-} // namespace iguana
+}  // namespace iguana

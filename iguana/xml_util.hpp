@@ -5,14 +5,14 @@ namespace iguana {
 template <typename T, typename map_type = std::unordered_map<std::string_view,
                                                              std::string_view>>
 class xml_attr_t {
-public:
+ public:
   T &value() { return val_; }
   map_type &attr() { return attr_; }
   const T &value() const { return val_; }
   const map_type &attr() const { return attr_; }
   using value_type = std::remove_cvref_t<T>;
 
-private:
+ private:
   T val_;
   map_type attr_;
 };
@@ -20,16 +20,17 @@ private:
 template <typename T = std::string_view,
           std::enable_if_t<string_container_v<T>, int> = 0>
 class xml_cdata_t {
-public:
+ public:
   T &value() { return val_; }
   const T &value() const { return val_; }
   using value_type = std::remove_cvref_t<T>;
 
-private:
+ private:
   T val_;
 };
 
-template <typename T> constexpr inline bool is_attr_t_v = false;
+template <typename T>
+constexpr inline bool is_attr_t_v = false;
 
 template <typename T, typename map_type>
 constexpr inline bool is_attr_t_v<xml_attr_t<T, map_type>> = true;
@@ -37,9 +38,11 @@ constexpr inline bool is_attr_t_v<xml_attr_t<T, map_type>> = true;
 template <typename T>
 constexpr inline bool attr_v = is_attr_t_v<std::remove_cvref_t<T>>;
 
-template <typename> struct is_cdata_t : std::false_type {};
+template <typename>
+struct is_cdata_t : std::false_type {};
 
-template <typename T> struct is_cdata_t<xml_cdata_t<T>> : std::true_type {};
+template <typename T>
+struct is_cdata_t<xml_cdata_t<T>> : std::true_type {};
 
 template <typename T>
 constexpr inline bool cdata_v = is_cdata_t<std::remove_cvref_t<T>>::value;
@@ -111,7 +114,8 @@ IGUANA_INLINE void match_close_tag(It &&it, It &&end, std::string_view key) {
   // ++it;
 }
 
-template <char c, typename It> IGUANA_INLINE void skip_till(It &&it, It &&end) {
+template <char c, typename It>
+IGUANA_INLINE void skip_till(It &&it, It &&end) {
   static_assert(contiguous_iterator<std::decay_t<It>>);
 
   if (std::distance(it, end) >= 7)
@@ -173,16 +177,17 @@ IGUANA_INLINE void skip_till_greater_or_space(It &&it, It &&end) {
   // Tail end of buffer. Should be rare we even get here
   while (it < end) {
     switch (*it) {
-    case '>':
-    case ' ':
-      return;
+      case '>':
+      case ' ':
+        return;
     }
     ++it;
   }
   throw std::runtime_error("Expected > or space");
 }
 
-template <char c, typename It> IGUANA_INLINE auto skip_pass(It &&it, It &&end) {
+template <char c, typename It>
+IGUANA_INLINE auto skip_pass(It &&it, It &&end) {
   skip_till<c>(it, end);
   auto res = it++ - 1;
   while (*res == ' ') {
@@ -191,4 +196,4 @@ template <char c, typename It> IGUANA_INLINE auto skip_pass(It &&it, It &&end) {
   return res + 1;
 }
 
-} // namespace iguana
+}  // namespace iguana

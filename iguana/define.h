@@ -49,7 +49,8 @@ IGUANA_INLINE int countr_zero(unsigned long long n) {
   if (static_cast<uint32_t>(n) != 0) {
     _BitScanForward(&c, static_cast<uint32_t>(n));
     return static_cast<int>(c);
-  } else {
+  }
+  else {
     _BitScanForward(&c, static_cast<uint32_t>(n >> 32));
     return static_cast<int>(c) + 32;
   }

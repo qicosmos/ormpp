@@ -912,6 +912,12 @@ constexpr const std::string_view get_name() {
 }
 
 template <typename T>
+constexpr const std::string_view get_fields() {
+  using M = Reflect_members<T>;
+  return M::fields();
+}
+
+template <typename T>
 constexpr std::enable_if_t<is_reflection<T>::value, size_t> get_value() {
   using M = decltype(iguana_reflect_type(std::declval<T>()));
   return M::value();

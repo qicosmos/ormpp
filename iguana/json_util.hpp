@@ -9,10 +9,11 @@
 namespace iguana {
 
 class numeric_str {
-public:
+ public:
   std::string_view &value() { return val_; }
   std::string_view value() const { return val_; }
-  template <typename T> T convert() {
+  template <typename T>
+  T convert() {
     static_assert(num_v<T>, "T must be numeric type");
     if (val_.empty())
       IGUANA_UNLIKELY { throw std::runtime_error("Failed to parse number"); }
@@ -24,7 +25,7 @@ public:
     return res;
   }
 
-private:
+ private:
   std::string_view val_;
 };
 
@@ -32,7 +33,8 @@ template <typename T>
 constexpr inline bool numeric_str_v =
     std::is_same_v<numeric_str, std::remove_cvref_t<T>>;
 
-template <typename It> IGUANA_INLINE void skip_comment(It &&it, It &&end) {
+template <typename It>
+IGUANA_INLINE void skip_comment(It &&it, It &&end) {
   ++it;
   if (it == end)
     IGUANA_UNLIKELY {
@@ -41,7 +43,8 @@ template <typename It> IGUANA_INLINE void skip_comment(It &&it, It &&end) {
   else if (*it == '/') {
     while (++it != end && *it != '\n')
       ;
-  } else if (*it == '*') {
+  }
+  else if (*it == '*') {
     while (++it != end) {
       if (*it == '*')
         IGUANA_UNLIKELY {
@@ -54,18 +57,22 @@ template <typename It> IGUANA_INLINE void skip_comment(It &&it, It &&end) {
             }
         }
     }
-  } else
+  }
+  else
     IGUANA_UNLIKELY throw std::runtime_error("Expected / or * after /");
 }
 
-template <typename It> IGUANA_INLINE void skip_ws(It &&it, It &&end) {
+template <typename It>
+IGUANA_INLINE void skip_ws(It &&it, It &&end) {
   while (it != end) {
     // assuming ascii
     if (static_cast<uint8_t>(*it) < 33) {
       ++it;
-    } else if (*it == '/') {
+    }
+    else if (*it == '/') {
       skip_comment(it, end);
-    } else {
+    }
+    else {
       break;
     }
   }
@@ -118,16 +125,17 @@ IGUANA_INLINE void skip_till_escape_or_qoute(It &&it, It &&end) {
   // Tail end of buffer. Should be rare we even get here
   while (it < end) {
     switch (*it) {
-    case '\\':
-    case '"':
-      return;
+      case '\\':
+      case '"':
+        return;
     }
     ++it;
   }
   throw std::runtime_error("Expected \"");
 }
 
-template <typename It> IGUANA_INLINE void skip_till_qoute(It &&it, It &&end) {
+template <typename It>
+IGUANA_INLINE void skip_till_qoute(It &&it, It &&end) {
   static_assert(contiguous_iterator<std::decay_t<decltype(it)>>);
   if (std::distance(it, end) >= 7)
     IGUANA_LIKELY {
@@ -158,7 +166,8 @@ IGUANA_INLINE void skip_string(It &&it, It &&end) noexcept {
     if (*it == '"') {
       ++it;
       break;
-    } else if (*it == '\\' && ++it == end)
+    }
+    else if (*it == '\\' && ++it == end)
       IGUANA_UNLIKELY
     break;
     ++it;
@@ -172,22 +181,22 @@ IGUANA_INLINE void skip_until_closed(It &&it, It &&end) {
   size_t close_count = 0;
   while (it < end && open_count > close_count) {
     switch (*it) {
-    case '/':
-      skip_comment(it, end);
-      break;
-    case '"':
-      skip_string(it, end);
-      break;
-    case open:
-      ++open_count;
-      ++it;
-      break;
-    case close:
-      ++close_count;
-      ++it;
-      break;
-    default:
-      ++it;
+      case '/':
+        skip_comment(it, end);
+        break;
+      case '"':
+        skip_string(it, end);
+        break;
+      case open:
+        ++open_count;
+        ++it;
+        break;
+      case close:
+        ++close_count;
+        ++it;
+        break;
+      default:
+        ++it;
     }
   }
 }
@@ -195,24 +204,24 @@ IGUANA_INLINE void skip_until_closed(It &&it, It &&end) {
 IGUANA_INLINE bool is_numeric(char c) noexcept {
   static constexpr int is_num[256] = {
       // 0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 0
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 1
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, // 2
-      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, // 3
-      0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 4
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 5
-      0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 6
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 7
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 8
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 9
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // A
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // B
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // C
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // D
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // E
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0  // F
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 0
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 1
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0,  // 2
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,  // 3
+      0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 4
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 5
+      0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 6
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 7
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 8
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // 9
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // A
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // B
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // C
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // D
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // E
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0   // F
   };
   return static_cast<bool>(is_num[static_cast<unsigned int>(c)]);
 }
 
-} // namespace iguana
+}  // namespace iguana
