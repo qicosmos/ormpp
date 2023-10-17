@@ -1,20 +1,22 @@
 #pragma once
 
+#include <math.h>
+
+#include <filesystem>
+#include <forward_list>
+#include <fstream>
+#include <memory>
+#include <optional>
+#include <stdexcept>
+#include <string_view>
+#include <type_traits>
+
 #include "define.h"
 #include "detail/charconv.h"
 #include "enum_reflection.hpp"
 #include "error_code.h"
 #include "reflection.hpp"
 
-#include <filesystem>
-#include <forward_list>
-#include <fstream>
-#include <math.h>
-#include <memory>
-#include <optional>
-#include <stdexcept>
-#include <string_view>
-#include <type_traits>
 
 namespace iguana {
 
@@ -36,7 +38,8 @@ inline constexpr bool int_v = std::is_integral_v<std::decay_t<T>> &&
 template <typename T>
 inline constexpr bool float_v = std::is_floating_point_v<std::decay_t<T>>;
 
-template <typename T> inline constexpr bool num_v = float_v<T> || int_v<T>;
+template <typename T>
+inline constexpr bool num_v = float_v<T> || int_v<T>;
 
 template <typename T>
 inline constexpr bool enum_v = std::is_enum_v<std::decay_t<T>>;
@@ -45,14 +48,16 @@ template <typename T>
 constexpr inline bool optional_v =
     is_template_instant_of<std::optional, std::remove_cvref_t<T>>::value;
 
-template <class, class = void> struct is_container : std::false_type {};
+template <class, class = void>
+struct is_container : std::false_type {};
 
 template <class T>
 struct is_container<
     T, std::void_t<decltype(std::declval<T>().size(), std::declval<T>().begin(),
                             std::declval<T>().end())>> : std::true_type {};
 
-template <class, class = void> struct is_map_container : std::false_type {};
+template <class, class = void>
+struct is_map_container : std::false_type {};
 
 template <class T>
 struct is_map_container<
@@ -70,7 +75,8 @@ template <class T>
 constexpr inline bool c_array_v = std::is_array_v<std::remove_cvref_t<T>> &&
                                       std::extent_v<std::remove_cvref_t<T>> > 0;
 
-template <typename Type, typename = void> struct is_array : std::false_type {};
+template <typename Type, typename = void>
+struct is_array : std::false_type {};
 
 template <typename T>
 struct is_array<
@@ -94,7 +100,8 @@ constexpr inline bool string_v =
     is_template_instant_of<std::basic_string, std::remove_cvref_t<T>>::value;
 
 // TODO: type must be char
-template <typename T> constexpr inline bool json_view_v = container_v<T>;
+template <typename T>
+constexpr inline bool json_view_v = container_v<T>;
 
 template <typename T>
 constexpr inline bool json_byte_v =
@@ -123,7 +130,8 @@ constexpr inline bool shared_ptr_v =
 template <typename T>
 constexpr inline bool smart_ptr_v = shared_ptr_v<T> || unique_ptr_v<T>;
 
-template <typename T> struct is_variant : std::false_type {};
+template <typename T>
+struct is_variant : std::false_type {};
 
 template <typename... T>
 struct is_variant<std::variant<T...>> : std::true_type {};
@@ -144,24 +152,31 @@ template <typename T>
 constexpr inline bool plain_v =
     string_container_v<T> || num_v<T> || char_v<T> || bool_v<T> || enum_v<T>;
 
-template <typename T> struct underline_type { using type = T; };
+template <typename T>
+struct underline_type {
+  using type = T;
+};
 
-template <typename T> struct underline_type<std::unique_ptr<T>> {
+template <typename T>
+struct underline_type<std::unique_ptr<T>> {
   using type = typename underline_type<T>::type;
 };
 
-template <typename T> struct underline_type<std::shared_ptr<T>> {
+template <typename T>
+struct underline_type<std::shared_ptr<T>> {
   using type = typename underline_type<T>::type;
 };
 
-template <typename T> struct underline_type<std::optional<T>> {
+template <typename T>
+struct underline_type<std::optional<T>> {
   using type = typename underline_type<T>::type;
 };
 
 template <typename T>
 using underline_type_t = typename underline_type<std::remove_cvref_t<T>>::type;
 
-template <char... C, typename It> IGUANA_INLINE void match(It &&it, It &&end) {
+template <char... C, typename It>
+IGUANA_INLINE void match(It &&it, It &&end) {
   const auto n = static_cast<size_t>(std::distance(it, end));
   if (n < sizeof...(C))
     IGUANA_UNLIKELY {
@@ -179,4 +194,4 @@ template <char... C, typename It> IGUANA_INLINE void match(It &&it, It &&end) {
     }
 }
 
-} // namespace iguana
+}  // namespace iguana
