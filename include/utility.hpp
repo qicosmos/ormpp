@@ -136,11 +136,10 @@ inline void for_each0(const std::tuple<Args...> &t, Func &&f,
 template <typename T, typename = std::enable_if_t<iguana::is_reflection_v<T>>>
 inline std::string get_name() {
 #ifdef ORMPP_ENABLE_PG
-  std::string quota_name = "'" + std::string(iguana::get_name<T>()) + "'";
+  std::string quota_name = std::string(iguana::get_name<T>());
 #else
   std::string quota_name = "`" + std::string(iguana::get_name<T>()) + "`";
 #endif
-
   return quota_name;
 }
 
@@ -229,7 +228,6 @@ inline std::string generate_delete_sql(Args &&...where_conditon) {
     if (!is_empty(std::forward<Args>(where_conditon)...))  // fix for vs2017
       append(sql, " where ", std::forward<Args>(where_conditon)...);
   }
-
   return sql;
 }
 
@@ -240,7 +238,6 @@ inline bool has_key(const std::string &s) {
     if (s.find(arr[i].data()) != std::string::npos)
       return true;
   }
-
   return false;
 }
 

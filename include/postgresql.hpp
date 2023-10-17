@@ -5,13 +5,13 @@
 #ifndef ORM_POSTGRESQL_HPP
 #define ORM_POSTGRESQL_HPP
 
+#include <libpq-fe.h>
+
+#include <climits>
 #include <string>
 #include <type_traits>
-#ifdef _MSC_VER
-#include <include/libpq-fe.h>
-#else
-#include <postgresql/libpq-fe.h>
-#endif
+
+#include "utility.hpp"
 
 using namespace std::string_literals;
 
@@ -20,18 +20,34 @@ class postgresql {
  public:
   ~postgresql() { disconnect(); }
 
+  bool has_error() { return has_error_; }
+
+  void reset_error() {
+    has_error_ = false;
+    last_error_ = {};
+  }
+
+  void set_last_error(std::string last_error) {
+    has_error_ = true;
+    last_error_ = std::move(last_error);
+    std::cout << last_error_ << std::endl;
+  }
+
+  std::string get_last_error() const { return last_error_; }
+
   // ip, user, pwd, db, timeout  the sequence must be fixed like this
   template <typename... Args>
   bool connect(Args &&...args) {
-    auto sql = ""s;
-    sql = generate_conn_sql(std::make_tuple(std::forward<Args>(args)...));
-
+    reset_error();
+    auto sql = generate_conn_sql(std::make_tuple(std::forward<Args>(args)...));
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
     con_ = PQconnectdb(sql.data());
     if (PQstatus(con_) != CONNECTION_OK) {
-      std::cout << PQerrorMessage(con_) << std::endl;
+      set_last_error(PQerrorMessage(con_));
       return false;
     }
-
     return true;
   }
 
@@ -41,41 +57,25 @@ class postgresql {
       PQfinish(con_);
       con_ = nullptr;
     }
-
     return true;
   }
 
   bool ping() { return (PQstatus(con_) == CONNECTION_OK); }
 
-  bool has_error() {
-    return false;  // todo
-  }
-
   template <typename T, typename... Args>
   constexpr auto create_datatable(Args &&...args) {
-    //            std::string droptb = "DROP TABLE IF EXISTS ";
-    //            droptb += iguana::get_name<T>();
-    //
-    //            res_ = PQexec(con_, droptb.data());
-    //            if (PQresultStatus(res_) != PGRES_COMMAND_OK){
-    //                PQclear(res_);
-    //                return false;
-    //            }
-    //
-    //            PQclear(res_);
-
+    reset_error();
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     res_ = PQexec(con_, sql.data());
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      std::cout << PQerrorMessage(con_) << std::endl;
+      set_last_error(PQerrorMessage(con_));
       PQclear(res_);
       return false;
     }
     PQclear(res_);
-
     return true;
   }
 
@@ -175,7 +175,7 @@ class postgresql {
   template <typename T, typename... Args>
   constexpr std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
       Args &&...args) {
-    std::string sql = generate_query_sql<T>(std::forward<Args>(args)...);
+    std::string sql = generate_query_sql<T>(args...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -186,6 +186,7 @@ class postgresql {
 
     res_ = PQexec(con_, sql.data());
     if (PQresultStatus(res_) != PGRES_TUPLES_OK) {
+      set_last_error(PQresultErrorMessage(res_));
       PQclear(res_);
       return {};
     }
@@ -229,6 +230,7 @@ class postgresql {
 
     res_ = PQexec(con_, sql.data());
     if (PQresultStatus(res_) != PGRES_TUPLES_OK) {
+      set_last_error(PQresultErrorMessage(res_));
       PQclear(res_);
       return {};
     }
@@ -264,63 +266,64 @@ class postgresql {
 
   template <typename T, typename... Args>
   constexpr bool delete_records(Args &&...where_conditon) {
+    reset_error();
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     res_ = PQexec(con_, sql.data());
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
+      set_last_error(PQresultErrorMessage(res_));
       PQclear(res_);
       return false;
     }
     PQclear(res_);
-
     return true;
   }
 
   // just support execute string sql without placeholders
   auto execute(const std::string &sql) {
+    reset_error();
     res_ = PQexec(con_, sql.data());
     auto guard = guard_result(res_);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      //                std::cout<<PQerrorMessage(con_)<<std::endl;
+      set_last_error(PQerrorMessage(con_));
       return false;
     }
-
     return true;
   }
 
   // transaction
   bool begin() {
+    reset_error();
     res_ = PQexec(con_, "begin;");
     auto guard = guard_result(res_);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      //                std::cout<<PQerrorMessage(con_)<<std::endl;
+      set_last_error(PQerrorMessage(con_));
       return false;
     }
-
     return true;
   }
 
   bool commit() {
+    reset_error();
     res_ = PQexec(con_, "commit;");
     auto guard = guard_result(res_);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      //                std::cout<<PQerrorMessage(con_)<<std::endl;
+      set_last_error(PQerrorMessage(con_));
       return false;
     }
-
     return true;
   }
 
   bool rollback() {
+    reset_error();
     res_ = PQexec(con_, "rollback;");
     auto guard = guard_result(res_);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      //                std::cout<<PQerrorMessage(con_)<<std::endl;
+      set_last_error(PQerrorMessage(con_));
       return false;
     }
-
     return true;
   }
 
@@ -346,6 +349,12 @@ class postgresql {
                                                "dbname", "connect_timeout"),
                                tp, std::make_index_sequence<SIZE>{});
     }
+    else if constexpr (SIZE == 6) {
+      return generate_conn_sql(
+          std::make_tuple("host", "user", "password", "dbname",
+                          "connect_timeout", "port"),
+          tp, std::make_index_sequence<SIZE>{});
+    }
     else {
       return "";
     }
@@ -363,23 +372,18 @@ class postgresql {
 
   struct guard_result {
     guard_result(PGresult *res) : res_(res) {}
-    void dismiss() { dismiss_ = true; }
 
     ~guard_result() {
-      if (dismiss_)
-        return;
-
-      if (res_ != nullptr)
-        status_ = PQresultStatus(res_);
-
-      if (status_ != PGRES_COMMAND_OK)
-        std::cout << PQresultErrorMessage(res_) << std::endl;
+      if (res_ != nullptr) {
+        if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
+          std::cout << PQresultErrorMessage(res_) << std::endl;
+        }
+        PQclear(res_);
+      }
     }
 
    private:
     PGresult *res_ = nullptr;
-    int status_ = 0;
-    bool dismiss_ = false;
   };
 
   template <typename T, typename... Args>
@@ -480,10 +484,11 @@ class postgresql {
 
   template <typename T>
   bool prepare(const std::string &sql) {
+    reset_error();
     res_ =
         PQprepare(con_, "", sql.data(), (int)iguana::get_value<T>(), nullptr);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      std::cout << PQresultErrorMessage(res_) << std::endl;
+      set_last_error(PQresultErrorMessage(res_));
       PQclear(res_);
       return false;
     }
@@ -515,19 +520,23 @@ class postgresql {
   template <typename T, typename... Args>
   constexpr int insert_impl(const std::string &sql, const T &t,
                             Args &&...args) {
+    reset_error();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     std::vector<std::vector<char>> param_values;
-    auto it = auto_key_map_.find(iguana::get_name<T>().data());
+    auto name = iguana::get_name<T>().data();
+    auto it = auto_key_map_.find(name);
     std::string auto_key = (it == auto_key_map_.end()) ? "" : it->second;
 
-    iguana::for_each(t,
-                     [&t, &param_values, &auto_key, this](auto item, auto i) {
-                       /*if(!auto_key.empty()&&auto_key==iguana::get_name<T>(decltype(i)::value).data())
-                           return;*/
-                       set_param_values(param_values, t.*item);
-                     });
+    iguana::for_each(
+        t, [&t, &param_values, auto_key, name, this](auto item, auto i) {
+          if (!auto_key.empty() &&
+              auto_key == iguana::get_name<T>(decltype(i)::value).data()) {
+            return;
+          }
+          set_param_values(param_values, t.*item);
+        });
 
     if (param_values.empty())
       return INT_MIN;
@@ -541,7 +550,7 @@ class postgresql {
                           param_values_buf.data(), NULL, NULL, 0);
 
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      std::cout << PQresultErrorMessage(res_) << std::endl;
+      set_last_error(PQresultErrorMessage(res_));
       PQclear(res_);
       return INT_MIN;
     }
@@ -677,8 +686,9 @@ class postgresql {
     int index = 0;
     for (auto i = 0; i < SIZE; ++i) {
       std::string field_name = iguana::get_name<T>(i).data();
-      // if(it!=auto_key_map_.end()&&it->second==field_name)
-      //    continue;
+      if (it != auto_key_map_.end() && it->second == field_name) {
+        continue;
+      }
 
       values += "$";
       char temp[20] = {};
@@ -700,10 +710,13 @@ class postgresql {
     return sql;
   }
 
-  PGresult *res_ = nullptr;
+ private:
+  bool has_error_ = false;
+  std::string last_error_;
   PGconn *con_ = nullptr;
-  std::map<std::string, std::string> auto_key_map_;
-  std::map<std::string, std::string> key_map_;
+  PGresult *res_ = nullptr;
+  inline static std::map<std::string, std::string> key_map_;
+  inline static std::map<std::string, std::string> auto_key_map_;
 };
 }  // namespace ormpp
 #endif  // ORM_POSTGRESQL_HPP

@@ -78,6 +78,7 @@ endif()
 
 option(ENABLE_PG "Enable pg" OFF)
 if (ENABLE_PG)
+    include(cmake/pgsql.cmake)
     message(STATUS "ENABLE_PG")
     add_definitions(-DORMPP_ENABLE_PG)
 endif()

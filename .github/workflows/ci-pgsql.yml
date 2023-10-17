@@ -1,0 +1,46 @@
+name: CI-PGSQL
+
+on: [ push, pull_request ]
+
+jobs:
+  build-and-test:
+
+    name: ${{ matrix.os }} (${{ matrix.configuration }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [ Debug, Release ]
+        os: [ ubuntu-latest ] # macos-latest, ubuntu-latest, windows-latest
+    
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: 123456
+          POSTGRES_DB: test_ormppdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Configure cmake
+        run:  cmake -B${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_PG=ON
+
+      - name: Build
+        run:  cmake --build ${{github.workspace}}/build --config ${{ matrix.configuration }}
+
+      - name: Test
+        working-directory: ${{github.workspace}}/build
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest -C ${{ matrix.configuration }} -j `nproc` -V
