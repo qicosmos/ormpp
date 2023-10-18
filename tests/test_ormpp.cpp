@@ -98,7 +98,7 @@ struct test_optional {
   std::optional<int> age;
   std::optional<int> empty;
 };
-REFLECTION(test_optional, id, name, age);
+REFLECTION(test_optional, id, name, age, empty);
 
 TEST_CASE("test optional") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -113,6 +113,24 @@ TEST_CASE("test optional") {
     CHECK(vec1.front().name.value() == "purecpp");
     CHECK(vec1.front().empty.has_value() == false);
     auto vec2 = mysql.query<test_optional>("select * from test_optional;");
+    REQUIRE(vec2.size() > 0);
+    CHECK(vec2.front().age.value() == 200);
+    CHECK(vec2.front().name.value() == "purecpp");
+    CHECK(vec2.front().empty.has_value() == false);
+  }
+#endif
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.create_datatable<test_optional>(ormpp_auto_key{"id"});
+    postgres.delete_records<test_optional>();
+    postgres.insert<test_optional>({0, "purecpp", 200});
+    auto vec1 = postgres.query<test_optional>();
+    REQUIRE(vec1.size() > 0);
+    CHECK(vec1.front().age.value() == 200);
+    CHECK(vec1.front().name.value() == "purecpp");
+    CHECK(vec1.front().empty.has_value() == false);
+    auto vec2 = postgres.query<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
     CHECK(vec2.front().age.value() == 200);
     CHECK(vec2.front().name.value() == "purecpp");
@@ -1051,33 +1069,44 @@ TEST_CASE("get_insert_id") {
 #endif
 }
 
-// TEST_CASE("test delete_records") {
-// #ifdef ORMPP_ENABLE_MYSQL
-//   dbng<mysql> mysql;
-//   if (mysql.connect(ip, username, password, db)) {
-//     mysql.create_datatable<person>(ormpp_auto_key{"id"});
-//     mysql.delete_records<person>();
-//     mysql.insert<person>({0, "other", 200});
-//     mysql.insert<person>({0, "purecpp", 200});
-//     mysql.delete_records<person>("name = 'other';drop table person");
-//     auto vec = mysql.query<person>();
-//     CHECK(vec.size() == 2);
-//   }
-// #endif
-
-// #ifdef ORMPP_ENABLE_SQLITE3
-//   dbng<sqlite> sqlite;
-//   if (sqlite.connect(db)) {
-//     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
-//     sqlite.delete_records<person>();
-//     sqlite.insert<person>({0, "other", 200});
-//     sqlite.insert<person>({0, "purecpp", 200});
-//     sqlite.delete_records<person>("name = 'other';drop table person");
-//     auto vec = sqlite.query<person>();
-//     CHECK(vec.size() == 2);
-//   }
-// #endif
-// }
+TEST_CASE("test delete_records") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.create_datatable<person>(ormpp_auto_key{"id"});
+    mysql.delete_records<person>();
+    mysql.insert<person>({0, "other", 200});
+    mysql.insert<person>({0, "purecpp", 200});
+    mysql.delete_records<person>("name = 'other';drop table person");
+    auto vec = mysql.query<person>();
+    CHECK(vec.size() == 2);
+  }
+#endif
+#ifdef ORMPP_ENABLE_PG
+  // dbng<postgresql> postgres;
+  // if (postgres.connect(ip, username, password, db)) {
+  //   postgres.create_datatable<person>(ormpp_auto_key{"id"});
+  //   postgres.delete_records<person>();
+  //   postgres.insert<person>({0, "other", 200});
+  //   postgres.insert<person>({0, "purecpp", 200});
+  //   postgres.delete_records<person>("name = 'other';drop table person");
+  //   auto vec = postgres.query<person>();
+  //   CHECK(vec.size() == 2);
+  // }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.create_datatable<person>(ormpp_auto_key{"id"});
+    sqlite.delete_records<person>();
+    sqlite.insert<person>({0, "other", 200});
+    sqlite.insert<person>({0, "purecpp", 200});
+    sqlite.delete_records<person>("name = 'other';drop table person");
+    auto vec = sqlite.query<person>();
+    CHECK(vec.size() == 1);
+  }
+#endif
+}
 
 struct alias {
   int id;
