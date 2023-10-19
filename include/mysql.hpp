@@ -22,14 +22,14 @@ class mysql {
  public:
   ~mysql() { disconnect(); }
 
-  bool has_error() { return has_error_; }
+  bool has_error() const { return has_error_; }
 
-  void reset_error() {
+  static void reset_error() {
     has_error_ = false;
     last_error_ = {};
   }
 
-  void set_last_error(std::string last_error) {
+  static void set_last_error(std::string last_error) {
     has_error_ = true;
     last_error_ = std::move(last_error);
     std::cout << last_error_ << std::endl;
@@ -80,7 +80,6 @@ class mysql {
       mysql_close(con_);
       con_ = nullptr;
     }
-
     return true;
   }
 
@@ -96,43 +95,32 @@ class mysql {
       set_last_error(mysql_error(con_));
       return false;
     }
-
     return true;
   }
 
   template <typename T, typename... Args>
   int insert(const std::vector<T> &t, bool get_insert_id = false,
              Args &&...args) {
-    auto name = get_name<T>();
-    std::string sql = auto_key_map_[name].empty()
-                          ? generate_insert_sql<T>(false)
-                          : generate_auto_insert_sql<T>(auto_key_map_, false);
-
-    return insert_impl(sql, t, get_insert_id, std::forward<Args>(args)...);
+    return insert_impl(generate_insert_sql<T>(false), t, get_insert_id,
+                       std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   int update(const std::vector<T> &t, Args &&...args) {
-    std::string sql = generate_insert_sql<T>(true);
-
-    return insert_impl(sql, t, false, std::forward<Args>(args)...);
+    return insert_impl(generate_insert_sql<T>(true), t, false,
+                       std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   int insert(const T &t, bool get_insert_id = false, Args &&...args) {
-    // insert into person values(?, ?, ?);
-    auto name = get_name<T>();
-    std::string sql = auto_key_map_[name].empty()
-                          ? generate_insert_sql<T>(false)
-                          : generate_auto_insert_sql<T>(auto_key_map_, false);
-
-    return insert_impl(sql, t, get_insert_id, std::forward<Args>(args)...);
+    return insert_impl(generate_insert_sql<T>(false), t, get_insert_id,
+                       std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   int update(const T &t, Args &&...args) {
-    std::string sql = generate_insert_sql<T>(true);
-    return insert_impl(sql, t, false, std::forward<Args>(args)...);
+    return insert_impl(generate_insert_sql<T>(true), t, false,
+                       std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
@@ -146,7 +134,6 @@ class mysql {
       set_last_error(mysql_error(con_));
       return false;
     }
-
     return true;
   }
 
@@ -266,7 +253,6 @@ class mysql {
   template <typename T, typename Arg, typename... Args>
   std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(
       const Arg &s, Args &&...args) {
-    reset_error();
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
 
@@ -370,7 +356,6 @@ class mysql {
   template <typename T, typename... Args>
   std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
       Args &&...args) {
-    reset_error();
     std::string sql = generate_query_sql<T>(args...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -469,7 +454,6 @@ class mysql {
       set_last_error(mysql_error(con_));
       return false;
     }
-
     return true;
   }
 
@@ -480,7 +464,6 @@ class mysql {
       set_last_error(mysql_error(con_));
       return false;
     }
-
     return true;
   }
 
@@ -490,7 +473,6 @@ class mysql {
       set_last_error(mysql_error(con_));
       return false;
     }
-
     return true;
   }
 
@@ -500,7 +482,6 @@ class mysql {
       set_last_error(mysql_error(con_));
       return false;
     }
-
     return true;
   }
 
@@ -636,25 +617,9 @@ class mysql {
     return count;
   }
 
-  struct guard_statment {
-    guard_statment(MYSQL_STMT *stmt) : stmt_(stmt) {}
-    MYSQL_STMT *stmt_ = nullptr;
-    int status_ = 0;
-    ~guard_statment() {
-      if (stmt_ != nullptr) {
-        status_ = mysql_stmt_close(stmt_);
-      }
-
-      if (status_) {
-        fprintf(stderr, "close statment error code %d\n", status_);
-      }
-    }
-  };
-
   template <typename T, typename... Args>
   int insert_impl(const std::string &sql, const T &t,
                   bool get_insert_id = false, Args &&...args) {
-    reset_error();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -682,7 +647,6 @@ class mysql {
   template <typename T, typename... Args>
   int insert_impl(const std::string &sql, const std::vector<T> &t,
                   bool get_insert_id = false, Args &&...args) {
-    reset_error();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -736,10 +700,26 @@ class mysql {
   }
 
  private:
-  bool has_error_ = false;
-  std::string last_error_;
+  struct guard_statment {
+    guard_statment(MYSQL_STMT *stmt) : stmt_(stmt) { reset_error(); }
+    ~guard_statment() {
+      if (stmt_ != nullptr) {
+        auto status = mysql_stmt_close(stmt_);
+        if (status) {
+          set_last_error("close statment error code " + status);
+        }
+      }
+    }
+
+   private:
+    MYSQL_STMT *stmt_ = nullptr;
+  };
+
+ private:
   MYSQL *con_ = nullptr;
   MYSQL_STMT *stmt_ = nullptr;
+  inline static bool has_error_ = false;
+  inline static std::string last_error_;
   inline static std::map<std::string, std::string> auto_key_map_;
 };
 }  // namespace ormpp

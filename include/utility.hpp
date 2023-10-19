@@ -164,7 +164,6 @@ inline std::string generate_insert_sql(bool replace) {
   auto name = get_name<T>();
   auto fields = get_fields<T>();
   append(sql, name.data(), "(", fields.data(), ")", "values(");
-
   for (size_t i = 0; i < SIZE; ++i) {
     sql += "?";
     if (i < SIZE - 1)
@@ -172,27 +171,33 @@ inline std::string generate_insert_sql(bool replace) {
     else
       sql += ");";
   }
-
   return sql;
 }
 
 template <typename T>
 inline std::string generate_auto_insert_sql(
-    std::map<std::string, std::string> & /*auto_key_map_*/, bool replace) {
+    const std::map<std::string, std::string> &auto_key_map_, bool replace) {
   std::string sql = replace ? "replace into " : "insert into ";
   constexpr auto SIZE = iguana::get_value<T>();
   auto name = get_name<T>();
   append(sql, name.data());
 
+  int index = 0;
   std::string fields = "(";
   std::string values = " values(";
-  // auto it = auto_key_map_.find(name.data());
-  for (size_t i = 0; i < SIZE; ++i) {
+  auto it = auto_key_map_.find(name.data());
+  for (auto i = 0; i < SIZE; ++i) {
     std::string field_name = iguana::get_name<T>(i).data();
-    /* if(it!=auto_key_map_.end()&&it->second==field_name)
-         continue;*/
+    if (it != auto_key_map_.end() && it->second == field_name) {
+      continue;
+    }
 
+#ifdef ORMPP_ENABLE_PG
+    values += "$" + std::to_string(++index);
+#else
     values += "?";
+#endif
+
     fields += field_name;
     if (i < SIZE - 1) {
       fields += ", ";
@@ -207,7 +212,6 @@ inline std::string generate_auto_insert_sql(
   return sql;
 }
 
-//    template <typename T>
 inline bool is_empty(const std::string &t) { return t.empty(); }
 
 template <class T>

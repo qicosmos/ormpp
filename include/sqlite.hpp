@@ -16,14 +16,14 @@ class sqlite {
  public:
   ~sqlite() { disconnect(); }
 
-  bool has_error() { return has_error_; }
+  bool has_error() const { return has_error_; }
 
-  void reset_error() {
+  static void reset_error() {
     has_error_ = false;
     last_error_ = {};
   }
 
-  void set_last_error(std::string last_error) {
+  static void set_last_error(std::string last_error) {
     has_error_ = true;
     last_error_ = std::move(last_error);
     std::cout << last_error_ << std::endl;  // todo, write to log file
@@ -35,11 +35,11 @@ class sqlite {
   bool connect(Args &&...args) {
     reset_error();
     auto r = sqlite3_open(std::forward<Args>(args)..., &handle_);
-    if (r == SQLITE_OK) {
-      return true;
+    if (r != SQLITE_OK) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return false;
     }
-    set_last_error(sqlite3_errmsg(handle_));
-    return false;
+    return true;
   }
 
   template <typename... Args>
@@ -53,7 +53,6 @@ class sqlite {
       set_last_error(sqlite3_errmsg(handle_));
       return false;
     }
-
     return true;
   }
 
@@ -69,58 +68,52 @@ class sqlite {
       set_last_error(sqlite3_errmsg(handle_));
       return false;
     }
-
     return true;
   }
 
   template <typename T, typename... Args>
   int insert(const T &t, bool get_insert_id = false, Args &&...args) {
-    std::string sql = auto_key_map_.empty()
-                          ? generate_insert_sql<T>(false)
-                          : generate_auto_insert_sql0<T>(auto_key_map_, false);
-
-    return insert_impl(false, sql, t, get_insert_id,
-                       std::forward<Args>(args)...);
+    return insert_impl(false, generate_auto_insert_sql<T>(auto_key_map_, false),
+                       t, get_insert_id, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   int insert(const std::vector<T> &t, bool get_insert_id = false,
              Args &&...args) {
-    std::string sql = auto_key_map_.empty()
-                          ? generate_insert_sql<T>(false)
-                          : generate_auto_insert_sql0<T>(auto_key_map_, false);
-
-    return insert_impl(false, sql, t, get_insert_id,
-                       std::forward<Args>(args)...);
+    return insert_impl(false, generate_auto_insert_sql<T>(auto_key_map_, false),
+                       t, get_insert_id, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   int update(const T &t, Args &&...args) {
-    std::string sql = generate_insert_sql<T>(true);
-
-    return insert_impl(true, sql, t, false, std::forward<Args>(args)...);
+    return insert_impl(true, generate_insert_sql<T>(true), t, false,
+                       std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   int update(const std::vector<T> &t, Args &&...args) {
-    std::string sql = generate_insert_sql<T>(true);
-
-    return insert_impl(true, sql, t, false, std::forward<Args>(args)...);
+    return insert_impl(true, generate_insert_sql<T>(true), t, false,
+                       std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   bool delete_records(Args &&...where_conditon) {
-    reset_error();
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr) !=
-        SQLITE_OK) {
+    int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
+                                    &stmt_, nullptr);
+    if (result != SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
       return false;
     }
 
+    auto guard = guard_statment(stmt_);
+    if (sqlite3_step(stmt_) != SQLITE_DONE) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return false;
+    }
     return true;
   }
 
@@ -129,7 +122,6 @@ class sqlite {
   template <typename T, typename... Args>
   std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
       Args &&...args) {
-    reset_error();
     std::string sql = generate_query_sql<T>(args...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -166,7 +158,6 @@ class sqlite {
   template <typename T, typename Arg, typename... Args>
   std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(
       const Arg &s, Args &&...args) {
-    reset_error();
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
 
@@ -227,13 +218,18 @@ class sqlite {
 
   // just support execute string sql without placeholders
   bool execute(const std::string &sql) {
-    reset_error();
-    if (sqlite3_exec(handle_, sql.data(), nullptr, nullptr, nullptr) !=
-        SQLITE_OK) {
+    int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
+                                    &stmt_, nullptr);
+    if (result != SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
       return false;
     }
 
+    auto guard = guard_statment(stmt_);
+    if (sqlite3_step(stmt_) != SQLITE_DONE) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return false;
+    }
     return true;
   }
 
@@ -247,7 +243,6 @@ class sqlite {
       set_last_error(sqlite3_errmsg(handle_));
       return false;
     }
-
     return true;
   }
 
@@ -258,7 +253,6 @@ class sqlite {
       set_last_error(sqlite3_errmsg(handle_));
       return false;
     }
-
     return true;
   }
 
@@ -269,7 +263,6 @@ class sqlite {
       set_last_error(sqlite3_errmsg(handle_));
       return false;
     }
-
     return true;
   }
 
@@ -365,21 +358,6 @@ class sqlite {
     return sql;
   }
 
-  struct guard_statment {
-    guard_statment(sqlite3_stmt *stmt) : stmt_(stmt) {}
-    sqlite3_stmt *stmt_ = nullptr;
-    int status_ = 0;
-    ~guard_statment() {
-      if (stmt_ != nullptr) {
-        status_ = sqlite3_finalize(stmt_);
-      }
-
-      if (status_) {
-        fprintf(stderr, "close statment error code %d\n", status_);
-      }
-    }
-  };
-
   template <typename T>
   bool set_param_bind(T &&value, int i) {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
@@ -414,9 +392,19 @@ class sqlite {
 
   template <typename T>
   void assign(T &&value, int i) {
+    if (sqlite3_column_type(stmt_, i) == SQLITE_NULL) {
+      value = {};
+      return;
+    }
     using U = std::remove_const_t<std::remove_reference_t<T>>;
-    if constexpr (std::is_integral_v<U> &&
-                  !iguana::is_int64_v<U>) {  // double, int64
+    if constexpr (is_optional_v<U>::value) {
+      using value_type = typename U::value_type;
+      value_type item;
+      assign(item, i);
+      value = std::move(item);
+    }
+    else if constexpr (std::is_integral_v<U> &&
+                       !iguana::is_int64_v<U>) {  // double, int64
       if constexpr (std::is_same_v<U, char>) {
         value = (char)sqlite3_column_int(stmt_, i);
       }
@@ -438,12 +426,6 @@ class sqlite {
     else if constexpr (is_char_array_v<U>) {
       memcpy(value, sqlite3_column_text(stmt_, i), sizeof(U));
     }
-    else if constexpr (is_optional_v<U>::value) {
-      using value_type = typename U::value_type;
-      value_type item;
-      assign(item, i);
-      value = std::move(item);
-    }
     else {
       static_assert(!sizeof(U), "this type has not supported yet");
     }
@@ -452,7 +434,6 @@ class sqlite {
   template <typename T, typename... Args>
   int insert_impl(bool is_update, const std::string &sql, const T &t,
                   bool get_insert_id = false, Args &&...args) {
-    reset_error();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -502,7 +483,6 @@ class sqlite {
   int insert_impl(bool is_update, const std::string &sql,
                   const std::vector<T> &v, bool get_insert_id = false,
                   Args &&...args) {
-    reset_error();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -570,42 +550,27 @@ class sqlite {
              : INT_MIN;
   }
 
-  template <typename T>
-  inline std::string generate_auto_insert_sql0(
-      std::map<std::string, std::string> &auto_key_map_, bool replace) {
-    std::string sql = replace ? "replace into " : "insert into ";
-    constexpr auto SIZE = iguana::get_value<T>();
-    auto name = get_name<T>();
-    append(sql, name.data());
-
-    std::string fields = "(";
-    std::string values = " values(";
-    auto it = auto_key_map_.find(name.data());
-    for (auto i = 0; i < SIZE; ++i) {
-      std::string field_name = iguana::get_name<T>(i).data();
-      if (it != auto_key_map_.end() && it->second == field_name)
-        continue;
-
-      values += "?";
-      fields += field_name;
-      if (i < SIZE - 1) {
-        fields += ", ";
-        values += ", ";
-      }
-      else {
-        fields += ")";
-        values += ")";
+ private:
+  struct guard_statment {
+    guard_statment(sqlite3_stmt *stmt) : stmt_(stmt) { reset_error(); }
+    ~guard_statment() {
+      if (stmt_ != nullptr) {
+        auto status = sqlite3_finalize(stmt_);
+        if (status) {
+          set_last_error("close statment error code " + status);
+        }
       }
     }
-    append(sql, fields, values);
-    return sql;
-  }
+
+   private:
+    sqlite3_stmt *stmt_ = nullptr;
+  };
 
  private:
-  bool has_error_ = false;
-  std::string last_error_;
   sqlite3 *handle_ = nullptr;
   sqlite3_stmt *stmt_ = nullptr;
+  inline static bool has_error_ = false;
+  inline static std::string last_error_;
   inline static std::map<std::string, std::string> auto_key_map_;
 };
 }  // namespace ormpp

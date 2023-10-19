@@ -53,7 +53,7 @@ struct simple {
 };
 REFLECTION(simple, id, code, age);
 
-// TEST_CASE(mysql_performance){
+// TEST_CASE(mysql performance){
 //    dbng<mysql> mysql;
 //
 //    REQUIRE(mysql.connect(ip, username, password, db));
@@ -96,11 +96,11 @@ struct test_optional {
   int id;
   std::optional<std::string> name;
   std::optional<int> age;
-  std::optional<int> empty;
+  std::optional<int> empty_;
 };
-REFLECTION(test_optional, id, name, age);
+REFLECTION(test_optional, id, name, age, empty_);
 
-TEST_CASE("test optional") {
+TEST_CASE("optional") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
@@ -111,12 +111,30 @@ TEST_CASE("test optional") {
     REQUIRE(vec1.size() > 0);
     CHECK(vec1.front().age.value() == 200);
     CHECK(vec1.front().name.value() == "purecpp");
-    CHECK(vec1.front().empty.has_value() == false);
+    CHECK(vec1.front().empty_.has_value() == false);
     auto vec2 = mysql.query<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
     CHECK(vec2.front().age.value() == 200);
     CHECK(vec2.front().name.value() == "purecpp");
-    CHECK(vec2.front().empty.has_value() == false);
+    CHECK(vec2.front().empty_.has_value() == false);
+  }
+#endif
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.create_datatable<test_optional>(ormpp_auto_key{"id"});
+    postgres.delete_records<test_optional>();
+    postgres.insert<test_optional>({0, "purecpp", 200});
+    auto vec1 = postgres.query<test_optional>();
+    REQUIRE(vec1.size() > 0);
+    CHECK(vec1.front().age.value() == 200);
+    CHECK(vec1.front().name.value() == "purecpp");
+    CHECK(vec1.front().empty_.has_value() == false);
+    auto vec2 = postgres.query<test_optional>("select * from test_optional;");
+    REQUIRE(vec2.size() > 0);
+    CHECK(vec2.front().age.value() == 200);
+    CHECK(vec2.front().name.value() == "purecpp");
+    CHECK(vec2.front().empty_.has_value() == false);
   }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -129,12 +147,12 @@ TEST_CASE("test optional") {
     REQUIRE(vec1.size() > 0);
     CHECK(vec1.front().age.value() == 200);
     CHECK(vec1.front().name.value() == "purecpp");
-    CHECK(vec1.front().empty.has_value() == false);
+    CHECK(vec1.front().empty_.has_value() == false);
     auto vec2 = sqlite.query<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
     CHECK(vec2.front().age.value() == 200);
     CHECK(vec2.front().name.value() == "purecpp");
-    CHECK(vec2.front().empty.has_value() == false);
+    CHECK(vec2.front().empty_.has_value() == false);
   }
 #endif
 }
@@ -145,7 +163,7 @@ struct test_order {
 };
 REFLECTION(test_order, name, id);
 
-TEST_CASE("random_reflection_order") {
+TEST_CASE("random reflection order") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db,
@@ -170,7 +188,7 @@ struct custom_name {
 };
 REFLECTION_WITH_NAME(custom_name, "test_order", id, name);
 
-TEST_CASE("orm_custom_name") {
+TEST_CASE("custom name") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
@@ -188,7 +206,7 @@ struct dummy {
 };
 REFLECTION(dummy, id, name);
 
-// TEST_CASE("mysql_exist_tb") {
+// TEST_CASE("mysql exist tb") {
 //   dbng<mysql> mysql;
 //   REQUIRE(mysql.connect(ip, username, password, db,
 //                         /*timeout_seconds=*/5, 3306));
@@ -201,7 +219,7 @@ REFLECTION(dummy, id, name);
 // }
 
 // #ifdef ORMPP_ENABLE_MYSQL
-// TEST_CASE("mysql_pool") {
+// TEST_CASE("mysql pool") {
 //	dbng<sqlite> sqlite;
 //	sqlite.connect(db);
 //	sqlite.create_datatable<test_tb>(ormpp_unique{{"name"}});
@@ -272,7 +290,7 @@ REFLECTION(dummy, id, name);
 // }
 // #endif
 
-TEST_CASE("test_ormpp_cfg") {
+TEST_CASE("ormpp cfg") {
   ormpp_cfg cfg{};
   bool ret = config_manager::from_file(cfg, "../cfg/ormpp.cfg");
   if (!ret) {
@@ -296,7 +314,7 @@ TEST_CASE("test_ormpp_cfg") {
 #endif
 }
 
-TEST_CASE("orm_connect") {
+TEST_CASE("connect") {
   int timeout = 5;
 
 #ifdef ORMPP_ENABLE_PG
@@ -321,7 +339,7 @@ TEST_CASE("orm_connect") {
 #endif
 }
 
-TEST_CASE("orm_create_table") {
+TEST_CASE("create table") {
   ormpp_key key{"id"};
   ormpp_not_null not_null{{"id", "age"}};
   ormpp_auto_key auto_key{"id"};
@@ -366,7 +384,7 @@ TEST_CASE("orm_create_table") {
 #endif
 }
 
-TEST_CASE("orm_insert_query") {
+TEST_CASE("insert query") {
   ormpp_key key{"code"};
   ormpp_not_null not_null{{"code", "age"}};
   ormpp_auto_key auto_key{"code"};
@@ -473,7 +491,7 @@ TEST_CASE("orm_insert_query") {
   }
 }
 
-TEST_CASE("orm_update") {
+TEST_CASE("update") {
   ormpp_key key{"code"};
   ormpp_not_null not_null{{"code", "age"}};
   ormpp_auto_key auto_key{"code"};
@@ -529,7 +547,7 @@ TEST_CASE("orm_update") {
 #endif
 }
 
-TEST_CASE("orm_multi_update") {
+TEST_CASE("multi update") {
   ormpp_key key{"code"};
   ormpp_not_null not_null{{"code", "age"}};
   ormpp_auto_key auto_key{"code"};
@@ -586,7 +604,7 @@ TEST_CASE("orm_multi_update") {
 #endif
 }
 
-TEST_CASE("orm_delete") {
+TEST_CASE("delete") {
   ormpp_key key{"code"};
   ormpp_not_null not_null{{"code", "age"}};
   ormpp_auto_key auto_key{"code"};
@@ -642,7 +660,7 @@ TEST_CASE("orm_delete") {
 #endif
 }
 
-TEST_CASE("orm_query") {
+TEST_CASE("query") {
   ormpp_key key{"id"};
   simple s1 = {1, 2.5, 3};
   simple s2 = {2, 3.5, 4};
@@ -689,7 +707,7 @@ TEST_CASE("orm_query") {
 #endif
 }
 
-TEST_CASE("orm_query_some") {
+TEST_CASE("query some") {
   ormpp_key key{"code"};
   ormpp_not_null not_null{{"code", "age"}};
   ormpp_auto_key auto_key{"code"};
@@ -745,7 +763,7 @@ TEST_CASE("orm_query_some") {
 #endif
 }
 
-TEST_CASE("orm_query_multi_table") {
+TEST_CASE("query multi table") {
   ormpp_key key{"code"};
   ormpp_not_null not_null{{"code", "age"}};
   ormpp_auto_key auto_key{"code"};
@@ -816,7 +834,7 @@ TEST_CASE("orm_query_multi_table") {
 #endif
 }
 
-TEST_CASE("orm_transaction") {
+TEST_CASE("transaction") {
   ormpp_key key{"code"};
   ormpp_not_null not_null{{"code", "age"}};
   ormpp_auto_key auto_key{"code"};
@@ -913,7 +931,7 @@ struct validate {
 };
 
 #ifdef ORMPP_ENABLE_MYSQL
-TEST_CASE("orm_aop") {
+TEST_CASE("aop") {
   // dbng<mysql> mysql;
   // auto r = mysql.wraper_connect<log, validate>(ip, username, password,
   // db); REQUIRE(r);
@@ -937,7 +955,7 @@ struct image {
 };
 REFLECTION(image, id, bin);
 
-TEST_CASE("orm_mysql_blob") {
+TEST_CASE("mysql blob") {
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("DROP TABLE IF EXISTS image");
@@ -961,7 +979,7 @@ struct image_ex {
 };
 REFLECTION(image_ex, id, bin, time);
 
-TEST_CASE("orm_mysql_blob_tuple") {
+TEST_CASE("mysql blob tuple") {
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("DROP TABLE IF EXISTS image_ex");
@@ -989,7 +1007,7 @@ TEST_CASE("orm_mysql_blob_tuple") {
 }
 #endif
 
-TEST_CASE("test create `table with unique and test query") {
+TEST_CASE("create table with unique") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
@@ -1025,7 +1043,7 @@ TEST_CASE("test create `table with unique and test query") {
 #endif
 }
 
-TEST_CASE("get_insert_id") {
+TEST_CASE("get insert id") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
@@ -1051,33 +1069,44 @@ TEST_CASE("get_insert_id") {
 #endif
 }
 
-// TEST_CASE("test delete_records") {
-// #ifdef ORMPP_ENABLE_MYSQL
-//   dbng<mysql> mysql;
-//   if (mysql.connect(ip, username, password, db)) {
-//     mysql.create_datatable<person>(ormpp_auto_key{"id"});
-//     mysql.delete_records<person>();
-//     mysql.insert<person>({0, "other", 200});
-//     mysql.insert<person>({0, "purecpp", 200});
-//     mysql.delete_records<person>("name = 'other';drop table person");
-//     auto vec = mysql.query<person>();
-//     CHECK(vec.size() == 2);
-//   }
-// #endif
-
-// #ifdef ORMPP_ENABLE_SQLITE3
-//   dbng<sqlite> sqlite;
-//   if (sqlite.connect(db)) {
-//     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
-//     sqlite.delete_records<person>();
-//     sqlite.insert<person>({0, "other", 200});
-//     sqlite.insert<person>({0, "purecpp", 200});
-//     sqlite.delete_records<person>("name = 'other';drop table person");
-//     auto vec = sqlite.query<person>();
-//     CHECK(vec.size() == 2);
-//   }
-// #endif
-// }
+TEST_CASE("delete records") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.create_datatable<person>(ormpp_auto_key{"id"});
+    mysql.delete_records<person>();
+    mysql.insert<person>({0, "other", 200});
+    mysql.insert<person>({0, "purecpp", 200});
+    mysql.delete_records<person>("name = 'other';drop table person");
+    auto vec = mysql.query<person>();
+    CHECK(vec.size() == 2);
+  }
+#endif
+#ifdef ORMPP_ENABLE_PG
+  // dbng<postgresql> postgres;
+  // if (postgres.connect(ip, username, password, db)) {
+  //   postgres.create_datatable<person>(ormpp_auto_key{"id"});
+  //   postgres.delete_records<person>();
+  //   postgres.insert<person>({0, "other", 200});
+  //   postgres.insert<person>({0, "purecpp", 200});
+  //   postgres.delete_records<person>("name = 'other';drop table person");
+  //   auto vec = postgres.query<person>();
+  //   CHECK(vec.size() == 2);
+  // }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.create_datatable<person>(ormpp_auto_key{"id"});
+    sqlite.delete_records<person>();
+    sqlite.insert<person>({0, "other", 200});
+    sqlite.insert<person>({0, "purecpp", 200});
+    sqlite.delete_records<person>("name = 'other';drop table person");
+    auto vec = sqlite.query<person>();
+    CHECK(vec.size() == 1);
+  }
+#endif
+}
 
 struct alias {
   int id;
@@ -1086,7 +1115,7 @@ struct alias {
 REFLECTION_ALIAS(alias, "t_alias", FLDALIAS(&alias::id, "alias_id"),
                  FLDALIAS(&alias::name, "alias_name"));
 
-TEST_CASE("test alias") {
+TEST_CASE("alias") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
