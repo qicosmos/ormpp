@@ -75,7 +75,7 @@ class postgresql {
 
   template <typename T, typename... Args>
   constexpr int insert(const T &t, Args &&...args) {
-    std::string sql = generate_auto_insert_sql<T>(false);
+    std::string sql = generate_auto_insert_sql<T>(auto_key_map_, false);
     if (!prepare<T>(sql))
       return INT_MIN;
 
@@ -84,7 +84,7 @@ class postgresql {
 
   template <typename T, typename... Args>
   constexpr int insert(const std::vector<T> &v, Args &&...args) {
-    std::string sql = generate_auto_insert_sql<T>(false);
+    std::string sql = generate_auto_insert_sql<T>(auto_key_map_, false);
 
     if (!begin())
       return INT_MIN;
@@ -111,7 +111,7 @@ class postgresql {
   template <typename T, typename... Args>
   constexpr int update(const T &t, Args &&...args) {
     // transaction, firstly delete, secondly insert
-    auto name = iguana::get_name<T>();
+    auto name = get_name<T>();
     auto it = key_map_.find(name.data());
     auto key = it == key_map_.end() ? "" : it->second;
 
@@ -141,7 +141,7 @@ class postgresql {
     if (!begin())
       return INT_MIN;
 
-    auto name = iguana::get_name<T>();
+    auto name = get_name<T>();
     auto it = key_map_.find(name.data());
     auto key = it == key_map_.end() ? "" : it->second;
     for (auto &t : v) {
@@ -333,7 +333,7 @@ class postgresql {
   template <typename T, typename... Args>
   std::string generate_createtb_sql(Args &&...args) {
     const auto type_name_arr = get_type_names<T>(DBType::postgresql);
-    constexpr auto name = iguana::get_name<T>();
+    auto name = get_name<T>();
     std::string sql =
         std::string("CREATE TABLE IF NOT EXISTS ") + name.data() + "(";
     auto arr = iguana::get_array<T>();
@@ -441,18 +441,15 @@ class postgresql {
     std::cout << sql << std::endl;
 #endif
     std::vector<std::vector<char>> param_values;
-    auto name = iguana::get_name<T>().data();
-    auto it = auto_key_map_.find(name);
+    auto it = auto_key_map_.find(get_name<T>());
     std::string auto_key = (it == auto_key_map_.end()) ? "" : it->second;
-
-    iguana::for_each(
-        t, [&t, &param_values, auto_key, name, this](auto item, auto i) {
-          if (!auto_key.empty() &&
-              auto_key == iguana::get_name<T>(decltype(i)::value).data()) {
-            return;
-          }
-          set_param_values(param_values, t.*item);
-        });
+    iguana::for_each(t, [&t, &param_values, auto_key, this](auto item, auto i) {
+      if (!auto_key.empty() &&
+          auto_key == iguana::get_name<T>(decltype(i)::value).data()) {
+        return;
+      }
+      set_param_values(param_values, t.*item);
+    });
 
     if (param_values.empty())
       return INT_MIN;
@@ -596,44 +593,6 @@ class postgresql {
         append(result, iguana::get_name<T, Idx>().data(), "=", val);
       }
     }
-  }
-
-  template <typename T>
-  std::string generate_auto_insert_sql(bool replace) {
-    std::string sql = replace ? "replace into " : "insert into ";
-    constexpr auto SIZE = iguana::get_value<T>();
-    constexpr auto name = iguana::get_name<T>();
-    append(sql, name.data());
-
-    std::string fields = "(";
-    std::string values = " values(";
-    auto it = auto_key_map_.find(name.data());
-
-    int index = 0;
-    for (auto i = 0; i < SIZE; ++i) {
-      std::string field_name = iguana::get_name<T>(i).data();
-      if (it != auto_key_map_.end() && it->second == field_name) {
-        continue;
-      }
-
-      values += "$";
-      char temp[20] = {};
-      itoa_fwd(index + 1, temp);
-      index++;
-      values += temp;
-
-      fields += field_name;
-      if (i < SIZE - 1) {
-        fields += ", ";
-        values += ", ";
-      }
-      else {
-        fields += ")";
-        values += ")";
-      }
-    }
-    append(sql, fields, values);
-    return sql;
   }
 
  private:

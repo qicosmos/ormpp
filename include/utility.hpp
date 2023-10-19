@@ -174,6 +174,42 @@ inline std::string generate_insert_sql(bool replace) {
   return sql;
 }
 
+template <typename T>
+inline std::string generate_auto_insert_sql(
+    const std::map<std::string, std::string> &auto_key_map_, bool replace) {
+  std::string sql = replace ? "replace into " : "insert into ";
+  constexpr auto SIZE = iguana::get_value<T>();
+  auto name = get_name<T>();
+  append(sql, name.data());
+
+  std::string fields = "(";
+  std::string values = " values(";
+  auto it = auto_key_map_.find(name.data());
+  for (auto i = 0; i < SIZE; ++i) {
+    std::string field_name = iguana::get_name<T>(i).data();
+    if (it != auto_key_map_.end() && it->second == field_name)
+      continue;
+
+#ifdef ORMPP_ENABLE_PG
+    values += "$" + std::to_string(i + 1);
+#else
+    values += "?";
+#endif
+
+    fields += field_name;
+    if (i < SIZE - 1) {
+      fields += ", ";
+      values += ", ";
+    }
+    else {
+      fields += ")";
+      values += ")";
+    }
+  }
+  append(sql, fields, values);
+  return sql;
+}
+
 inline bool is_empty(const std::string &t) { return t.empty(); }
 
 template <class T>
