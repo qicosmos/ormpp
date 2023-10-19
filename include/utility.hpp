@@ -182,16 +182,18 @@ inline std::string generate_auto_insert_sql(
   auto name = get_name<T>();
   append(sql, name.data());
 
+  int index = 0;
   std::string fields = "(";
   std::string values = " values(";
   auto it = auto_key_map_.find(name.data());
   for (auto i = 0; i < SIZE; ++i) {
     std::string field_name = iguana::get_name<T>(i).data();
-    if (it != auto_key_map_.end() && it->second == field_name)
+    if (it != auto_key_map_.end() && it->second == field_name) {
       continue;
+    }
 
 #ifdef ORMPP_ENABLE_PG
-    values += "$" + std::to_string(i + 1);
+    values += "$" + std::to_string(++index);
 #else
     values += "?";
 #endif

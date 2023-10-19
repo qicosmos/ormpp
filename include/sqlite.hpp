@@ -73,14 +73,14 @@ class sqlite {
 
   template <typename T, typename... Args>
   int insert(const T &t, bool get_insert_id = false, Args &&...args) {
-    return insert_impl(generate_auto_insert_sql<T>(auto_key_map_, false), sql,
+    return insert_impl(false, generate_auto_insert_sql<T>(auto_key_map_, false),
                        t, get_insert_id, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   int insert(const std::vector<T> &t, bool get_insert_id = false,
              Args &&...args) {
-    return insert_impl(generate_auto_insert_sql<T>(auto_key_map_, false), sql,
+    return insert_impl(false, generate_auto_insert_sql<T>(auto_key_map_, false),
                        t, get_insert_id, std::forward<Args>(args)...);
   }
 
