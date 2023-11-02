@@ -150,7 +150,11 @@ inline std::string get_fields() {
     return alisa_fields;
   }
   for (const auto &it : iguana::Reflect_members<T>::arr()) {
+#ifdef ORMPP_ENABLE_MYSQL
+    alisa_fields += "`" + std::string(it.data()) + "`";
+#else
     alisa_fields += it.data();
+#endif
     alisa_fields += ",";
   }
   alisa_fields.back() = ' ';
