@@ -212,6 +212,14 @@ inline std::string generate_auto_insert_sql(
       values += ")";
     }
   }
+  fields.pop_back();
+  values.pop_back();
+  if (fields.back() == ',') {
+    fields.back() = ')';
+  }
+  if (values.back() == ',') {
+    values.back() = ')';
+  }
   append(sql, fields, values);
   return sql;
 }
