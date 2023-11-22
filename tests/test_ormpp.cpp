@@ -774,9 +774,9 @@ TEST_CASE("query multi table") {
   std::vector<student> v{s, s1, s2};
 
   ormpp_key key1{"id"};
-  person p = {1, "test1", 2};
-  person p1 = {2, "test2", 3};
-  person p2 = {3, "test3", 4};
+  person p = {"test1", 2, 1};
+  person p1 = {"test2", 3, 2};
+  person p2 = {"test3", 4, 3};
   std::vector<person> v1{p, p1, p2};
 
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1014,12 +1014,12 @@ TEST_CASE("create table with unique") {
     mysql.execute("drop table if exists person");
     mysql.create_datatable<person>(ormpp_auto_key{"id"},
                                    ormpp_unique{{"name", "age"}});
-    mysql.insert<person>({0, "purecpp", 200});
+    mysql.insert<person>({"purecpp", 200});
     auto vec1 = mysql.query<person>("order by id");
     auto vec2 = mysql.query<person>("limit 1");
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
-    mysql.insert<person>({0, "purecpp", 200});
+    mysql.insert<person>({"purecpp", 200});
     auto vec3 = mysql.query<person>();
     CHECK(vec3.size() == 1);
   }
@@ -1031,12 +1031,12 @@ TEST_CASE("create table with unique") {
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"},
                                     ormpp_unique{{"name", "age"}});
-    sqlite.insert<person>({0, "purecpp", 200});
+    sqlite.insert<person>({"purecpp", 200});
     auto vec1 = sqlite.query<person>("order by id");
     auto vec2 = sqlite.query<person>("limit 1");
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
-    sqlite.insert<person>({0, "purecpp", 200});
+    sqlite.insert<person>({"purecpp", 200});
     auto vec3 = sqlite.query<person>();
     CHECK(vec3.size() == 1);
   }
@@ -1049,9 +1049,9 @@ TEST_CASE("get insert id") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists person");
     mysql.create_datatable<person>(ormpp_auto_key{"id"});
-    mysql.insert<person>({0, "purecpp", 200});
-    mysql.insert<person>({0, "purecpp", 200});
-    int id = mysql.insert<person>({0, "purecpp", 200}, true);
+    mysql.insert<person>({"purecpp", 200});
+    mysql.insert<person>({"purecpp", 200});
+    int id = mysql.insert<person>({"purecpp", 200}, true);
     CHECK(id == 3);
   }
 #endif
@@ -1061,9 +1061,9 @@ TEST_CASE("get insert id") {
   if (sqlite.connect(db)) {
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
-    sqlite.insert<person>({0, "purecpp", 200});
-    sqlite.insert<person>({0, "purecpp", 200});
-    int id = sqlite.insert<person>({0, "purecpp", 200}, true);
+    sqlite.insert<person>({"purecpp", 200});
+    sqlite.insert<person>({"purecpp", 200});
+    int id = sqlite.insert<person>({"purecpp", 200}, true);
     CHECK(id == 3);
   }
 #endif
@@ -1075,8 +1075,8 @@ TEST_CASE("delete records") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.create_datatable<person>(ormpp_auto_key{"id"});
     mysql.delete_records<person>();
-    mysql.insert<person>({0, "other", 200});
-    mysql.insert<person>({0, "purecpp", 200});
+    mysql.insert<person>({"other", 200});
+    mysql.insert<person>({"purecpp", 200});
     mysql.delete_records<person>("name = 'other';drop table person");
     auto vec = mysql.query<person>();
     CHECK(vec.size() == 2);
@@ -1087,8 +1087,8 @@ TEST_CASE("delete records") {
   // if (postgres.connect(ip, username, password, db)) {
   //   postgres.create_datatable<person>(ormpp_auto_key{"id"});
   //   postgres.delete_records<person>();
-  //   postgres.insert<person>({0, "other", 200});
-  //   postgres.insert<person>({0, "purecpp", 200});
+  //   postgres.insert<person>({"other", 200});
+  //   postgres.insert<person>({purecpp", 200});
   //   postgres.delete_records<person>("name = 'other';drop table person");
   //   auto vec = postgres.query<person>();
   //   CHECK(vec.size() == 2);
@@ -1099,8 +1099,8 @@ TEST_CASE("delete records") {
   if (sqlite.connect(db)) {
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
     sqlite.delete_records<person>();
-    sqlite.insert<person>({0, "other", 200});
-    sqlite.insert<person>({0, "purecpp", 200});
+    sqlite.insert<person>({"other", 200});
+    sqlite.insert<person>({"purecpp", 200});
     sqlite.delete_records<person>("name = 'other';drop table person");
     auto vec = sqlite.query<person>();
     CHECK(vec.size() == 1);
