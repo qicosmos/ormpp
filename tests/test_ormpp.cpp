@@ -30,9 +30,9 @@ const char *username = "root";
 const char *db = "test_ormppdb";
 
 struct person {
-  int id;
   std::string name;
   int age;
+  int id;
 };
 REFLECTION(person, id, name, age)
 
