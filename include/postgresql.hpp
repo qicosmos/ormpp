@@ -75,93 +75,22 @@ class postgresql {
 
   template <typename T, typename... Args>
   constexpr int insert(const T &t, Args &&...args) {
-    std::string sql = generate_auto_insert_sql<T>(auto_key_map_, false);
-    if (!prepare<T>(sql))
-      return INT_MIN;
-
-    return insert_impl(sql, t, std::forward<Args>(args)...);
+    return insert_or_update(false, t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   constexpr int insert(const std::vector<T> &v, Args &&...args) {
-    std::string sql = generate_auto_insert_sql<T>(auto_key_map_, false);
-
-    if (!begin())
-      return INT_MIN;
-
-    if (!prepare<T>(sql))
-      return INT_MIN;
-
-    for (auto &item : v) {
-      auto result = insert_impl(sql, item, std::forward<Args>(args)...);
-      if (result == INT_MIN) {
-        rollback();
-        return INT_MIN;
-      }
-    }
-
-    if (!commit())
-      return INT_MIN;
-
-    return (int)v.size();
+    return insert_or_update(false, v, std::forward<Args>(args)...);
   }
 
-  // if there is no key in a table, you can set some fields as a condition in
-  // the args...
   template <typename T, typename... Args>
   constexpr int update(const T &t, Args &&...args) {
-    // transaction, firstly delete, secondly insert
-    auto name = get_name<T>();
-    auto it = key_map_.find(name.data());
-    auto key = it == key_map_.end() ? "" : it->second;
-
-    auto condition = get_condition(t, key, std::forward<Args...>(args)...);
-    if (!begin())
-      return INT_MIN;
-
-    if (!delete_records<T>(condition)) {
-      rollback();
-      return INT_MIN;
-    }
-
-    if (insert(t) < 0) {
-      rollback();
-      return INT_MIN;
-    }
-
-    if (!commit())
-      return INT_MIN;
-
-    return 1;
+    return insert_or_update(true, t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   constexpr int update(const std::vector<T> &v, Args &&...args) {
-    // transaction, firstly delete, secondly insert
-    if (!begin())
-      return INT_MIN;
-
-    auto name = get_name<T>();
-    auto it = key_map_.find(name.data());
-    auto key = it == key_map_.end() ? "" : it->second;
-    for (auto &t : v) {
-      auto condition = get_condition(t, key, std::forward<Args...>(args)...);
-
-      if (!delete_records<T>(condition)) {
-        rollback();
-        return INT_MIN;
-      }
-
-      if (insert(t) < 0) {
-        rollback();
-        return INT_MIN;
-      }
-    }
-
-    if (!commit())
-      return INT_MIN;
-
-    return (int)v.size();
+    return insert_or_update(true, v, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
@@ -253,16 +182,14 @@ class postgresql {
   template <typename T, typename... Args>
   constexpr bool delete_records(Args &&...where_conditon) {
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
-#ifdef ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
-#endif
-    res_ = PQexec(con_, sql.data());
-    auto guard = guard_statment(res_);
-    return PQresultStatus(res_) == PGRES_COMMAND_OK;
+    return execute(sql);
   }
 
   // just support execute string sql without placeholders
   auto execute(const std::string &sql) {
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
     res_ = PQexec(con_, sql.data());
     auto guard = guard_statment(res_);
     return PQresultStatus(res_) == PGRES_COMMAND_OK;
@@ -435,14 +362,11 @@ class postgresql {
   }
 
   template <typename T, typename... Args>
-  constexpr int insert_impl(const std::string &sql, const T &t,
-                            Args &&...args) {
-#ifdef ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
-#endif
+  constexpr int insert_impl(bool update, const T &t, Args &&...args) {
     std::vector<std::vector<char>> param_values;
     auto it = auto_key_map_.find(get_name<T>());
-    std::string auto_key = (it == auto_key_map_.end()) ? "" : it->second;
+    std::string auto_key =
+        (update || it == auto_key_map_.end()) ? "" : it->second;
     iguana::for_each(t, [&t, &param_values, auto_key, this](auto item, auto i) {
       if (!auto_key.empty() &&
           auto_key == iguana::get_name<T>(decltype(i)::value).data()) {
@@ -464,6 +388,89 @@ class postgresql {
 
     auto guard = guard_statment(res_);
     return PQresultStatus(res_) == PGRES_COMMAND_OK ? 1 : INT_MIN;
+  }
+
+  template <typename T, typename... Args>
+  constexpr int insert_or_update(bool update, const T &t, Args &&...args) {
+    std::string sql =
+        update ? generate_update_sql<T>(std::forward<Args...>(args)...)
+               : generate_auto_insert_sql<T>(auto_key_map_, false);
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    if (!prepare<T>(sql))
+      return INT_MIN;
+
+    return insert_impl(update, t, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  constexpr int insert_or_update(bool update, const std::vector<T> &v,
+                                 Args &&...args) {
+    std::string sql =
+        update ? generate_update_sql<T>(std::forward<Args...>(args)...)
+               : generate_auto_insert_sql<T>(auto_key_map_, false);
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    if (!begin())
+      return INT_MIN;
+
+    if (!prepare<T>(sql))
+      return INT_MIN;
+
+    for (auto &item : v) {
+      auto result = insert_impl(update, item, std::forward<Args>(args)...);
+      if (result == INT_MIN) {
+        rollback();
+        return INT_MIN;
+      }
+    }
+
+    if (!commit())
+      return INT_MIN;
+
+    return (int)v.size();
+  }
+
+  template <typename T, typename... Args>
+  inline std::string generate_update_sql(Args &&...args) {
+    constexpr auto SIZE = iguana::get_value<T>();
+    std::string sql = "insert into ";
+    auto name = get_name<T>();
+    append(sql, name.data());
+    int index = 0;
+    std::string set;
+    std::string fields = "(";
+    std::string values = "values(";
+    auto it = key_map_.find(name.data());
+    for (auto i = 0; i < SIZE; ++i) {
+      std::string field_name = iguana::get_name<T>(i).data();
+      std::string value = "$" + std::to_string(++index);
+      set += field_name + "=" + value;
+      fields += field_name;
+      values += value;
+      if (i < SIZE - 1) {
+        fields += ", ";
+        values += ", ";
+        set += ", ";
+      }
+      else {
+        fields += ")";
+        values += ")";
+        set += ";";
+      }
+    }
+    std::string conflict = "on conflict(";
+    if constexpr (sizeof...(args) > 0) {
+      append(conflict, args...);
+    }
+    else {
+      conflict += it->second;
+    }
+    conflict += ")";
+    append(sql, fields, values, conflict, "do update set", set);
+    return sql;
   }
 
   template <typename T>
@@ -540,58 +547,6 @@ class postgresql {
     }
     else {
       static_assert(!sizeof(U), "this type has not supported yet");
-    }
-  }
-
-  template <typename T, typename... Args>
-  constexpr std::string get_condition(const T &t, const std::string &key,
-                                      Args &&...args) {
-    std::string result = "";
-    constexpr auto SIZE = iguana::get_value<T>();
-    iguana::for_each(t, [&](auto &item, auto i) {
-      constexpr auto Idx = decltype(i)::value;
-      using U = std::remove_reference_t<decltype(iguana::get<Idx>(
-          std::declval<T>()))>;
-      if (!key.empty() && key == iguana::get_name<T, Idx>().data()) {
-        if constexpr (std::is_arithmetic_v<U>) {
-          append(result, iguana::get_name<T, Idx>().data(), "=",
-                 std::to_string(t.*item));
-        }
-        else if constexpr (std::is_same_v<std::string, U>) {
-          append(result, iguana::get_name<T, Idx>().data(), "=", t.*item);
-        }
-      }
-
-      // if constexpr (sizeof...(Args)>0){
-      build_condition_by_key<T, Idx>(result, t.*item, args...);
-      //(test(args), ...);
-      //	(build_condition_by_key_impl(result, t.*item, args),...);
-      ////can't pass U in vs2017
-      //}
-    });
-
-    return result;
-  }
-
-  template <typename T, size_t Idx, typename V, typename... Args>
-  void build_condition_by_key(std::string &result, const V &t, Args... args) {
-    (build_condition_by_key<T, Idx>(result, t, args), ...);
-  }
-
-  template <typename T, size_t Idx, typename V, typename W>
-  void build_condition_by_key_impl(std::string &result, const V &val, W &key) {
-    using U =
-        std::remove_reference_t<decltype(iguana::get<Idx>(std::declval<T>()))>;
-    if (key == iguana::get_name<T, Idx>().data()) {
-      if constexpr (std::is_arithmetic_v<U>) {
-        append(result, " and ");
-        append(result, iguana::get_name<T, Idx>().data(), "=",
-               std::to_string(val));
-      }
-      else if constexpr (std::is_same_v<std::string, U>) {
-        append(result, " and ");
-        append(result, iguana::get_name<T, Idx>().data(), "=", val);
-      }
     }
   }
 

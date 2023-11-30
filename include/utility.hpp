@@ -188,7 +188,7 @@ inline std::string generate_auto_insert_sql(
 
   int index = 0;
   std::string fields = "(";
-  std::string values = " values(";
+  std::string values = "values(";
   auto it = auto_key_map_.find(name.data());
   for (auto i = 0; i < SIZE; ++i) {
     std::string field_name = iguana::get_name<T>(i).data();

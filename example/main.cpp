@@ -18,12 +18,13 @@
 using namespace ormpp;
 const char *password = "";
 const char *ip = "127.0.0.1";
+const char *username = "root";
 const char *db = "test_ormppdb";
 
 struct person {
-  int id;
   std::optional<std::string> name;
   std::optional<int> age;
+  int id;
 };
 REFLECTION(person, id, name, age)
 
@@ -38,11 +39,11 @@ int main() {
 #ifdef ORMPP_ENABLE_MYSQL
   {
     dbng<mysql> mysql;
-    if (mysql.connect(ip, "root", password, db)) {
+    if (mysql.connect(ip, username, password, db)) {
       mysql.create_datatable<person>(ormpp_auto_key{"id"});
       mysql.delete_records<person>();
-      mysql.insert<person>({0, "purecpp"});
-      mysql.insert<person>({0, "purecpp", 6});
+      mysql.insert<person>({"purecpp"});
+      mysql.insert<person>({"purecpp", 6});
     }
     else {
       std::cout << "connect fail" << std::endl;
@@ -50,7 +51,7 @@ int main() {
   }
 
   {
-    connection_pool<dbng<mysql>>::instance().init(4, ip, "root", password, db,
+    connection_pool<dbng<mysql>>::instance().init(4, ip, username, password, db,
                                                   5, 3306);
     auto conn = connection_pool<dbng<mysql>>::instance().get();
     conn_guard guard(conn);
@@ -68,8 +69,8 @@ int main() {
 
   {
     sqlite.delete_records<person>();
-    sqlite.insert<person>({0, "purecpp"});
-    sqlite.insert<person>({0, "purecpp", 6});
+    sqlite.insert<person>({"purecpp"});
+    sqlite.insert<person>({"purecpp", 6});
     auto vec = sqlite.query<person>();
     for (auto &[id, name, age] : vec) {
       std::cout << id << ", " << *name << ", " << *age << "\n";

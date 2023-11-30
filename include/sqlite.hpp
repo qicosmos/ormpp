@@ -218,6 +218,9 @@ class sqlite {
 
   // just support execute string sql without placeholders
   bool execute(const std::string &sql) {
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
     int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
                                     &stmt_, nullptr);
     if (result != SQLITE_OK) {
