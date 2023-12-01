@@ -1014,12 +1014,12 @@ TEST_CASE("create table with unique") {
     mysql.execute("drop table if exists person");
     mysql.create_datatable<person>(ormpp_auto_key{"id"},
                                    ormpp_unique{{"name", "age"}});
-    mysql.insert<person>({"purecpp", 200});
+    mysql.insert<person>({"purecpp"});
     auto vec1 = mysql.query<person>("order by id");
     auto vec2 = mysql.query<person>("limit 1");
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
-    mysql.insert<person>({"purecpp", 200});
+    mysql.insert<person>({"purecpp"});
     auto vec3 = mysql.query<person>();
     CHECK(vec3.size() == 1);
   }
@@ -1031,12 +1031,12 @@ TEST_CASE("create table with unique") {
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"},
                                     ormpp_unique{{"name", "age"}});
-    sqlite.insert<person>({"purecpp", 200});
+    sqlite.insert<person>({"purecpp"});
     auto vec1 = sqlite.query<person>("order by id");
     auto vec2 = sqlite.query<person>("limit 1");
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
-    sqlite.insert<person>({"purecpp", 200});
+    sqlite.insert<person>({"purecpp"});
     auto vec3 = sqlite.query<person>();
     CHECK(vec3.size() == 1);
   }
@@ -1049,9 +1049,9 @@ TEST_CASE("get insert id") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists person");
     mysql.create_datatable<person>(ormpp_auto_key{"id"});
-    mysql.insert<person>({"purecpp", 200});
-    mysql.insert<person>({"purecpp", 200});
-    int id = mysql.insert<person>({"purecpp", 200}, true);
+    mysql.insert<person>({"purecpp"});
+    mysql.insert<person>({"purecpp"});
+    int id = mysql.insert<person>({"purecpp"}, true);
     CHECK(id == 3);
   }
 #endif
@@ -1061,9 +1061,9 @@ TEST_CASE("get insert id") {
   if (sqlite.connect(db)) {
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
-    sqlite.insert<person>({"purecpp", 200});
-    sqlite.insert<person>({"purecpp", 200});
-    int id = sqlite.insert<person>({"purecpp", 200}, true);
+    sqlite.insert<person>({"purecpp"});
+    sqlite.insert<person>({"purecpp"});
+    int id = sqlite.insert<person>({"purecpp"}, true);
     CHECK(id == 3);
   }
 #endif
@@ -1073,10 +1073,10 @@ TEST_CASE("delete records") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists person");
     mysql.create_datatable<person>(ormpp_auto_key{"id"});
-    mysql.delete_records<person>();
-    mysql.insert<person>({"other", 200});
-    mysql.insert<person>({"purecpp", 200});
+    mysql.insert<person>({"other"});
+    mysql.insert<person>({"purecpp"});
     mysql.delete_records<person>("name = 'other';drop table person");
     auto vec = mysql.query<person>();
     CHECK(vec.size() == 2);
@@ -1085,10 +1085,10 @@ TEST_CASE("delete records") {
 #ifdef ORMPP_ENABLE_PG
   // dbng<postgresql> postgres;
   // if (postgres.connect(ip, username, password, db)) {
+  //   postgres.execute("drop table if exists person");
   //   postgres.create_datatable<person>(ormpp_auto_key{"id"});
-  //   postgres.delete_records<person>();
-  //   postgres.insert<person>({"other", 200});
-  //   postgres.insert<person>({purecpp", 200});
+  //   postgres.insert<person>({"other"});
+  //   postgres.insert<person>({"purecpp"});
   //   postgres.delete_records<person>("name = 'other';drop table person");
   //   auto vec = postgres.query<person>();
   //   CHECK(vec.size() == 2);
@@ -1097,10 +1097,10 @@ TEST_CASE("delete records") {
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
-    sqlite.delete_records<person>();
-    sqlite.insert<person>({"other", 200});
-    sqlite.insert<person>({"purecpp", 200});
+    sqlite.insert<person>({"other"});
+    sqlite.insert<person>({"purecpp"});
     sqlite.delete_records<person>("name = 'other';drop table person");
     auto vec = sqlite.query<person>();
     CHECK(vec.size() == 1);
@@ -1138,3 +1138,22 @@ TEST_CASE("alias") {
   }
 #endif
 }
+
+#ifdef ORMPP_ENABLE_PG
+TEST_CASE("pg update") {
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists person");
+    postgres.create_datatable<person>(ormpp_auto_key{"id"});
+    postgres.insert<person>({"purecpp"});
+    auto vec1 = postgres.query<person>();
+    CHECK(vec1.size() == 1);
+    vec1.front().name = "other";
+    postgres.update<person>(vec1.front());
+    auto vec2 = postgres.query<person>();
+    CHECK(vec2.size() == 1);
+    CHECK(vec2.front().name == "other");
+    CHECK(vec1.front().id == vec2.front().id);
+  }
+}
+#endif

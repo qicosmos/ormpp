@@ -449,6 +449,9 @@ class mysql {
 
   // just support execute string sql without placeholders
   bool execute(const std::string &sql) {
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
     reset_error();
     if (mysql_query(con_, sql.data()) != 0) {
       set_last_error(mysql_error(con_));
