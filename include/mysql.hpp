@@ -585,7 +585,7 @@ class mysql {
   }
 
   template <typename T>
-  constexpr int stmt_execute(bool update, const T &t) {
+  int stmt_execute(bool update, const T &t) {
     reset_error();
     std::vector<MYSQL_BIND> param_binds;
 
