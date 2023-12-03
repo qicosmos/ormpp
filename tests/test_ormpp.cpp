@@ -426,32 +426,30 @@ TEST_CASE("insert query") {
     mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(auto_key, not_null);
     CHECK(mysql.insert(s) == 1);
-    auto vec1 = mysql.query<student>("limit 3");
+    auto vec1 = mysql.query<student>();
     CHECK(vec1.size() == 1);
-    CHECK(mysql.insert(s) == 1);
     CHECK(mysql.insert(v) == 2);
     auto vec2 = mysql.query<student>();
-    CHECK(vec2.size() == 4);
-    auto vec3 = mysql.query<student>();
-    CHECK(vec3.size() == 4);
-    v[0].code = 1;
-    v[1].code = 2;
-    CHECK(mysql.insert(s) == 1);
-    auto vec4 = mysql.query<student>();
-    CHECK(vec4.size() == 5);
-    mysql.delete_records<student>();
-    CHECK(mysql.insert(v) == 2);
-    auto vec5 = mysql.query<student>();
-    CHECK(vec5.size() == 2);
+    CHECK(vec2.size() == 3);
+    auto vec3 = mysql.query(FID(student::code), "<", "5");
+    CHECK(vec3.size() == 3);
+    auto vec4 = mysql.query<student>("limit 2");
+    CHECK(vec4.size() == 2);
 #endif
 
 #ifdef ORMPP_ENABLE_PG
     postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(auto_key, not_null);
     CHECK(postgres.insert(s) == 1);
-    auto vec = postgres.query<student>();
-    CHECK(vec.size() == 1);
+    auto vec1 = postgres.query<student>();
+    CHECK(vec1.size() == 1);
     CHECK(postgres.insert(v) == 2);
+    auto vec2 = postgres.query<student>();
+    CHECK(vec2.size() == 3);
+    auto vec3 = postgres.query(FID(student::code), "<", "5");
+    CHECK(vec3.size() == 3);
+    auto vec4 = postgres.query<student>("limit 2");
+    CHECK(vec4.size() == 2);
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -464,7 +462,9 @@ TEST_CASE("insert query") {
     auto vec2 = sqlite.query<student>();
     CHECK(vec2.size() == 3);
     auto vec3 = sqlite.query(FID(student::code), "<", "5");
+    CHECK(vec3.size() == 3);
     auto vec4 = sqlite.query<student>("limit 2");
+    CHECK(vec4.size() == 2);
 #endif
   }
 
@@ -474,24 +474,24 @@ TEST_CASE("insert query") {
     mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(key, not_null);
     CHECK(mysql.insert(s) == 1);
-    auto result2 = mysql.query<student>();
-    CHECK(result2.size() == 1);
+    auto vec = mysql.query<student>();
+    CHECK(vec.size() == 1);
 #endif
 
 #ifdef ORMPP_ENABLE_PG
     postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(key, not_null);
     CHECK(postgres.insert(s) == 1);
-    auto result2 = postgres.query<student>();
-    CHECK(result2.size() == 1);
+    auto vec = postgres.query<student>();
+    CHECK(vec.size() == 1);
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
     sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key, not_null);
     CHECK(sqlite.insert(s) == 1);
-    auto result2 = sqlite.query<student>();
-    CHECK(result2.size() == 1);
+    auto vec = sqlite.query<student>();
+    CHECK(vec.size() == 1);
 #endif
   }
 }

@@ -47,9 +47,9 @@ inline auto get_conflict_key(std::string_view key) {
   return it->second;
 }
 
-#define REGISTER_CONFLICT_KEY(STRUCT_NAME, KEY)     \
+#define REGISTER_CONFLICT_KEY(STRUCT_NAME, ...)     \
   inline auto IGUANA_UNIQUE_VARIABLE(STRUCT_NAME) = \
-      add_conflict_key_field(#STRUCT_NAME, #KEY);
+      add_conflict_key_field(#STRUCT_NAME, {MAKE_NAMES(__VA_ARGS__)});
 #endif
 
 template <typename T>
