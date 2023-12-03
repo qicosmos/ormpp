@@ -357,7 +357,7 @@ class sqlite {
   }
 
   template <typename T>
-  int stmt_execute(bool update, const T &t) {
+  constexpr int stmt_execute(bool update, const T &t) {
     int index = 0;
     bool bind_ok = true;
     iguana::for_each(t, [&t, &bind_ok, &index, update, this](auto item,
@@ -501,7 +501,6 @@ class sqlite {
     auto guard = guard_statment(stmt_);
 
     if (!begin()) {
-      set_last_error(sqlite3_errmsg(handle_));
       return INT_MIN;
     }
 

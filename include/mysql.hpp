@@ -99,23 +99,23 @@ class mysql {
   }
 
   template <typename T, typename... Args>
-  int insert(const std::vector<T> &t, bool get_insert_id = false,
-             Args &&...args) {
+  int insert(const T &t, bool get_insert_id = false, Args &&...args) {
     return insert_impl(false, t, get_insert_id, std::forward<Args>(args)...);
-
-    template <typename T, typename... Args>
-    int insert(const T &t, bool get_insert_id = false, Args && ...args) {
-      return insert_impl(false, t, get_insert_id, std::forward<Args>(args)...);
-    }
   }
 
   template <typename T, typename... Args>
-  int update(const std::vector<T> &t, Args &&...args) {
-    return insert_impl(true, t, false, std::forward<Args>(args)...);
+  int insert(const std::vector<T> &t, bool get_insert_id = false,
+             Args &&...args) {
+    return insert_impl(false, t, get_insert_id, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   int update(const T &t, Args &&...args) {
+    return insert_impl(true, t, false, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  int update(const std::vector<T> &t, Args &&...args) {
     return insert_impl(true, t, false, std::forward<Args>(args)...);
   }
 
@@ -585,7 +585,7 @@ class mysql {
   }
 
   template <typename T>
-  int stmt_execute(bool update, const T &t) {
+  constexpr int stmt_execute(bool update, const T &t) {
     reset_error();
     std::vector<MYSQL_BIND> param_binds;
 
@@ -664,7 +664,6 @@ class mysql {
     auto guard = guard_statment(stmt_);
 
     if (!begin()) {
-      set_last_error(mysql_stmt_error(stmt_));
       return INT_MIN;
     }
 

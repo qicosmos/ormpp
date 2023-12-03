@@ -75,22 +75,22 @@ class postgresql {
 
   template <typename T, typename... Args>
   constexpr int insert(const T &t, Args &&...args) {
-    return insert_or_update(false, t, std::forward<Args>(args)...);
+    return insert_impl(false, t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   constexpr int insert(const std::vector<T> &v, Args &&...args) {
-    return insert_or_update(false, v, std::forward<Args>(args)...);
+    return insert_impl(false, v, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   constexpr int update(const T &t, Args &&...args) {
-    return insert_or_update(true, t, std::forward<Args>(args)...);
+    return insert_impl(true, t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   constexpr int update(const std::vector<T> &v, Args &&...args) {
-    return insert_or_update(true, v, std::forward<Args>(args)...);
+    return insert_impl(true, v, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
@@ -356,8 +356,8 @@ class postgresql {
     return PQresultStatus(res_) == PGRES_COMMAND_OK;
   }
 
-  template <typename T, typename... Args>
-  constexpr int insert_impl(bool update, const T &t, Args &&...args) {
+  template <typename T>
+  constexpr int stmt_execute(bool update, const T &t) {
     std::vector<std::vector<char>> param_values;
     iguana::for_each(t, [&t, &param_values, update, this](auto item, auto i) {
       if (is_auto_key(iguana::get_name<T>(), iguana::get_name<T>(i).data()) &&
@@ -383,36 +383,39 @@ class postgresql {
   }
 
   template <typename T, typename... Args>
-  constexpr int insert_or_update(bool update, const T &t, Args &&...args) {
+  constexpr int insert_impl(bool update, const T &t, Args &&...args) {
     std::string sql =
         update ? generate_update_sql<T>(std::forward<Args...>(args)...)
                : generate_insert_sql<T>(update);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    if (!prepare<T>(sql))
+    if (!prepare<T>(sql)) {
       return INT_MIN;
+    }
 
-    return insert_impl(update, t, std::forward<Args>(args)...);
+    return stmt_execute(update, t);
   }
 
   template <typename T, typename... Args>
-  constexpr int insert_or_update(bool update, const std::vector<T> &v,
-                                 Args &&...args) {
+  constexpr int insert_impl(bool update, const std::vector<T> &v,
+                            Args &&...args) {
     std::string sql =
         update ? generate_update_sql<T>(std::forward<Args...>(args)...)
                : generate_insert_sql<T>(update);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    if (!begin())
+    if (!begin()) {
       return INT_MIN;
+    }
 
-    if (!prepare<T>(sql))
+    if (!prepare<T>(sql)) {
       return INT_MIN;
+    }
 
     for (auto &item : v) {
-      if (insert_impl(update, item, std::forward<Args>(args)...) == INT_MIN) {
+      if (stmt_execute(update, item) == INT_MIN) {
         rollback();
         return INT_MIN;
       }
