@@ -60,7 +60,6 @@ int main() {
     conn->create_datatable<student>(ormpp_auto_key{"id"});
     auto vec = conn->query<student>();
   }
-
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -81,10 +80,10 @@ int main() {
 
   {
     sqlite.delete_records<student>();
-    sqlite.insert<student>({0, "purecpp", 1});
-    sqlite.insert<student>({0, "purecpp", 2});
-    sqlite.insert<student>({0, "purecpp", 3});
-    sqlite.insert<student>({0, "purecpp", 3});
+    sqlite.insert<student>({"purecpp", 1});
+    sqlite.insert<student>({"purecpp", 2});
+    sqlite.insert<student>({"purecpp", 3});
+    sqlite.insert<student>({"purecpp", 3});
     {
       auto vec = sqlite.query<student>("name='purecpp'", "order by age desc");
       for (auto &[id, name, age] : vec) {
@@ -98,7 +97,6 @@ int main() {
       }
     }
   }
-
 #endif
 
   return 0;
