@@ -26,6 +26,7 @@ struct person {
   std::optional<int> age;
   int id;
 };
+REGISTER_AUTO_KEY(person, id)
 REFLECTION(person, id, name, age)
 
 struct student {
@@ -33,6 +34,7 @@ struct student {
   std::string name;
   int age;
 };
+REGISTER_AUTO_KEY(student, id)
 REFLECTION_WITH_NAME(student, "t_student", id, name, age)
 
 int main() {
@@ -85,13 +87,13 @@ int main() {
     sqlite.insert<student>({0, "purecpp", 3});
     {
       auto vec = sqlite.query<student>("name='purecpp'", "order by age desc");
-      for (auto &[name, age, id] : vec) {
+      for (auto &[id, name, age] : vec) {
         std::cout << id << ", " << name << ", " << age << "\n";
       }
     }
     {
       auto vec = sqlite.query<student>("age=3", "order by id desc", "limit 1");
-      for (auto &[name, age, id] : vec) {
+      for (auto &[id, name, age] : vec) {
         std::cout << id << ", " << name << ", " << age << "\n";
       }
     }

@@ -265,8 +265,6 @@ class postgresql {
         std::string("CREATE TABLE IF NOT EXISTS ") + name.data() + "(";
     auto arr = iguana::get_array<T>();
     constexpr const size_t SIZE = sizeof...(Args);
-    auto_key_map_[name.data()] = "";
-    key_map_[name.data()] = "";
 
     // auto_increment_key and key can't exist at the same time
     using U = std::tuple<std::decay_t<Args>...>;
@@ -302,26 +300,23 @@ class postgresql {
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
-                has_add_field = true;
               }
               append(sql, " NOT NULL");
+              has_add_field = true;
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ", type_name_arr[i]);
-                has_add_field = true;
               }
               append(sql, " PRIMARY KEY ");
-              key_map_[name.data()] = item.fields;
+              has_add_field = true;
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>) {
               if (!has_add_field) {
                 append(sql, field_name.data(), " ");
-                has_add_field = true;
               }
               append(sql, " serial primary key");
-              auto_key_map_[name.data()] = item.fields;
-              key_map_[name.data()] = item.fields;
+              has_add_field = true;
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
               unique_fields.insert(field_name.data());
@@ -364,12 +359,9 @@ class postgresql {
   template <typename T, typename... Args>
   constexpr int insert_impl(bool update, const T &t, Args &&...args) {
     std::vector<std::vector<char>> param_values;
-    auto it = auto_key_map_.find(get_name<T>());
-    std::string auto_key =
-        (update || it == auto_key_map_.end()) ? "" : it->second;
-    iguana::for_each(t, [&t, &param_values, auto_key, this](auto item, auto i) {
-      if (!auto_key.empty() &&
-          auto_key == iguana::get_name<T>(decltype(i)::value).data()) {
+    iguana::for_each(t, [&t, &param_values, update, this](auto item, auto i) {
+      if (is_auto_key(iguana::get_name<T>(), iguana::get_name<T>(i).data()) &&
+          !update) {
         return;
       }
       set_param_values(param_values, t.*item);
@@ -394,7 +386,7 @@ class postgresql {
   constexpr int insert_or_update(bool update, const T &t, Args &&...args) {
     std::string sql =
         update ? generate_update_sql<T>(std::forward<Args...>(args)...)
-               : generate_auto_insert_sql<T>(auto_key_map_, false);
+               : generate_insert_sql<T>(update);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -409,7 +401,7 @@ class postgresql {
                                  Args &&...args) {
     std::string sql =
         update ? generate_update_sql<T>(std::forward<Args...>(args)...)
-               : generate_auto_insert_sql<T>(auto_key_map_, false);
+               : generate_insert_sql<T>(update);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -420,8 +412,7 @@ class postgresql {
       return INT_MIN;
 
     for (auto &item : v) {
-      auto result = insert_impl(update, item, std::forward<Args>(args)...);
-      if (result == INT_MIN) {
+      if (insert_impl(update, item, std::forward<Args>(args)...) == INT_MIN) {
         rollback();
         return INT_MIN;
       }
@@ -443,7 +434,6 @@ class postgresql {
     std::string set;
     std::string fields = "(";
     std::string values = "values(";
-    auto it = key_map_.find(name.data());
     for (auto i = 0; i < SIZE; ++i) {
       std::string field_name = iguana::get_name<T>(i).data();
       std::string value = "$" + std::to_string(++index);
@@ -451,9 +441,9 @@ class postgresql {
       fields += field_name;
       values += value;
       if (i < SIZE - 1) {
-        fields += ", ";
-        values += ", ";
-        set += ", ";
+        fields += ",";
+        values += ",";
+        set += ",";
       }
       else {
         fields += ")";
@@ -462,11 +452,11 @@ class postgresql {
       }
     }
     std::string conflict = "on conflict(";
-    if constexpr (sizeof...(args) > 0) {
+    if constexpr (sizeof...(Args) > 0) {
       append(conflict, args...);
     }
     else {
-      conflict += it->second;
+      conflict += get_conflict_key(iguana::get_name<T>());
     }
     conflict += ")";
     append(sql, fields, values, conflict, "do update set", set);
@@ -571,8 +561,6 @@ class postgresql {
   PGresult *res_ = nullptr;
   inline static bool has_error_ = false;
   inline static std::string last_error_;
-  inline static std::map<std::string, std::string> key_map_;
-  inline static std::map<std::string, std::string> auto_key_map_;
 };
 }  // namespace ormpp
 #endif  // ORM_POSTGRESQL_HPP
