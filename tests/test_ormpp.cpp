@@ -34,16 +34,20 @@ struct person {
   int age;
   int id;
 };
+REGISTER_AUTO_KEY(person, id)
 REFLECTION(person, id, name, age)
 
 struct student {
-  int code;  // key
+  int code;
   std::string name;
   char sex;
   int age;
   double dm;
   std::string classroom;
 };
+#ifdef ORMPP_ENABLE_PG
+REGISTER_CONFLICT_KEY(student, code)
+#endif
 REFLECTION(student, code, name, sex, age, dm, classroom)
 
 struct simple {
@@ -51,7 +55,7 @@ struct simple {
   double code;
   int age;
 };
-REFLECTION(simple, id, code, age);
+REFLECTION(simple, id, code, age)
 
 // TEST_CASE(mysql performance){
 //    dbng<mysql> mysql;
@@ -98,6 +102,7 @@ struct test_optional {
   std::optional<int> age;
   std::optional<int> empty_;
 };
+REGISTER_AUTO_KEY(test_optional, id)
 REFLECTION(test_optional, id, name, age, empty_);
 
 TEST_CASE("optional") {
@@ -389,9 +394,9 @@ TEST_CASE("insert query") {
   ormpp_not_null not_null{{"code", "age"}};
   ormpp_auto_key auto_key{"code"};
 
-  student s = {0, "tom", 0, 19, 1.5, "room2"};
-  student s1 = {0, "jack", 1, 20, 2.5, "room3"};
-  student s2 = {0, "mke", 2, 21, 3.5, "room4"};
+  student s = {1, "tom", 0, 19, 1.5, "room2"};
+  student s1 = {2, "jack", 1, 20, 2.5, "room3"};
+  student s2 = {3, "mke", 2, 21, 3.5, "room4"};
   std::vector<student> v{s1, s2};
 
 #ifdef ORMPP_ENABLE_MYSQL
@@ -421,32 +426,30 @@ TEST_CASE("insert query") {
     mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(auto_key, not_null);
     CHECK(mysql.insert(s) == 1);
-    auto vec1 = mysql.query<student>("limit 3");
+    auto vec1 = mysql.query<student>();
     CHECK(vec1.size() == 1);
-    CHECK(mysql.insert(s) == 1);
     CHECK(mysql.insert(v) == 2);
     auto vec2 = mysql.query<student>();
-    CHECK(vec2.size() == 4);
-    auto vec3 = mysql.query<student>();
-    CHECK(vec3.size() == 4);
-    v[0].code = 1;
-    v[1].code = 2;
-    CHECK(mysql.insert(s) == 1);
-    auto vec4 = mysql.query<student>();
-    CHECK(vec4.size() == 5);
-    mysql.delete_records<student>();
-    CHECK(mysql.insert(v) == 2);
-    auto vec5 = mysql.query<student>();
-    CHECK(vec5.size() == 2);
+    CHECK(vec2.size() == 3);
+    auto vec3 = mysql.query(FID(student::code), "<", "5");
+    CHECK(vec3.size() == 3);
+    auto vec4 = mysql.query<student>("limit 2");
+    CHECK(vec4.size() == 2);
 #endif
 
 #ifdef ORMPP_ENABLE_PG
     postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(auto_key, not_null);
     CHECK(postgres.insert(s) == 1);
-    auto vec = postgres.query<student>();
-    CHECK(vec.size() == 1);
+    auto vec1 = postgres.query<student>();
+    CHECK(vec1.size() == 1);
     CHECK(postgres.insert(v) == 2);
+    auto vec2 = postgres.query<student>();
+    CHECK(vec2.size() == 3);
+    auto vec3 = postgres.query(FID(student::code), "<", "5");
+    CHECK(vec3.size() == 3);
+    auto vec4 = postgres.query<student>("limit 2");
+    CHECK(vec4.size() == 2);
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -459,7 +462,9 @@ TEST_CASE("insert query") {
     auto vec2 = sqlite.query<student>();
     CHECK(vec2.size() == 3);
     auto vec3 = sqlite.query(FID(student::code), "<", "5");
+    CHECK(vec3.size() == 3);
     auto vec4 = sqlite.query<student>("limit 2");
+    CHECK(vec4.size() == 2);
 #endif
   }
 
@@ -469,24 +474,24 @@ TEST_CASE("insert query") {
     mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(key, not_null);
     CHECK(mysql.insert(s) == 1);
-    auto result2 = mysql.query<student>();
-    CHECK(result2.size() == 1);
+    auto vec = mysql.query<student>();
+    CHECK(vec.size() == 1);
 #endif
 
 #ifdef ORMPP_ENABLE_PG
     postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(key, not_null);
     CHECK(postgres.insert(s) == 1);
-    auto result2 = postgres.query<student>();
-    CHECK(result2.size() == 1);
+    auto vec = postgres.query<student>();
+    CHECK(vec.size() == 1);
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
     sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key, not_null);
     CHECK(sqlite.insert(s) == 1);
-    auto result2 = sqlite.query<student>();
-    CHECK(result2.size() == 1);
+    auto vec = sqlite.query<student>();
+    CHECK(vec.size() == 1);
 #endif
   }
 }
@@ -1109,9 +1114,10 @@ TEST_CASE("delete records") {
 }
 
 struct alias {
-  int id;
   std::string name;
+  int id;
 };
+REGISTER_AUTO_KEY(alias, id)
 REFLECTION_ALIAS(alias, "t_alias", FLDALIAS(&alias::id, "alias_id"),
                  FLDALIAS(&alias::name, "alias_name"));
 
@@ -1121,7 +1127,7 @@ TEST_CASE("alias") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.create_datatable<alias>(ormpp_auto_key{"alias_id"});
     mysql.delete_records<alias>();
-    mysql.insert<alias>({0, "purecpp"});
+    mysql.insert<alias>({"purecpp"});
     auto vec = mysql.query<alias>();
     CHECK(vec.front().name == "purecpp");
   }
@@ -1132,7 +1138,7 @@ TEST_CASE("alias") {
   if (sqlite.connect(db)) {
     sqlite.create_datatable<alias>(ormpp_auto_key{"alias_id"});
     sqlite.delete_records<alias>();
-    sqlite.insert<alias>({0, "purecpp"});
+    sqlite.insert<alias>({"purecpp"});
     auto vec = sqlite.query<alias>();
     CHECK(vec.front().name == "purecpp");
   }

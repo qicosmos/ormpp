@@ -26,13 +26,15 @@ struct person {
   std::optional<int> age;
   int id;
 };
+REGISTER_AUTO_KEY(person, id)
 REFLECTION(person, id, name, age)
 
 struct student {
-  int id;
   std::string name;
   int age;
+  int id;
 };
+REGISTER_AUTO_KEY(student, id)
 REFLECTION_WITH_NAME(student, "t_student", id, name, age)
 
 int main() {
@@ -58,7 +60,6 @@ int main() {
     conn->create_datatable<student>(ormpp_auto_key{"id"});
     auto vec = conn->query<student>();
   }
-
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -79,10 +80,10 @@ int main() {
 
   {
     sqlite.delete_records<student>();
-    sqlite.insert<student>({0, "purecpp", 1});
-    sqlite.insert<student>({0, "purecpp", 2});
-    sqlite.insert<student>({0, "purecpp", 3});
-    sqlite.insert<student>({0, "purecpp", 3});
+    sqlite.insert<student>({"purecpp", 1});
+    sqlite.insert<student>({"purecpp", 2});
+    sqlite.insert<student>({"purecpp", 3});
+    sqlite.insert<student>({"purecpp", 3});
     {
       auto vec = sqlite.query<student>("name='purecpp'", "order by age desc");
       for (auto &[name, age, id] : vec) {
@@ -96,7 +97,6 @@ int main() {
       }
     }
   }
-
 #endif
 
   return 0;

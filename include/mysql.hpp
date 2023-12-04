@@ -99,28 +99,24 @@ class mysql {
   }
 
   template <typename T, typename... Args>
+  int insert(const T &t, bool get_insert_id = false, Args &&...args) {
+    return insert_impl(false, t, get_insert_id, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
   int insert(const std::vector<T> &t, bool get_insert_id = false,
              Args &&...args) {
-    return insert_impl(generate_insert_sql<T>(false), t, get_insert_id,
-                       std::forward<Args>(args)...);
-  }
-
-  template <typename T, typename... Args>
-  int update(const std::vector<T> &t, Args &&...args) {
-    return insert_impl(generate_insert_sql<T>(true), t, false,
-                       std::forward<Args>(args)...);
-  }
-
-  template <typename T, typename... Args>
-  int insert(const T &t, bool get_insert_id = false, Args &&...args) {
-    return insert_impl(generate_insert_sql<T>(false), t, get_insert_id,
-                       std::forward<Args>(args)...);
+    return insert_impl(false, t, get_insert_id, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   int update(const T &t, Args &&...args) {
-    return insert_impl(generate_insert_sql<T>(true), t, false,
-                       std::forward<Args>(args)...);
+    return insert_impl(true, t, false, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  int update(const std::vector<T> &t, Args &&...args) {
+    return insert_impl(true, t, false, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
@@ -497,7 +493,6 @@ class mysql {
         std::string("CREATE TABLE IF NOT EXISTS ") + name.data() + "(";
     auto arr = iguana::get_array<T>();
     constexpr auto SIZE = sizeof...(Args);
-    auto_key_map_[name.data()] = "";
 
     // auto_increment_key and key can't exist at the same time
     using U = std::tuple<std::decay_t<Args>...>;
@@ -548,7 +543,6 @@ class mysql {
               }
               append(sql, " AUTO_INCREMENT");
               append(sql, " PRIMARY KEY");
-              auto_key_map_[name.data()] = item.fields;
               has_add_field = true;
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
@@ -591,16 +585,17 @@ class mysql {
   }
 
   template <typename T>
-  int stmt_execute(const T &t) {
+  int stmt_execute(bool update, const T &t) {
     reset_error();
     std::vector<MYSQL_BIND> param_binds;
-    auto it = auto_key_map_.find(get_name<T>());
-    std::string auto_key = (it == auto_key_map_.end()) ? "" : it->second;
 
-    iguana::for_each(
-        t, [&t, &param_binds, &auto_key, this](const auto &v, auto /*i*/) {
-          set_param_bind(param_binds, t.*v);
-        });
+    iguana::for_each(t, [&t, &param_binds, update, this](auto item, auto i) {
+      if (is_auto_key(iguana::get_name<T>(), iguana::get_name<T>(i).data()) &&
+          !update) {
+        return;
+      }
+      set_param_bind(param_binds, t.*item);
+    });
 
     if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
       set_last_error(mysql_stmt_error(stmt_));
@@ -621,8 +616,9 @@ class mysql {
   }
 
   template <typename T, typename... Args>
-  int insert_impl(const std::string &sql, const T &t,
-                  bool get_insert_id = false, Args &&...args) {
+  int insert_impl(bool update, const T &t, bool get_insert_id = false,
+                  Args &&...args) {
+    std::string sql = generate_insert_sql<T>(update);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -639,7 +635,7 @@ class mysql {
 
     auto guard = guard_statment(stmt_);
 
-    if (stmt_execute(t) < 0) {
+    if (stmt_execute(update, t) == INT_MIN) {
       set_last_error(mysql_stmt_error(stmt_));
       return INT_MIN;
     }
@@ -648,8 +644,9 @@ class mysql {
   }
 
   template <typename T, typename... Args>
-  int insert_impl(const std::string &sql, const std::vector<T> &t,
+  int insert_impl(bool update, const std::vector<T> &t,
                   bool get_insert_id = false, Args &&...args) {
+    std::string sql = generate_insert_sql<T>(update);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -666,22 +663,19 @@ class mysql {
 
     auto guard = guard_statment(stmt_);
 
-    // transaction
-    bool b = begin();
-    if (!b)
+    if (!begin()) {
       return INT_MIN;
+    }
 
     for (auto &item : t) {
-      int r = stmt_execute(item);
-      if (r == INT_MIN) {
+      if (stmt_execute(update, item) == INT_MIN) {
         rollback();
         return INT_MIN;
       }
     }
-    b = commit();
 
-    return b ? (get_insert_id ? stmt_->mysql->insert_id : (int)t.size())
-             : INT_MIN;
+    return commit() ? (get_insert_id ? stmt_->mysql->insert_id : (int)t.size())
+                    : INT_MIN;
   }
 
   template <typename... Args>
@@ -723,7 +717,6 @@ class mysql {
   MYSQL_STMT *stmt_ = nullptr;
   inline static bool has_error_ = false;
   inline static std::string last_error_;
-  inline static std::map<std::string, std::string> auto_key_map_;
 };
 }  // namespace ormpp
 

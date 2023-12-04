@@ -11,6 +11,47 @@
 
 namespace ormpp {
 
+inline std::unordered_map<std::string_view, std::string_view>
+    g_ormpp_auto_key_map;
+
+inline int add_auto_key_field(std::string_view key, std::string_view value) {
+  g_ormpp_auto_key_map.emplace(key, value);
+  return 0;
+}
+
+inline auto is_auto_key(std::string_view key, std::string_view value) {
+  auto it = g_ormpp_auto_key_map.find(key);
+  return it == g_ormpp_auto_key_map.end() ? false : it->second == value;
+}
+
+#define REGISTER_AUTO_KEY(STRUCT_NAME, KEY)         \
+  inline auto IGUANA_UNIQUE_VARIABLE(STRUCT_NAME) = \
+      add_auto_key_field(#STRUCT_NAME, #KEY);
+
+#ifdef ORMPP_ENABLE_PG
+inline std::unordered_map<std::string_view, std::string_view>
+    g_ormpp_conflict_key_map;
+
+inline int add_conflict_key_field(std::string_view key,
+                                  std::string_view value) {
+  g_ormpp_conflict_key_map.emplace(key, value);
+  return 0;
+}
+
+inline auto get_conflict_key(std::string_view key) {
+  auto it = g_ormpp_conflict_key_map.find(key);
+  if (it == g_ormpp_conflict_key_map.end()) {
+    auto auto_key = g_ormpp_auto_key_map.find(key);
+    return auto_key == g_ormpp_auto_key_map.end() ? "" : auto_key->second;
+  }
+  return it->second;
+}
+
+#define REGISTER_CONFLICT_KEY(STRUCT_NAME, ...)     \
+  inline auto IGUANA_UNIQUE_VARIABLE(STRUCT_NAME) = \
+      add_conflict_key_field(#STRUCT_NAME, {MAKE_NAMES(__VA_ARGS__)});
+#endif
+
 template <typename T>
 struct is_optional_v : std::false_type {};
 
@@ -59,7 +100,6 @@ inline void append_impl(std::string &sql, const T &str) {
 template <typename... Args>
 inline void append(std::string &sql, Args &&...args) {
   (append_impl(sql, std::forward<Args>(args)), ...);
-  //((sql+=std::forward<Args>(args), sql+=" "),...);
 }
 
 template <typename... Args>
@@ -145,42 +185,24 @@ inline std::string get_name() {
 
 template <typename T, typename = std::enable_if_t<iguana::is_reflection_v<T>>>
 inline std::string get_fields() {
-  static std::string alisa_fields;
-  if (!alisa_fields.empty()) {
-    return alisa_fields;
+  static std::string fields;
+  if (!fields.empty()) {
+    return fields;
   }
   for (const auto &it : iguana::Reflect_members<T>::arr()) {
 #ifdef ORMPP_ENABLE_MYSQL
-    alisa_fields += "`" + std::string(it.data()) + "`";
+    fields += "`" + std::string(it.data()) + "`";
 #else
-    alisa_fields += it.data();
+    fields += it.data();
 #endif
-    alisa_fields += ",";
+    fields += ",";
   }
-  alisa_fields.back() = ' ';
-  return alisa_fields;
+  fields.back() = ' ';
+  return fields;
 }
 
 template <typename T>
 inline std::string generate_insert_sql(bool replace) {
-  std::string sql = replace ? "replace into " : "insert into ";
-  constexpr size_t SIZE = iguana::get_value<T>();
-  auto name = get_name<T>();
-  auto fields = get_fields<T>();
-  append(sql, name.data(), "(", fields.data(), ")", "values(");
-  for (size_t i = 0; i < SIZE; ++i) {
-    sql += "?";
-    if (i < SIZE - 1)
-      sql += ", ";
-    else
-      sql += ");";
-  }
-  return sql;
-}
-
-template <typename T>
-inline std::string generate_auto_insert_sql(
-    const std::map<std::string, std::string> &auto_key_map_, bool replace) {
   std::string sql = replace ? "replace into " : "insert into ";
   constexpr auto SIZE = iguana::get_value<T>();
   auto name = get_name<T>();
@@ -189,23 +211,24 @@ inline std::string generate_auto_insert_sql(
   int index = 0;
   std::string fields = "(";
   std::string values = "values(";
-  auto it = auto_key_map_.find(name.data());
-  for (auto i = 0; i < SIZE; ++i) {
+  for (size_t i = 0; i < SIZE; ++i) {
     std::string field_name = iguana::get_name<T>(i).data();
-    if (it != auto_key_map_.end() && it->second == field_name) {
+    if (is_auto_key(iguana::get_name<T>(), field_name)) {
       continue;
     }
-
 #ifdef ORMPP_ENABLE_PG
     values += "$" + std::to_string(++index);
 #else
     values += "?";
 #endif
-
+#ifdef ORMPP_ENABLE_MYSQL
+    fields += "`" + field_name + "`";
+#else
     fields += field_name;
+#endif
     if (i < SIZE - 1) {
-      fields += ", ";
-      values += ", ";
+      fields += ",";
+      values += ",";
     }
     else {
       fields += ")";
