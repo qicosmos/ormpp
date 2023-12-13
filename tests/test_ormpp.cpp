@@ -45,9 +45,7 @@ struct student {
   double dm;
   std::string classroom;
 };
-#ifdef ORMPP_ENABLE_PG
 REGISTER_CONFLICT_KEY(student, code)
-#endif
 REFLECTION(student, code, name, sex, age, dm, classroom)
 
 struct simple {
@@ -1125,7 +1123,6 @@ TEST_CASE("query tuple_optional_t") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
-    mysql.execute("drop table if exists tuple_optional_t");
     mysql.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
     mysql.insert<tuple_optional_t>({"purecpp", 6});
     mysql.insert<tuple_optional_t>({std::nullopt});
@@ -1155,7 +1152,6 @@ TEST_CASE("query tuple_optional_t") {
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
   if (postgres.connect(ip, username, password, db)) {
-    postgres.execute("drop table if exists tuple_optional_t");
     postgres.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
     postgres.insert<tuple_optional_t>({"purecpp", 6});
     postgres.insert<tuple_optional_t>({std::nullopt});
@@ -1185,7 +1181,6 @@ TEST_CASE("query tuple_optional_t") {
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
-    sqlite.execute("drop table if exists tuple_optional_t");
     sqlite.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
     sqlite.insert<tuple_optional_t>({"purecpp", 6});
     sqlite.insert<tuple_optional_t>({std::nullopt});

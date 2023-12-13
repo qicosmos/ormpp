@@ -28,7 +28,6 @@ inline auto is_auto_key(std::string_view key, std::string_view value) {
   inline auto IGUANA_UNIQUE_VARIABLE(STRUCT_NAME) = \
       add_auto_key_field(#STRUCT_NAME, #KEY);
 
-#ifdef ORMPP_ENABLE_PG
 inline std::unordered_map<std::string_view, std::string_view>
     g_ormpp_conflict_key_map;
 
@@ -50,7 +49,6 @@ inline auto get_conflict_key(std::string_view key) {
 #define REGISTER_CONFLICT_KEY(STRUCT_NAME, ...)     \
   inline auto IGUANA_UNIQUE_VARIABLE(STRUCT_NAME) = \
       add_conflict_key_field(#STRUCT_NAME, {MAKE_NAMES(__VA_ARGS__)});
-#endif
 
 template <typename T>
 struct is_optional_v : std::false_type {};
