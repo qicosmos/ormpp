@@ -670,20 +670,14 @@ class mysql {
   int insert_impl(OptType type, const T &t, bool get_insert_id,
                   Args &&...args) {
     std::string sql = generate_insert_sql<T>(type == OptType::insert);
-    if (insert_or_update_impl(t, sql, type) == INT_MIN) {
-      return INT_MIN;
-    }
-    return get_insert_id ? stmt_->mysql->insert_id : 1;
+    return insert_or_update_impl(t, sql, type, get_insert_id);
   }
 
   template <typename T, typename... Args>
   int insert_impl(OptType type, const std::vector<T> &v, bool get_insert_id,
                   Args &&...args) {
     std::string sql = generate_insert_sql<T>(type == OptType::insert);
-    if (insert_or_update_impl(v, sql, type) == INT_MIN) {
-      return INT_MIN;
-    }
-    return get_insert_id ? stmt_->mysql->insert_id : (int)v.size();
+    return insert_or_update_impl(v, sql, type, get_insert_id);
   }
 
   template <typename T, typename... Args>
@@ -699,7 +693,8 @@ class mysql {
   }
 
   template <typename T>
-  int insert_or_update_impl(const T &t, const std::string &sql, OptType type) {
+  int insert_or_update_impl(const T &t, const std::string &sql, OptType type,
+                            bool get_insert_id = false) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -721,12 +716,12 @@ class mysql {
       return INT_MIN;
     }
 
-    return 1;
+    return get_insert_id ? stmt_->mysql->insert_id : 1;
   }
 
   template <typename T>
   int insert_or_update_impl(const std::vector<T> &v, const std::string &sql,
-                            OptType type) {
+                            OptType type, bool get_insert_id = false) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -754,7 +749,8 @@ class mysql {
       }
     }
 
-    return commit() ? (int)v.size() : INT_MIN;
+    return commit() ? get_insert_id ? stmt_->mysql->insert_id : (int)v.size()
+                    : INT_MIN;
   }
 
   template <typename... Args>

@@ -339,7 +339,7 @@ inline std::string generate_update_sql(Args &&...args) {
     fields += field_name;
 #endif
 #ifdef ORMPP_ENABLE_PG
-    append(fields, "=", "$" + std::to_string(++index));
+    append(fields, " =", "$" + std::to_string(++index));
 #else
     fields += " = ?";
 #endif
@@ -349,11 +349,15 @@ inline std::string generate_update_sql(Args &&...args) {
   }
   std::string conflict = "where 1=1";
   if constexpr (sizeof...(Args) > 0) {
-    append(conflict, " and ", args...);
+    append(conflict, " and", args...);
   }
   else {
     for (const auto &it : get_conflict_keys<T>()) {
-      append(conflict, " and ", it, " = ?");
+#ifdef ORMPP_ENABLE_PG
+      append(conflict, " and", it, "=", "$" + std::to_string(++index));
+#else
+      append(conflict, " and", it, "= ?");
+#endif
     }
   }
   append(sql, fields, conflict);
