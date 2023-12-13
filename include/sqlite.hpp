@@ -73,23 +73,35 @@ class sqlite {
 
   template <typename T, typename... Args>
   int insert(const T &t, bool get_insert_id = false, Args &&...args) {
-    return insert_impl(false, t, get_insert_id, std::forward<Args>(args)...);
+    return insert_impl(OptType::insert, t, get_insert_id,
+                       std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   int insert(const std::vector<T> &t, bool get_insert_id = false,
              Args &&...args) {
-    return insert_impl(false, t, get_insert_id, std::forward<Args>(args)...);
+    return insert_impl(OptType::insert, t, get_insert_id,
+                       std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  int replace(const T &t, Args &&...args) {
+    return insert_impl(OptType::replace, t, false, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  int replace(const std::vector<T> &t, Args &&...args) {
+    return insert_impl(OptType::replace, t, false, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   int update(const T &t, Args &&...args) {
-    return insert_impl(true, t, false, std::forward<Args>(args)...);
+    return update_impl(t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   int update(const std::vector<T> &t, Args &&...args) {
-    return insert_impl(true, t, false, std::forward<Args>(args)...);
+    return update_impl(t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
@@ -357,19 +369,30 @@ class sqlite {
   }
 
   template <typename T>
-  constexpr int stmt_execute(bool update, const T &t) {
+  constexpr int stmt_execute(OptType type, const T &t) {
     int index = 0;
     bool bind_ok = true;
-    iguana::for_each(t, [&t, &bind_ok, &index, update, this](auto item,
-                                                             auto i) {
-      if ((is_auto_key(iguana::get_name<T>(), iguana::get_name<T>(i).data()) ||
-           !bind_ok) &&
-          !update) {
+    iguana::for_each(t, [&t, &bind_ok, &index, type, this](auto item, auto i) {
+      if ((type == OptType::insert &&
+           is_auto_key<T>(iguana::get_name<T>(i).data())) ||
+          !bind_ok) {
         return;
       }
       bind_ok = set_param_bind(t.*item, index + 1);
       index++;
     });
+
+    if (type == OptType::update) {
+      iguana::for_each(t, [&t, &bind_ok, &index, this](auto item, auto i) {
+        if (!bind_ok) {
+          return;
+        }
+        if (is_conflict_key<T>(iguana::get_name<T>(i).data())) {
+          bind_ok = set_param_bind(t.*item, index + 1);
+          index++;
+        }
+      });
+    }
 
     if (!bind_ok) {
       set_last_error(sqlite3_errmsg(handle_));
@@ -463,9 +486,39 @@ class sqlite {
   }
 
   template <typename T, typename... Args>
-  int insert_impl(bool update, const T &t, bool get_insert_id = false,
+  int insert_impl(OptType type, const T &t, bool get_insert_id,
                   Args &&...args) {
-    std::string sql = generate_insert_sql<T>(update);
+    std::string sql = generate_insert_sql<T>(type == OptType::insert);
+    if (insert_or_update_impl(t, sql, type) == INT_MIN) {
+      return INT_MIN;
+    }
+    return get_insert_id ? sqlite3_last_insert_rowid(handle_) : 1;
+  }
+
+  template <typename T, typename... Args>
+  int insert_impl(OptType type, const std::vector<T> &v, bool get_insert_id,
+                  Args &&...args) {
+    std::string sql = generate_insert_sql<T>(type == OptType::insert);
+    if (insert_or_update_impl(v, sql, type) == INT_MIN) {
+      return INT_MIN;
+    }
+    return get_insert_id ? sqlite3_last_insert_rowid(handle_) : (int)v.size();
+  }
+
+  template <typename T, typename... Args>
+  int update_impl(const T &t, Args &&...args) {
+    std::string sql = generate_update_sql<T>(std::forward<Args>(args)...);
+    return insert_or_update_impl(t, sql, OptType::update);
+  }
+
+  template <typename T, typename... Args>
+  int update_impl(const std::vector<T> &v, Args &&...args) {
+    std::string sql = generate_update_sql<T>(std::forward<Args>(args)...);
+    return insert_or_update_impl(v, sql, OptType::update);
+  }
+
+  template <typename T>
+  int insert_or_update_impl(const T &t, const std::string &sql, OptType type) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -477,18 +530,17 @@ class sqlite {
 
     auto guard = guard_statment(stmt_);
 
-    if (stmt_execute(update, t) == INT_MIN) {
+    if (stmt_execute(type, t) == INT_MIN) {
       set_last_error(sqlite3_errmsg(handle_));
       return INT_MIN;
     }
 
-    return get_insert_id ? sqlite3_last_insert_rowid(handle_) : 1;
+    return 1;
   }
 
-  template <typename T, typename... Args>
-  int insert_impl(bool update, const std::vector<T> &v,
-                  bool get_insert_id = false, Args &&...args) {
-    std::string sql = generate_insert_sql<T>(update);
+  template <typename T>
+  int insert_or_update_impl(const std::vector<T> &v, const std::string &sql,
+                            OptType type) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -505,7 +557,7 @@ class sqlite {
     }
 
     for (auto &item : v) {
-      if (stmt_execute(update, item) == INT_MIN) {
+      if (stmt_execute(type, item) == INT_MIN) {
         rollback();
         return INT_MIN;
       }
@@ -517,9 +569,7 @@ class sqlite {
       }
     }
 
-    return commit() ? (get_insert_id ? sqlite3_last_insert_rowid(handle_)
-                                     : (int)v.size())
-                    : INT_MIN;
+    return commit() ? (int)v.size() : INT_MIN;
   }
 
  private:

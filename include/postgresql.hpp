@@ -75,22 +75,32 @@ class postgresql {
 
   template <typename T, typename... Args>
   constexpr int insert(const T &t, Args &&...args) {
-    return insert_impl(false, t, std::forward<Args>(args)...);
+    return insert_impl(OptType::insert, t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   constexpr int insert(const std::vector<T> &v, Args &&...args) {
-    return insert_impl(false, v, std::forward<Args>(args)...);
+    return insert_impl(OptType::insert, v, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  constexpr int replace(const T &t, Args &&...args) {
+    return insert_impl(OptType::replace, t, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  constexpr int replace(const std::vector<T> &v, Args &&...args) {
+    return insert_impl(OptType::replace, v, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   constexpr int update(const T &t, Args &&...args) {
-    return insert_impl(true, t, std::forward<Args>(args)...);
+    return update_impl(t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
   constexpr int update(const std::vector<T> &v, Args &&...args) {
-    return insert_impl(true, v, std::forward<Args>(args)...);
+    return update_impl(v, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
@@ -359,15 +369,23 @@ class postgresql {
   }
 
   template <typename T>
-  constexpr int stmt_execute(bool update, const T &t) {
+  constexpr int stmt_execute(OptType type, const T &t) {
     std::vector<std::vector<char>> param_values;
-    iguana::for_each(t, [&t, &param_values, update, this](auto item, auto i) {
-      if (is_auto_key(iguana::get_name<T>(), iguana::get_name<T>(i).data()) &&
-          !update) {
+    iguana::for_each(t, [&t, &param_values, type, this](auto item, auto i) {
+      if (type == OptType::insert &&
+          is_auto_key<T>(iguana::get_name<T>(i).data())) {
         return;
       }
       set_param_values(param_values, t.*item);
     });
+
+    if (type == OptType::update) {
+      iguana::for_each(t, [&t, &param_values, this](auto item, auto i) {
+        if (is_conflict_key<T>(iguana::get_name<T>(i).data())) {
+          set_param_values(param_values, t.*item);
+        }
+      });
+    }
 
     if (param_values.empty())
       return INT_MIN;
@@ -385,26 +403,46 @@ class postgresql {
   }
 
   template <typename T, typename... Args>
-  constexpr int insert_impl(bool update, const T &t, Args &&...args) {
-    std::string sql =
-        update ? generate_update_sql<T>(std::forward<Args...>(args)...)
-               : generate_insert_sql<T>(update);
+  constexpr int insert_impl(OptType type, const T &t, Args &&...args) {
+    std::string sql = generate_insert_sql<T>(type == OptType::insert,
+                                             std::forward<Args>(args)...);
+    return insert_or_update_impl(t, sql, type);
+  }
+
+  template <typename T, typename... Args>
+  constexpr int insert_impl(OptType type, const std::vector<T> &v,
+                            Args &&...args) {
+    std::string sql = generate_insert_sql<T>(type == OptType::insert,
+                                             std::forward<Args>(args)...);
+    return insert_or_update_impl(v, sql, type);
+  }
+
+  template <typename T, typename... Args>
+  int update_impl(const T &t, Args &&...args) {
+    std::string sql = generate_update_sql<T>(std::forward<Args>(args)...);
+    return insert_or_update_impl(t, sql, OptType::update);
+  }
+
+  template <typename T, typename... Args>
+  int update_impl(const std::vector<T> &v, Args &&...args) {
+    std::string sql = generate_update_sql<T>(std::forward<Args>(args)...);
+    return insert_or_update_impl(v, sql, OptType::update);
+  }
+
+  template <typename T>
+  int insert_or_update_impl(const T &t, const std::string &sql, OptType type) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     if (!prepare<T>(sql)) {
       return INT_MIN;
     }
-
-    return stmt_execute(update, t);
+    return stmt_execute(type, t);
   }
 
-  template <typename T, typename... Args>
-  constexpr int insert_impl(bool update, const std::vector<T> &v,
-                            Args &&...args) {
-    std::string sql =
-        update ? generate_update_sql<T>(std::forward<Args...>(args)...)
-               : generate_insert_sql<T>(update);
+  template <typename T>
+  int insert_or_update_impl(const std::vector<T> &v, const std::string &sql,
+                            OptType type) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -417,7 +455,7 @@ class postgresql {
     }
 
     for (auto &item : v) {
-      if (stmt_execute(update, item) == INT_MIN) {
+      if (stmt_execute(type, item) == INT_MIN) {
         rollback();
         return INT_MIN;
       }
@@ -427,45 +465,6 @@ class postgresql {
       return INT_MIN;
 
     return (int)v.size();
-  }
-
-  template <typename T, typename... Args>
-  inline std::string generate_update_sql(Args &&...args) {
-    constexpr auto SIZE = iguana::get_value<T>();
-    std::string sql = "insert into ";
-    auto name = get_name<T>();
-    append(sql, name.data());
-    int index = 0;
-    std::string set;
-    std::string fields = "(";
-    std::string values = "values(";
-    for (auto i = 0; i < SIZE; ++i) {
-      std::string field_name = iguana::get_name<T>(i).data();
-      std::string value = "$" + std::to_string(++index);
-      set += field_name + "=" + value;
-      fields += field_name;
-      values += value;
-      if (i < SIZE - 1) {
-        fields += ",";
-        values += ",";
-        set += ",";
-      }
-      else {
-        fields += ")";
-        values += ")";
-        set += ";";
-      }
-    }
-    std::string conflict = "on conflict(";
-    if constexpr (sizeof...(Args) > 0) {
-      append(conflict, args...);
-    }
-    else {
-      conflict += get_conflict_key(iguana::get_name<T>());
-    }
-    conflict += ")";
-    append(sql, fields, values, conflict, "do update set", set);
-    return sql;
   }
 
   template <typename T>

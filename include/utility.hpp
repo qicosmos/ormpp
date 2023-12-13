@@ -19,9 +19,10 @@ inline int add_auto_key_field(std::string_view key, std::string_view value) {
   return 0;
 }
 
-inline auto is_auto_key(std::string_view key, std::string_view value) {
-  auto it = g_ormpp_auto_key_map.find(key);
-  return it == g_ormpp_auto_key_map.end() ? false : it->second == value;
+template <typename T>
+inline auto is_auto_key(std::string_view field_name) {
+  auto it = g_ormpp_auto_key_map.find(iguana::get_name<T>());
+  return it == g_ormpp_auto_key_map.end() ? false : it->second == field_name;
 }
 
 #define REGISTER_AUTO_KEY(STRUCT_NAME, KEY)         \
@@ -115,6 +116,7 @@ inline auto sort_tuple(const std::tuple<Args...> &tp) {
   }
 }
 
+enum class OptType { insert, update, replace };
 enum class DBType { mysql, sqlite, postgresql, unknown };
 
 template <typename T>
@@ -189,7 +191,7 @@ inline std::string get_fields() {
   }
   for (const auto &it : iguana::Reflect_members<T>::arr()) {
 #ifdef ORMPP_ENABLE_MYSQL
-    fields += "`" + std::string(it.data()) + "`";
+    append(fields, "`", std::string(it.data()), "`");
 #else
     fields += it.data();
 #endif
@@ -199,9 +201,83 @@ inline std::string get_fields() {
   return fields;
 }
 
+template <typename T, typename = std::enable_if_t<iguana::is_reflection_v<T>>>
+inline std::vector<std::string> get_conflict_keys() {
+  static std::vector<std::string> res;
+  if (!res.empty()) {
+    return res;
+  }
+  std::stringstream s(get_conflict_key(iguana::get_name<T>()).data());
+  while (s.good()) {
+    std::string str;
+    getline(s, str, ',');
+    if (str.front() == ' ') {
+      str.erase(0);
+    }
+    if (str.back() == ' ') {
+      str.pop_back();
+    }
+#ifdef ORMPP_ENABLE_MYSQL
+    str.insert(0, "`");
+    str.append("`");
+#endif
+    res.emplace_back(str);
+  }
+  return res;
+}
+
 template <typename T>
-inline std::string generate_insert_sql(bool replace) {
-  std::string sql = replace ? "replace into " : "insert into ";
+inline auto is_conflict_key(std::string_view field_name) {
+  for (const auto &it : get_conflict_keys<T>()) {
+    if (it == field_name) {
+      return true;
+    }
+  }
+  return false;
+}
+
+template <typename T, typename... Args>
+inline std::string generate_insert_sql(bool insert, Args &&...args) {
+#ifdef ORMPP_ENABLE_PG
+  if (!insert) {
+    constexpr auto SIZE = iguana::get_value<T>();
+    std::string sql = "insert into ";
+    auto name = get_name<T>();
+    append(sql, name.data());
+    int index = 0;
+    std::string set;
+    std::string fields = "(";
+    std::string values = "values(";
+    for (auto i = 0; i < SIZE; ++i) {
+      std::string field_name = iguana::get_name<T>(i).data();
+      std::string value = "$" + std::to_string(++index);
+      append(set, field_name, " = ", value);
+      fields += field_name;
+      values += value;
+      if (i < SIZE - 1) {
+        fields += ",";
+        values += ",";
+        set += ",";
+      }
+      else {
+        fields += ")";
+        values += ")";
+        set += ";";
+      }
+    }
+    std::string conflict = "on conflict(";
+    if constexpr (sizeof...(Args) > 0) {
+      append(conflict, args...);
+    }
+    else {
+      conflict += get_conflict_key(iguana::get_name<T>());
+    }
+    conflict += ")";
+    append(sql, fields, values, conflict, "do update set", set);
+    return sql;
+  }
+#endif
+  std::string sql = insert ? "insert into " : "replace into ";
   constexpr auto SIZE = iguana::get_value<T>();
   auto name = get_name<T>();
   append(sql, name.data());
@@ -211,7 +287,7 @@ inline std::string generate_insert_sql(bool replace) {
   std::string values = "values(";
   for (size_t i = 0; i < SIZE; ++i) {
     std::string field_name = iguana::get_name<T>(i).data();
-    if (is_auto_key(iguana::get_name<T>(), field_name)) {
+    if (is_auto_key<T>(field_name)) {
       continue;
     }
 #ifdef ORMPP_ENABLE_PG
@@ -220,7 +296,7 @@ inline std::string generate_insert_sql(bool replace) {
     values += "?";
 #endif
 #ifdef ORMPP_ENABLE_MYSQL
-    fields += "`" + field_name + "`";
+    append(fields, "`", field_name, "`");
 #else
     fields += field_name;
 #endif
@@ -242,6 +318,44 @@ inline std::string generate_insert_sql(bool replace) {
     values.back() = ')';
   }
   append(sql, fields, values);
+  return sql;
+}
+
+template <typename T, typename... Args>
+inline std::string generate_update_sql(Args &&...args) {
+  constexpr auto SIZE = iguana::get_value<T>();
+  std::string sql = "update ";
+  auto name = get_name<T>();
+  append(sql, name.data());
+  append(sql, "set");
+
+  int index = 0;
+  std::string fields;
+  for (size_t i = 0; i < SIZE; ++i) {
+#ifdef ORMPP_ENABLE_MYSQL
+    append(fields, "`", iguana::get_name<T>(i).data(), "`");
+#else
+    fields += iguana::get_name<T>(i).data();
+#endif
+#ifdef ORMPP_ENABLE_PG
+    append(fields, " = $", std::to_string(++index));
+#else
+    fields += " = ?";
+#endif
+    if (i < SIZE - 1) {
+      fields += ", ";
+    }
+  }
+  std::string conflict = "where 1=1";
+  if constexpr (sizeof...(Args) > 0) {
+    append(conflict, " and ", args...);
+  }
+  else {
+    for (const auto &it : get_conflict_keys<T>()) {
+      append(conflict, " and ", it, " = ?");
+    }
+  }
+  append(sql, fields, conflict);
   return sql;
 }
 
