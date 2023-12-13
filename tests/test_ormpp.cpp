@@ -45,9 +45,7 @@ struct student {
   double dm;
   std::string classroom;
 };
-#ifdef ORMPP_ENABLE_PG
 REGISTER_CONFLICT_KEY(student, code)
-#endif
 REFLECTION(student, code, name, sex, age, dm, classroom)
 
 struct simple {
@@ -1109,6 +1107,104 @@ TEST_CASE("delete records") {
     sqlite.delete_records<person>("name = 'other';drop table person");
     auto vec = sqlite.query<person>();
     CHECK(vec.size() == 1);
+  }
+#endif
+}
+
+struct tuple_optional_t {
+  std::optional<std::string> name;
+  std::optional<int> age;
+  int id;
+};
+REGISTER_AUTO_KEY(tuple_optional_t, id)
+REFLECTION(tuple_optional_t, id, name, age)
+
+TEST_CASE("query tuple_optional_t") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
+    mysql.insert<tuple_optional_t>({"purecpp", 6});
+    mysql.insert<tuple_optional_t>({std::nullopt});
+    auto vec =
+        mysql.query<std::tuple<tuple_optional_t, std::optional<std::string>,
+                               std::optional<int>>>(
+            "select id,name,age,name,age from tuple_optional_t;");
+    CHECK(vec.size() == 2);
+    auto tp1 = vec.front();
+    auto tp2 = vec.back();
+    auto p1 = std::get<0>(tp1);
+    auto p2 = std::get<0>(tp2);
+    auto n1 = std::get<1>(tp1);
+    auto n2 = std::get<1>(tp2);
+    auto a1 = std::get<2>(tp1);
+    auto a2 = std::get<2>(tp2);
+    CHECK(p1.name.value() == "purecpp");
+    CHECK(p1.age.value() == 6);
+    CHECK(p2.name.has_value() == false);
+    CHECK(p2.age.has_value() == false);
+    CHECK(n1.value() == "purecpp");
+    CHECK(n2.has_value() == false);
+    CHECK(a1.value() == 6);
+    CHECK(a2.has_value() == false);
+  }
+#endif
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
+    postgres.insert<tuple_optional_t>({"purecpp", 6});
+    postgres.insert<tuple_optional_t>({std::nullopt});
+    auto vec =
+        postgres.query<std::tuple<tuple_optional_t, std::optional<std::string>,
+                                  std::optional<int>>>(
+            "select id,name,age,name,age from tuple_optional_t;");
+    CHECK(vec.size() == 2);
+    auto tp1 = vec.front();
+    auto tp2 = vec.back();
+    auto p1 = std::get<0>(tp1);
+    auto p2 = std::get<0>(tp2);
+    auto n1 = std::get<1>(tp1);
+    auto n2 = std::get<1>(tp2);
+    auto a1 = std::get<2>(tp1);
+    auto a2 = std::get<2>(tp2);
+    CHECK(p1.name.value() == "purecpp");
+    CHECK(p1.age.value() == 6);
+    CHECK(p2.name.has_value() == false);
+    CHECK(p2.age.has_value() == false);
+    CHECK(n1.value() == "purecpp");
+    CHECK(n2.has_value() == false);
+    CHECK(a1.value() == 6);
+    CHECK(a2.has_value() == false);
+  }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
+    sqlite.insert<tuple_optional_t>({"purecpp", 6});
+    sqlite.insert<tuple_optional_t>({std::nullopt});
+    auto vec =
+        sqlite.query<std::tuple<tuple_optional_t, std::optional<std::string>,
+                                std::optional<int>>>(
+            "select id,name,age,name,age from tuple_optional_t;");
+    CHECK(vec.size() == 2);
+    auto tp1 = vec.front();
+    auto tp2 = vec.back();
+    auto p1 = std::get<0>(tp1);
+    auto p2 = std::get<0>(tp2);
+    auto n1 = std::get<1>(tp1);
+    auto n2 = std::get<1>(tp2);
+    auto a1 = std::get<2>(tp1);
+    auto a2 = std::get<2>(tp2);
+    CHECK(p1.name.value() == "purecpp");
+    CHECK(p1.age.value() == 6);
+    CHECK(p2.name.has_value() == false);
+    CHECK(p2.age.has_value() == false);
+    CHECK(n1.value() == "purecpp");
+    CHECK(n2.has_value() == false);
+    CHECK(a1.value() == 6);
+    CHECK(a2.has_value() == false);
   }
 #endif
 }
