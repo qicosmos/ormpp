@@ -369,7 +369,7 @@ class postgresql {
   }
 
   template <typename T>
-  constexpr int stmt_execute(OptType type, const T &t) {
+  constexpr int stmt_execute(const T &t, OptType type, bool condition) {
     std::vector<std::vector<char>> param_values;
     iguana::for_each(t, [&t, &param_values, type, this](auto item, auto i) {
       if (type == OptType::insert &&
@@ -379,7 +379,7 @@ class postgresql {
       set_param_values(param_values, t.*item);
     });
 
-    if (type == OptType::update) {
+    if (condition && type == OptType::update) {
       iguana::for_each(t, [&t, &param_values, this](auto item, auto i) {
         if (is_conflict_key<T>(iguana::get_name<T>(i).data())) {
           set_param_values(param_values, t.*item);
@@ -419,30 +419,35 @@ class postgresql {
 
   template <typename T, typename... Args>
   int update_impl(const T &t, Args &&...args) {
-    std::string sql = generate_update_sql<T>(std::forward<Args>(args)...);
-    return insert_or_update_impl(t, sql, OptType::update);
+    bool condition = true;
+    std::string sql =
+        generate_update_sql<T>(condition, std::forward<Args>(args)...);
+    return insert_or_update_impl(t, sql, OptType::update, condition);
   }
 
   template <typename T, typename... Args>
   int update_impl(const std::vector<T> &v, Args &&...args) {
-    std::string sql = generate_update_sql<T>(std::forward<Args>(args)...);
-    return insert_or_update_impl(v, sql, OptType::update);
+    bool condition = true;
+    std::string sql =
+        generate_update_sql<T>(condition, std::forward<Args>(args)...);
+    return insert_or_update_impl(v, sql, OptType::update, condition);
   }
 
   template <typename T>
-  int insert_or_update_impl(const T &t, const std::string &sql, OptType type) {
+  int insert_or_update_impl(const T &t, const std::string &sql, OptType type,
+                            bool condition = true) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     if (!prepare<T>(sql)) {
       return INT_MIN;
     }
-    return stmt_execute(type, t);
+    return stmt_execute(t, type, condition);
   }
 
   template <typename T>
   int insert_or_update_impl(const std::vector<T> &v, const std::string &sql,
-                            OptType type) {
+                            OptType type, bool condition = true) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -455,7 +460,7 @@ class postgresql {
     }
 
     for (auto &item : v) {
-      if (stmt_execute(type, item) == INT_MIN) {
+      if (stmt_execute(item, type, condition) == INT_MIN) {
         rollback();
         return INT_MIN;
       }

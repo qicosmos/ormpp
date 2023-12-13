@@ -322,7 +322,7 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
 }
 
 template <typename T, typename... Args>
-inline std::string generate_update_sql(Args &&...args) {
+inline std::string generate_update_sql(bool &condition, Args &&...args) {
   constexpr auto SIZE = iguana::get_value<T>();
   std::string sql = "update ";
   auto name = get_name<T>();
@@ -350,6 +350,7 @@ inline std::string generate_update_sql(Args &&...args) {
   std::string conflict = "where 1=1";
   if constexpr (sizeof...(Args) > 0) {
     append(conflict, " and", args...);
+    condition = false;
   }
   else {
     for (const auto &it : get_conflict_keys<T>()) {

@@ -369,7 +369,7 @@ class sqlite {
   }
 
   template <typename T>
-  constexpr int stmt_execute(OptType type, const T &t) {
+  constexpr int stmt_execute(const T &t, OptType type, bool condition) {
     int index = 0;
     bool bind_ok = true;
     iguana::for_each(t, [&t, &bind_ok, &index, type, this](auto item, auto i) {
@@ -382,7 +382,7 @@ class sqlite {
       index++;
     });
 
-    if (type == OptType::update) {
+    if (condition && type == OptType::update) {
       iguana::for_each(t, [&t, &bind_ok, &index, this](auto item, auto i) {
         if (!bind_ok) {
           return;
@@ -501,19 +501,23 @@ class sqlite {
 
   template <typename T, typename... Args>
   int update_impl(const T &t, Args &&...args) {
-    std::string sql = generate_update_sql<T>(std::forward<Args>(args)...);
-    return insert_or_update_impl(t, sql, OptType::update);
+    bool condition = true;
+    std::string sql =
+        generate_update_sql<T>(condition, std::forward<Args>(args)...);
+    return insert_or_update_impl(t, sql, OptType::update, false, condition);
   }
 
   template <typename T, typename... Args>
   int update_impl(const std::vector<T> &v, Args &&...args) {
-    std::string sql = generate_update_sql<T>(std::forward<Args>(args)...);
-    return insert_or_update_impl(v, sql, OptType::update);
+    bool condition = true;
+    std::string sql =
+        generate_update_sql<T>(condition, std::forward<Args>(args)...);
+    return insert_or_update_impl(v, sql, OptType::update, false, condition);
   }
 
   template <typename T>
   int insert_or_update_impl(const T &t, const std::string &sql, OptType type,
-                            bool get_insert_id = false) {
+                            bool get_insert_id = false, bool condition = true) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -525,7 +529,7 @@ class sqlite {
 
     auto guard = guard_statment(stmt_);
 
-    if (stmt_execute(type, t) == INT_MIN) {
+    if (stmt_execute(t, type, condition) == INT_MIN) {
       set_last_error(sqlite3_errmsg(handle_));
       return INT_MIN;
     }
@@ -535,7 +539,8 @@ class sqlite {
 
   template <typename T>
   int insert_or_update_impl(const std::vector<T> &v, const std::string &sql,
-                            OptType type, bool get_insert_id = false) {
+                            OptType type, bool get_insert_id = false,
+                            bool condition = true) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -552,7 +557,7 @@ class sqlite {
     }
 
     for (auto &item : v) {
-      if (stmt_execute(type, item) == INT_MIN) {
+      if (stmt_execute(item, type, condition) == INT_MIN) {
         rollback();
         return INT_MIN;
       }
