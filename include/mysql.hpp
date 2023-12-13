@@ -342,6 +342,38 @@ class mysql {
           },
           std::make_index_sequence<SIZE>{});
 
+      for (auto &p : mp) {
+        p.second.assign(p.second.size(), 0);
+      }
+
+      index = 0;
+      iguana::for_each(
+          tp,
+          [&index, nulls, &tp](auto &t, auto /*i*/) {
+            using U = std::remove_reference_t<decltype(t)>;
+            if constexpr (iguana::is_reflection_v<U>) {
+              iguana::for_each(t, [&index, nulls, &t](auto ele, auto /*i*/) {
+                if (nulls.at(index++)) {
+                  using W =
+                      std::remove_reference_t<decltype(std::declval<U>().*ele)>;
+                  if constexpr (is_optional_v<W>::value ||
+                                std::is_arithmetic_v<W>) {
+                    t.*ele = {};
+                  }
+                }
+              });
+            }
+            else {
+              if (nulls.at(index++)) {
+                if constexpr (is_optional_v<U>::value ||
+                              std::is_arithmetic_v<U>) {
+                  t = {};
+                }
+              }
+            }
+          },
+          std::make_index_sequence<SIZE>{});
+
       v.push_back(std::move(tp));
     }
 

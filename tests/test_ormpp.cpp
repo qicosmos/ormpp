@@ -1113,6 +1113,90 @@ TEST_CASE("delete records") {
 #endif
 }
 
+TEST_CASE("query tuple optional") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists person");
+    mysql.create_datatable<person>(ormpp_auto_key{"id"});
+    mysql.insert<person>({"purecpp", 6});
+    mysql.insert<person>({});
+    auto vec = mysql.query<
+        std::tuple<person, std::optional<std::string>, std::optional<int>>>(
+        "select name,age,id,name,age from person;");
+    CHECK(vec.size() == 2);
+    auto tp1 = vec.front();
+    auto tp2 = vec.back();
+    auto p1 = std::get<0>(tp1);
+    auto p2 = std::get<0>(tp2);
+    auto n1 = std::get<1>(tp1);
+    auto n2 = std::get<1>(tp2);
+    auto a1 = std::get<2>(tp1);
+    auto a2 = std::get<2>(tp2);
+    CHECK(p1.name == "purecpp");
+    CHECK(p1.age == 6);
+    CHECK(n1.value() == "purecpp");
+    CHECK(n2.has_value() == false);
+    CHECK(a1.value() == 6);
+    CHECK(a2.has_value() == false);
+  }
+#endif
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists person");
+    postgres.create_datatable<person>(ormpp_auto_key{"id"});
+    postgres.insert<person>({"purecpp", 6});
+    postgres.insert<person>({""});
+    auto vec = postgres.query<
+        std::tuple<person, std::optional<std::string>, std::optional<int>>>(
+        "select name,age,id,name,age from person;");
+    CHECK(vec.size() == 2);
+    auto tp1 = vec.front();
+    auto tp2 = vec.back();
+    auto p1 = std::get<0>(tp1);
+    auto p2 = std::get<0>(tp2);
+    auto n1 = std::get<1>(tp1);
+    auto n2 = std::get<1>(tp2);
+    auto a1 = std::get<2>(tp1);
+    auto a2 = std::get<2>(tp2);
+    CHECK(p1.name == "purecpp");
+    CHECK(p1.age == 6);
+    CHECK(n1.value() == "purecpp");
+    CHECK(n2.has_value() == false);
+    CHECK(a1.value() == 6);
+    CHECK(a2.has_value() == false);
+  }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists person");
+    sqlite.create_datatable<person>(ormpp_auto_key{"id"});
+    sqlite.insert<person>({"purecpp", 6});
+    sqlite.insert<person>({""});
+    auto vec = sqlite.query<
+        std::tuple<person, std::optional<std::string>, std::optional<int>>>(
+        "select name,age,id,name,age from person;");
+    CHECK(vec.size() == 2);
+    auto tp1 = vec.front();
+    auto tp2 = vec.back();
+    auto p1 = std::get<0>(tp1);
+    auto p2 = std::get<0>(tp2);
+    auto n1 = std::get<1>(tp1);
+    auto n2 = std::get<1>(tp2);
+    auto a1 = std::get<2>(tp1);
+    auto a2 = std::get<2>(tp2);
+    CHECK(p1.name == "purecpp");
+    CHECK(p1.age == 6);
+    CHECK(n1.value() == "purecpp");
+    CHECK(n2.has_value() == false);
+    CHECK(a1.value() == 6);
+    CHECK(a2.has_value() == false);
+  }
+#endif
+}
+
 struct alias {
   std::string name;
   int id;
