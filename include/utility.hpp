@@ -191,7 +191,7 @@ inline std::string get_fields() {
   }
   for (const auto &it : iguana::Reflect_members<T>::arr()) {
 #ifdef ORMPP_ENABLE_MYSQL
-    append(fields, "`", std::string(it.data()), "`");
+    fields += "`" + std::string(it.data()) + "`";
 #else
     fields += it.data();
 #endif
@@ -251,7 +251,7 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
     for (auto i = 0; i < SIZE; ++i) {
       std::string field_name = iguana::get_name<T>(i).data();
       std::string value = "$" + std::to_string(++index);
-      append(set, field_name, " = ", value);
+      append(set, field_name, "=", value);
       fields += field_name;
       values += value;
       if (i < SIZE - 1) {
@@ -296,7 +296,7 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
     values += "?";
 #endif
 #ifdef ORMPP_ENABLE_MYSQL
-    append(fields, "`", field_name, "`");
+    fields += "`" + field_name + "`";
 #else
     fields += field_name;
 #endif
@@ -332,13 +332,14 @@ inline std::string generate_update_sql(Args &&...args) {
   int index = 0;
   std::string fields;
   for (size_t i = 0; i < SIZE; ++i) {
+    std::string field_name = iguana::get_name<T>(i).data();
 #ifdef ORMPP_ENABLE_MYSQL
-    append(fields, "`", iguana::get_name<T>(i).data(), "`");
+    fields += "`" + field_name + "`";
 #else
-    fields += iguana::get_name<T>(i).data();
+    fields += field_name;
 #endif
 #ifdef ORMPP_ENABLE_PG
-    append(fields, " = $", std::to_string(++index));
+    append(fields, "=", "$" + std::to_string(++index));
 #else
     fields += " = ?";
 #endif
