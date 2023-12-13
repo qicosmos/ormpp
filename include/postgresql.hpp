@@ -163,7 +163,7 @@ class postgresql {
           [this, i, &index](auto &item, auto I) {
             if constexpr (iguana::is_reflection_v<decltype(item)>) {
               std::remove_reference_t<decltype(item)> t = {};
-              iguana::for_each(t, [this, &index, &t](auto ele, auto i) {
+              iguana::for_each(t, [this, &index, &t, i](auto ele, auto /*i*/) {
                 assign(t.*ele, (int)i, index++);
               });
               item = std::move(t);
@@ -173,7 +173,9 @@ class postgresql {
             }
           },
           std::make_index_sequence<SIZE>{});
-      v.push_back(std::move(tp));
+
+      if (index > 0)
+        v.push_back(std::move(tp));
     }
 
     return v;
