@@ -23,7 +23,7 @@ using namespace ormpp;
 #ifdef ORMPP_ENABLE_PG
 const char *password = "123456";
 #else
-const char *password = "";
+const char *password = "123456";
 #endif
 const char *ip = "127.0.0.1";
 const char *username = "root";
@@ -500,7 +500,7 @@ TEST_CASE("update replace") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists person");
     mysql.create_datatable<person>(ormpp_auto_key{"id"});
-    mysql.insert<person>({"purecpp", 100});
+    mysql.insert<person>({"purecpp", 100, 1});
     auto vec = mysql.query<person>();
     CHECK(vec.size() == 1);
     vec.front().name = "update";
@@ -529,7 +529,7 @@ TEST_CASE("update replace") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists person");
     postgres.create_datatable<person>(ormpp_auto_key{"id"});
-    postgres.insert<person>({"purecpp", 100});
+    postgres.insert<person>({"purecpp", 100, 1});
     auto vec = postgres.query<person>();
     CHECK(vec.size() == 1);
     vec.front().name = "update";
@@ -563,7 +563,7 @@ TEST_CASE("update replace") {
   if (sqlite.connect(db)) {
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
-    sqlite.insert<person>({"purecpp", 100});
+    sqlite.insert<person>({"purecpp", 100, 1});
     auto vec = sqlite.query<person>();
     CHECK(vec.size() == 1);
     vec.front().name = "update";
