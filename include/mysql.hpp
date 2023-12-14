@@ -760,7 +760,7 @@ class mysql {
 
     auto guard = guard_statment(stmt_);
 
-    if (!begin()) {
+    if (!get_insert_id && !begin()) {
       return std::nullopt;
     }
 
@@ -771,7 +771,7 @@ class mysql {
       }
     }
 
-    if (!commit()) {
+    if (!get_insert_id && !commit()) {
       return std::nullopt;
     }
 
