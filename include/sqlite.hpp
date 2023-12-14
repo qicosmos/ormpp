@@ -72,35 +72,35 @@ class sqlite {
   }
 
   template <typename T, typename... Args>
-  int insert(const T &t, bool get_insert_id = false, Args &&...args) {
+  constexpr int insert(const T &t, bool get_insert_id, Args &&...args) {
     return insert_impl(OptType::insert, t, get_insert_id,
                        std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  int insert(const std::vector<T> &t, bool get_insert_id = false,
-             Args &&...args) {
+  constexpr int insert(const std::vector<T> &t, bool get_insert_id,
+                       Args &&...args) {
     return insert_impl(OptType::insert, t, get_insert_id,
                        std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  int replace(const T &t, Args &&...args) {
+  constexpr int replace(const T &t, Args &&...args) {
     return insert_impl(OptType::replace, t, false, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  int replace(const std::vector<T> &t, Args &&...args) {
+  constexpr int replace(const std::vector<T> &t, Args &&...args) {
     return insert_impl(OptType::replace, t, false, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  int update(const T &t, Args &&...args) {
+  constexpr int update(const T &t, Args &&...args) {
     return update_impl(t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  int update(const std::vector<T> &t, Args &&...args) {
+  constexpr int update(const std::vector<T> &t, Args &&...args) {
     return update_impl(t, std::forward<Args>(args)...);
   }
 
@@ -486,21 +486,21 @@ class sqlite {
   }
 
   template <typename T, typename... Args>
-  int insert_impl(OptType type, const T &t, bool get_insert_id,
-                  Args &&...args) {
+  constexpr int insert_impl(OptType type, const T &t, bool get_insert_id,
+                            Args &&...args) {
     std::string sql = generate_insert_sql<T>(type == OptType::insert);
     return insert_or_update_impl(t, sql, type, get_insert_id);
   }
 
   template <typename T, typename... Args>
-  int insert_impl(OptType type, const std::vector<T> &v, bool get_insert_id,
-                  Args &&...args) {
+  constexpr int insert_impl(OptType type, const std::vector<T> &v,
+                            bool get_insert_id, Args &&...args) {
     std::string sql = generate_insert_sql<T>(type == OptType::insert);
     return insert_or_update_impl(v, sql, type, get_insert_id);
   }
 
   template <typename T, typename... Args>
-  int update_impl(const T &t, Args &&...args) {
+  constexpr int update_impl(const T &t, Args &&...args) {
     bool condition = true;
     std::string sql =
         generate_update_sql<T>(condition, std::forward<Args>(args)...);
@@ -508,7 +508,7 @@ class sqlite {
   }
 
   template <typename T, typename... Args>
-  int update_impl(const std::vector<T> &v, Args &&...args) {
+  constexpr int update_impl(const std::vector<T> &v, Args &&...args) {
     bool condition = true;
     std::string sql =
         generate_update_sql<T>(condition, std::forward<Args>(args)...);
@@ -516,8 +516,9 @@ class sqlite {
   }
 
   template <typename T>
-  int insert_or_update_impl(const T &t, const std::string &sql, OptType type,
-                            bool get_insert_id = false, bool condition = true) {
+  constexpr int insert_or_update_impl(const T &t, const std::string &sql,
+                                      OptType type, bool get_insert_id = false,
+                                      bool condition = true) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -530,7 +531,6 @@ class sqlite {
     auto guard = guard_statment(stmt_);
 
     if (stmt_execute(t, type, condition) == INT_MIN) {
-      set_last_error(sqlite3_errmsg(handle_));
       return INT_MIN;
     }
 
@@ -538,9 +538,10 @@ class sqlite {
   }
 
   template <typename T>
-  int insert_or_update_impl(const std::vector<T> &v, const std::string &sql,
-                            OptType type, bool get_insert_id = false,
-                            bool condition = true) {
+  constexpr int insert_or_update_impl(const std::vector<T> &v,
+                                      const std::string &sql, OptType type,
+                                      bool get_insert_id = false,
+                                      bool condition = true) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif

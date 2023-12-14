@@ -20,6 +20,12 @@ inline int add_auto_key_field(std::string_view key, std::string_view value) {
 }
 
 template <typename T>
+inline auto get_auto_key() {
+  auto it = g_ormpp_auto_key_map.find(iguana::get_name<T>());
+  return it == g_ormpp_auto_key_map.end() ? "" : it->second;
+}
+
+template <typename T>
 inline auto is_auto_key(std::string_view field_name) {
   auto it = g_ormpp_auto_key_map.find(iguana::get_name<T>());
   return it == g_ormpp_auto_key_map.end() ? false : it->second == field_name;
@@ -38,7 +44,9 @@ inline int add_conflict_key_field(std::string_view key,
   return 0;
 }
 
-inline auto get_conflict_key(std::string_view key) {
+template <typename T>
+inline auto get_conflict_key() {
+  auto key = iguana::get_name<T>();
   auto it = g_ormpp_conflict_key_map.find(key);
   if (it == g_ormpp_conflict_key_map.end()) {
     auto auto_key = g_ormpp_auto_key_map.find(key);
@@ -207,7 +215,7 @@ inline std::vector<std::string> get_conflict_keys() {
   if (!res.empty()) {
     return res;
   }
-  std::stringstream s(get_conflict_key(iguana::get_name<T>()).data());
+  std::stringstream s(get_conflict_key<T>().data());
   while (s.good()) {
     std::string str;
     getline(s, str, ',');
@@ -270,7 +278,7 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
       append(conflict, args...);
     }
     else {
-      conflict += get_conflict_key(iguana::get_name<T>());
+      conflict += get_conflict_key<T>();
     }
     conflict += ")";
     append(sql, fields, values, conflict, "do update set", set);
