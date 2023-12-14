@@ -641,8 +641,10 @@ class mysql {
 
     if (condition && type == OptType::update) {
       iguana::for_each(t, [&t, &param_binds, this](auto item, auto i) {
-        if (is_conflict_key<T>(
-                "`" + std::string(iguana::get_name<T>(i).data()) + "`")) {
+        std::string field_name = "`";
+        field_name += iguana::get_name<T>(i).data();
+        field_name += "`";
+        if (is_conflict_key<T>(field_name)) {
           set_param_bind(param_binds, t.*item);
         }
       });
