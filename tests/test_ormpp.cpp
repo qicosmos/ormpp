@@ -23,7 +23,7 @@ using namespace ormpp;
 #ifdef ORMPP_ENABLE_PG
 const char *password = "123456";
 #else
-const char *password = "123456";
+const char *password = "";
 #endif
 const char *ip = "127.0.0.1";
 const char *username = "root";
