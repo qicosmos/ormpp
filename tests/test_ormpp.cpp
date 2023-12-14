@@ -500,7 +500,7 @@ TEST_CASE("update replace") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists person");
     mysql.create_datatable<person>(ormpp_auto_key{"id"});
-    mysql.insert<person>({"purecpp", 100, 1});
+    mysql.insert<person>({"purecpp", 100});
     auto vec = mysql.query<person>();
     CHECK(vec.size() == 1);
     vec.front().name = "update";
@@ -510,7 +510,7 @@ TEST_CASE("update replace") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
-    mysql.update<person>({"purecpp", 100}, "id=1");
+    mysql.update<person>({"purecpp", 100, 1}, "id=1");
     vec = mysql.query<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
@@ -529,7 +529,7 @@ TEST_CASE("update replace") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists person");
     postgres.create_datatable<person>(ormpp_auto_key{"id"});
-    postgres.insert<person>({"purecpp", 100, 1});
+    postgres.insert<person>({"purecpp", 100});
     auto vec = postgres.query<person>();
     CHECK(vec.size() == 1);
     vec.front().name = "update";
@@ -539,7 +539,7 @@ TEST_CASE("update replace") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
-    postgres.update<person>({"purecpp", 100}, "id=1");
+    postgres.update<person>({"purecpp", 100, 1}, "id=1");
     vec = postgres.query<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
@@ -563,7 +563,7 @@ TEST_CASE("update replace") {
   if (sqlite.connect(db)) {
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
-    sqlite.insert<person>({"purecpp", 100, 1});
+    sqlite.insert<person>({"purecpp", 100});
     auto vec = sqlite.query<person>();
     CHECK(vec.size() == 1);
     vec.front().name = "update";
@@ -573,7 +573,7 @@ TEST_CASE("update replace") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
-    sqlite.update<person>({"purecpp", 100}, "id=1");
+    sqlite.update<person>({"purecpp", 100, 1}, "id=1");
     vec = sqlite.query<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
