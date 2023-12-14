@@ -105,18 +105,18 @@ class postgresql {
 
   template <typename T, typename... Args>
   uint64_t get_insert_id_after_insert(const T &t, Args &&...args) {
-    std::optional<uint64_t> insert_id = {0};
+    uint64_t insert_id = {0};
     insert_or_update_impl(t, generate_insert_sql<T>(true), OptType::insert,
                           std::move(insert_id));
-    return insert_id.value();
+    return insert_id;
   }
 
   template <typename T, typename... Args>
   uint64_t get_insert_id_after_insert(const std::vector<T> &v, Args &&...args) {
-    std::optional<uint64_t> insert_id = {0};
+    uint64_t insert_id = {0};
     insert_or_update_impl(v, generate_insert_sql<T>(true), OptType::insert,
                           std::move(insert_id));
-    return insert_id.value();
+    return insert_id;
   }
 
   template <typename T, typename... Args>
