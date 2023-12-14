@@ -494,6 +494,101 @@ TEST_CASE("insert query") {
   }
 }
 
+TEST_CASE("update replace") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists person");
+    mysql.create_datatable<person>(ormpp_auto_key{"id"});
+    mysql.insert<person>({"purecpp", 100});
+    auto vec = mysql.query<person>();
+    CHECK(vec.size() == 1);
+    vec.front().name = "update";
+    vec.front().age = 200;
+    mysql.update(vec.front());
+    vec = mysql.query<person>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "update");
+    CHECK(vec.front().age == 200);
+    mysql.update<person>({"purecpp", 100, 1}, "id=1");
+    vec = mysql.query<person>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "purecpp");
+    CHECK(vec.front().age == 100);
+    vec.front().name = "update";
+    vec.front().age = 200;
+    mysql.replace(vec.front());
+    vec = mysql.query<person>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "update");
+    CHECK(vec.front().age == 200);
+  }
+#endif
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists person");
+    postgres.create_datatable<person>(ormpp_auto_key{"id"});
+    postgres.insert<person>({"purecpp", 100});
+    auto vec = postgres.query<person>();
+    CHECK(vec.size() == 1);
+    vec.front().name = "update";
+    vec.front().age = 200;
+    postgres.update(vec.front());
+    vec = postgres.query<person>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "update");
+    CHECK(vec.front().age == 200);
+    postgres.update<person>({"purecpp", 100, 1}, "id=1");
+    vec = postgres.query<person>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "purecpp");
+    CHECK(vec.front().age == 100);
+    vec.front().name = "update";
+    vec.front().age = 200;
+    postgres.replace(vec.front());
+    vec = postgres.query<person>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "update");
+    CHECK(vec.front().age == 200);
+    postgres.replace<person>({"purecpp", 100, 1}, "id");
+    vec = postgres.query<person>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "purecpp");
+    CHECK(vec.front().age == 100);
+  }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists person");
+    sqlite.create_datatable<person>(ormpp_auto_key{"id"});
+    sqlite.insert<person>({"purecpp", 100});
+    auto vec = sqlite.query<person>();
+    CHECK(vec.size() == 1);
+    vec.front().name = "update";
+    vec.front().age = 200;
+    sqlite.update(vec.front());
+    vec = sqlite.query<person>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "update");
+    CHECK(vec.front().age == 200);
+    sqlite.update<person>({"purecpp", 100, 1}, "id=1");
+    vec = sqlite.query<person>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "purecpp");
+    CHECK(vec.front().age == 100);
+    vec.front().name = "update";
+    vec.front().age = 200;
+    sqlite.replace(vec.front());
+    vec = sqlite.query<person>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "update");
+    CHECK(vec.front().age == 200);
+  }
+#endif
+}
+
 TEST_CASE("update") {
   ormpp_key key{"code"};
   ormpp_not_null not_null{{"code", "age"}};

@@ -55,6 +55,16 @@ class dbng {
   }
 
   template <typename T, typename... Args>
+  int replace(const T &t, Args &&...args) {
+    return db_.replace(t, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  int replace(const std::vector<T> &t, Args &&...args) {
+    return db_.replace(t, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
   bool delete_records(Args &&...where_conditon) {
     return db_.template delete_records<T>(
         std::forward<Args>(where_conditon)...);
