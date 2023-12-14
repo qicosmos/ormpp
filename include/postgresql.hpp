@@ -105,18 +105,16 @@ class postgresql {
 
   template <typename T, typename... Args>
   uint64_t get_insert_id_after_insert(const T &t, Args &&...args) {
-    uint64_t insert_id = {0};
-    insert_or_update_impl(t, generate_insert_sql<T>(true), OptType::insert,
-                          std::move(insert_id));
-    return insert_id;
+    auto res = insert_or_update_impl(t, generate_insert_sql<T>(true),
+                                     OptType::insert, true);
+    return res.has_value() ? res.value() : 0;
   }
 
   template <typename T, typename... Args>
   uint64_t get_insert_id_after_insert(const std::vector<T> &v, Args &&...args) {
-    uint64_t insert_id = {0};
-    insert_or_update_impl(v, generate_insert_sql<T>(true), OptType::insert,
-                          std::move(insert_id));
-    return insert_id;
+    auto res = insert_or_update_impl(v, generate_insert_sql<T>(true),
+                                     OptType::insert, true);
+    return res.has_value() ? res.value() : 0;
   }
 
   template <typename T, typename... Args>
@@ -382,8 +380,8 @@ class postgresql {
   }
 
   template <typename T>
-  int stmt_execute(const T &t, OptType type, bool condition,
-                   std::optional<uint64_t> &&insert_id) {
+  std::optional<uint64_t> stmt_execute(const T &t, OptType type,
+                                       bool condition) {
     std::vector<std::vector<char>> param_values;
     iguana::for_each(t, [&t, &param_values, type, this](auto item, auto i) {
       if (type == OptType::insert &&
@@ -402,7 +400,7 @@ class postgresql {
     }
 
     if (param_values.empty()) {
-      return INT_MIN;
+      return std::nullopt;
     }
 
     std::vector<const char *> param_values_buf;
@@ -417,96 +415,96 @@ class postgresql {
     auto status = PQresultStatus(res_);
 
     if (status == PGRES_TUPLES_OK) {
-      if (insert_id.has_value()) {
-        insert_id = {std::strtoull(PQgetvalue(res_, 0, 0), nullptr, 10)};
-      }
-      return 1;
+      return std::strtoull(PQgetvalue(res_, 0, 0), nullptr, 10);
     }
     else if (status == PGRES_COMMAND_OK) {
       return 1;
     }
 
-    return INT_MIN;
+    return std::nullopt;
   }
 
   template <typename T, typename... Args>
   int insert_impl(OptType type, const T &t, Args &&...args) {
-    return insert_or_update_impl(
+    auto res = insert_or_update_impl(
         t,
         generate_insert_sql<T>(type == OptType::insert,
                                std::forward<Args>(args)...),
-        type, std::nullopt);
+        type);
+    return res.has_value() ? res.value() : INT_MIN;
   }
 
   template <typename T, typename... Args>
   int insert_impl(OptType type, const std::vector<T> &v, Args &&...args) {
-    return insert_or_update_impl(
+    auto res = insert_or_update_impl(
         v,
         generate_insert_sql<T>(type == OptType::insert,
                                std::forward<Args>(args)...),
-        type, std::nullopt);
+        type);
+    return res.has_value() ? res.value() : INT_MIN;
   }
 
   template <typename T, typename... Args>
   int update_impl(const T &t, Args &&...args) {
     bool condition = true;
     auto sql = generate_update_sql<T>(condition, std::forward<Args>(args)...);
-    return insert_or_update_impl(t, sql, OptType::update, std::nullopt,
-                                 condition);
+    auto res = insert_or_update_impl(t, sql, OptType::update, false, condition);
+    return res.has_value() ? res.value() : INT_MIN;
   }
 
   template <typename T, typename... Args>
   int update_impl(const std::vector<T> &v, Args &&...args) {
     bool condition = true;
     auto sql = generate_update_sql<T>(condition, std::forward<Args>(args)...);
-    return insert_or_update_impl(v, sql, OptType::update, std::nullopt,
-                                 condition);
+    auto res = insert_or_update_impl(v, sql, OptType::update, false, condition);
+    return res.has_value() ? res.value() : INT_MIN;
   }
 
   template <typename T>
-  int insert_or_update_impl(const T &t, const std::string &sql, OptType type,
-                            std::optional<uint64_t> &&insert_id,
-                            bool condition = true) {
-    if (!prepare<T>(insert_id.has_value()
+  std::optional<uint64_t> insert_or_update_impl(const T &t,
+                                                const std::string &sql,
+                                                OptType type,
+                                                bool get_insert_id = false,
+                                                bool condition = true) {
+    if (!prepare<T>(get_insert_id
                         ? sql + "returning " + get_auto_key<T>().data()
                         : sql)) {
-      return INT_MIN;
+      return std::nullopt;
     }
 
-    if (stmt_execute(t, type, condition, std::move(insert_id)) == INT_MIN) {
-      return INT_MIN;
-    }
-
-    return 1;
+    return stmt_execute(t, type, condition);
   }
 
   template <typename T>
-  int insert_or_update_impl(const std::vector<T> &v, const std::string &sql,
-                            OptType type, std::optional<uint64_t> &&insert_id,
-                            bool condition = true) {
+  std::optional<uint64_t> insert_or_update_impl(const std::vector<T> &v,
+                                                const std::string &sql,
+                                                OptType type,
+                                                bool get_insert_id = false,
+                                                bool condition = true) {
     if (!begin()) {
-      return INT_MIN;
+      return std::nullopt;
     }
 
-    if (!prepare<T>(insert_id.has_value()
+    if (!prepare<T>(get_insert_id
                         ? sql + "returning " + get_auto_key<T>().data()
                         : sql)) {
-      return INT_MIN;
+      return std::nullopt;
     }
 
+    std::optional<uint64_t> res = {0};
     for (auto &item : v) {
-      if (stmt_execute(item, type, condition, std::move(insert_id)) ==
-          INT_MIN) {
+      res = stmt_execute(item, type, condition);
+      if (!res.has_value()) {
         rollback();
-        return INT_MIN;
+        return std::nullopt;
       }
     }
 
     if (!commit()) {
-      return INT_MIN;
+      return std::nullopt;
     }
 
-    return (int)v.size();
+    return get_insert_id ? res : (int)v.size();
   }
 
   template <typename T>

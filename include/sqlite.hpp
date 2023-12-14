@@ -103,18 +103,16 @@ class sqlite {
 
   template <typename T, typename... Args>
   uint64_t get_insert_id_after_insert(const T &t, Args &&...args) {
-    uint64_t insert_id = {0};
-    insert_or_update_impl(t, generate_insert_sql<T>(true), OptType::insert,
-                          std::move(insert_id));
-    return insert_id;
+    auto res = insert_or_update_impl(t, generate_insert_sql<T>(true),
+                                     OptType::insert, true);
+    return res.has_value() ? res.value() : 0;
   }
 
   template <typename T, typename... Args>
   uint64_t get_insert_id_after_insert(const std::vector<T> &v, Args &&...args) {
-    uint64_t insert_id = {0};
-    insert_or_update_impl(v, generate_insert_sql<T>(true), OptType::insert,
-                          std::move(insert_id));
-    return insert_id;
+    auto res = insert_or_update_impl(v, generate_insert_sql<T>(true),
+                                     OptType::insert, true);
+    return res.has_value() ? res.value() : 0;
   }
 
   template <typename T, typename... Args>
@@ -500,99 +498,97 @@ class sqlite {
 
   template <typename T, typename... Args>
   int insert_impl(OptType type, const T &t, Args &&...args) {
-    return insert_or_update_impl(
-        t, generate_insert_sql<T>(type == OptType::insert), type, std::nullopt);
+    auto res = insert_or_update_impl(
+        t, generate_insert_sql<T>(type == OptType::insert), type);
+    return res.has_value() ? res.value() : INT_MIN;
   }
 
   template <typename T, typename... Args>
   int insert_impl(OptType type, const std::vector<T> &v, Args &&...args) {
-    return insert_or_update_impl(
-        v, generate_insert_sql<T>(type == OptType::insert), type, std::nullopt);
+    auto res = insert_or_update_impl(
+        v, generate_insert_sql<T>(type == OptType::insert), type);
+    return res.has_value() ? res.value() : INT_MIN;
   }
 
   template <typename T, typename... Args>
   int update_impl(const T &t, Args &&...args) {
     bool condition = true;
     auto sql = generate_update_sql<T>(condition, std::forward<Args>(args)...);
-    return insert_or_update_impl(t, sql, OptType::update, std::nullopt,
-                                 condition);
+    auto res = insert_or_update_impl(t, sql, OptType::update, false, condition);
+    return res.has_value() ? res.value() : INT_MIN;
   }
 
   template <typename T, typename... Args>
   int update_impl(const std::vector<T> &v, Args &&...args) {
     bool condition = true;
     auto sql = generate_update_sql<T>(condition, std::forward<Args>(args)...);
-    return insert_or_update_impl(v, sql, OptType::update, std::nullopt,
-                                 condition);
+    auto res = insert_or_update_impl(v, sql, OptType::update, false, condition);
+    return res.has_value() ? res.value() : INT_MIN;
   }
 
   template <typename T>
-  int insert_or_update_impl(const T &t, const std::string &sql, OptType type,
-                            std::optional<uint64_t> &&insert_id,
-                            bool condition = true) {
+  std::optional<uint64_t> insert_or_update_impl(const T &t,
+                                                const std::string &sql,
+                                                OptType type,
+                                                bool get_insert_id = false,
+                                                bool condition = true) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     if (sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(), &stmt_,
                            nullptr) != SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
-      return INT_MIN;
+      return std::nullopt;
     }
 
     auto guard = guard_statment(stmt_);
 
     if (stmt_execute(t, type, condition) == INT_MIN) {
-      return INT_MIN;
+      return std::nullopt;
     }
 
-    if (insert_id.has_value()) {
-      insert_id = {sqlite3_last_insert_rowid(handle_)};
-    }
-
-    return 1;
+    return get_insert_id ? sqlite3_last_insert_rowid(handle_) : 1;
   }
 
   template <typename T>
-  int insert_or_update_impl(const std::vector<T> &v, const std::string &sql,
-                            OptType type, std::optional<uint64_t> &&insert_id,
-                            bool condition = true) {
+  std::optional<uint64_t> insert_or_update_impl(const std::vector<T> &v,
+                                                const std::string &sql,
+                                                OptType type,
+                                                bool get_insert_id = false,
+                                                bool condition = true) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     if (sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(), &stmt_,
                            nullptr) != SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
-      return INT_MIN;
+      return std::nullopt;
     }
 
     auto guard = guard_statment(stmt_);
 
     if (!begin()) {
-      return INT_MIN;
+      return std::nullopt;
     }
 
     for (auto &item : v) {
       if (stmt_execute(item, type, condition) == INT_MIN) {
         rollback();
-        return INT_MIN;
+        return std::nullopt;
       }
 
       if (sqlite3_reset(stmt_) != SQLITE_OK) {
         rollback();
         set_last_error(sqlite3_errmsg(handle_));
-        return INT_MIN;
+        return std::nullopt;
       }
     }
 
     if (!commit()) {
-      return INT_MIN;
+      return std::nullopt;
     }
 
-    if (insert_id.has_value()) {
-      insert_id = {sqlite3_last_insert_rowid(handle_)};
-    }
-
-    return (int)v.size();
+    return get_insert_id ? sqlite3_last_insert_rowid(handle_) : (int)v.size();
   }
 
  private:

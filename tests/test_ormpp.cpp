@@ -1166,6 +1166,8 @@ TEST_CASE("get insert id after insert") {
     mysql.insert<person>({"purecpp"});
     auto id = mysql.get_insert_id_after_insert<person>({"purecpp"});
     CHECK(id == 3);
+    id = mysql.get_insert_id_after_insert<person>({{"purecpp"}, {"purecpp"}});
+    CHECK(id == 5);
   }
 #endif
 #ifdef ORMPP_ENABLE_PG
@@ -1177,6 +1179,9 @@ TEST_CASE("get insert id after insert") {
     postgres.insert<person>({"purecpp"});
     auto id = postgres.get_insert_id_after_insert<person>({"purecpp"});
     CHECK(id == 3);
+    id =
+        postgres.get_insert_id_after_insert<person>({{"purecpp"}, {"purecpp"}});
+    CHECK(id == 5);
   }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -1188,6 +1193,8 @@ TEST_CASE("get insert id after insert") {
     sqlite.insert<person>({"purecpp"});
     auto id = sqlite.get_insert_id_after_insert<person>({"purecpp"});
     CHECK(id == 3);
+    id = sqlite.get_insert_id_after_insert<person>({{"purecpp"}, {"purecpp"}});
+    CHECK(id == 5);
   }
 #endif
 }
