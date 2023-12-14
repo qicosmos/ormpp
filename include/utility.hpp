@@ -295,7 +295,7 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
   std::string values = "values(";
   for (size_t i = 0; i < SIZE; ++i) {
     std::string field_name = iguana::get_name<T>(i).data();
-    if (is_auto_key<T>(field_name)) {
+    if (insert && is_auto_key<T>(field_name)) {
       continue;
     }
 #ifdef ORMPP_ENABLE_PG
