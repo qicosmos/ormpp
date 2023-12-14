@@ -521,7 +521,7 @@ class postgresql {
     }
     else if constexpr (std::is_enum_v<U> && !iguana::is_int64_v<U>) {
       std::vector<char> temp(20, 0);
-      itoa_fwd(value, temp.data());
+      itoa_fwd(static_cast<int>(value), temp.data());
       param_values.push_back(std::move(temp));
     }
     else if constexpr (std::is_integral_v<U> && !iguana::is_int64_v<U>) {
