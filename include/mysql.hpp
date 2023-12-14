@@ -99,36 +99,49 @@ class mysql {
   }
 
   template <typename T, typename... Args>
-  constexpr int insert(const T &t, bool get_insert_id, Args &&...args) {
-    return insert_impl(OptType::insert, t, get_insert_id,
-                       std::forward<Args>(args)...);
+  int insert(const T &t, Args &&...args) {
+    return insert_impl(OptType::insert, t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  constexpr int insert(const std::vector<T> &t, bool get_insert_id,
-                       Args &&...args) {
-    return insert_impl(OptType::insert, t, get_insert_id,
-                       std::forward<Args>(args)...);
+  int insert(const std::vector<T> &v, Args &&...args) {
+    return insert_impl(OptType::insert, v, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  constexpr int replace(const T &t, Args &&...args) {
-    return insert_impl(OptType::replace, t, false, std::forward<Args>(args)...);
+  int replace(const T &t, Args &&...args) {
+    return insert_impl(OptType::replace, t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  constexpr int replace(const std::vector<T> &t, Args &&...args) {
-    return insert_impl(OptType::replace, t, false, std::forward<Args>(args)...);
+  int replace(const std::vector<T> &v, Args &&...args) {
+    return insert_impl(OptType::replace, v, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  constexpr int update(const T &t, Args &&...args) {
+  int update(const T &t, Args &&...args) {
     return update_impl(t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  constexpr int update(const std::vector<T> &t, Args &&...args) {
-    return update_impl(t, std::forward<Args>(args)...);
+  int update(const std::vector<T> &v, Args &&...args) {
+    return update_impl(v, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  uint64_t get_insert_id_after_insert(const T &t, Args &&...args) {
+    std::optional<uint64_t> insert_id = {0};
+    insert_or_update_impl(t, generate_insert_sql<T>(true), OptType::insert,
+                          std::move(insert_id));
+    return insert_id.value();
+  }
+
+  template <typename T, typename... Args>
+  uint64_t get_insert_id_after_insert(const std::vector<T> &v, Args &&...args) {
+    std::optional<uint64_t> insert_id = {0};
+    insert_or_update_impl(v, generate_insert_sql<T>(true), OptType::insert,
+                          std::move(insert_id));
+    return insert_id.value();
   }
 
   template <typename T, typename... Args>
@@ -669,39 +682,37 @@ class mysql {
   }
 
   template <typename T, typename... Args>
-  constexpr int insert_impl(OptType type, const T &t, bool get_insert_id,
-                            Args &&...args) {
-    std::string sql = generate_insert_sql<T>(type == OptType::insert);
-    return insert_or_update_impl(t, sql, type, get_insert_id);
+  int insert_impl(OptType type, const T &t, Args &&...args) {
+    return insert_or_update_impl(
+        t, generate_insert_sql<T>(type == OptType::insert), type, std::nullopt);
   }
 
   template <typename T, typename... Args>
-  constexpr int insert_impl(OptType type, const std::vector<T> &v,
-                            bool get_insert_id, Args &&...args) {
-    std::string sql = generate_insert_sql<T>(type == OptType::insert);
-    return insert_or_update_impl(v, sql, type, get_insert_id);
+  int insert_impl(OptType type, const std::vector<T> &v, Args &&...args) {
+    return insert_or_update_impl(
+        v, generate_insert_sql<T>(type == OptType::insert), type, std::nullopt);
   }
 
   template <typename T, typename... Args>
-  constexpr int update_impl(const T &t, Args &&...args) {
+  int update_impl(const T &t, Args &&...args) {
     bool condition = true;
-    std::string sql =
-        generate_update_sql<T>(condition, std::forward<Args>(args)...);
-    return insert_or_update_impl(t, sql, OptType::update, false, condition);
+    auto sql = generate_update_sql<T>(condition, std::forward<Args>(args)...);
+    return insert_or_update_impl(t, sql, OptType::update, std::nullopt,
+                                 condition);
   }
 
   template <typename T, typename... Args>
-  constexpr int update_impl(const std::vector<T> &v, Args &&...args) {
+  int update_impl(const std::vector<T> &v, Args &&...args) {
     bool condition = true;
-    std::string sql =
-        generate_update_sql<T>(condition, std::forward<Args>(args)...);
-    return insert_or_update_impl(v, sql, OptType::update, false, condition);
+    auto sql = generate_update_sql<T>(condition, std::forward<Args>(args)...);
+    return insert_or_update_impl(v, sql, OptType::update, std::nullopt,
+                                 condition);
   }
 
   template <typename T>
-  constexpr int insert_or_update_impl(const T &t, const std::string &sql,
-                                      OptType type, bool get_insert_id = false,
-                                      bool condition = true) {
+  int insert_or_update_impl(const T &t, const std::string &sql, OptType type,
+                            std::optional<uint64_t> &&insert_id,
+                            bool condition = true) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -722,14 +733,17 @@ class mysql {
       return INT_MIN;
     }
 
-    return get_insert_id ? stmt_->mysql->insert_id : 1;
+    if (insert_id.has_value()) {
+      insert_id = {stmt_->mysql->insert_id};
+    }
+
+    return 1;
   }
 
   template <typename T>
-  constexpr int insert_or_update_impl(const std::vector<T> &v,
-                                      const std::string &sql, OptType type,
-                                      bool get_insert_id = false,
-                                      bool condition = true) {
+  int insert_or_update_impl(const std::vector<T> &v, const std::string &sql,
+                            OptType type, std::optional<uint64_t> &&insert_id,
+                            bool condition = true) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -757,8 +771,15 @@ class mysql {
       }
     }
 
-    return commit() ? get_insert_id ? stmt_->mysql->insert_id : (int)v.size()
-                    : INT_MIN;
+    if (!commit()) {
+      return INT_MIN;
+    }
+
+    if (insert_id.has_value()) {
+      insert_id = {stmt_->mysql->insert_id};
+    }
+
+    return (int)v.size();
   }
 
   template <typename... Args>

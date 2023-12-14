@@ -1156,7 +1156,7 @@ TEST_CASE("create table with unique") {
 #endif
 }
 
-TEST_CASE("get insert id") {
+TEST_CASE("get insert id after insert") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
@@ -1164,7 +1164,7 @@ TEST_CASE("get insert id") {
     mysql.create_datatable<person>(ormpp_auto_key{"id"});
     mysql.insert<person>({"purecpp"});
     mysql.insert<person>({"purecpp"});
-    int id = mysql.insert<person>({"purecpp"}, true);
+    auto id = mysql.get_insert_id_after_insert<person>({"purecpp"});
     CHECK(id == 3);
   }
 #endif
@@ -1175,7 +1175,7 @@ TEST_CASE("get insert id") {
     postgres.create_datatable<person>(ormpp_auto_key{"id"});
     postgres.insert<person>({"purecpp"});
     postgres.insert<person>({"purecpp"});
-    int id = postgres.insert<person>({"purecpp"}, true);
+    auto id = postgres.get_insert_id_after_insert<person>({"purecpp"});
     CHECK(id == 3);
   }
 #endif
@@ -1186,7 +1186,7 @@ TEST_CASE("get insert id") {
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
     sqlite.insert<person>({"purecpp"});
     sqlite.insert<person>({"purecpp"});
-    int id = sqlite.insert<person>({"purecpp"}, true);
+    auto id = sqlite.get_insert_id_after_insert<person>({"purecpp"});
     CHECK(id == 3);
   }
 #endif
