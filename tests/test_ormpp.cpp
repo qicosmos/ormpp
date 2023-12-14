@@ -1122,7 +1122,22 @@ TEST_CASE("create table with unique") {
     CHECK(vec3.size() == 1);
   }
 #endif
-
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists person");
+    postgres.create_datatable<person>(ormpp_auto_key{"id"},
+                                      ormpp_unique{{"name", "age"}});
+    postgres.insert<person>({"purecpp"});
+    auto vec1 = postgres.query<person>("order by id");
+    auto vec2 = postgres.query<person>("limit 1");
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    postgres.insert<person>({"purecpp"});
+    auto vec3 = postgres.query<person>();
+    CHECK(vec3.size() == 1);
+  }
+#endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
@@ -1141,7 +1156,7 @@ TEST_CASE("create table with unique") {
 #endif
 }
 
-TEST_CASE("get insert id") {
+TEST_CASE("get insert id after insert") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
@@ -1149,11 +1164,26 @@ TEST_CASE("get insert id") {
     mysql.create_datatable<person>(ormpp_auto_key{"id"});
     mysql.insert<person>({"purecpp"});
     mysql.insert<person>({"purecpp"});
-    int id = mysql.insert<person>({"purecpp"}, true);
+    auto id = mysql.get_insert_id_after_insert<person>({"purecpp"});
     CHECK(id == 3);
+    id = mysql.get_insert_id_after_insert<person>({{"purecpp"}, {"purecpp"}});
+    CHECK(id == 5);
   }
 #endif
-
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists person");
+    postgres.create_datatable<person>(ormpp_auto_key{"id"});
+    postgres.insert<person>({"purecpp"});
+    postgres.insert<person>({"purecpp"});
+    auto id = postgres.get_insert_id_after_insert<person>({"purecpp"});
+    CHECK(id == 3);
+    id =
+        postgres.get_insert_id_after_insert<person>({{"purecpp"}, {"purecpp"}});
+    CHECK(id == 5);
+  }
+#endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
@@ -1161,8 +1191,10 @@ TEST_CASE("get insert id") {
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
     sqlite.insert<person>({"purecpp"});
     sqlite.insert<person>({"purecpp"});
-    int id = sqlite.insert<person>({"purecpp"}, true);
+    auto id = sqlite.get_insert_id_after_insert<person>({"purecpp"});
     CHECK(id == 3);
+    id = sqlite.get_insert_id_after_insert<person>({{"purecpp"}, {"purecpp"}});
+    CHECK(id == 5);
   }
 #endif
 }
@@ -1218,6 +1250,7 @@ TEST_CASE("query tuple_optional_t") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists tuple_optional_t");
     mysql.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
     mysql.insert<tuple_optional_t>({"purecpp", 6});
     mysql.insert<tuple_optional_t>({std::nullopt});
@@ -1247,6 +1280,7 @@ TEST_CASE("query tuple_optional_t") {
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
   if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists tuple_optional_t");
     postgres.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
     postgres.insert<tuple_optional_t>({"purecpp", 6});
     postgres.insert<tuple_optional_t>({std::nullopt});
@@ -1276,6 +1310,7 @@ TEST_CASE("query tuple_optional_t") {
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists tuple_optional_t");
     sqlite.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
     sqlite.insert<tuple_optional_t>({"purecpp", 6});
     sqlite.insert<tuple_optional_t>({std::nullopt});

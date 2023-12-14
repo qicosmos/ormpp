@@ -34,24 +34,13 @@ class dbng {
   }
 
   template <typename T, typename... Args>
-  int insert(const T &t, bool get_insert_id = false, Args &&...args) {
-    return db_.insert(t, get_insert_id, std::forward<Args>(args)...);
+  int insert(const T &t, Args &&...args) {
+    return db_.insert(t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  int insert(const std::vector<T> &t, bool get_insert_id = false,
-             Args &&...args) {
-    return db_.insert(t, get_insert_id, std::forward<Args>(args)...);
-  }
-
-  template <typename T, typename... Args>
-  int update(const T &t, Args &&...args) {
-    return db_.update(t, std::forward<Args>(args)...);
-  }
-
-  template <typename T, typename... Args>
-  int update(const std::vector<T> &t, Args &&...args) {
-    return db_.update(t, std::forward<Args>(args)...);
+  int insert(const std::vector<T> &v, Args &&...args) {
+    return db_.insert(v, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
@@ -60,8 +49,28 @@ class dbng {
   }
 
   template <typename T, typename... Args>
-  int replace(const std::vector<T> &t, Args &&...args) {
-    return db_.replace(t, std::forward<Args>(args)...);
+  int replace(const std::vector<T> &v, Args &&...args) {
+    return db_.replace(v, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  int update(const T &t, Args &&...args) {
+    return db_.update(t, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  int update(const std::vector<T> &v, Args &&...args) {
+    return db_.update(v, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  uint64_t get_insert_id_after_insert(const T &t, Args &&...args) {
+    return db_.get_insert_id_after_insert(t, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  uint64_t get_insert_id_after_insert(const std::vector<T> &v, Args &&...args) {
+    return db_.get_insert_id_after_insert(v, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
