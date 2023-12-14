@@ -510,7 +510,7 @@ TEST_CASE("update replace") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
-    mysql.update({"purecpp", 100}, "id=1");
+    mysql.update<person>({"purecpp", 100}, "id=1");
     vec = mysql.query<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
@@ -539,7 +539,7 @@ TEST_CASE("update replace") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
-    postgres.update({"purecpp", 100}, "id=1");
+    postgres.update<person>({"purecpp", 100}, "id=1");
     vec = postgres.query<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
@@ -551,7 +551,7 @@ TEST_CASE("update replace") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
-    postgres.replace({"purecpp", 100, 1}, "id");
+    postgres.replace<person>({"purecpp", 100, 1}, "id");
     vec = postgres.query<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
@@ -573,7 +573,7 @@ TEST_CASE("update replace") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
-    sqlite.update({"purecpp", 100}, "id=1");
+    sqlite.update<person>({"purecpp", 100}, "id=1");
     vec = sqlite.query<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
