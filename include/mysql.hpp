@@ -172,6 +172,10 @@ class mysql {
         param.buffer_type = MYSQL_TYPE_NULL;
       }
     }
+    else if constexpr (std::is_enum_v<U>) {
+      param.buffer_type = MYSQL_TYPE_LONG;
+      param.buffer = const_cast<void *>(static_cast<const void *>(&value));
+    }
     else if constexpr (std::is_arithmetic_v<U>) {
       param.buffer_type =
           (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
@@ -204,6 +208,10 @@ class mysql {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (is_optional_v<U>::value) {
       return set_param_bind(param_bind, *value, i, mp, is_null);
+    }
+    else if constexpr (std::is_enum_v<U>) {
+      param_bind.buffer_type = MYSQL_TYPE_LONG;
+      param_bind.buffer = const_cast<void *>(static_cast<const void *>(&value));
     }
     else if constexpr (std::is_arithmetic_v<U>) {
       param_bind.buffer_type =
