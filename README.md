@@ -105,51 +105,52 @@ REFLECTION(person, id, name, age)
 //                  FLDALIAS(&person::name, "person_name"),
 //                  FLDALIAS(&person::age, "person_age"));
 
-int main()
-{
-	person p = {"test1", 2};
-	person p1 = {"test2", 3};
-	person p2 = {"test3", 4};
-	std::vector<person> v{p1, p2};
+int main() {
+  person p = {"test1", 2};
+  person p1 = {"test2", 3};
+  person p2 = {"test3", 4};
+  std::vector<person> v{p1, p2};
 
-	dbng<mysql> mysql;
-	mysql.connect("127.0.0.1", "dbuser", "yourpwd", "testdb");
-	mysql.create_datatable<person>(ormpp_auto_key{"id"});
+  dbng<mysql> mysql;
+  mysql.connect("127.0.0.1", "dbuser", "yourpwd", "testdb");
+  mysql.create_datatable<person>(ormpp_auto_key{"id"});
 
-	mysql.insert(p);
-	mysql.insert(v);
+  mysql.insert(p);
+  mysql.insert(v);
   auto id1 = mysql.get_insert_id_after_insert<person>(p);
   auto id2 = mysql.get_insert_id_after_insert<person>(v);
 
-	mysql.update(p);
-	mysql.update(v);
+  mysql.update(p);
+  mysql.update(v);
   mysql.update(p, "id=1");
 
   mysql.replace(p);
-	mysql.replace(v);
-  
-	auto result = mysql.query<person>(); //vector<person>
-	for(auto& person : result){
-		std::cout << person.id << " " << person.name << " " << person.age << std::endl;
-	}
+  mysql.replace(v);
 
-	mysql.delete_records<person>();
+  auto result = mysql.query<person>();  // vector<person>
+  for (auto &person : result) {
+    std::cout << person.id << " " << person.name << " " << person.age
+              << std::endl;
+  }
 
-	//transaction
-	mysql.begin();
-	for (int i = 0; i < 10; ++i) {
+  mysql.delete_records<person>();
+
+  // transaction
+  mysql.begin();
+  for (int i = 0; i < 10; ++i) {
     person s = {"tom", 19};
-    if(!mysql.insert(s)){
-        mysql.rollback();
-        return -1;
+    if (!mysql.insert(s)) {
+      mysql.rollback();
+      return -1;
     }
-	}
-	mysql.commit();
+  }
+  mysql.commit();
+  return 0;
 }
 ```
 
 ```C++
-enum class Color { BULE = 10, RED = 15 };
+enum class Color { BLUE = 10, RED = 15 };
 enum Fruit { APPLE, BANANA };
 
 struct test_enum_t {
@@ -165,12 +166,12 @@ int main() {
   sqlite.connect(db);
   sqlite.execute("drop table if exists test_enum_t");
   sqlite.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
-  sqlite.insert<test_enum_t>({Color::BULE});
+  sqlite.insert<test_enum_t>({Color::BLUE});
   auto vec1 = sqlite.query<test_enum_t>();
   vec1.front().color = Color::RED;
   sqlite.update(vec1.front());
   auto vec2 = sqlite.query<test_enum_t>();
-  sqlite.update<test_enum_t>({Color::BULE, BANANA, 1}, "id=1");
+  sqlite.update<test_enum_t>({Color::BLUE, BANANA, 1}, "id=1");
   auto vec3 = sqlite.query<test_enum_t>();
   vec3.front().color = Color::RED;
   sqlite.replace(vec3.front());

@@ -1339,7 +1339,7 @@ TEST_CASE("query tuple_optional_t") {
 #endif
 }
 
-enum class Color { BULE = 10, RED = 15 };
+enum class Color { BLUE = 10, RED = 15 };
 enum Fruit { APPLE, BANANA };
 
 struct test_enum_t {
@@ -1356,10 +1356,10 @@ TEST_CASE("test enum") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists test_enum_t");
     mysql.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
-    mysql.insert<test_enum_t>({Color::BULE});
+    mysql.insert<test_enum_t>({Color::BLUE});
     auto vec = mysql.query<test_enum_t>();
     CHECK(vec.size() == 1);
-    CHECK(vec.front().color == Color::BULE);
+    CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
@@ -1368,10 +1368,10 @@ TEST_CASE("test enum") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    mysql.update<test_enum_t>({Color::BULE, APPLE, 1}, "id=1");
+    mysql.update<test_enum_t>({Color::BLUE, APPLE, 1}, "id=1");
     vec = mysql.query<test_enum_t>();
     CHECK(vec.size() == 1);
-    CHECK(vec.front().color == Color::BULE);
+    CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
@@ -1390,10 +1390,10 @@ TEST_CASE("test enum") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists test_enum_t");
     postgres.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
-    postgres.insert<test_enum_t>({Color::BULE});
+    postgres.insert<test_enum_t>({Color::BLUE});
     auto vec = postgres.query<test_enum_t>();
     CHECK(vec.size() == 1);
-    CHECK(vec.front().color == Color::BULE);
+    CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
@@ -1402,10 +1402,10 @@ TEST_CASE("test enum") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    postgres.update<test_enum_t>({Color::BULE, APPLE, 1}, "id=1");
+    postgres.update<test_enum_t>({Color::BLUE, APPLE, 1}, "id=1");
     vec = postgres.query<test_enum_t>();
     CHECK(vec.size() == 1);
-    CHECK(vec.front().color == Color::BULE);
+    CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
@@ -1424,10 +1424,10 @@ TEST_CASE("test enum") {
   if (sqlite.connect(db)) {
     sqlite.execute("drop table if exists test_enum_t");
     sqlite.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
-    sqlite.insert<test_enum_t>({Color::BULE});
+    sqlite.insert<test_enum_t>({Color::BLUE});
     auto vec = sqlite.query<test_enum_t>();
     CHECK(vec.size() == 1);
-    CHECK(vec.front().color == Color::BULE);
+    CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
@@ -1436,10 +1436,10 @@ TEST_CASE("test enum") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    sqlite.update<test_enum_t>({Color::BULE, APPLE, 1}, "id=1");
+    sqlite.update<test_enum_t>({Color::BLUE, APPLE, 1}, "id=1");
     vec = sqlite.query<test_enum_t>();
     CHECK(vec.size() == 1);
-    CHECK(vec.front().color == Color::BULE);
+    CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
