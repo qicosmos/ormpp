@@ -17,7 +17,6 @@
 #include "error_code.h"
 #include "reflection.hpp"
 
-
 namespace iguana {
 
 template <typename T>
@@ -193,5 +192,15 @@ IGUANA_INLINE void match(It &&it, It &&end) {
       throw std::runtime_error(std::string("Expected these: ").append(b));
     }
 }
+
+inline constexpr auto has_zero = [](uint64_t chunk) IGUANA__INLINE_LAMBDA {
+  return (((chunk - 0x0101010101010101) & ~chunk) & 0x8080808080808080);
+};
+
+inline constexpr auto has_qoute = [](uint64_t chunk) IGUANA__INLINE_LAMBDA {
+  return has_zero(
+      chunk ^
+      0b0010001000100010001000100010001000100010001000100010001000100010);
+};
 
 }  // namespace iguana
