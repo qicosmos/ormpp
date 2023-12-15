@@ -520,22 +520,22 @@ class postgresql {
       }
     }
     else if constexpr (std::is_enum_v<U> && !iguana::is_int64_v<U>) {
-      std::vector<char> temp(20, 0);
+      char temp[20] = {};
       itoa_fwd(static_cast<int>(value), temp.data());
       param_values.push_back(std::move(temp));
     }
     else if constexpr (std::is_integral_v<U> && !iguana::is_int64_v<U>) {
-      std::vector<char> temp(20, 0);
+      char temp[20] = {};
       itoa_fwd(value, temp.data());
       param_values.push_back(std::move(temp));
     }
     else if constexpr (iguana::is_int64_v<U>) {
-      std::vector<char> temp(65, 0);
+      char temp[65] = {};
       xtoa(value, temp.data(), 10, std::is_signed_v<U>);
       param_values.push_back(std::move(temp));
     }
     else if constexpr (std::is_floating_point_v<U>) {
-      std::vector<char> temp(20, 0);
+      char temp[20] = {};
       sprintf(temp.data(), "%f", value);
       param_values.push_back(std::move(temp));
     }
