@@ -91,47 +91,94 @@ REFLECTION(student, code, name, sex, age, dm, classroom)
 using namespace ormpp;
 
 struct person {
-  int id;
-  std::string name;
   std::optional<int> age; // 可以插入null值
+  std::string name;
+  int id;
 };
+REGISTER_AUTO_KEY(person, id)
+REGISTER_CONFLICT_KEY(person, name)
+// REGISTER_CONFLICT_KEY(person, name, age)
 REFLECTION(person, id, name, age)
 // REFLECTION_WITH_NAME(person, "CUSTOM_TABLE_NAME", id, name, age)
+// REFLECTION_ALIAS(person, "CUSTOM_TABLE_NAME",
+//                  FLDALIAS(&person::id, "person_id"),
+//                  FLDALIAS(&person::name, "person_name"),
+//                  FLDALIAS(&person::age, "person_age"));
 
-int main()
-{
-	person p = {1, "test1", 2};
-	person p1 = {2, "test2", 3};
-	person p2 = {3, "test3", 4};
-	std::vector<person> v{p1, p2};
+int main() {
+  person p = {"test1", 2};
+  person p1 = {"test2", 3};
+  person p2 = {"test3", 4};
+  std::vector<person> v{p1, p2};
 
-	dbng<mysql> mysql;
-	mysql.connect("127.0.0.1", "dbuser", "yourpwd", "testdb");
-	mysql.create_datatable<person>();
+  dbng<mysql> mysql;
+  mysql.connect("127.0.0.1", "dbuser", "yourpwd", "testdb");
+  mysql.create_datatable<person>(ormpp_auto_key{"id"});
 
-	mysql.insert(p);
-	mysql.insert(v);
+  mysql.insert(p);
+  mysql.insert(v);
+  auto id1 = mysql.get_insert_id_after_insert<person>(p);
+  auto id2 = mysql.get_insert_id_after_insert<person>(v);
 
-	mysql.update(p);
-	mysql.update(v);
+  mysql.update(p);
+  mysql.update(v);
+  mysql.update(p, "id=1");
 
-	auto result = mysql.query<person>(); //vector<person>
-	for(auto& person : result){
-		std::cout<<person.id<<" "<<person.name<<" "<<person.age<<std::endl;
-	}
+  mysql.replace(p);
+  mysql.replace(v);
 
-	mysql.delete_records<person>();
+  auto result = mysql.query<person>();  // vector<person>
+  for (auto &person : result) {
+    std::cout << person.id << " " << person.name << " " << person.age
+              << std::endl;
+  }
 
-	//transaction
-	mysql.begin();
-	for (int i = 0; i < 10; ++i) {
-        person s = {i, "tom", 19};
-            if(!mysql.insert(s)){
-                mysql.rollback();
-                return -1;
-            }
-	}
-	mysql.commit();
+  mysql.delete_records<person>();
+
+  // transaction
+  mysql.begin();
+  for (int i = 0; i < 10; ++i) {
+    person s = {"tom", 19};
+    if (!mysql.insert(s)) {
+      mysql.rollback();
+      return -1;
+    }
+  }
+  mysql.commit();
+  return 0;
+}
+```
+
+```C++
+enum class Color { BLUE = 10, RED = 15 };
+enum Fruit { APPLE, BANANA };
+
+struct test_enum_t {
+  Color color;
+  Fruit fruit;
+  int id;
+};
+REGISTER_AUTO_KEY(test_enum_t, id)
+REFLECTION(test_enum_t, id, color, fruit)
+
+int main() {
+  dbng<sqlite> sqlite;
+  sqlite.connect(db);
+  sqlite.execute("drop table if exists test_enum_t");
+  sqlite.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
+  sqlite.insert<test_enum_t>({Color::BLUE});
+  auto vec1 = sqlite.query<test_enum_t>();
+  vec1.front().color = Color::RED;
+  sqlite.update(vec1.front());
+  auto vec2 = sqlite.query<test_enum_t>();
+  sqlite.update<test_enum_t>({Color::BLUE, BANANA, 1}, "id=1");
+  auto vec3 = sqlite.query<test_enum_t>();
+  vec3.front().color = Color::RED;
+  sqlite.replace(vec3.front());
+  auto vec4 = sqlite.query<test_enum_t>();
+  sqlite.delete_records<test_enum_t>();
+  auto vec5 = sqlite.query<test_enum_t>();
+  return 0;
 }
 ```
 

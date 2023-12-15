@@ -140,7 +140,10 @@ inline constexpr auto get_type_names(DBType type) {
     }
 #ifdef ORMPP_ENABLE_MYSQL
     else if (type == DBType::mysql) {
-      if constexpr (is_optional_v<U>::value) {
+      if constexpr (std::is_enum_v<U>) {
+        s = "INTEGER"sv;
+      }
+      else if constexpr (is_optional_v<U>::value) {
         s = ormpp_mysql::type_to_name(identity<typename U::value_type>{});
       }
       else {
@@ -150,7 +153,10 @@ inline constexpr auto get_type_names(DBType type) {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
     else if (type == DBType::sqlite) {
-      if constexpr (is_optional_v<U>::value) {
+      if constexpr (std::is_enum_v<U>) {
+        s = "INTEGER"sv;
+      }
+      else if constexpr (is_optional_v<U>::value) {
         s = ormpp_sqlite::type_to_name(identity<typename U::value_type>{});
       }
       else {
@@ -160,7 +166,10 @@ inline constexpr auto get_type_names(DBType type) {
 #endif
 #ifdef ORMPP_ENABLE_PG
     else if (type == DBType::postgresql) {
-      if constexpr (is_optional_v<U>::value) {
+      if constexpr (std::is_enum_v<U>) {
+        s = "integer"sv;
+      }
+      else if constexpr (is_optional_v<U>::value) {
         s = ormpp_postgresql::type_to_name(identity<typename U::value_type>{});
       }
       else {

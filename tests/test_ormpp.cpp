@@ -1339,6 +1339,122 @@ TEST_CASE("query tuple_optional_t") {
 #endif
 }
 
+enum class Color { BLUE = 10, RED = 15 };
+enum Fruit { APPLE, BANANA };
+
+struct test_enum_t {
+  Color color;
+  Fruit fruit;
+  int id;
+};
+REGISTER_AUTO_KEY(test_enum_t, id)
+REFLECTION(test_enum_t, id, color, fruit)
+
+TEST_CASE("test enum") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists test_enum_t");
+    mysql.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
+    mysql.insert<test_enum_t>({Color::BLUE});
+    auto vec = mysql.query<test_enum_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().color == Color::BLUE);
+    CHECK(vec.front().fruit == APPLE);
+    vec.front().color = Color::RED;
+    vec.front().fruit = BANANA;
+    mysql.update(vec.front());
+    vec = mysql.query<test_enum_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().color == Color::RED);
+    CHECK(vec.front().fruit == BANANA);
+    mysql.update<test_enum_t>({Color::BLUE, APPLE, 1}, "id=1");
+    vec = mysql.query<test_enum_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().color == Color::BLUE);
+    CHECK(vec.front().fruit == APPLE);
+    vec.front().color = Color::RED;
+    vec.front().fruit = BANANA;
+    mysql.replace(vec.front());
+    vec = mysql.query<test_enum_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().color == Color::RED);
+    CHECK(vec.front().fruit == BANANA);
+    mysql.delete_records<test_enum_t>();
+    vec = mysql.query<test_enum_t>();
+    CHECK(vec.size() == 0);
+  }
+#endif
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists test_enum_t");
+    postgres.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
+    postgres.insert<test_enum_t>({Color::BLUE});
+    auto vec = postgres.query<test_enum_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().color == Color::BLUE);
+    CHECK(vec.front().fruit == APPLE);
+    vec.front().color = Color::RED;
+    vec.front().fruit = BANANA;
+    postgres.update(vec.front());
+    vec = postgres.query<test_enum_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().color == Color::RED);
+    CHECK(vec.front().fruit == BANANA);
+    postgres.update<test_enum_t>({Color::BLUE, APPLE, 1}, "id=1");
+    vec = postgres.query<test_enum_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().color == Color::BLUE);
+    CHECK(vec.front().fruit == APPLE);
+    vec.front().color = Color::RED;
+    vec.front().fruit = BANANA;
+    postgres.replace(vec.front());
+    vec = postgres.query<test_enum_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().color == Color::RED);
+    CHECK(vec.front().fruit == BANANA);
+    postgres.delete_records<test_enum_t>();
+    vec = postgres.query<test_enum_t>();
+    CHECK(vec.size() == 0);
+  }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists test_enum_t");
+    sqlite.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
+    sqlite.insert<test_enum_t>({Color::BLUE});
+    auto vec = sqlite.query<test_enum_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().color == Color::BLUE);
+    CHECK(vec.front().fruit == APPLE);
+    vec.front().color = Color::RED;
+    vec.front().fruit = BANANA;
+    sqlite.update(vec.front());
+    vec = sqlite.query<test_enum_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().color == Color::RED);
+    CHECK(vec.front().fruit == BANANA);
+    sqlite.update<test_enum_t>({Color::BLUE, APPLE, 1}, "id=1");
+    vec = sqlite.query<test_enum_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().color == Color::BLUE);
+    CHECK(vec.front().fruit == APPLE);
+    vec.front().color = Color::RED;
+    vec.front().fruit = BANANA;
+    sqlite.replace(vec.front());
+    vec = sqlite.query<test_enum_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().color == Color::RED);
+    CHECK(vec.front().fruit == BANANA);
+    sqlite.delete_records<test_enum_t>();
+    vec = sqlite.query<test_enum_t>();
+    CHECK(vec.size() == 0);
+  }
+#endif
+}
+
 struct alias {
   std::string name;
   int id;

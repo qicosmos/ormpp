@@ -519,6 +519,11 @@ class postgresql {
         param_values.push_back({});
       }
     }
+    else if constexpr (std::is_enum_v<U> && !iguana::is_int64_v<U>) {
+      std::vector<char> temp(20, 0);
+      itoa_fwd(static_cast<int>(value), temp.data());
+      param_values.push_back(std::move(temp));
+    }
     else if constexpr (std::is_integral_v<U> && !iguana::is_int64_v<U>) {
       std::vector<char> temp(20, 0);
       itoa_fwd(value, temp.data());
@@ -562,6 +567,9 @@ class postgresql {
       value_type item;
       assign(item, row, i);
       value = std::move(item);
+    }
+    else if constexpr (std::is_enum_v<U> && !iguana::is_int64_v<U>) {
+      value = static_cast<U>(std::atoi(PQgetvalue(res_, row, i)));
     }
     else if constexpr (std::is_integral_v<U> && !iguana::is_int64_v<U>) {
       value = std::atoi(PQgetvalue(res_, row, i));

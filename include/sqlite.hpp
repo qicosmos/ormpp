@@ -432,8 +432,10 @@ class sqlite {
       }
       return SQLITE_OK == sqlite3_bind_null(stmt_, i);
     }
-    else if constexpr (std::is_integral_v<U> &&
-                       !iguana::is_int64_v<U>) {  // double, int64
+    else if constexpr (std::is_enum_v<U> && !iguana::is_int64_v<U>) {
+      return SQLITE_OK == sqlite3_bind_int(stmt_, i, static_cast<int>(value));
+    }
+    else if constexpr (std::is_integral_v<U> && !iguana::is_int64_v<U>) {
       return SQLITE_OK == sqlite3_bind_int(stmt_, i, value);
     }
     else if constexpr (iguana::is_int64_v<U>) {
@@ -468,8 +470,10 @@ class sqlite {
       assign(item, i);
       value = std::move(item);
     }
-    else if constexpr (std::is_integral_v<U> &&
-                       !iguana::is_int64_v<U>) {  // double, int64
+    else if constexpr (std::is_enum_v<U> && !iguana::is_int64_v<U>) {
+      value = static_cast<U>(sqlite3_column_int(stmt_, i));
+    }
+    else if constexpr (std::is_integral_v<U> && !iguana::is_int64_v<U>) {
       if constexpr (std::is_same_v<U, char>) {
         value = (char)sqlite3_column_int(stmt_, i);
       }
