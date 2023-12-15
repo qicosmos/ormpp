@@ -33,7 +33,7 @@ inline auto is_auto_key(std::string_view field_name) {
 
 #define REGISTER_AUTO_KEY(STRUCT_NAME, KEY)         \
   inline auto IGUANA_UNIQUE_VARIABLE(STRUCT_NAME) = \
-      add_auto_key_field(#STRUCT_NAME, #KEY);
+      ormpp::add_auto_key_field(#STRUCT_NAME, #KEY);
 
 inline std::unordered_map<std::string_view, std::string_view>
     g_ormpp_conflict_key_map;
