@@ -60,7 +60,7 @@ inline auto get_conflict_key() {
 
 #define REGISTER_CONFLICT_KEY(STRUCT_NAME, ...)     \
   inline auto IGUANA_UNIQUE_VARIABLE(STRUCT_NAME) = \
-      add_conflict_key_field(#STRUCT_NAME, {MAKE_NAMES(__VA_ARGS__)});
+      ormpp::add_conflict_key_field(#STRUCT_NAME, {MAKE_NAMES(__VA_ARGS__)});
 
 template <typename T>
 struct is_optional_v : std::false_type {};
