@@ -21,13 +21,15 @@ inline int add_auto_key_field(std::string_view key, std::string_view value) {
 
 template <typename T>
 inline auto get_auto_key() {
-  auto it = g_ormpp_auto_key_map.find(iguana::get_name<T>());
+  using U = decltype(iguana_reflect_members(std::declval<T>()));
+  auto it = g_ormpp_auto_key_map.find(U::struct_name());
   return it == g_ormpp_auto_key_map.end() ? "" : it->second;
 }
 
 template <typename T>
 inline auto is_auto_key(std::string_view field_name) {
-  auto it = g_ormpp_auto_key_map.find(iguana::get_name<T>());
+  using U = decltype(iguana_reflect_members(std::declval<T>()));
+  auto it = g_ormpp_auto_key_map.find(U::struct_name());
   return it == g_ormpp_auto_key_map.end() ? false : it->second == field_name;
 }
 
@@ -46,7 +48,8 @@ inline int add_conflict_key_field(std::string_view key,
 
 template <typename T>
 inline auto get_conflict_key() {
-  auto key = iguana::get_name<T>();
+  using U = decltype(iguana_reflect_members(std::declval<T>()));
+  auto key = U::struct_name();
   auto it = g_ormpp_conflict_key_map.find(key);
   if (it == g_ormpp_conflict_key_map.end()) {
     auto auto_key = g_ormpp_auto_key_map.find(key);
