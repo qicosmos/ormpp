@@ -333,9 +333,14 @@ class postgresql {
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>) {
               if (!has_add_field) {
-                append(sql, field_name.data(), " ");
+                if (type_name_arr[i] == "bigint") {
+                  append(sql, field_name.data(), " ", "bigserial");
+                }
+                else {
+                  append(sql, field_name.data(), " ", "serial");
+                }
               }
-              append(sql, " serial primary key");
+              append(sql, " primary key");
               has_add_field = true;
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
