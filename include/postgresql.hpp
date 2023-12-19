@@ -333,7 +333,7 @@ class postgresql {
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>) {
               if (!has_add_field) {
-                append(sql, field_name.data(), " ");
+                append(sql, field_name.data(), " ", type_name_arr[i]);
               }
               append(sql, " serial primary key");
               has_add_field = true;
