@@ -50,6 +50,9 @@ inline std::string id_to_type(
   return res;
 }
 
+inline constexpr auto type_to_name(identity<bool>) noexcept {
+  return "BOOLEAN"sv;
+}
 inline constexpr auto type_to_name(identity<char>) noexcept {
   return "TINYINT"sv;
 }

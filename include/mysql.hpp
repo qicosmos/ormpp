@@ -177,8 +177,13 @@ class mysql {
       param.buffer = const_cast<void *>(static_cast<const void *>(&value));
     }
     else if constexpr (std::is_arithmetic_v<U>) {
-      param.buffer_type =
-          (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
+      if constexpr (std::is_same_v<bool, U>) {
+        param.buffer_type = MYSQL_TYPE_TINY;
+      }
+      else {
+        param.buffer_type =
+            (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
+      }
       param.buffer = const_cast<void *>(static_cast<const void *>(&value));
     }
     else if constexpr (std::is_same_v<std::string, U>) {
@@ -214,8 +219,13 @@ class mysql {
       param_bind.buffer = const_cast<void *>(static_cast<const void *>(&value));
     }
     else if constexpr (std::is_arithmetic_v<U>) {
-      param_bind.buffer_type =
-          (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
+      if constexpr (std::is_same_v<bool, U>) {
+        param_bind.buffer_type = MYSQL_TYPE_TINY;
+      }
+      else {
+        param_bind.buffer_type =
+            (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
+      }
       param_bind.buffer = const_cast<void *>(static_cast<const void *>(&value));
     }
     else if constexpr (std::is_same_v<std::string, U>) {

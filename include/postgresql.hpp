@@ -11,6 +11,7 @@
 #include <string>
 #include <type_traits>
 
+#include "iguana/detail/charconv.h"
 #include "utility.hpp"
 
 using namespace std::string_literals;
@@ -526,17 +527,22 @@ class postgresql {
     }
     else if constexpr (std::is_enum_v<U> && !iguana::is_int64_v<U>) {
       std::vector<char> temp(20, 0);
-      itoa_fwd(static_cast<int>(value), temp.data());
+      iguana::detail::to_chars(temp.data(), static_cast<int>(value));
       param_values.push_back(std::move(temp));
     }
     else if constexpr (std::is_integral_v<U> && !iguana::is_int64_v<U>) {
       std::vector<char> temp(20, 0);
-      itoa_fwd(value, temp.data());
+      if constexpr (iguana::is_char_type<U>::value) {
+        itoa_fwd(value, temp.data());
+      }
+      else {
+        iguana::detail::to_chars(temp.data(), value);
+      }
       param_values.push_back(std::move(temp));
     }
     else if constexpr (iguana::is_int64_v<U>) {
       std::vector<char> temp(65, 0);
-      xtoa(value, temp.data(), 10, std::is_signed_v<U>);
+      iguana::detail::to_chars(temp.data(), value);
       param_values.push_back(std::move(temp));
     }
     else if constexpr (std::is_floating_point_v<U>) {
