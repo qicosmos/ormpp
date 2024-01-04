@@ -1568,6 +1568,64 @@ TEST_CASE("test enum with custom name") {
 #endif
 }
 
+struct test_bool_t {
+  bool ok;
+  int id;
+};
+REGISTER_AUTO_KEY(test_bool_t, id)
+REFLECTION(test_bool_t, id, ok)
+
+TEST_CASE("test bool") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists test_bool_t");
+    mysql.create_datatable<test_bool_t>(ormpp_auto_key{"id"});
+    mysql.insert(test_bool_t{true});
+    auto vec = mysql.query<test_bool_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().ok == true);
+    mysql.delete_records<test_bool_t>();
+    mysql.insert(test_bool_t{false});
+    vec = mysql.query<test_bool_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().ok == false);
+  }
+#endif
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists test_bool_t");
+    postgres.create_datatable<test_bool_t>(ormpp_auto_key{"id"});
+    postgres.insert(test_bool_t{true});
+    auto vec = postgres.query<test_bool_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().ok == true);
+    postgres.delete_records<test_bool_t>();
+    postgres.insert(test_bool_t{false});
+    vec = postgres.query<test_bool_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().ok == false);
+  }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists test_bool_t");
+    sqlite.create_datatable<test_bool_t>(ormpp_auto_key{"id"});
+    sqlite.insert(test_bool_t{true});
+    auto vec = sqlite.query<test_bool_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().ok == true);
+    sqlite.delete_records<test_bool_t>();
+    sqlite.insert(test_bool_t{false});
+    vec = sqlite.query<test_bool_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().ok == false);
+  }
+#endif
+}
+
 struct alias {
   std::string name;
   int id;

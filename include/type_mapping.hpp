@@ -32,6 +32,7 @@ struct identity {};
 
 #ifdef ORMPP_ENABLE_MYSQL
 namespace ormpp_mysql {
+REGISTER_TYPE(bool, MYSQL_TYPE_BOOL)
 REGISTER_TYPE(char, MYSQL_TYPE_TINY)
 REGISTER_TYPE(short, MYSQL_TYPE_SHORT)
 REGISTER_TYPE(int, MYSQL_TYPE_LONG)
@@ -50,6 +51,9 @@ inline std::string id_to_type(
   return res;
 }
 
+inline constexpr auto type_to_name(identity<bool>) noexcept {
+  return "BOOLEAN"sv;
+}
 inline constexpr auto type_to_name(identity<char>) noexcept {
   return "TINYINT"sv;
 }
