@@ -74,9 +74,9 @@ class dbng {
   }
 
   template <typename T, typename... Args>
-  bool delete_records(Args &&...where_conditon) {
+  bool delete_records(Args &&...where_condition) {
     return db_.template delete_records<T>(
-        std::forward<Args>(where_conditon)...);
+        std::forward<Args>(where_condition)...);
   }
 
   // restriction, all the args are string, the first is the where condition,
