@@ -118,22 +118,7 @@ class sqlite {
   template <typename T, typename... Args>
   bool delete_records(Args &&...where_conditon) {
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
-#ifdef ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
-#endif
-    int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
-                                    &stmt_, nullptr);
-    if (result != SQLITE_OK) {
-      set_last_error(sqlite3_errmsg(handle_));
-      return false;
-    }
-
-    auto guard = guard_statment(stmt_);
-    if (sqlite3_step(stmt_) != SQLITE_DONE) {
-      set_last_error(sqlite3_errmsg(handle_));
-      return false;
-    }
-    return true;
+    return execute(sql);
   }
 
   // restriction, all the args are string, the first is the where condition,
