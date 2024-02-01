@@ -19,4 +19,4 @@ elseif(ENABLE_SQLITE3)
         target_link_libraries(${PROJECT_NAME} sqlite3)
 endif()
 
-install(TARGETS ${PROJECT_NAME} DESTINATION include)
+install(TARGETS ${PROJECT_NAME} DESTINATION ormpp)
