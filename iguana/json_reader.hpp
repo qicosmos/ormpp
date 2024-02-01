@@ -635,10 +635,11 @@ IGUANA_INLINE void from_json(T &value, const Byte *data, size_t size,
 }
 
 template <bool Is_view = false, typename It>
-void parse(jvalue &result, It &&it, It &&end);
+void parse(jvalue &result, It &&it, It &&end, bool parse_as_double = false);
 
 template <bool Is_view = false, typename It>
-inline void parse(jarray &result, It &&it, It &&end) {
+inline void parse(jarray &result, It &&it, It &&end,
+                  bool parse_as_double = false) {
   skip_ws(it, end);
   match<'['>(it, end);
   if (*it == ']')
@@ -652,7 +653,7 @@ inline void parse(jarray &result, It &&it, It &&end) {
     }
     result.emplace_back();
 
-    parse<Is_view>(result.back(), it, end);
+    parse<Is_view>(result.back(), it, end, parse_as_double);
 
     if (*it == ']')
       IGUANA_UNLIKELY {
@@ -666,7 +667,8 @@ inline void parse(jarray &result, It &&it, It &&end) {
 }
 
 template <bool Is_view = false, typename It>
-inline void parse(jobject &result, It &&it, It &&end) {
+inline void parse(jobject &result, It &&it, It &&end,
+                  bool parse_as_double = false) {
   skip_ws(it, end);
   match<'{'>(it, end);
   if (*it == '}')
@@ -689,7 +691,7 @@ inline void parse(jobject &result, It &&it, It &&end) {
 
     match<':'>(it, end);
 
-    parse<Is_view>(emplaced.first->second, it, end);
+    parse<Is_view>(emplaced.first->second, it, end, parse_as_double);
 
     if (*it == '}')
       IGUANA_UNLIKELY {
@@ -702,7 +704,7 @@ inline void parse(jobject &result, It &&it, It &&end) {
 }
 
 template <bool Is_view, typename It>
-inline void parse(jvalue &result, It &&it, It &&end) {
+inline void parse(jvalue &result, It &&it, It &&end, bool parse_as_double) {
   skip_ws(it, end);
   switch (*it) {
     case 'n':
@@ -728,7 +730,7 @@ inline void parse(jvalue &result, It &&it, It &&end) {
     case '-': {
       double d{};
       detail::parse_item(d, it, end);
-      if (static_cast<int>(d) == d)
+      if (!parse_as_double && (static_cast<int>(d) == d))
         result.emplace<int>(d);
       else
         result.emplace<double>(d);
@@ -746,11 +748,11 @@ inline void parse(jvalue &result, It &&it, It &&end) {
       break;
     case '[':
       result.template emplace<jarray>();
-      parse<Is_view>(std::get<jarray>(result), it, end);
+      parse<Is_view>(std::get<jarray>(result), it, end, parse_as_double);
       break;
     case '{': {
       result.template emplace<jobject>();
-      parse<Is_view>(std::get<jobject>(result), it, end);
+      parse<Is_view>(std::get<jobject>(result), it, end, parse_as_double);
       break;
     }
     default:
@@ -760,11 +762,13 @@ inline void parse(jvalue &result, It &&it, It &&end) {
   skip_ws(it, end);
 }
 
-// when Is_view is true, parse str as string_view
+// set Is_view == true, parse str as std::string_view
+// set parse_as_double == true, parse the number as double in any case
 template <bool Is_view = false, typename It>
-inline void parse(jvalue &result, It &&it, It &&end, std::error_code &ec) {
+inline void parse(jvalue &result, It &&it, It &&end, std::error_code &ec,
+                  bool parse_as_double = false) {
   try {
-    parse<Is_view>(result, it, end);
+    parse<Is_view>(result, it, end, parse_as_double);
     ec = {};
   } catch (const std::runtime_error &e) {
     result.template emplace<std::nullptr_t>();
@@ -774,15 +778,16 @@ inline void parse(jvalue &result, It &&it, It &&end, std::error_code &ec) {
 
 template <bool Is_view = false, typename T, typename View,
           std::enable_if_t<json_view_v<View>, int> = 0>
-inline void parse(T &result, const View &view) {
-  parse<Is_view>(result, std::begin(view), std::end(view));
+inline void parse(T &result, const View &view, bool parse_as_double = false) {
+  parse<Is_view>(result, std::begin(view), std::end(view), parse_as_double);
 }
 
 template <bool Is_view = false, typename T, typename View,
           std::enable_if_t<json_view_v<View>, int> = 0>
-inline void parse(T &result, const View &view, std::error_code &ec) noexcept {
+inline void parse(T &result, const View &view, std::error_code &ec,
+                  bool parse_as_double = false) noexcept {
   try {
-    parse<Is_view>(result, view);
+    parse<Is_view>(result, view, parse_as_double);
     ec = {};
   } catch (std::runtime_error &e) {
     ec = iguana::make_error_code(e.what());
