@@ -144,16 +144,8 @@ class mysql {
 
   template <typename T, typename... Args>
   bool delete_records(Args &&...where_conditon) {
-    reset_error();
     auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
-#ifdef ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
-#endif
-    if (mysql_query(con_, sql.data())) {
-      set_last_error(mysql_error(con_));
-      return false;
-    }
-    return true;
+    return execute(sql);
   }
 
   int get_last_affect_rows() { return (int)mysql_affected_rows(con_); }
@@ -522,8 +514,18 @@ class mysql {
     std::cout << sql << std::endl;
 #endif
     reset_error();
-    if (mysql_query(con_, sql.data()) != 0) {
+    stmt_ = mysql_stmt_init(con_);
+    if (!stmt_) {
       set_last_error(mysql_error(con_));
+      return false;
+    }
+    auto guard = guard_statment(stmt_);
+    if (mysql_stmt_prepare(stmt_, sql.c_str(), (unsigned long)sql.size())) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return false;
+    }
+    if (mysql_stmt_execute(stmt_)) {
+      set_last_error(mysql_stmt_error(stmt_));
       return false;
     }
     return true;
