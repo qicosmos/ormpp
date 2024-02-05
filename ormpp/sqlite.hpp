@@ -121,6 +121,51 @@ class sqlite {
     return execute(sql);
   }
 
+  template <typename T, typename... Args>
+  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query0(
+      const std::string &str, Args &&...args) {
+    std::string sql = generate_query_sql<T>();
+    if (!str.empty()) {
+      sql += "where " + str;
+    }
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
+                                    &stmt_, nullptr);
+    if (result != SQLITE_OK) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return {};
+    }
+
+    if constexpr (sizeof...(Args) > 0) {
+      size_t index = 0;
+      using expander = int[];
+      expander{0, (set_param_bind(args, ++index), 0)...};
+    }
+
+    auto guard = guard_statment(stmt_);
+
+    std::vector<T> v;
+    while (true) {
+      result = sqlite3_step(stmt_);
+      if (result == SQLITE_DONE)
+        break;
+
+      if (result != SQLITE_ROW)
+        break;
+
+      T t = {};
+      iguana::for_each(t, [this, &t](auto item, auto I) {
+        assign(t.*item, (int)decltype(I)::value);
+      });
+
+      v.push_back(std::move(t));
+    }
+
+    return v;
+  }
+
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
   template <typename T, typename... Args>
@@ -430,8 +475,13 @@ class sqlite {
       return SQLITE_OK == sqlite3_bind_double(stmt_, i, value);
     }
     else if constexpr (std::is_same_v<std::string, U>) {
-      return SQLITE_OK == sqlite3_bind_text(stmt_, i, value.data(),
-                                            (int)value.size(), nullptr);
+      return SQLITE_OK ==
+             sqlite3_bind_text(stmt_, i, value.data(), value.size(), nullptr);
+    }
+    else if constexpr (std::is_same_v<char,
+                                      std::remove_pointer_t<std::decay_t<U>>>) {
+      return SQLITE_OK ==
+             sqlite3_bind_text(stmt_, i, value, strlen(value), nullptr);
     }
     else if constexpr (is_char_array_v<U>) {
       return SQLITE_OK ==

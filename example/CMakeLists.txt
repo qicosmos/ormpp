@@ -16,7 +16,7 @@ elseif(ENABLE_MYSQL)
 elseif(ENABLE_MARIADB)
         target_link_libraries(${PROJECT_NAME} ${MARIADB_LIBRARY})
 elseif(ENABLE_SQLITE3)
-        target_link_libraries(${PROJECT_NAME} sqlite3)
+        target_link_libraries(${PROJECT_NAME} sqlite3 dl)
 endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

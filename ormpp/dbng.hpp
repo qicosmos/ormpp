@@ -79,6 +79,11 @@ class dbng {
         std::forward<Args>(where_condition)...);
   }
 
+  template <typename T, typename... Args>
+  std::vector<T> query0(const std::string &sql = "", Args &&...args) {
+    return db_.template query0<T>(sql, std::forward<Args>(args)...);
+  }
+
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
   template <typename T, typename... Args>
