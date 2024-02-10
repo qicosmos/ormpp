@@ -35,3 +35,4 @@
 .idea
 *build*
 .vscode
+.cache

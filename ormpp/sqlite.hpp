@@ -31,16 +31,18 @@ class sqlite {
 
   std::string get_last_error() const { return last_error_; }
 
-  template <typename... Args>
-  bool connect(Args &&...args) {
+  template <typename Arg, typename... Args>
+  bool connect(Arg &&arg, Args &&...) {
     reset_error();
-    auto r = sqlite3_open(std::forward<Args>(args)..., &handle_);
+    auto r = sqlite3_open(std::forward<Arg>(arg), &handle_);
     if (r != SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
       return false;
     }
     return true;
   }
+
+  bool ping() { return true; }
 
   template <typename... Args>
   bool disconnect(Args &&...args) {
