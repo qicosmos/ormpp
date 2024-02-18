@@ -292,11 +292,13 @@ class mysql {
       set_last_error(mysql_error(con_));
       return false;
     }
+
     auto guard = guard_statment(stmt_);
     if (mysql_stmt_prepare(stmt_, sql.c_str(), (unsigned long)sql.size())) {
       set_last_error(mysql_stmt_error(stmt_));
       return false;
     }
+
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
       using expander = int[];
@@ -307,6 +309,7 @@ class mysql {
         return false;
       }
     }
+
     if (mysql_stmt_execute(stmt_)) {
       set_last_error(mysql_stmt_error(stmt_));
       return false;
@@ -644,11 +647,13 @@ class mysql {
       set_last_error(mysql_error(con_));
       return false;
     }
+
     auto guard = guard_statment(stmt_);
     if (mysql_stmt_prepare(stmt_, sql.c_str(), (unsigned long)sql.size())) {
       set_last_error(mysql_stmt_error(stmt_));
       return false;
     }
+
     if (mysql_stmt_execute(stmt_)) {
       set_last_error(mysql_stmt_error(stmt_));
       return false;

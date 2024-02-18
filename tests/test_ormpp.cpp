@@ -1216,6 +1216,8 @@ TEST_CASE("query0 delete_records0") {
     auto vec6 = mysql.query0<person>();
     mysql.delete_records0<person>("name=?", "purecpp");
     auto vec7 = mysql.query0<person>();
+    mysql.delete_records0<person>();
+    auto vec8 = mysql.query0<person>();
     CHECK(vec1.front().name == "other");
     CHECK(vec1.back().name == "purecpp");
     CHECK(vec2.front().age == 200);
@@ -1224,6 +1226,7 @@ TEST_CASE("query0 delete_records0") {
     CHECK(vec5.size() == 0);
     CHECK(vec6.size() == 2);
     CHECK(vec7.size() == 1);
+    CHECK(vec8.size() == 0);
   }
 #endif
 #ifdef ORMPP_ENABLE_PG
@@ -1242,6 +1245,8 @@ TEST_CASE("query0 delete_records0") {
     auto vec6 = postgres.query0<person>();
     postgres.delete_records0<person>("name=$1", "purecpp");
     auto vec7 = postgres.query0<person>();
+    postgres.delete_records0<person>();
+    auto vec8 = postgres.query0<person>();
     CHECK(vec1.front().name == "other");
     CHECK(vec1.back().name == "purecpp");
     CHECK(vec2.front().age == 200);
@@ -1250,6 +1255,7 @@ TEST_CASE("query0 delete_records0") {
     CHECK(vec5.size() == 0);
     CHECK(vec6.size() == 2);
     CHECK(vec7.size() == 1);
+    CHECK(vec8.size() == 0);
   }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -1268,6 +1274,8 @@ TEST_CASE("query0 delete_records0") {
     auto vec6 = sqlite.query0<person>();
     sqlite.delete_records0<person>("name=?", "purecpp");
     auto vec7 = sqlite.query0<person>();
+    sqlite.delete_records0<person>();
+    auto vec8 = sqlite.query0<person>();
     CHECK(vec1.front().name == "other");
     CHECK(vec1.back().name == "purecpp");
     CHECK(vec2.front().age == 200);
@@ -1276,6 +1284,7 @@ TEST_CASE("query0 delete_records0") {
     CHECK(vec5.size() == 0);
     CHECK(vec6.size() == 2);
     CHECK(vec7.size() == 1);
+    CHECK(vec8.size() == 0);
   }
 #endif
 }
