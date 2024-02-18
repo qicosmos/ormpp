@@ -65,51 +65,38 @@ int main() {
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   sqlite.connect(db);
-  sqlite.execute("drop table if exists person");
   sqlite.create_datatable<person>(ormpp_auto_key{"id"});
-  sqlite.insert(person{"other"});
-  sqlite.insert(person{"purecpp"});
-  auto vec1 = sqlite.query0<person>();
-  auto vec2 = sqlite.query0<person>("name=?", "purecpp");
-  auto vec3 = sqlite.query0<person>("name=?", std::string("purecpp"));
-  std::cout << "v1 : " << vec1.size() << "\n";
-  std::cout << "v2 : " << vec2.size() << "\n";
-  std::cout << "v3 : " << vec3.size() << "\n";
+  sqlite.create_datatable<student>(ormpp_auto_key{"id"});
 
-  // dbng<sqlite> sqlite;
-  // sqlite.connect(db);
-  // sqlite.create_datatable<person>(ormpp_auto_key{"id"});
-  // sqlite.create_datatable<student>(ormpp_auto_key{"id"});
+  {
+    sqlite.delete_records<person>();
+    sqlite.insert<person>({"purecpp"});
+    sqlite.insert<person>({"purecpp", 6});
+    auto vec = sqlite.query<person>();
+    for (auto &[name, age, id] : vec) {
+      std::cout << id << ", " << *name << ", " << *age << "\n";
+    }
+  }
 
-  // {
-  //   sqlite.delete_records<person>();
-  //   sqlite.insert<person>({"purecpp"});
-  //   sqlite.insert<person>({"purecpp", 6});
-  //   auto vec = sqlite.query<person>();
-  //   for (auto &[name, age, id] : vec) {
-  //     std::cout << id << ", " << *name << ", " << *age << "\n";
-  //   }
-  // }
-
-  // {
-  //   sqlite.delete_records<student>();
-  //   sqlite.insert<student>({"purecpp", 1});
-  //   sqlite.insert<student>({"purecpp", 2});
-  //   sqlite.insert<student>({"purecpp", 3});
-  //   sqlite.insert<student>({"purecpp", 3});
-  //   {
-  //     auto vec = sqlite.query<student>("name='purecpp'", "order by age
-  //     desc"); for (auto &[name, age, id] : vec) {
-  //       std::cout << id << ", " << name << ", " << age << "\n";
-  //     }
-  //   }
-  //   {
-  //     auto vec = sqlite.query<student>("age=3", "order by id desc", "limit
-  //     1"); for (auto &[name, age, id] : vec) {
-  //       std::cout << id << ", " << name << ", " << age << "\n";
-  //     }
-  //   }
-  // }
+  {
+    sqlite.delete_records<student>();
+    sqlite.insert<student>({"purecpp", 1});
+    sqlite.insert<student>({"purecpp", 2});
+    sqlite.insert<student>({"purecpp", 3});
+    sqlite.insert<student>({"purecpp", 3});
+    {
+      auto vec = sqlite.query<student>("name='purecpp'", "order by age desc");
+      for (auto &[name, age, id] : vec) {
+        std::cout << id << ", " << name << ", " << age << "\n";
+      }
+    }
+    {
+      auto vec = sqlite.query<student>("age=3", "order by id desc", "limit 1");
+      for (auto &[name, age, id] : vec) {
+        std::cout << id << ", " << name << ", " << age << "\n";
+      }
+    }
+  }
 #endif
 
   return 0;

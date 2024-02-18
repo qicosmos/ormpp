@@ -122,6 +122,36 @@ class sqlite {
   }
 
   template <typename T, typename... Args>
+  bool delete_records0(const std::string &str, Args &&...args) {
+    auto sql = generate_delete_sql<T>();
+    if (!str.empty()) {
+      sql += "where " + str;
+    }
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
+                                    &stmt_, nullptr);
+    if (result != SQLITE_OK) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return false;
+    }
+
+    if constexpr (sizeof...(Args) > 0) {
+      size_t index = 0;
+      using expander = int[];
+      expander{0, (set_param_bind(args, ++index), 0)...};
+    }
+
+    auto guard = guard_statment(stmt_);
+    if (sqlite3_step(stmt_) != SQLITE_DONE) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return false;
+    }
+    return true;
+  }
+
+  template <typename T, typename... Args>
   std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query0(
       const std::string &str, Args &&...args) {
     std::string sql = generate_query_sql<T>();

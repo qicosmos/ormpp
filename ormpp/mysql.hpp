@@ -142,12 +142,6 @@ class mysql {
     return res.has_value() ? res.value() : 0;
   }
 
-  template <typename T, typename... Args>
-  bool delete_records(Args &&...where_conditon) {
-    auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
-    return execute(sql);
-  }
-
   int get_last_affect_rows() { return (int)mysql_affected_rows(con_); }
 
   template <typename T>
@@ -276,6 +270,215 @@ class mysql {
       auto &vec = mp[i];
       value = blob(vec.data(), vec.data() + get_blob_len(i));
     }
+  }
+
+  template <typename T, typename... Args>
+  bool delete_records(Args &&...where_conditon) {
+    auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
+    return execute(sql);
+  }
+
+  template <typename T, typename... Args>
+  bool delete_records0(const std::string &str, Args &&...args) {
+    auto sql = generate_delete_sql<T>();
+    if (!str.empty()) {
+      sql += "where " + str;
+    }
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    stmt_ = mysql_stmt_init(con_);
+    if (!stmt_) {
+      set_last_error(mysql_error(con_));
+      return false;
+    }
+    auto guard = guard_statment(stmt_);
+    if (mysql_stmt_prepare(stmt_, sql.c_str(), (unsigned long)sql.size())) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return false;
+    }
+    if constexpr (sizeof...(Args) > 0) {
+      size_t index = 0;
+      using expander = int[];
+      std::vector<MYSQL_BIND> param_binds;
+      expander{0, (set_param_bind(param_binds, args), 0)...};
+      if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
+        set_last_error(mysql_stmt_error(stmt_));
+        return false;
+      }
+    }
+    if (mysql_stmt_execute(stmt_)) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return false;
+    }
+    return true;
+  }
+
+  template <typename T, typename... Args>
+  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query0(
+      const std::string &str, Args &&...args) {
+    std::string sql = generate_query_sql<T>();
+    if (!str.empty()) {
+      sql += "where " + str;
+    }
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    constexpr auto SIZE = iguana::get_value<T>();
+
+    stmt_ = mysql_stmt_init(con_);
+    if (!stmt_) {
+      set_last_error(mysql_error(con_));
+      return {};
+    }
+
+    auto guard = guard_statment(stmt_);
+
+    if (mysql_stmt_prepare(stmt_, sql.c_str(), (unsigned long)sql.size())) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return {};
+    }
+
+    if constexpr (sizeof...(Args) > 0) {
+      size_t index = 0;
+      using expander = int[];
+      std::vector<MYSQL_BIND> param_binds;
+      expander{0, (set_param_bind(param_binds, args), 0)...};
+      if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
+        set_last_error(mysql_stmt_error(stmt_));
+        return {};
+      }
+    }
+
+    std::array<decltype(std::declval<MYSQL_BIND>().is_null), SIZE> nulls = {};
+    std::array<MYSQL_BIND, SIZE> param_binds = {};
+    std::map<size_t, std::vector<char>> mp;
+
+    std::vector<T> v;
+    T t{};
+
+    int index = 0;
+    iguana::for_each(t, [&param_binds, &index, &nulls, &mp, &t, this](
+                            auto item, auto /*i*/) {
+      set_param_bind(param_binds[index], t.*item, index, mp, nulls[index]);
+      index++;
+    });
+
+    if (index == 0) {
+      return {};
+    }
+
+    if (mysql_stmt_bind_result(stmt_, &param_binds[0])) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return {};
+    }
+
+    if (mysql_stmt_execute(stmt_)) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return {};
+    }
+
+    while (mysql_stmt_fetch(stmt_) == 0) {
+      iguana::for_each(t, [&param_binds, &mp, &t, this](auto item, auto i) {
+        constexpr auto Idx = decltype(i)::value;
+        set_value(param_binds.at(Idx), t.*item, Idx, mp);
+      });
+
+      for (auto &p : mp) {
+        p.second.assign(p.second.size(), 0);
+      }
+
+      iguana::for_each(t, [nulls, &t](auto item, auto i) {
+        constexpr auto Idx = decltype(i)::value;
+        if (nulls.at(Idx)) {
+          using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
+          if constexpr (is_optional_v<U>::value || std::is_arithmetic_v<U>) {
+            t.*item = {};
+          }
+        }
+      });
+
+      v.push_back(std::move(t));
+    }
+
+    return v;
+  }
+
+  // if there is a sql error, how to tell the user? throw exception?
+  template <typename T, typename... Args>
+  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
+      Args &&...args) {
+    std::string sql = generate_query_sql<T>(args...);
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    constexpr auto SIZE = iguana::get_value<T>();
+
+    stmt_ = mysql_stmt_init(con_);
+    if (!stmt_) {
+      set_last_error(mysql_error(con_));
+      return {};
+    }
+
+    auto guard = guard_statment(stmt_);
+
+    if (mysql_stmt_prepare(stmt_, sql.c_str(), (unsigned long)sql.size())) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return {};
+    }
+
+    std::array<decltype(std::declval<MYSQL_BIND>().is_null), SIZE> nulls = {};
+    std::array<MYSQL_BIND, SIZE> param_binds = {};
+    std::map<size_t, std::vector<char>> mp;
+
+    std::vector<T> v;
+    T t{};
+
+    int index = 0;
+    iguana::for_each(t, [&param_binds, &index, &nulls, &mp, &t, this](
+                            auto item, auto /*i*/) {
+      set_param_bind(param_binds[index], t.*item, index, mp, nulls[index]);
+      index++;
+    });
+
+    if (index == 0) {
+      return {};
+    }
+
+    if (mysql_stmt_bind_result(stmt_, &param_binds[0])) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return {};
+    }
+
+    if (mysql_stmt_execute(stmt_)) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return {};
+    }
+
+    while (mysql_stmt_fetch(stmt_) == 0) {
+      iguana::for_each(t, [&param_binds, &mp, &t, this](auto item, auto i) {
+        constexpr auto Idx = decltype(i)::value;
+        set_value(param_binds.at(Idx), t.*item, Idx, mp);
+      });
+
+      for (auto &p : mp) {
+        p.second.assign(p.second.size(), 0);
+      }
+
+      iguana::for_each(t, [nulls, &t](auto item, auto i) {
+        constexpr auto Idx = decltype(i)::value;
+        if (nulls.at(Idx)) {
+          using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
+          if constexpr (is_optional_v<U>::value || std::is_arithmetic_v<U>) {
+            t.*item = {};
+          }
+        }
+      });
+
+      v.push_back(std::move(t));
+    }
+
+    return v;
   }
 
   // for tuple and string with args...
@@ -413,83 +616,6 @@ class mysql {
     return v;
   }
 
-  // if there is a sql error, how to tell the user? throw exception?
-  template <typename T, typename... Args>
-  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
-      Args &&...args) {
-    std::string sql = generate_query_sql<T>(args...);
-#ifdef ORMPP_ENABLE_LOG
-    std::cout << sql << std::endl;
-#endif
-    constexpr auto SIZE = iguana::get_value<T>();
-
-    stmt_ = mysql_stmt_init(con_);
-    if (!stmt_) {
-      set_last_error(mysql_error(con_));
-      return {};
-    }
-
-    auto guard = guard_statment(stmt_);
-
-    if (mysql_stmt_prepare(stmt_, sql.c_str(), (unsigned long)sql.size())) {
-      set_last_error(mysql_stmt_error(stmt_));
-      return {};
-    }
-
-    std::array<decltype(std::declval<MYSQL_BIND>().is_null), SIZE> nulls = {};
-    std::array<MYSQL_BIND, SIZE> param_binds = {};
-    std::map<size_t, std::vector<char>> mp;
-
-    std::vector<T> v;
-    T t{};
-
-    int index = 0;
-    iguana::for_each(t, [&param_binds, &index, &nulls, &mp, &t, this](
-                            auto item, auto /*i*/) {
-      set_param_bind(param_binds[index], t.*item, index, mp, nulls[index]);
-      index++;
-    });
-
-    if (index == 0) {
-      return {};
-    }
-
-    if (mysql_stmt_bind_result(stmt_, &param_binds[0])) {
-      set_last_error(mysql_stmt_error(stmt_));
-      return {};
-    }
-
-    if (mysql_stmt_execute(stmt_)) {
-      set_last_error(mysql_stmt_error(stmt_));
-      return {};
-    }
-
-    while (mysql_stmt_fetch(stmt_) == 0) {
-      iguana::for_each(t, [&param_binds, &mp, &t, this](auto item, auto i) {
-        constexpr auto Idx = decltype(i)::value;
-        set_value(param_binds.at(Idx), t.*item, Idx, mp);
-      });
-
-      for (auto &p : mp) {
-        p.second.assign(p.second.size(), 0);
-      }
-
-      iguana::for_each(t, [nulls, &t](auto item, auto i) {
-        constexpr auto Idx = decltype(i)::value;
-        if (nulls.at(Idx)) {
-          using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
-          if constexpr (is_optional_v<U>::value || std::is_arithmetic_v<U>) {
-            t.*item = {};
-          }
-        }
-      });
-
-      v.push_back(std::move(t));
-    }
-
-    return v;
-  }
-
   int get_blob_len(int column) {
     reset_error();
     unsigned long data_len = 0;
@@ -513,7 +639,6 @@ class mysql {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    reset_error();
     stmt_ = mysql_stmt_init(con_);
     if (!stmt_) {
       set_last_error(mysql_error(con_));

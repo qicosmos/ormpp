@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 project(ormpp)
 
-set(ENABLE_SQLITE3 ON)
-
 include(cmake/build.cmake)
 include(cmake/develop.cmake)
 include(cmake/platform.cmake)

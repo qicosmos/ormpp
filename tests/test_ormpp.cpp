@@ -1199,30 +1199,58 @@ TEST_CASE("get insert id after insert") {
 #endif
 }
 
-TEST_CASE("delete records") {
+TEST_CASE("query0 delete_records0") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists person");
     mysql.create_datatable<person>(ormpp_auto_key{"id"});
     mysql.insert<person>({"other"});
-    mysql.insert<person>({"purecpp"});
-    mysql.delete_records<person>("name = 'other';drop table person");
-    auto vec = mysql.query<person>();
-    CHECK(vec.size() == 2);
+    mysql.insert<person>({"purecpp", 200});
+    auto vec1 = mysql.query0<person>();
+    auto vec2 = mysql.query0<person>("name=?", "purecpp");
+    auto vec3 = mysql.query0<person>("name=?", std::string("purecpp"));
+    auto vec4 = mysql.query0<person>("name=? and age=?", "purecpp", 200);
+    auto vec5 = mysql.query0<person>("name=?", "purecpp or 1=1");
+    mysql.delete_records0<person>("name=?", "purecpp or 1=1");
+    auto vec6 = mysql.query0<person>();
+    mysql.delete_records0<person>("name=?", "purecpp");
+    auto vec7 = mysql.query0<person>();
+    CHECK(vec1.front().name == "other");
+    CHECK(vec1.back().name == "purecpp");
+    CHECK(vec2.front().age == 200);
+    CHECK(vec3.front().age == 200);
+    CHECK(vec4.front().age == 200);
+    CHECK(vec5.size() == 0);
+    CHECK(vec6.size() == 2);
+    CHECK(vec7.size() == 1);
   }
 #endif
 #ifdef ORMPP_ENABLE_PG
-  // dbng<postgresql> postgres;
-  // if (postgres.connect(ip, username, password, db)) {
-  //   postgres.execute("drop table if exists person");
-  //   postgres.create_datatable<person>(ormpp_auto_key{"id"});
-  //   postgres.insert<person>({"other"});
-  //   postgres.insert<person>({"purecpp"});
-  //   postgres.delete_records<person>("name = 'other';drop table person");
-  //   auto vec = postgres.query<person>();
-  //   CHECK(vec.size() == 2);
-  // }
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists person");
+    postgres.create_datatable<person>(ormpp_auto_key{"id"});
+    postgres.insert<person>({"other"});
+    postgres.insert<person>({"purecpp", 200});
+    auto vec1 = postgres.query0<person>();
+    auto vec2 = postgres.query0<person>("name=$1", "purecpp");
+    auto vec3 = postgres.query0<person>("name=$1", std::string("purecpp"));
+    auto vec4 = postgres.query0<person>("name=$1 and age=$2", "purecpp", 200);
+    auto vec5 = postgres.query0<person>("name=$1", "purecpp or 1=1");
+    postgres.delete_records0<person>("name=$1", "purecpp or 1=1");
+    auto vec6 = postgres.query0<person>();
+    postgres.delete_records0<person>("name=$1", "purecpp");
+    auto vec7 = postgres.query0<person>();
+    CHECK(vec1.front().name == "other");
+    CHECK(vec1.back().name == "purecpp");
+    CHECK(vec2.front().age == 200);
+    CHECK(vec3.front().age == 200);
+    CHECK(vec4.front().age == 200);
+    CHECK(vec5.size() == 0);
+    CHECK(vec6.size() == 2);
+    CHECK(vec7.size() == 1);
+  }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
@@ -1230,10 +1258,24 @@ TEST_CASE("delete records") {
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
     sqlite.insert<person>({"other"});
-    sqlite.insert<person>({"purecpp"});
-    sqlite.delete_records<person>("name = 'other';drop table person");
-    auto vec = sqlite.query<person>();
-    CHECK(vec.size() == 1);
+    sqlite.insert<person>({"purecpp", 200});
+    auto vec1 = sqlite.query0<person>();
+    auto vec2 = sqlite.query0<person>("name=?", "purecpp");
+    auto vec3 = sqlite.query0<person>("name=?", std::string("purecpp"));
+    auto vec4 = sqlite.query0<person>("name=? and age=?", "purecpp", 200);
+    auto vec5 = sqlite.query0<person>("name=?", "purecpp or 1=1");
+    sqlite.delete_records0<person>("name=?", "purecpp or 1=1");
+    auto vec6 = sqlite.query0<person>();
+    sqlite.delete_records0<person>("name=?", "purecpp");
+    auto vec7 = sqlite.query0<person>();
+    CHECK(vec1.front().name == "other");
+    CHECK(vec1.back().name == "purecpp");
+    CHECK(vec2.front().age == 200);
+    CHECK(vec3.front().age == 200);
+    CHECK(vec4.front().age == 200);
+    CHECK(vec5.size() == 0);
+    CHECK(vec6.size() == 2);
+    CHECK(vec7.size() == 1);
   }
 #endif
 }

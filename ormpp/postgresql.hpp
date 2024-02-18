@@ -119,10 +119,98 @@ class postgresql {
   }
 
   template <typename T, typename... Args>
+  constexpr bool delete_records(Args &&...where_conditon) {
+    auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
+    return execute(sql);
+  }
+
+  template <typename T, typename... Args>
+  bool delete_records0(const std::string &str, Args &&...args) {
+    auto sql = generate_delete_sql<T>();
+    if (!str.empty()) {
+      sql += "where " + str;
+    }
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    if (!prepare<T>(sql))
+      return false;
+
+    if constexpr (sizeof...(Args) > 0) {
+      size_t index = 0;
+      using expander = int[];
+      std::vector<const char *> param_values_buf;
+      std::vector<std::vector<char>> param_values;
+      expander{0, (set_param_values(param_values, args), 0)...};
+      for (auto &item : param_values) {
+        param_values_buf.push_back(item.data());
+      }
+      res_ = PQexecPrepared(con_, "", (int)param_values.size(),
+                            param_values_buf.data(), NULL, NULL, 0);
+    }
+    else {
+      res_ = PQexec(con_, sql.data());
+    }
+
+    auto guard = guard_statment(res_);
+    if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
+      return false;
+    }
+    return true;
+  }
+
+  template <typename T, typename... Args>
+  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query0(
+      const std::string &str, Args &&...args) {
+    std::string sql = generate_query_sql<T>();
+    if (!str.empty()) {
+      sql += "where " + str;
+    }
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    if (!prepare<T>(sql))
+      return {};
+
+    if constexpr (sizeof...(Args) > 0) {
+      size_t index = 0;
+      using expander = int[];
+      std::vector<const char *> param_values_buf;
+      std::vector<std::vector<char>> param_values;
+      expander{0, (set_param_values(param_values, args), 0)...};
+      for (auto &item : param_values) {
+        param_values_buf.push_back(item.data());
+      }
+      res_ = PQexecPrepared(con_, "", (int)param_values.size(),
+                            param_values_buf.data(), NULL, NULL, 0);
+    }
+    else {
+      res_ = PQexec(con_, sql.data());
+    }
+
+    auto guard = guard_statment(res_);
+    if (PQresultStatus(res_) != PGRES_TUPLES_OK) {
+      return {};
+    }
+
+    std::vector<T> v;
+    auto ntuples = PQntuples(res_);
+
+    for (auto i = 0; i < ntuples; i++) {
+      T t = {};
+      iguana::for_each(t, [this, i, &t](auto item, auto I) {
+        assign(t.*item, i, (int)decltype(I)::value);
+      });
+      v.push_back(std::move(t));
+    }
+
+    return v;
+  }
+
+  template <typename T, typename... Args>
   std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
       Args &&...args) {
     std::string sql = generate_query_sql<T>(args...);
-    constexpr auto SIZE = iguana::get_value<T>();
 
     if (!prepare<T>(sql))
       return {};
@@ -198,12 +286,6 @@ class postgresql {
     }
 
     return v;
-  }
-
-  template <typename T, typename... Args>
-  constexpr bool delete_records(Args &&...where_conditon) {
-    auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
-    return execute(sql);
   }
 
   // just support execute string sql without placeholders

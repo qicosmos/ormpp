@@ -80,8 +80,13 @@ class dbng {
   }
 
   template <typename T, typename... Args>
-  std::vector<T> query0(const std::string &sql = "", Args &&...args) {
-    return db_.template query0<T>(sql, std::forward<Args>(args)...);
+  bool delete_records0(const std::string &str = "", Args &&...args) {
+    return db_.template delete_records0<T>(str, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  std::vector<T> query0(const std::string &str = "", Args &&...args) {
+    return db_.template query0<T>(str, std::forward<Args>(args)...);
   }
 
   // restriction, all the args are string, the first is the where condition,
