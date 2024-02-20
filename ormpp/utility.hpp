@@ -162,6 +162,11 @@ inline constexpr auto get_type_names(DBType type) {
       else if constexpr (is_optional_v<U>::value) {
         s = ormpp_sqlite::type_to_name(identity<typename U::value_type>{});
       }
+#ifdef ORMPP_WITH_CSTRING
+      else if constexpr (std::is_same_v<CString, U>) {
+        s = "TEXT"sv;
+      }
+#endif
       else {
         s = ormpp_sqlite::type_to_name(identity<U>{});
       }
@@ -402,8 +407,8 @@ inline std::string generate_delete_sql(Args &&...where_conditon) {
   auto name = get_name<T>();
   append(sql, name.data());
   if constexpr (sizeof...(Args) > 0) {
-    if (!is_empty(std::forward<Args>(where_conditon)...))  // fix for vs2017
-      append(sql, " where ", std::forward<Args>(where_conditon)...);
+    if (!is_empty(std::forward<Args>(where_conditon)...))
+      append(sql, "where", std::forward<Args>(where_conditon)...);
   }
   return sql;
 }
@@ -441,18 +446,18 @@ inline void get_sql_conditions(std::string &sql, const std::string &arg,
 
 template <typename T, typename... Args>
 inline std::string generate_query_sql(Args &&...args) {
-  constexpr size_t param_size = sizeof...(Args);
-  static_assert(param_size == 0 || param_size > 0);
-  std::string sql = "select ";
+  bool where = false;
   auto name = get_name<T>();
+  std::string sql = "select ";
   auto fields = get_fields<T>();
   append(sql, fields.data(), "from", name.data());
-
-  std::string where_sql = "";
-  if constexpr (param_size > 0) {
-    where_sql = " where 1=1 and ";
+  if constexpr (sizeof...(Args) > 0) {
+    using expander = int[];
+    expander{0, (where = where ? where : !is_empty(args), 0)...};
   }
-  sql.append(where_sql);
+  if (where) {
+    append(sql, "where 1=1 and ");
+  }
   get_sql_conditions(sql, std::forward<Args>(args)...);
   return sql;
 }

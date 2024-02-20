@@ -123,6 +123,128 @@ class sqlite {
     return execute(sql);
   }
 
+  template <typename T, typename... Args>
+  bool delete_records_s(const std::string &str, Args &&...args) {
+    auto sql = generate_delete_sql<T>(str);
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
+                                    &stmt_, nullptr);
+    if (result != SQLITE_OK) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return false;
+    }
+
+    if constexpr (sizeof...(Args) > 0) {
+      size_t index = 0;
+      (set_param_bind(args, ++index), ...);
+    }
+
+    auto guard = guard_statment(stmt_);
+    if (sqlite3_step(stmt_) != SQLITE_DONE) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return false;
+    }
+    return true;
+  }
+
+  template <typename T, typename... Args>
+  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query_s(
+      const std::string &str, Args &&...args) {
+    std::string sql = generate_query_sql<T>(str);
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
+                                    &stmt_, nullptr);
+    if (result != SQLITE_OK) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return {};
+    }
+
+    if constexpr (sizeof...(Args) > 0) {
+      size_t index = 0;
+      (set_param_bind(args, ++index), ...);
+    }
+
+    auto guard = guard_statment(stmt_);
+
+    std::vector<T> v;
+    while (true) {
+      result = sqlite3_step(stmt_);
+      if (result == SQLITE_DONE)
+        break;
+
+      if (result != SQLITE_ROW)
+        break;
+
+      T t = {};
+      iguana::for_each(t, [this, &t](auto item, auto I) {
+        assign(t.*item, (int)decltype(I)::value);
+      });
+
+      v.push_back(std::move(t));
+    }
+
+    return v;
+  }
+
+  template <typename T, typename... Args>
+  std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query_s(
+      const std::string &sql, Args &&...args) {
+    static_assert(iguana::is_tuple<T>::value);
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
+                                    &stmt_, nullptr);
+    if (result != SQLITE_OK) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return {};
+    }
+
+    if constexpr (sizeof...(Args) > 0) {
+      size_t index = 0;
+      (set_param_bind(args, ++index), ...);
+    }
+
+    auto guard = guard_statment(stmt_);
+
+    std::vector<T> v;
+    while (true) {
+      result = sqlite3_step(stmt_);
+      if (result == SQLITE_DONE)
+        break;
+
+      if (result != SQLITE_ROW)
+        break;
+
+      T tp = {};
+      int index = 0;
+      iguana::for_each(
+          tp,
+          [this, &index](auto &item, auto /*I*/) {
+            if constexpr (iguana::is_reflection_v<decltype(item)>) {
+              std::remove_reference_t<decltype(item)> t = {};
+              iguana::for_each(t, [this, &index, &t](auto ele, auto /*i*/) {
+                assign(t.*ele, index++);
+              });
+              item = std::move(t);
+            }
+            else {
+              assign(item, index++);
+            }
+          },
+          std::make_index_sequence<std::tuple_size_v<T>>{});
+
+      if (index > 0)
+        v.push_back(std::move(tp));
+    }
+
+    return v;
+  }
+
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
   template <typename T, typename... Args>
@@ -432,13 +554,24 @@ class sqlite {
       return SQLITE_OK == sqlite3_bind_double(stmt_, i, value);
     }
     else if constexpr (std::is_same_v<std::string, U>) {
-      return SQLITE_OK == sqlite3_bind_text(stmt_, i, value.data(),
-                                            (int)value.size(), nullptr);
+      return SQLITE_OK ==
+             sqlite3_bind_text(stmt_, i, value.data(), value.size(), nullptr);
+    }
+    else if constexpr (std::is_same_v<char,
+                                      std::remove_pointer_t<std::decay_t<U>>>) {
+      return SQLITE_OK ==
+             sqlite3_bind_text(stmt_, i, value, strlen(value), nullptr);
     }
     else if constexpr (is_char_array_v<U>) {
       return SQLITE_OK ==
              sqlite3_bind_text(stmt_, i, value, sizeof(U), nullptr);
     }
+#ifdef ORMPP_WITH_CSTRING
+    else if constexpr (std::is_same_v<CString, U>) {
+      return SQLITE_OK == sqlite3_bind_text(stmt_, i, value.GetString(),
+                                            (int)value.GetLength(), nullptr);
+    }
+#endif
     else {
       static_assert(!sizeof(U), "this type has not supported yet");
     }
@@ -446,11 +579,11 @@ class sqlite {
 
   template <typename T>
   void assign(T &&value, int i) {
+    using U = std::remove_const_t<std::remove_reference_t<T>>;
     if (sqlite3_column_type(stmt_, i) == SQLITE_NULL) {
-      value = {};
+      value = U{};
       return;
     }
-    using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (is_optional_v<U>::value) {
       using value_type = typename U::value_type;
       value_type item;
@@ -482,6 +615,11 @@ class sqlite {
     else if constexpr (is_char_array_v<U>) {
       memcpy(value, sqlite3_column_text(stmt_, i), sizeof(U));
     }
+#ifdef ORMPP_WITH_CSTRING
+    else if constexpr (std::is_same_v<CString, U>) {
+      value.SetString((const char *)sqlite3_column_text(stmt_, i));
+    }
+#endif
     else {
       static_assert(!sizeof(U), "this type has not supported yet");
     }

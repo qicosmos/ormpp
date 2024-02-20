@@ -1199,30 +1199,94 @@ TEST_CASE("get insert id after insert") {
 #endif
 }
 
-TEST_CASE("delete records") {
+TEST_CASE("query_s delete_records_s") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists person");
     mysql.create_datatable<person>(ormpp_auto_key{"id"});
     mysql.insert<person>({"other"});
-    mysql.insert<person>({"purecpp"});
-    mysql.delete_records<person>("name = 'other';drop table person");
-    auto vec = mysql.query<person>();
-    CHECK(vec.size() == 2);
+    mysql.insert<person>({"purecpp", 200});
+    auto v_tp1 = mysql.query_s<std::tuple<person>>(
+        "select * from person where name=?", "purecpp");
+    auto v_tp2 = mysql.query_s<std::tuple<person>>(
+        "select * from person where name=?", "purecpp' or '1=1");
+    auto v_tp3 = mysql.query_s<std::tuple<person>>("select * from person");
+    auto vec1 = mysql.query_s<person>();
+    auto vec2 = mysql.query_s<person>("name=?", "purecpp");
+    auto vec3 = mysql.query_s<person>("select * from person");
+    auto vec4 = mysql.query_s<person>("name=?", std::string("purecpp"));
+    auto vec5 = mysql.query_s<person>("name=? and age=?", "purecpp", 200);
+    auto vec6 =
+        mysql.query_s<person>("select * from person where name=?", "purecpp");
+    auto vec7 = mysql.query_s<person>("name=?", "purecpp' or '1=1");
+    mysql.delete_records_s<person>("name=?", "purecpp' or '1=1");
+    auto vec8 = mysql.query_s<person>();
+    mysql.delete_records_s<person>("name=?", "purecpp");
+    auto vec9 = mysql.query_s<person>();
+    mysql.delete_records_s<person>();
+    auto vec10 = mysql.query_s<person>();
+    CHECK(vec1.front().name == "other");
+    CHECK(vec1.back().name == "purecpp");
+    CHECK(vec3.front().name == "other");
+    CHECK(vec3.back().name == "purecpp");
+    CHECK(std::get<0>(v_tp3.front()).name == "other");
+    CHECK(std::get<0>(v_tp3.back()).name == "purecpp");
+    CHECK(vec2.front().age == 200);
+    CHECK(vec4.front().age == 200);
+    CHECK(vec5.front().age == 200);
+    CHECK(vec6.front().age == 200);
+    CHECK(std::get<0>(v_tp1.front()).age == 200);
+    CHECK(v_tp2.size() == 0);
+    CHECK(vec7.size() == 0);
+    CHECK(vec8.size() == 2);
+    CHECK(vec9.size() == 1);
+    CHECK(vec10.size() == 0);
   }
 #endif
 #ifdef ORMPP_ENABLE_PG
-  // dbng<postgresql> postgres;
-  // if (postgres.connect(ip, username, password, db)) {
-  //   postgres.execute("drop table if exists person");
-  //   postgres.create_datatable<person>(ormpp_auto_key{"id"});
-  //   postgres.insert<person>({"other"});
-  //   postgres.insert<person>({"purecpp"});
-  //   postgres.delete_records<person>("name = 'other';drop table person");
-  //   auto vec = postgres.query<person>();
-  //   CHECK(vec.size() == 2);
-  // }
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists person");
+    postgres.create_datatable<person>(ormpp_auto_key{"id"});
+    postgres.insert<person>({"other"});
+    postgres.insert<person>({"purecpp", 200});
+    auto v_tp1 = postgres.query_s<std::tuple<person>>(
+        "select * from person where name=$1", "purecpp");
+    auto v_tp2 = postgres.query_s<std::tuple<person>>(
+        "select * from person where name=$1", "purecpp' or '1=1");
+    auto v_tp3 = postgres.query_s<std::tuple<person>>("select * from person");
+    auto vec1 = postgres.query_s<person>();
+    auto vec2 = postgres.query_s<person>("name=$1", "purecpp");
+    auto vec3 = postgres.query_s<person>("select * from person");
+    auto vec4 = postgres.query_s<person>("name=$1", std::string("purecpp"));
+    auto vec5 = postgres.query_s<person>("name=$1 and age=$2", "purecpp", 200);
+    auto vec6 = postgres.query_s<person>("select * from person where name=$1",
+                                         "purecpp");
+    auto vec7 = postgres.query_s<person>("name=$1", "purecpp' or '1=1");
+    postgres.delete_records_s<person>("name=$1", "purecpp' or '1=1");
+    auto vec8 = postgres.query_s<person>();
+    postgres.delete_records_s<person>("name=$1", "purecpp");
+    auto vec9 = postgres.query_s<person>();
+    postgres.delete_records_s<person>();
+    auto vec10 = postgres.query_s<person>();
+    CHECK(vec1.front().name == "other");
+    CHECK(vec1.back().name == "purecpp");
+    CHECK(vec3.front().name == "other");
+    CHECK(vec3.back().name == "purecpp");
+    CHECK(std::get<0>(v_tp3.front()).name == "other");
+    CHECK(std::get<0>(v_tp3.back()).name == "purecpp");
+    CHECK(vec2.front().age == 200);
+    CHECK(vec4.front().age == 200);
+    CHECK(vec5.front().age == 200);
+    CHECK(vec6.front().age == 200);
+    CHECK(std::get<0>(v_tp1.front()).age == 200);
+    CHECK(v_tp2.size() == 0);
+    CHECK(vec7.size() == 0);
+    CHECK(vec8.size() == 2);
+    CHECK(vec9.size() == 1);
+    CHECK(vec10.size() == 0);
+  }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
@@ -1230,10 +1294,42 @@ TEST_CASE("delete records") {
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
     sqlite.insert<person>({"other"});
-    sqlite.insert<person>({"purecpp"});
-    sqlite.delete_records<person>("name = 'other';drop table person");
-    auto vec = sqlite.query<person>();
-    CHECK(vec.size() == 1);
+    sqlite.insert<person>({"purecpp", 200});
+    auto v_tp1 = sqlite.query_s<std::tuple<person>>(
+        "select * from person where name=?", "purecpp");
+    auto v_tp2 = sqlite.query_s<std::tuple<person>>(
+        "select * from person where name=?", "purecpp' or '1=1");
+    auto v_tp3 = sqlite.query_s<std::tuple<person>>("select * from person");
+    auto vec1 = sqlite.query_s<person>();
+    auto vec2 = sqlite.query_s<person>("name=?", "purecpp");
+    auto vec3 = sqlite.query_s<person>("select * from person");
+    auto vec4 = sqlite.query_s<person>("name=?", std::string("purecpp"));
+    auto vec5 = sqlite.query_s<person>("name=? and age=?", "purecpp", 200);
+    auto vec6 =
+        sqlite.query_s<person>("select * from person where name=?", "purecpp");
+    auto vec7 = sqlite.query_s<person>("name=?", "purecpp' or '1=1");
+    sqlite.delete_records_s<person>("name=?", "purecpp' or '1=1");
+    auto vec8 = sqlite.query_s<person>();
+    sqlite.delete_records_s<person>("name=?", "purecpp");
+    auto vec9 = sqlite.query_s<person>();
+    sqlite.delete_records_s<person>();
+    auto vec10 = sqlite.query_s<person>();
+    CHECK(vec1.front().name == "other");
+    CHECK(vec1.back().name == "purecpp");
+    CHECK(vec3.front().name == "other");
+    CHECK(vec3.back().name == "purecpp");
+    CHECK(std::get<0>(v_tp3.front()).name == "other");
+    CHECK(std::get<0>(v_tp3.back()).name == "purecpp");
+    CHECK(vec2.front().age == 200);
+    CHECK(vec4.front().age == 200);
+    CHECK(vec5.front().age == 200);
+    CHECK(vec6.front().age == 200);
+    CHECK(std::get<0>(v_tp1.front()).age == 200);
+    CHECK(v_tp2.size() == 0);
+    CHECK(vec7.size() == 0);
+    CHECK(vec8.size() == 2);
+    CHECK(vec9.size() == 1);
+    CHECK(vec10.size() == 0);
   }
 #endif
 }
