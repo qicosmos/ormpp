@@ -74,21 +74,23 @@ class dbng {
   }
 
   template <typename T, typename... Args>
+  bool delete_records_s(const std::string &str = "", Args &&...args) {
+    return db_.template delete_records_s<T>(str, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
+  std::vector<T> query_s(const std::string &str = "", Args &&...args) {
+    return db_.template query_s<T>(str, std::forward<Args>(args)...);
+  }
+
+  // deprecated
+  template <typename T, typename... Args>
   bool delete_records(Args &&...where_condition) {
     return db_.template delete_records<T>(
         std::forward<Args>(where_condition)...);
   }
 
-  template <typename T, typename... Args>
-  bool delete_records0(const std::string &str = "", Args &&...args) {
-    return db_.template delete_records0<T>(str, std::forward<Args>(args)...);
-  }
-
-  template <typename T, typename... Args>
-  std::vector<T> query0(const std::string &str = "", Args &&...args) {
-    return db_.template query0<T>(str, std::forward<Args>(args)...);
-  }
-
+  // deprecated
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
   template <typename T, typename... Args>

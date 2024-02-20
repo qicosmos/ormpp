@@ -125,11 +125,8 @@ class postgresql {
   }
 
   template <typename T, typename... Args>
-  bool delete_records0(const std::string &str, Args &&...args) {
-    auto sql = generate_delete_sql<T>();
-    if (!str.empty()) {
-      sql += "where " + str;
-    }
+  bool delete_records_s(const std::string &str, Args &&...args) {
+    auto sql = generate_delete_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -160,12 +157,9 @@ class postgresql {
   }
 
   template <typename T, typename... Args>
-  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query0(
+  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query_s(
       const std::string &str, Args &&...args) {
-    std::string sql = generate_query_sql<T>();
-    if (!str.empty()) {
-      sql += "where " + str;
-    }
+    std::string sql = generate_query_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -208,10 +202,72 @@ class postgresql {
   }
 
   template <typename T, typename... Args>
+  constexpr std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>>
+  query_s(const std::string &sql, Args &&...args) {
+    static_assert(iguana::is_tuple<T>::value);
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    if (!prepare<T>(sql))
+      return {};
+
+    if constexpr (sizeof...(Args) > 0) {
+      size_t index = 0;
+      using expander = int[];
+      std::vector<const char *> param_values_buf;
+      std::vector<std::vector<char>> param_values;
+      expander{0, (set_param_values(param_values, args), 0)...};
+      for (auto &item : param_values) {
+        param_values_buf.push_back(item.data());
+      }
+      res_ = PQexecPrepared(con_, "", (int)param_values.size(),
+                            param_values_buf.data(), NULL, NULL, 0);
+    }
+    else {
+      res_ = PQexec(con_, sql.data());
+    }
+
+    auto guard = guard_statment(res_);
+    if (PQresultStatus(res_) != PGRES_TUPLES_OK) {
+      return {};
+    }
+
+    std::vector<T> v;
+    auto ntuples = PQntuples(res_);
+
+    for (auto i = 0; i < ntuples; i++) {
+      T tp = {};
+      int index = 0;
+      iguana::for_each(
+          tp,
+          [this, i, &index](auto &item, auto I) {
+            if constexpr (iguana::is_reflection_v<decltype(item)>) {
+              std::remove_reference_t<decltype(item)> t = {};
+              iguana::for_each(t, [this, &index, &t, i](auto ele, auto /*i*/) {
+                assign(t.*ele, (int)i, index++);
+              });
+              item = std::move(t);
+            }
+            else {
+              assign(item, (int)i, index++);
+            }
+          },
+          std::make_index_sequence<std::tuple_size_v<T>>{});
+
+      if (index > 0)
+        v.push_back(std::move(tp));
+    }
+
+    return v;
+  }
+
+  template <typename T, typename... Args>
   std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
       Args &&...args) {
     std::string sql = generate_query_sql<T>(args...);
-
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
     if (!prepare<T>(sql))
       return {};
 
