@@ -299,7 +299,7 @@ class mysql {
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
       std::vector<MYSQL_BIND> param_binds;
-      (set_param_bind(param_binds, args), 0)...);
+      (set_param_bind(param_binds, args), ...);
       if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
         set_last_error(mysql_stmt_error(stmt_));
         return false;
