@@ -446,16 +446,17 @@ inline void get_sql_conditions(std::string &sql, const std::string &arg,
 
 template <typename T, typename... Args>
 inline std::string generate_query_sql(Args &&...args) {
-  bool where = true;
+  bool where = false;
   auto name = get_name<T>();
   std::string sql = "select ";
   auto fields = get_fields<T>();
   append(sql, fields.data(), "from", name.data());
   if constexpr (sizeof...(Args) > 0) {
-    if (where && !is_empty(std::forward<Args>(args)...)) {
-      append(sql, "where 1=1 and ");
-      where = false;
-    }
+    using expander = int[];
+    expander{0, (where = where ? where : !is_empty(args), 0)...};
+  }
+  if (where) {
+    append(sql, "where 1=1 and ");
   }
   get_sql_conditions(sql, std::forward<Args>(args)...);
   return sql;

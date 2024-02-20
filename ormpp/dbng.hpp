@@ -83,31 +83,30 @@ class dbng {
     return db_.template query_s<T>(str, std::forward<Args>(args)...);
   }
 
-  // deprecated
   template <typename T, typename... Args>
-  bool delete_records(Args &&...where_condition) {
+  [[deprecated]] bool delete_records(Args &&...where_condition) {
     return db_.template delete_records<T>(
         std::forward<Args>(where_condition)...);
   }
 
-  // deprecated
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
   template <typename T, typename... Args>
-  std::vector<T> query(Args &&...args) {
+  [[deprecated]] std::vector<T> query(Args &&...args) {
     return db_.template query<T>(std::forward<Args>(args)...);
   }
 
   // support member variable, such as: query(FID(simple::id), "<", 5)
   template <typename Pair, typename U>
-  auto query(Pair pair, std::string_view oper, U &&val) {
+  [[deprecated]] auto query(Pair pair, std::string_view oper, U &&val) {
     auto sql = build_condition(pair, oper, std::forward<U>(val));
     using T = typename ormpp::field_attribute<decltype(pair.second)>::type;
     return query<T>(sql);
   }
 
   template <typename Pair, typename U>
-  bool delete_records(Pair pair, std::string_view oper, U &&val) {
+  [[deprecated]] bool delete_records(Pair pair, std::string_view oper,
+                                     U &&val) {
     auto sql = build_condition(pair, oper, std::forward<U>(val));
     using T = typename ormpp::field_attribute<decltype(pair.second)>::type;
     return delete_records<T>(sql);

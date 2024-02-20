@@ -298,9 +298,8 @@ class mysql {
 
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
-      using expander = int[];
       std::vector<MYSQL_BIND> param_binds;
-      expander{0, (set_param_bind(param_binds, args), 0)...};
+      (set_param_bind(param_binds, args), 0)...);
       if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
         set_last_error(mysql_stmt_error(stmt_));
         return false;
@@ -338,9 +337,8 @@ class mysql {
 
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
-      using expander = int[];
       std::vector<MYSQL_BIND> param_binds;
-      expander{0, (set_param_bind(param_binds, args), 0)...};
+      (set_param_bind(param_binds, args), ...);
       if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
         set_last_error(mysql_stmt_error(stmt_));
         return {};
@@ -424,9 +422,8 @@ class mysql {
 
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
-      using expander = int[];
       std::vector<MYSQL_BIND> param_binds;
-      expander{0, (set_param_bind(param_binds, args), 0)...};
+      (set_param_bind(param_binds, args), ...);
       if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
         set_last_error(mysql_stmt_error(stmt_));
         return {};

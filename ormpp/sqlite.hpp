@@ -136,8 +136,7 @@ class sqlite {
 
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
-      using expander = int[];
-      expander{0, (set_param_bind(args, ++index), 0)...};
+      (set_param_bind(args, ++index), ...);
     }
 
     auto guard = guard_statment(stmt_);
@@ -164,8 +163,7 @@ class sqlite {
 
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
-      using expander = int[];
-      expander{0, (set_param_bind(args, ++index), 0)...};
+      (set_param_bind(args, ++index), ...);
     }
 
     auto guard = guard_statment(stmt_);
@@ -206,8 +204,7 @@ class sqlite {
 
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
-      using expander = int[];
-      expander{0, (set_param_bind(args, ++index), 0)...};
+      (set_param_bind(args, ++index), ...);
     }
 
     auto guard = guard_statment(stmt_);

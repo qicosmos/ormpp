@@ -135,10 +135,9 @@ class postgresql {
 
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
-      using expander = int[];
       std::vector<const char *> param_values_buf;
       std::vector<std::vector<char>> param_values;
-      expander{0, (set_param_values(param_values, args), 0)...};
+      (set_param_values(param_values, args), ...);
       for (auto &item : param_values) {
         param_values_buf.push_back(item.data());
       }
@@ -168,10 +167,9 @@ class postgresql {
 
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
-      using expander = int[];
       std::vector<const char *> param_values_buf;
       std::vector<std::vector<char>> param_values;
-      expander{0, (set_param_values(param_values, args), 0)...};
+      (set_param_values(param_values, args), ...);
       for (auto &item : param_values) {
         param_values_buf.push_back(item.data());
       }
@@ -213,10 +211,9 @@ class postgresql {
 
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
-      using expander = int[];
       std::vector<const char *> param_values_buf;
       std::vector<std::vector<char>> param_values;
-      expander{0, (set_param_values(param_values, args), 0)...};
+      (set_param_values(param_values, args), ...);
       for (auto &item : param_values) {
         param_values_buf.push_back(item.data());
       }
