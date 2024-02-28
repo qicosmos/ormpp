@@ -206,6 +206,7 @@ add_subdirectory(ormpp)
 set(ENABLE_MYSQL ON)
 add_definitions(-DORMPP_ENABLE_MYSQL)
 add_library(ormpp INTERFACE)
+include(cmake/mysql.cmake)
 target_link_libraries(ormpp INTERFACE ${MYSQL_LIBRARY})
 target_include_directories(ormpp INTERFACE ormpp ormpp/ormpp ${MYSQL_INCLUDE_DIR})
 ```
