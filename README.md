@@ -192,6 +192,22 @@ int main() {
 cmake -B build -DENABLE_SQLITE3=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --config Debug
 
+## 作为第三方库引入
+
+```cmake
+set(ENABLE_MYSQL ON)
+add_definitions(-DORMPP_ENABLE_MYSQL)
+add_subdirectory(ormpp)
+```
+
+```cmake
+set(ENABLE_MYSQL ON)
+add_definitions(-DORMPP_ENABLE_MYSQL)
+add_library(ormpp INTERFACE)
+target_link_libraries(ormpp INTERFACE ${MYSQL_LIBRARY})
+target_include_directories(ormpp INTERFACE ormpp ormpp/ormpp ${MYSQL_INCLUDE_DIR})
+```
+
 ### 编译器支持
 
 需要支持C++17的编译器, 要求的编译器版本：linux gcc7.2, clang4.0; windows >vs2017 update5
