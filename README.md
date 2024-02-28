@@ -200,6 +200,8 @@ add_definitions(-DORMPP_ENABLE_MYSQL)
 add_subdirectory(ormpp)
 ```
 
+或者
+
 ```cmake
 set(ENABLE_MYSQL ON)
 add_definitions(-DORMPP_ENABLE_MYSQL)
