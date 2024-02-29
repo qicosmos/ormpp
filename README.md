@@ -194,7 +194,7 @@ cmake --build build --config Debug
 
 ## 作为第三方库引入
 
-mysql
+1. mysql
 ```cmake
 set(ENABLE_MYSQL ON)
 add_definitions(-DORMPP_ENABLE_MYSQL)
@@ -210,7 +210,7 @@ target_link_libraries(ormpp INTERFACE ${MYSQL_LIBRARY})
 target_include_directories(ormpp INTERFACE ormpp ormpp/ormpp ${MYSQL_INCLUDE_DIR})
 ```
 
-sqlite
+2. sqlite
 ```cmake
 set(ENABLE_SQLITE3 ON)
 add_definitions(-DORMPP_ENABLE_SQLITE3)
@@ -225,7 +225,7 @@ target_link_libraries(ormpp INTERFACE sqlite3)
 target_include_directories(ormpp INTERFACE ormpp ormpp/ormpp thirdparty/sqlite3)
 ```
 
-pg
+3. pg
 ```cmake
 set(ENABLE_PG ON)
 add_definitions(-DORMPP_ENABLE_PG)
