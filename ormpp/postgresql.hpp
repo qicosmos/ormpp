@@ -64,7 +64,7 @@ class postgresql {
   bool ping() { return (PQstatus(con_) == CONNECTION_OK); }
 
   template <typename T, typename... Args>
-  constexpr auto create_datatable(Args &&...args) {
+  bool create_datatable(Args &&...args) {
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -200,8 +200,8 @@ class postgresql {
   }
 
   template <typename T, typename... Args>
-  constexpr std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>>
-  query_s(const std::string &sql, Args &&...args) {
+  std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query_s(
+      const std::string &sql, Args &&...args) {
     static_assert(iguana::is_tuple<T>::value);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -289,7 +289,7 @@ class postgresql {
   }
 
   template <typename T, typename Arg, typename... Args>
-  constexpr std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(
+  std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(
       const Arg &s, Args &&...args) {
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
@@ -342,7 +342,7 @@ class postgresql {
   }
 
   // just support execute string sql without placeholders
-  auto execute(const std::string &sql) {
+  bool execute(const std::string &sql) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -649,8 +649,8 @@ class postgresql {
   }
 
   template <typename T>
-  constexpr void set_param_values(std::vector<std::vector<char>> &param_values,
-                                  T &&value) {
+  void set_param_values(std::vector<std::vector<char>> &param_values,
+                        T &&value) {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (is_optional_v<U>::value) {
       if (value.has_value()) {
@@ -667,7 +667,10 @@ class postgresql {
     }
     else if constexpr (std::is_integral_v<U> && !iguana::is_int64_v<U>) {
       std::vector<char> temp(20, 0);
-      if constexpr (iguana::is_char_type<U>::value) {
+      if constexpr (std::is_same_v<char, U>) {
+        temp.front() = value;
+      }
+      else if constexpr (iguana::is_char_type<U>::value) {
         itoa_fwd(value, temp.data());
       }
       else {
