@@ -13,10 +13,10 @@ jobs:
           fetch-depth: 0
 
       - name: install clang-format
-        run:  sudo apt install clang-format
+        run : sudo apt install clang-format
         
       - name: check-diff
-        run: |
+        run : |
           diff=`git-clang-format --diff HEAD^`
           if ! [[ "$diff" = "no modified files to format" || "$diff" = "clang-format did not modify any files" ]]; then
               echo "The diff you sent is not formatted correctly."

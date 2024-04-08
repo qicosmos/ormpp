@@ -11,9 +11,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        compiler: [ gcc, clang ]
         configuration: [ Debug, Release ]
         os: [ ubuntu-latest ] # macos-latest, ubuntu-latest, windows-latest
+        include:
+          - os: ubuntu-latest
+            compiler: gcc
+            cc: g++
+            cxx: g++
+          - os: ubuntu-latest
+            compiler: clang
+            cc: clang++
+            cxx: clang++
     
     services:
       postgres:
@@ -35,13 +43,16 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Configure cmake
-        run:  cmake -B${{ github.workspace }}/build -DCMAKE_C_COMPILER=${{ matrix.compiler }} -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_PG=ON
+        env : 
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run : cmake -B${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_PG=ON
 
       - name: Build
-        run:  cmake --build ${{ github.workspace }}/build --config ${{ matrix.configuration }}
+        run : cmake --build ${{ github.workspace }}/build --config ${{ matrix.configuration }}
 
       - name: Test
         working-directory: ${{ github.workspace }}/build
-        env:
+        env :
           CTEST_OUTPUT_ON_FAILURE: 1
-        run: ctest -C ${{ matrix.configuration }} -j 1 -V
+        run : ctest -C ${{ matrix.configuration }} -j 1 -V
