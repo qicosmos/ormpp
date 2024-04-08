@@ -23,13 +23,13 @@ jobs:
       run:  mysql -uroot -e'show databases;'
 
     - name: Configure cmake
-      run:  cmake -B${{github.workspace}}/build -DCOVERAGE_TEST=ON -DENABLE_MYSQL=ON -DCMAKE_BUILD_TYPE=Debug
+      run:  cmake -B${{ github.workspace }}/build -DCOVERAGE_TEST=ON -DENABLE_MYSQL=ON -DCMAKE_BUILD_TYPE=Debug
 
     - name: Build
-      run:  cmake --build ${{github.workspace}}/build --config Debug
+      run:  cmake --build ${{ github.workspace }}/build --config Debug
       
     - name: Test
-      working-directory: ${{github.workspace}}/build
+      working-directory: ${{ github.workspace }}/build
       env:
         CTEST_OUTPUT_ON_FAILURE: 1
       run: ctest -C Debug -j `nproc` -V
