@@ -11,16 +11,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        compiler: [ gcc, clang ]
         configuration: [ Debug, Release ]
         os: [ ubuntu-latest ] # macos-latest, ubuntu-latest, windows-latest
         include:
           - os: ubuntu-latest
             compiler: gcc
-            cc: g++
+            cc: gcc
             cxx: g++
           - os: ubuntu-latest
             compiler: clang
-            cc: clang++
+            cc: clang
             cxx: clang++
     
     services:
