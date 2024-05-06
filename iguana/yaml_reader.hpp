@@ -6,7 +6,6 @@
 #include "detail/utf.hpp"
 #include "yaml_util.hpp"
 
-
 namespace iguana {
 
 template <typename T, typename It, std::enable_if_t<refletable_v<T>, int> = 0>
@@ -114,10 +113,7 @@ IGUANA_INLINE void parse_value(U &value, It &&value_begin, It &&value_end) {
     IGUANA_UNLIKELY { return; }
   auto size = std::distance(value_begin, value_end);
   const auto start = &*value_begin;
-  auto [p, ec] = detail::from_chars(start, start + size, value);
-  if (ec != std::errc{})
-    IGUANA_UNLIKELY
-  throw std::runtime_error("Failed to parse number");
+  detail::from_chars(start, start + size, value);
 }
 
 // string_view should be used  for string with ' " ?

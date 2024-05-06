@@ -261,6 +261,11 @@ inline auto is_conflict_key(std::string_view field_name) {
   return false;
 }
 
+template <auto member, typename T>
+constexpr bool is_member(size_t i) {
+  return iguana::index_of<member>() == i;
+}
+
 template <typename T, typename... Args>
 inline std::string generate_insert_sql(bool insert, Args &&...args) {
 #ifdef ORMPP_ENABLE_PG
@@ -346,46 +351,58 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
   return sql;
 }
 
-template <typename T, typename... Args>
-inline std::string generate_update_sql(bool &condition, Args &&...args) {
+template <typename T, auto... members, typename... Args>
+inline std::string generate_update_sql(Args &&...args) {
   constexpr auto SIZE = iguana::get_value<T>();
   std::string sql = "update ";
   auto name = get_name<T>();
   append(sql, name.data());
   append(sql, "set");
-
-  int index = 0;
   std::string fields;
-  for (size_t i = 0; i < SIZE; ++i) {
-    std::string field_name = iguana::get_name<T>(i).data();
-#ifdef ORMPP_ENABLE_MYSQL
-    fields += "`" + field_name + "`";
+#ifdef ORMPP_ENABLE_PG
+  int index = 0;
+#endif
+
+  if constexpr (sizeof...(members) > 0) {
+#ifdef ORMPP_ENABLE_PG
+    (fields.append(iguana::name_of<members>())
+         .append("=$" + std::to_string(++index) + ","),
+     ...);
 #else
-    fields += field_name;
+    (fields.append(iguana::name_of<members>()).append("=?,"), ...);
+#endif
+  }
+  else {
+    for (size_t i = 0; i < SIZE; ++i) {
+      std::string field_name = iguana::get_name<T>(i).data();
+#ifdef ORMPP_ENABLE_MYSQL
+      fields.append("`").append(field_name).append("`");
+#else
+      fields.append(field_name);
 #endif
 #ifdef ORMPP_ENABLE_PG
-    append(fields, " =", "$" + std::to_string(++index));
+      fields.append("=$").append(std::to_string(++index)).append(",");
 #else
-    fields += " = ?";
+      fields.append("=?,");
 #endif
-    if (i < SIZE - 1) {
-      fields += ", ";
     }
   }
+  fields.pop_back();
+
   std::string conflict = "where 1=1";
   if constexpr (sizeof...(Args) > 0) {
     append(conflict, " and", args...);
-    condition = false;
   }
   else {
     for (const auto &it : get_conflict_keys<T>()) {
 #ifdef ORMPP_ENABLE_PG
-      append(conflict, " and", it, "=", "$" + std::to_string(++index));
+      append(conflict, " and", it + "=$" + std::to_string(++index));
 #else
-      append(conflict, " and", it, "= ?");
+      append(conflict, " and", it + "=?");
 #endif
     }
   }
+
   append(sql, fields, conflict);
   return sql;
 }
@@ -393,8 +410,9 @@ inline std::string generate_update_sql(bool &condition, Args &&...args) {
 inline bool is_empty(const std::string &t) { return t.empty(); }
 
 template <class T>
-constexpr bool is_char_array_v = std::is_array_v<T>
-    &&std::is_same_v<char, std::remove_pointer_t<std::decay_t<T>>>;
+constexpr bool is_char_array_v =
+    std::is_array_v<T> &&
+    std::is_same_v<char, std::remove_pointer_t<std::decay_t<T>>>;
 
 template <size_t N>
 inline constexpr size_t char_array_size(char (&)[N]) {
