@@ -523,23 +523,25 @@ class postgresql {
   template <auto... members, typename T, typename... Args>
   std::optional<uint64_t> stmt_execute(const T &t, OptType type,
                                        Args &&...args) {
-    bool r = false;
     std::vector<std::vector<char>> param_values;
-    iguana::for_each(t, [&t, &r, &param_values, type, this](auto item, auto i) {
-      if (type == OptType::insert &&
-          is_auto_key<T>(iguana::get_name<T>(i).data())) {
-        return;
-      }
-      if constexpr (sizeof...(members) > 0) {
-        ((void)(!r &&
-                (r = is_member<members, T>(i),
-                 !r ? set_param_values(param_values, t.*item) : nullptr, true)),
-         ...);
-      }
-      else {
-        set_param_values(param_values, t.*item);
-      }
-    });
+    constexpr auto arr = iguana::indexs_of<members...>();
+    iguana::for_each(t,
+                     [&t, arr, &param_values, type, this](auto item, auto i) {
+                       if (type == OptType::insert &&
+                           is_auto_key<T>(iguana::get_name<T>(i).data())) {
+                         return;
+                       }
+                       if constexpr (sizeof...(members) > 0) {
+                         for (auto idx : arr) {
+                           if (idx == decltype(i)::value) {
+                             set_param_values(param_values, t.*item);
+                           }
+                         }
+                       }
+                       else {
+                         set_param_values(param_values, t.*item);
+                       }
+                     });
 
     if constexpr (sizeof...(Args) == 0) {
       if (type == OptType::update) {
