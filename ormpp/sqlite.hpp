@@ -490,7 +490,7 @@ class sqlite {
 
   template <auto... members, typename T, typename... Args>
   int stmt_execute(const T &t, OptType type, Args &&...args) {
-    int index = 1;
+    int index = 0;
     bool bind_ok = true;
     constexpr auto arr = iguana::indexs_of<members...>();
     iguana::for_each(
@@ -503,12 +503,14 @@ class sqlite {
           if constexpr (sizeof...(members) > 0) {
             for (auto idx : arr) {
               if (idx == decltype(i)::value) {
-                bind_ok = set_param_bind(t.*item, index++);
+                bind_ok = set_param_bind(t.*item, index + 1);
+                index++;
               }
             }
           }
           else {
-            bind_ok = set_param_bind(t.*item, index++);
+            bind_ok = set_param_bind(t.*item, index + 1);
+            index++;
           }
         });
 
@@ -519,7 +521,8 @@ class sqlite {
             return;
           }
           if (is_conflict_key<T>(iguana::get_name<T>(i).data())) {
-            bind_ok = set_param_bind(t.*item, index++);
+            bind_ok = set_param_bind(t.*item, index + 1);
+            index++;
           }
         });
       }
