@@ -1775,48 +1775,81 @@ TEST_CASE("pg update") {
 
 TEST_CASE("update section filed") {
 #ifdef ORMPP_ENABLE_MYSQL
-  // dbng<mysql> mysql;
-  // if (mysql.connect(ip, username, password, db)) {
-  //   mysql.execute("drop table if exists person");
-  //   mysql.create_datatable<person>(ormpp_auto_key{"id"});
-  //   mysql.insert<person>({"purecpp1", 1});
-  //   mysql.insert<person>({"purecpp2", 2});
-  //   mysql.update<&person::name>(person{"111", 0, 1});
-  //   mysql.update<&person::name>(person{"222"}, "id=2");
-  //   auto vec1 = mysql.query_s<person>("id=?", 1);
-  //   auto vec2 = mysql.query_s<person>("id=?", 2);
-  //   CHECK(vec1.size() == 1);
-  //   CHECK(vec2.size() == 1);
-  //   CHECK(vec1.front().name == "111");
-  //   CHECK(vec2.front().name == "222");
-  //   mysql.update<&person::name, &person::age>(person{"666", 666, 1});
-  //   vec1 = mysql.query_s<person>("id=?", 1);
-  //   CHECK(vec1.size() == 1);
-  //   CHECK(vec1.front().age == 666);
-  //   CHECK(vec1.front().name == "666");
-  // }
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists person");
+    mysql.create_datatable<person>(ormpp_auto_key{"id"});
+    mysql.insert<person>({"person_a", 1});
+    mysql.insert<person>({"person_b", 2});
+    mysql.update_s<&person::name>(person{"purecpp_a", 0, 1});
+    mysql.update_s<&person::name>(person{"purecpp_b"}, "id=2");
+    auto vec1 = mysql.query_s<person>("id=?", 1);
+    auto vec2 = mysql.query_s<person>("id=?", 2);
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    CHECK(vec1.front().name == "purecpp_a");
+    CHECK(vec2.front().name == "purecpp_b");
+    mysql.update_s<&person::name, &person::age>(person{"purecpp", 100, 1});
+    mysql.update_s<&person::name, &person::age>(person{"purecpp", 200}, "id=2");
+    auto vec = mysql.query_s<person>();
+    vec1 = mysql.query_s<person>("id=?", 1);
+    vec2 = mysql.query_s<person>("id=?", 2);
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    CHECK(vec1.front().age == 100);
+    CHECK(vec2.front().age == 200);
+    CHECK(vec1.front().name == "purecpp");
+    CHECK(vec2.front().name == "purecpp");
+    mysql.update_s<&person::name, &person::age>(
+        std::vector<person>{{"purecpp_aa", 111, 1}, {"purecpp_bb", 222, 2}});
+    vec1 = mysql.query_s<person>("id=?", 1);
+    vec2 = mysql.query_s<person>("id=?", 2);
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    CHECK(vec1.front().age == 111);
+    CHECK(vec2.front().age == 222);
+    CHECK(vec1.front().name == "purecpp_aa");
+    CHECK(vec2.front().name == "purecpp_bb");
+  }
 #endif
 #ifdef ORMPP_ENABLE_PG
-  // dbng<postgresql> postgres;
-  // if (postgres.connect(ip, username, password, db)) {
-  //   postgres.execute("drop table if exists person");
-  //   postgres.create_datatable<person>(ormpp_auto_key{"id"});
-  //   postgres.insert<person>({"purecpp1", 1});
-  //   postgres.insert<person>({"purecpp2", 2});
-  //   postgres.update<&person::name>(person{"111", 0, 1});
-  //   postgres.update<&person::name>(person{"222"}, "id=2");
-  //   auto vec1 = postgres.query_s<person>("id=?", 1);
-  //   auto vec2 = postgres.query_s<person>("id=?", 2);
-  //   CHECK(vec1.size() == 1);
-  //   CHECK(vec2.size() == 1);
-  //   CHECK(vec1.front().name == "111");
-  //   CHECK(vec2.front().name == "222");
-  //   postgres.update<&person::name, &person::age>(person{"666", 666, 1});
-  //   vec1 = postgres.query_s<person>("id=?", 1);
-  //   CHECK(vec1.size() == 1);
-  //   CHECK(vec1.front().age == 666);
-  //   CHECK(vec1.front().name == "666");
-  // }
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists person");
+    postgres.create_datatable<person>(ormpp_auto_key{"id"});
+    postgres.insert<person>({"person_a", 1});
+    postgres.insert<person>({"person_b", 2});
+    postgres.update_s<&person::name>(person{"purecpp_a", 0, 1});
+    postgres.update_s<&person::name>(person{"purecpp_b"}, "id=2");
+    auto vec1 = postgres.query_s<person>("id=?", 1);
+    auto vec2 = postgres.query_s<person>("id=?", 2);
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    CHECK(vec1.front().name == "purecpp_a");
+    CHECK(vec2.front().name == "purecpp_b");
+    postgres.update_s<&person::name, &person::age>(person{"purecpp", 100, 1});
+    postgres.update_s<&person::name, &person::age>(person{"purecpp", 200},
+                                                   "id=2");
+    auto vec = postgres.query_s<person>();
+    vec1 = postgres.query_s<person>("id=?", 1);
+    vec2 = postgres.query_s<person>("id=?", 2);
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    CHECK(vec1.front().age == 100);
+    CHECK(vec2.front().age == 200);
+    CHECK(vec1.front().name == "purecpp");
+    CHECK(vec2.front().name == "purecpp");
+    postgres.update_s<&person::name, &person::age>(
+        std::vector<person>{{"purecpp_aa", 111, 1}, {"purecpp_bb", 222, 2}});
+    vec1 = postgres.query_s<person>("id=?", 1);
+    vec2 = postgres.query_s<person>("id=?", 2);
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    CHECK(vec1.front().age == 111);
+    CHECK(vec2.front().age == 222);
+    CHECK(vec1.front().name == "purecpp_aa");
+    CHECK(vec2.front().name == "purecpp_bb");
+  }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
@@ -1825,7 +1858,6 @@ TEST_CASE("update section filed") {
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
     sqlite.insert<person>({"person_a", 1});
     sqlite.insert<person>({"person_b", 2});
-    auto vec3 = sqlite.query_s<person>();
     sqlite.update_s<&person::name>(person{"purecpp_a", 0, 1});
     sqlite.update_s<&person::name>(person{"purecpp_b"}, "id=2");
     auto vec1 = sqlite.query_s<person>("id=?", 1);
@@ -1846,6 +1878,16 @@ TEST_CASE("update section filed") {
     CHECK(vec2.front().age == 200);
     CHECK(vec1.front().name == "purecpp");
     CHECK(vec2.front().name == "purecpp");
+    sqlite.update_s<&person::name, &person::age>(
+        std::vector<person>{{"purecpp_aa", 111, 1}, {"purecpp_bb", 222, 2}});
+    vec1 = sqlite.query_s<person>("id=?", 1);
+    vec2 = sqlite.query_s<person>("id=?", 2);
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    CHECK(vec1.front().age == 111);
+    CHECK(vec2.front().age == 222);
+    CHECK(vec1.front().name == "purecpp_aa");
+    CHECK(vec2.front().name == "purecpp_bb");
   }
 #endif
 }

@@ -261,11 +261,6 @@ inline auto is_conflict_key(std::string_view field_name) {
   return false;
 }
 
-template <auto member, typename T>
-constexpr bool is_member(size_t i) {
-  return iguana::index_of<member>() == i;
-}
-
 template <typename T, typename... Args>
 inline std::string generate_insert_sql(bool insert, Args &&...args) {
 #ifdef ORMPP_ENABLE_PG

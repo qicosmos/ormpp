@@ -915,18 +915,19 @@ class mysql {
 
   template <auto... members, typename T, typename... Args>
   int stmt_execute(const T &t, OptType type, bool condition) {
-    bool r = false;
     std::vector<MYSQL_BIND> param_binds;
-    iguana::for_each(t, [&t, &r, &param_binds, type, this](auto item, auto i) {
+    constexpr auto arr = iguana::indexs_of<members...>();
+    iguana::for_each(t, [&t, arr, &param_binds, type, this](auto item, auto i) {
       if (type == OptType::insert &&
           is_auto_key<T>(iguana::get_name<T>(i).data())) {
         return;
       }
       if constexpr (sizeof...(members) > 0) {
-        ((void)(!r &&
-                (r = is_member<members, T>(i),
-                 !r ? set_param_bind(param_binds, t.*item) : nullptr, true)),
-         ...);
+        for (auto idx : arr) {
+          if (idx == decltype(i)::value) {
+            set_param_bind(param_binds, t.*item);
+          }
+        }
       }
       else {
         set_param_bind(param_binds, t.*item);

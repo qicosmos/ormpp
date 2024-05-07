@@ -491,19 +491,21 @@ class sqlite {
   template <auto... members, typename T, typename... Args>
   int stmt_execute(const T &t, OptType type, Args &&...args) {
     int index = 1;
-    bool r = false;
     bool bind_ok = true;
+    constexpr auto arr = iguana::indexs_of<members...>();
     iguana::for_each(
-        t, [&t, &r, &bind_ok, &index, type, this](auto item, auto i) {
+        t, [&t, arr, &bind_ok, &index, type, this](auto item, auto i) {
           if ((type == OptType::insert &&
                is_auto_key<T>(iguana::get_name<T>(i).data())) ||
               !bind_ok) {
             return;
           }
           if constexpr (sizeof...(members) > 0) {
-            ((void)(!r && (r = is_member<members, T>(i),
-                           !r ? set_param_bind(t.*item, index++) : 0, true)),
-             ...);
+            for (auto idx : arr) {
+              if (idx == decltype(i)::value) {
+                bind_ok = set_param_bind(t.*item, index++);
+              }
+            }
           }
           else {
             bind_ok = set_param_bind(t.*item, index++);
@@ -673,7 +675,6 @@ class sqlite {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    std::cout << sql << std::endl;
     if (sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(), &stmt_,
                            nullptr) != SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
