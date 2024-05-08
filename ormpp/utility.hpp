@@ -405,9 +405,8 @@ inline std::string generate_update_sql(Args &&...args) {
 inline bool is_empty(const std::string &t) { return t.empty(); }
 
 template <class T>
-constexpr bool is_char_array_v =
-    std::is_array_v<T> &&
-    std::is_same_v<char, std::remove_pointer_t<std::decay_t<T>>>;
+constexpr bool is_char_array_v = std::is_array_v<T>
+    &&std::is_same_v<char, std::remove_pointer_t<std::decay_t<T>>>;
 
 template <size_t N>
 inline constexpr size_t char_array_size(char (&)[N]) {
