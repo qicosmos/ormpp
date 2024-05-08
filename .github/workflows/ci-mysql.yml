@@ -24,15 +24,9 @@ jobs:
           mysql-version: 8.0
           database: test_ormppdb
 
-      - name: Test
-        if  : startsWith(matrix.os, 'macos')
-        run : |
-          sudo find / -name "mysql.h"
-          sudo find / -name "*mysqlclient*"
-
       - name: Configure cmake
         run : cmake -B${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_MYSQL=ON
-      
+
       - name: Build
         run : cmake --build ${{ github.workspace }}/build --config ${{ matrix.configuration }}
 
