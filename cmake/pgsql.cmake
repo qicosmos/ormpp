@@ -14,11 +14,13 @@ IF (WIN32)
   FIND_PATH(PGSQL_INCLUDE_DIR libpq-fe.h
     $ENV{PROGRAMFILES}/PostgreSQL/*/include
     $ENV{SYSTEMDRIVE}/PostgreSQL/*/include)
-ELSE ()
+ELSEIF (LINUX)
   FIND_PATH(PGSQL_INCLUDE_DIR libpq-fe.h
-    /opt/homebrew/include/postgresql
     /usr/local/include/postgresql
     /usr/include/postgresql)
+ELSEIF (APPLE)
+  FIND_PATH(PGSQL_INCLUDE_DIR libpq-fe.h
+    /opt/homebrew/include/postgresql)
 ENDIF()
 
 IF (WIN32)
@@ -27,13 +29,17 @@ IF (WIN32)
     NAMES ${PGSQL_NAMES}
     PATHS $ENV{PROGRAMFILES}/PostgreSQL/*/lib 
     $ENV{SYSTEMDRIVE}/PostgreSQL/*/lib)
-ELSE ()
+ELSEIF (LINUX)
   SET(PGSQL_NAMES pq)
   FIND_LIBRARY(PGSQL_LIBRARY
     NAMES ${PGSQL_NAMES}
     PATHS /usr/lib 
-    /usr/local/lib
-    /opt/homebrew/lib)
+    /usr/local/lib)
+ELSEIF (APPLE)
+  SET(PGSQL_NAMES pq)
+  FIND_LIBRARY(PGSQL_LIBRARY
+    NAMES ${PGSQL_NAMES}
+    PATHS /opt/homebrew/lib)
 ENDIF()
 
 IF (PGSQL_INCLUDE_DIR AND PGSQL_LIBRARY)
