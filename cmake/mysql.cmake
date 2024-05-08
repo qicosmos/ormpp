@@ -22,7 +22,6 @@ ELSEIF (APPLE)
   FIND_PATH(MYSQL_INCLUDE_DIR mysql.h
   /opt/homebrew/include/mysql
   /opt/homebrew/opt/mysql@8.0/include
-  /usr/local/Cellar/mysql@8.0/*/include/mysql
   /opt/homebrew/Cellar/mysql@8.0/*/include/mysql)
 ENDIF()
 
