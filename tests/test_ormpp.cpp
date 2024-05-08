@@ -1821,8 +1821,8 @@ TEST_CASE("update section filed") {
     postgres.insert<person>({"person_b", 2});
     postgres.update_s<&person::name>(person{"purecpp_a", 0, 1});
     postgres.update_s<&person::name>(person{"purecpp_b"}, "id=2");
-    auto vec1 = postgres.query_s<person>("id=?", 1);
-    auto vec2 = postgres.query_s<person>("id=?", 2);
+    auto vec1 = postgres.query_s<person>("id=$1", 1);
+    auto vec2 = postgres.query_s<person>("id=$1", 2);
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
     CHECK(vec1.front().name == "purecpp_a");
@@ -1831,8 +1831,8 @@ TEST_CASE("update section filed") {
     postgres.update_s<&person::name, &person::age>(person{"purecpp", 200},
                                                    "id=2");
     auto vec = postgres.query_s<person>();
-    vec1 = postgres.query_s<person>("id=?", 1);
-    vec2 = postgres.query_s<person>("id=?", 2);
+    vec1 = postgres.query_s<person>("id=$1", 1);
+    vec2 = postgres.query_s<person>("id=$1", 2);
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
     CHECK(vec1.front().age == 100);
@@ -1841,8 +1841,8 @@ TEST_CASE("update section filed") {
     CHECK(vec2.front().name == "purecpp");
     postgres.update_s<&person::name, &person::age>(
         std::vector<person>{{"purecpp_aa", 111, 1}, {"purecpp_bb", 222, 2}});
-    vec1 = postgres.query_s<person>("id=?", 1);
-    vec2 = postgres.query_s<person>("id=?", 2);
+    vec1 = postgres.query_s<person>("id=$1", 1);
+    vec2 = postgres.query_s<person>("id=$1", 2);
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
     CHECK(vec1.front().age == 111);

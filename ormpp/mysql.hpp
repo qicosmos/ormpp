@@ -914,7 +914,7 @@ class mysql {
   }
 
   template <auto... members, typename T, typename... Args>
-  int stmt_execute(const T &t, OptType type, bool condition) {
+  int stmt_execute(const T &t, OptType type, Args &&...args) {
     std::vector<MYSQL_BIND> param_binds;
     constexpr auto arr = iguana::indexs_of<members...>();
     iguana::for_each(t, [&t, arr, &param_binds, type, this](auto item, auto i) {
