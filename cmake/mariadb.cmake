@@ -14,11 +14,14 @@ IF (WIN32)
   FIND_PATH(MARIADB_INCLUDE_DIR mysql.h
     $ENV{PROGRAMFILES}/MariaDB*/include
     $ENV{SYSTEMDRIVE}/MariaDB*/include)
-ELSE (WIN32)
+ELSEIF (LINUX)
   FIND_PATH(MARIADB_INCLUDE_DIR mysql.h
     /usr/local/include/mariadb
     /usr/include/mariadb)
-ENDIF(WIN32)
+ELSEIF (APPLE)
+  FIND_PATH(MARIADB_INCLUDE_DIR mysql.h
+  /opt/homebrew/include/mariadb)
+ENDIF()
 
 SET(MARIADB_NAMES mariadb)
 IF (WIN32)
@@ -27,13 +30,18 @@ IF (WIN32)
     PATHS $ENV{PROGRAMFILES}/MariaDB*/lib 
     $ENV{SYSTEMDRIVE}/MariaDB*/lib
     PATH_SUFFIXES mariadb)
-ELSE (WIN32)
+ELSEIF (LINUX)
   FIND_LIBRARY(MARIADB_LIBRARY
     NAMES ${MARIADB_NAMES}
     PATHS /usr/lib 
     /usr/local/lib
     PATH_SUFFIXES mariadb)
-ENDIF(WIN32)
+ELSEIF (APPLE)
+  FIND_LIBRARY(MARIADB_LIBRARY
+    NAMES ${MARIADB_NAMES}
+    PATHS /opt/homebrew/lib
+    PATH_SUFFIXES mariadb)
+ENDIF()
 
 IF (MARIADB_INCLUDE_DIR AND MARIADB_LIBRARY)
   SET(MARIADB_FOUND TRUE)

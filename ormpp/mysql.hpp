@@ -118,14 +118,14 @@ class mysql {
     return insert_impl(OptType::replace, v, std::forward<Args>(args)...);
   }
 
-  template <typename T, typename... Args>
+  template <auto... members, typename T, typename... Args>
   int update(const T &t, Args &&...args) {
-    return update_impl(t, std::forward<Args>(args)...);
+    return update_impl<members...>(t, std::forward<Args>(args)...);
   }
 
-  template <typename T, typename... Args>
+  template <auto... members, typename T, typename... Args>
   int update(const std::vector<T> &v, Args &&...args) {
-    return update_impl(v, std::forward<Args>(args)...);
+    return update_impl<members...>(v, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
@@ -913,26 +913,38 @@ class mysql {
     return sql;
   }
 
-  template <typename T>
-  int stmt_execute(const T &t, OptType type, bool condition) {
+  template <auto... members, typename T, typename... Args>
+  int stmt_execute(const T &t, OptType type, Args &&...args) {
     std::vector<MYSQL_BIND> param_binds;
-    iguana::for_each(t, [&t, &param_binds, type, this](auto item, auto i) {
+    constexpr auto arr = iguana::indexs_of<members...>();
+    iguana::for_each(t, [&t, arr, &param_binds, type, this](auto item, auto i) {
       if (type == OptType::insert &&
           is_auto_key<T>(iguana::get_name<T>(i).data())) {
         return;
       }
-      set_param_bind(param_binds, t.*item);
+      if constexpr (sizeof...(members) > 0) {
+        for (auto idx : arr) {
+          if (idx == decltype(i)::value) {
+            set_param_bind(param_binds, t.*item);
+          }
+        }
+      }
+      else {
+        set_param_bind(param_binds, t.*item);
+      }
     });
 
-    if (condition && type == OptType::update) {
-      iguana::for_each(t, [&t, &param_binds, this](auto item, auto i) {
-        std::string field_name = "`";
-        field_name += iguana::get_name<T>(i).data();
-        field_name += "`";
-        if (is_conflict_key<T>(field_name)) {
-          set_param_bind(param_binds, t.*item);
-        }
-      });
+    if constexpr (sizeof...(Args) == 0) {
+      if (type == OptType::update) {
+        iguana::for_each(t, [&t, &param_binds, this](auto item, auto i) {
+          std::string field_name = "`";
+          field_name += iguana::get_name<T>(i).data();
+          field_name += "`";
+          if (is_conflict_key<T>(field_name)) {
+            set_param_bind(param_binds, t.*item);
+          }
+        });
+      }
     }
 
     if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
@@ -967,28 +979,28 @@ class mysql {
     return res.has_value() ? res.value() : INT_MIN;
   }
 
-  template <typename T, typename... Args>
+  template <auto... members, typename T, typename... Args>
   int update_impl(const T &t, Args &&...args) {
-    bool condition = true;
-    auto sql = generate_update_sql<T>(condition, std::forward<Args>(args)...);
-    auto res = insert_or_update_impl(t, sql, OptType::update, false, condition);
+    auto sql = generate_update_sql<T, members...>(std::forward<Args>(args)...);
+    auto res = insert_or_update_impl<members...>(t, sql, OptType::update, false,
+                                                 std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
 
-  template <typename T, typename... Args>
+  template <auto... members, typename T, typename... Args>
   int update_impl(const std::vector<T> &v, Args &&...args) {
-    bool condition = true;
-    auto sql = generate_update_sql<T>(condition, std::forward<Args>(args)...);
-    auto res = insert_or_update_impl(v, sql, OptType::update, false, condition);
+    auto sql = generate_update_sql<T, members...>(std::forward<Args>(args)...);
+    auto res = insert_or_update_impl<members...>(v, sql, OptType::update, false,
+                                                 std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
 
-  template <typename T>
+  template <auto... members, typename T, typename... Args>
   std::optional<uint64_t> insert_or_update_impl(const T &t,
                                                 const std::string &sql,
                                                 OptType type,
                                                 bool get_insert_id = false,
-                                                bool condition = true) {
+                                                Args &&...args) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -1005,19 +1017,20 @@ class mysql {
 
     auto guard = guard_statment(stmt_);
 
-    if (stmt_execute(t, type, condition) == INT_MIN) {
+    if (stmt_execute<members...>(t, type, std::forward<Args>(args)...) ==
+        INT_MIN) {
       return std::nullopt;
     }
 
     return get_insert_id ? stmt_->mysql->insert_id : 1;
   }
 
-  template <typename T>
+  template <auto... members, typename T, typename... Args>
   std::optional<uint64_t> insert_or_update_impl(const std::vector<T> &v,
                                                 const std::string &sql,
                                                 OptType type,
                                                 bool get_insert_id = false,
-                                                bool condition = true) {
+                                                Args &&...args) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -1039,7 +1052,8 @@ class mysql {
     }
 
     for (auto &item : v) {
-      if (stmt_execute(item, type, condition) == INT_MIN) {
+      if (stmt_execute<members...>(item, type, std::forward<Args>(args)...) ==
+          INT_MIN) {
         rollback();
         return std::nullopt;
       }

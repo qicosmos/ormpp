@@ -15,7 +15,6 @@
 
 #include "iguana/define.h"
 
-
 namespace iguana {
 
 template <class T>
@@ -67,6 +66,15 @@ struct has_type;
 template <typename T, typename... Us>
 struct has_type<T, std::tuple<Us...>>
     : std::disjunction<std::is_same<T, Us>...> {};
+
+template <class T>
+struct member_tratis {};
+
+template <class T, class Owner>
+struct member_tratis<T Owner::*> {
+  using owner_type = Owner;
+  using value_type = T;
+};
 
 template <typename T>
 inline constexpr bool is_int64_v =

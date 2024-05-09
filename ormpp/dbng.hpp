@@ -63,6 +63,16 @@ class dbng {
     return db_.update(v, std::forward<Args>(args)...);
   }
 
+  template <auto... members, typename T, typename... Args>
+  int update_s(const T &t, Args &&...args) {
+    return db_.template update<members...>(t, std::forward<Args>(args)...);
+  }
+
+  template <auto... members, typename T, typename... Args>
+  int update_s(const std::vector<T> &v, Args &&...args) {
+    return db_.template update<members...>(v, std::forward<Args>(args)...);
+  }
+
   template <typename T, typename... Args>
   uint64_t get_insert_id_after_insert(const T &t, Args &&...args) {
     return db_.get_insert_id_after_insert(t, std::forward<Args>(args)...);
