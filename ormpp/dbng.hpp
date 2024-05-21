@@ -64,12 +64,12 @@ class dbng {
   }
 
   template <auto... members, typename T, typename... Args>
-  int update_s(const T &t, Args &&...args) {
+  int update_some(const T &t, Args &&...args) {
     return db_.template update<members...>(t, std::forward<Args>(args)...);
   }
 
   template <auto... members, typename T, typename... Args>
-  int update_s(const std::vector<T> &v, Args &&...args) {
+  int update_some(const std::vector<T> &v, Args &&...args) {
     return db_.template update<members...>(v, std::forward<Args>(args)...);
   }
 
