@@ -6,4 +6,4 @@
 // ORMPP_VERSION % 100 is the sub-minor version
 // ORMPP_VERSION / 100 % 1000 is the minor version
 // ORMPP_VERSION / 100000 is the major version
-#define ORMPP_VERSION 12  // 0.1.2
+#define ORMPP_VERSION 13  // 0.1.3
