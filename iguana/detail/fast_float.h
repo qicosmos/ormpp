@@ -135,7 +135,6 @@ from_chars_result from_chars_advanced(const char* first, const char* last,
 #include <cstring>
 #include <type_traits>
 
-
 #if (defined(__x86_64) || defined(__x86_64__) || defined(_M_X64) ||       \
      defined(__amd64) || defined(__aarch64__) || defined(_M_ARM64) ||     \
      defined(__MINGW64__) || defined(__s390x__) ||                        \
@@ -2709,7 +2708,7 @@ fastfloat_really_inline void round(adjusted_mantissa& am,
   if (-am.power2 >= mantissa_shift) {
     // have a denormal float
     int32_t shift = -am.power2 + 1;
-    cb(am, std::min(shift, 64));
+    cb(am, (std::min)(shift, 64));
     // check for round-up: if rounding-nearest carried us to the hidden bit.
     am.power2 = (am.mantissa <
                  (uint64_t(1) << binary_format<T>::mantissa_explicit_bits()))
