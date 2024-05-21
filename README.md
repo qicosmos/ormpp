@@ -127,7 +127,11 @@ int main() {
   mysql.replace(p);
   mysql.replace(v);
 
-  auto result = mysql.query<person>();  // vector<person>
+  // 更新指定字段
+  mysql.update_some<&person::name, &person::age>(p);
+  mysql.update_some<&person::name, &person::age>(v);
+
+  auto result = mysql.query_s<person>();
   for (auto &person : result) {
     std::cout << person.id << " " << person.name << " " << person.age
               << std::endl;
