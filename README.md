@@ -333,9 +333,10 @@ int main(){
 ```
 
 1. 连接数据库
-
+```cpp
 	template <typename... Args>
 	bool connect(Args&&... args);
+```
 
 connect exmple:
 
@@ -353,8 +354,9 @@ sqlite.connect("127.0.0.1", "testdb");
 返回值：bool，成功返回true，失败返回false.
 
 2. 断开数据库连接
-	
+```cpp	
 	bool disconnect();
+```
 
 disconnect exmple:
 
@@ -507,9 +509,10 @@ TEST_CHECK(sqlite.update(v1)==3);
 返回值：int，成功返回更新数据的条数N，失败返回INT_MIN.
 
 8. 删除数据
-
+```cpp
 template<typename T, typename... Args>
 bool delete_records(Args&&... where_conditon);
+```
 
 delete_records example:
 
