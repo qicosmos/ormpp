@@ -490,27 +490,25 @@ class sqlite {
 
   template <auto... members, typename T, typename... Args>
   int stmt_execute(const T &t, OptType type, Args &&...args) {
-    int index = 1;
+    size_t index = 0;
     bool bind_ok = true;
-    constexpr auto arr = iguana::indexs_of<members...>();
-    iguana::for_each(
-        t, [&t, arr, &bind_ok, &index, type, this](auto item, auto i) {
-          if ((type == OptType::insert &&
-               is_auto_key<T>(iguana::get_name<T>(i).data())) ||
-              !bind_ok) {
-            return;
-          }
-          if constexpr (sizeof...(members) > 0) {
-            for (auto idx : arr) {
-              if (idx == decltype(i)::value) {
-                bind_ok = set_param_bind(t.*item, index++);
-              }
-            }
-          }
-          else {
-            bind_ok = set_param_bind(t.*item, index++);
-          }
-        });
+    if constexpr (sizeof...(members) > 0) {
+      ((bind_ok && (bind_ok = set_param_bind(
+                        iguana::get<iguana::index_of<members>()>(t), ++index)),
+        true),
+       ...);
+    }
+    else {
+      iguana::for_each(t,
+                       [&t, &bind_ok, &index, type, this](auto item, auto i) {
+                         if ((type == OptType::insert &&
+                              is_auto_key<T>(iguana::get_name<T>(i).data())) ||
+                             !bind_ok) {
+                           return;
+                         }
+                         bind_ok = set_param_bind(t.*item, ++index);
+                       });
+    }
 
     if constexpr (sizeof...(Args) == 0) {
       if (type == OptType::update) {
@@ -519,7 +517,7 @@ class sqlite {
             return;
           }
           if (is_conflict_key<T>(iguana::get_name<T>(i).data())) {
-            bind_ok = set_param_bind(t.*item, index++);
+            bind_ok = set_param_bind(t.*item, ++index);
           }
         });
       }

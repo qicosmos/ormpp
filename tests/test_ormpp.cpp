@@ -1789,20 +1789,10 @@ TEST_CASE("update section filed") {
     CHECK(vec2.size() == 1);
     CHECK(vec1.front().name == "purecpp_a");
     CHECK(vec2.front().name == "purecpp_b");
-    mysql.update_some<&person::name, &person::age>(person{"purecpp", 100, 1});
-    mysql.update_some<&person::name, &person::age>(person{"purecpp", 200},
+    mysql.update_some<&person::age, &person::name>(
+        person{"purecpp_aa", 111, 1});
+    mysql.update_some<&person::age, &person::name>(person{"purecpp_bb", 222},
                                                    "id=2");
-    auto vec = mysql.query_s<person>();
-    vec1 = mysql.query_s<person>("id=?", 1);
-    vec2 = mysql.query_s<person>("id=?", 2);
-    CHECK(vec1.size() == 1);
-    CHECK(vec2.size() == 1);
-    CHECK(vec1.front().age == 100);
-    CHECK(vec2.front().age == 200);
-    CHECK(vec1.front().name == "purecpp");
-    CHECK(vec2.front().name == "purecpp");
-    mysql.update_some<&person::name, &person::age>(
-        std::vector<person>{{"purecpp_aa", 111, 1}, {"purecpp_bb", 222, 2}});
     vec1 = mysql.query_s<person>("id=?", 1);
     vec2 = mysql.query_s<person>("id=?", 2);
     CHECK(vec1.size() == 1);
@@ -1811,6 +1801,28 @@ TEST_CASE("update section filed") {
     CHECK(vec2.front().age == 222);
     CHECK(vec1.front().name == "purecpp_aa");
     CHECK(vec2.front().name == "purecpp_bb");
+    mysql.update_some<&person::name, &person::age>(
+        person{"purecpp_aaa", 333, 1});
+    mysql.update_some<&person::name, &person::age>(person{"purecpp_bbb", 444},
+                                                   "id=2");
+    vec1 = mysql.query_s<person>("id=?", 1);
+    vec2 = mysql.query_s<person>("id=?", 2);
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    CHECK(vec1.front().age == 333);
+    CHECK(vec2.front().age == 444);
+    CHECK(vec1.front().name == "purecpp_aaa");
+    CHECK(vec2.front().name == "purecpp_bbb");
+    mysql.update_some<&person::name, &person::age>(std::vector<person>{
+        {"purecpp_aaaa", 555, 1}, {"purecpp_bbbb", 666, 2}});
+    vec1 = mysql.query_s<person>("id=?", 1);
+    vec2 = mysql.query_s<person>("id=?", 2);
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    CHECK(vec1.front().age == 555);
+    CHECK(vec2.front().age == 666);
+    CHECK(vec1.front().name == "purecpp_aaaa");
+    CHECK(vec2.front().name == "purecpp_bbbb");
   }
 #endif
 #ifdef ORMPP_ENABLE_PG
@@ -1828,21 +1840,10 @@ TEST_CASE("update section filed") {
     CHECK(vec2.size() == 1);
     CHECK(vec1.front().name == "purecpp_a");
     CHECK(vec2.front().name == "purecpp_b");
-    postgres.update_some<&person::name, &person::age>(
-        person{"purecpp", 100, 1});
-    postgres.update_some<&person::name, &person::age>(person{"purecpp", 200},
+    postgres.update_some<&person::age, &person::name>(
+        person{"purecpp_aa", 111, 1});
+    postgres.update_some<&person::age, &person::name>(person{"purecpp_bb", 222},
                                                       "id=2");
-    auto vec = postgres.query_s<person>();
-    vec1 = postgres.query_s<person>("id=$1", 1);
-    vec2 = postgres.query_s<person>("id=$1", 2);
-    CHECK(vec1.size() == 1);
-    CHECK(vec2.size() == 1);
-    CHECK(vec1.front().age == 100);
-    CHECK(vec2.front().age == 200);
-    CHECK(vec1.front().name == "purecpp");
-    CHECK(vec2.front().name == "purecpp");
-    postgres.update_some<&person::name, &person::age>(
-        std::vector<person>{{"purecpp_aa", 111, 1}, {"purecpp_bb", 222, 2}});
     vec1 = postgres.query_s<person>("id=$1", 1);
     vec2 = postgres.query_s<person>("id=$1", 2);
     CHECK(vec1.size() == 1);
@@ -1851,6 +1852,28 @@ TEST_CASE("update section filed") {
     CHECK(vec2.front().age == 222);
     CHECK(vec1.front().name == "purecpp_aa");
     CHECK(vec2.front().name == "purecpp_bb");
+    postgres.update_some<&person::name, &person::age>(
+        person{"purecpp_aaa", 333, 1});
+    postgres.update_some<&person::name, &person::age>(
+        person{"purecpp_bbb", 444}, "id=2");
+    vec1 = postgres.query_s<person>("id=$1", 1);
+    vec2 = postgres.query_s<person>("id=$1", 2);
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    CHECK(vec1.front().age == 333);
+    CHECK(vec2.front().age == 444);
+    CHECK(vec1.front().name == "purecpp_aaa");
+    CHECK(vec2.front().name == "purecpp_bbb");
+    postgres.update_some<&person::name, &person::age>(std::vector<person>{
+        {"purecpp_aaaa", 555, 1}, {"purecpp_bbbb", 666, 2}});
+    vec1 = postgres.query_s<person>("id=$1", 1);
+    vec2 = postgres.query_s<person>("id=$1", 2);
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    CHECK(vec1.front().age == 555);
+    CHECK(vec2.front().age == 666);
+    CHECK(vec1.front().name == "purecpp_aaaa");
+    CHECK(vec2.front().name == "purecpp_bbbb");
   }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -1868,20 +1891,10 @@ TEST_CASE("update section filed") {
     CHECK(vec2.size() == 1);
     CHECK(vec1.front().name == "purecpp_a");
     CHECK(vec2.front().name == "purecpp_b");
-    sqlite.update_some<&person::name, &person::age>(person{"purecpp", 100, 1});
-    sqlite.update_some<&person::name, &person::age>(person{"purecpp", 200},
+    sqlite.update_some<&person::age, &person::name>(
+        person{"purecpp_aa", 111, 1});
+    sqlite.update_some<&person::age, &person::name>(person{"purecpp_bb", 222},
                                                     "id=2");
-    auto vec = sqlite.query_s<person>();
-    vec1 = sqlite.query_s<person>("id=?", 1);
-    vec2 = sqlite.query_s<person>("id=?", 2);
-    CHECK(vec1.size() == 1);
-    CHECK(vec2.size() == 1);
-    CHECK(vec1.front().age == 100);
-    CHECK(vec2.front().age == 200);
-    CHECK(vec1.front().name == "purecpp");
-    CHECK(vec2.front().name == "purecpp");
-    sqlite.update_some<&person::name, &person::age>(
-        std::vector<person>{{"purecpp_aa", 111, 1}, {"purecpp_bb", 222, 2}});
     vec1 = sqlite.query_s<person>("id=?", 1);
     vec2 = sqlite.query_s<person>("id=?", 2);
     CHECK(vec1.size() == 1);
@@ -1890,6 +1903,28 @@ TEST_CASE("update section filed") {
     CHECK(vec2.front().age == 222);
     CHECK(vec1.front().name == "purecpp_aa");
     CHECK(vec2.front().name == "purecpp_bb");
+    sqlite.update_some<&person::name, &person::age>(
+        person{"purecpp_aaa", 333, 1});
+    sqlite.update_some<&person::name, &person::age>(person{"purecpp_bbb", 444},
+                                                    "id=2");
+    vec1 = sqlite.query_s<person>("id=?", 1);
+    vec2 = sqlite.query_s<person>("id=?", 2);
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    CHECK(vec1.front().age == 333);
+    CHECK(vec2.front().age == 444);
+    CHECK(vec1.front().name == "purecpp_aaa");
+    CHECK(vec2.front().name == "purecpp_bbb");
+    sqlite.update_some<&person::name, &person::age>(std::vector<person>{
+        {"purecpp_aaaa", 555, 1}, {"purecpp_bbbb", 666, 2}});
+    vec1 = sqlite.query_s<person>("id=?", 1);
+    vec2 = sqlite.query_s<person>("id=?", 2);
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    CHECK(vec1.front().age == 555);
+    CHECK(vec2.front().age == 666);
+    CHECK(vec1.front().name == "purecpp_aaaa");
+    CHECK(vec2.front().name == "purecpp_bbbb");
   }
 #endif
 }
