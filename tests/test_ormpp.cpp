@@ -1834,8 +1834,8 @@ TEST_CASE("update section filed") {
     postgres.insert<person>({"person_b", 2});
     postgres.update_some<&person::name>(person{"purecpp_a", 0, 1});
     postgres.update_some<&person::name>(person{"purecpp_b"}, "id=2");
-    auto vec1 = postgres.query_s<person>("id=?", 1);
-    auto vec2 = postgres.query_s<person>("id=?", 2);
+    auto vec1 = postgres.query_s<person>("id=$1", 1);
+    auto vec2 = postgres.query_s<person>("id=$1", 2);
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
     CHECK(vec1.front().name == "purecpp_a");
@@ -1844,8 +1844,8 @@ TEST_CASE("update section filed") {
         person{"purecpp_aa", 111, 1});
     postgres.update_some<&person::age, &person::name>(person{"purecpp_bb", 222},
                                                       "id=2");
-    vec1 = postgres.query_s<person>("id=?", 1);
-    vec2 = postgres.query_s<person>("id=?", 2);
+    vec1 = postgres.query_s<person>("id=$1", 1);
+    vec2 = postgres.query_s<person>("id=$1", 2);
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
     CHECK(vec1.front().age == 111);
@@ -1856,8 +1856,8 @@ TEST_CASE("update section filed") {
         person{"purecpp_aaa", 333, 1});
     postgres.update_some<&person::name, &person::age>(
         person{"purecpp_bbb", 444}, "id=2");
-    vec1 = postgres.query_s<person>("id=?", 1);
-    vec2 = postgres.query_s<person>("id=?", 2);
+    vec1 = postgres.query_s<person>("id=$1", 1);
+    vec2 = postgres.query_s<person>("id=$1", 2);
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
     CHECK(vec1.front().age == 333);
@@ -1866,8 +1866,8 @@ TEST_CASE("update section filed") {
     CHECK(vec2.front().name == "purecpp_bbb");
     postgres.update_some<&person::name, &person::age>(std::vector<person>{
         {"purecpp_aaaa", 555, 1}, {"purecpp_bbbb", 666, 2}});
-    vec1 = postgres.query_s<person>("id=?", 1);
-    vec2 = postgres.query_s<person>("id=?", 2);
+    vec1 = postgres.query_s<person>("id=$1", 1);
+    vec2 = postgres.query_s<person>("id=$1", 2);
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
     CHECK(vec1.front().age == 555);
