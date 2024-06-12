@@ -917,22 +917,29 @@ class mysql {
   int stmt_execute(const T &t, OptType type, Args &&...args) {
     std::vector<MYSQL_BIND> param_binds;
     constexpr auto arr = iguana::indexs_of<members...>();
-    iguana::for_each(t, [&t, arr, &param_binds, type, this](auto item, auto i) {
-      if (type == OptType::insert &&
-          is_auto_key<T>(iguana::get_name<T>(i).data())) {
-        return;
-      }
-      if constexpr (sizeof...(members) > 0) {
-        for (auto idx : arr) {
-          if (idx == decltype(i)::value) {
-            set_param_bind(param_binds, t.*item);
-          }
-        }
-      }
-      else {
-        set_param_bind(param_binds, t.*item);
-      }
-    });
+    if constexpr (sizeof...(members) > 0) {
+      (set_param_bind(param_binds, iguana::get<iguana::index_of<members>()>(t)),
+       ...);
+    }
+    else {
+      iguana::for_each(t,
+                       [&t, arr, &param_binds, type, this](auto item, auto i) {
+                         if (type == OptType::insert &&
+                             is_auto_key<T>(iguana::get_name<T>(i).data())) {
+                           return;
+                         }
+                         if constexpr (sizeof...(members) > 0) {
+                           for (auto idx : arr) {
+                             if (idx == decltype(i)::value) {
+                               set_param_bind(param_binds, t.*item);
+                             }
+                           }
+                         }
+                         else {
+                           set_param_bind(param_binds, t.*item);
+                         }
+                       });
+    }
 
     if constexpr (sizeof...(Args) == 0) {
       if (type == OptType::update) {

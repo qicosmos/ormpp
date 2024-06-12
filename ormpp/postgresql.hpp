@@ -525,23 +525,30 @@ class postgresql {
                                        Args &&...args) {
     std::vector<std::vector<char>> param_values;
     constexpr auto arr = iguana::indexs_of<members...>();
-    iguana::for_each(t,
-                     [&t, arr, &param_values, type, this](auto item, auto i) {
-                       if (type == OptType::insert &&
-                           is_auto_key<T>(iguana::get_name<T>(i).data())) {
-                         return;
-                       }
-                       if constexpr (sizeof...(members) > 0) {
-                         for (auto idx : arr) {
-                           if (idx == decltype(i)::value) {
-                             set_param_values(param_values, t.*item);
+    if constexpr (sizeof...(members) > 0) {
+      (set_param_values(param_values,
+                        iguana::get<iguana::index_of<members>()>(t)),
+       ...);
+    }
+    else {
+      iguana::for_each(t,
+                       [&t, arr, &param_values, type, this](auto item, auto i) {
+                         if (type == OptType::insert &&
+                             is_auto_key<T>(iguana::get_name<T>(i).data())) {
+                           return;
+                         }
+                         if constexpr (sizeof...(members) > 0) {
+                           for (auto idx : arr) {
+                             if (idx == decltype(i)::value) {
+                               set_param_values(param_values, t.*item);
+                             }
                            }
                          }
-                       }
-                       else {
-                         set_param_values(param_values, t.*item);
-                       }
-                     });
+                         else {
+                           set_param_values(param_values, t.*item);
+                         }
+                       });
+    }
 
     if constexpr (sizeof...(Args) == 0) {
       if (type == OptType::update) {
