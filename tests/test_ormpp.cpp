@@ -52,8 +52,9 @@ struct simple {
   int id;
   double code;
   int age;
+  std::array<char, 128> arr;
 };
-REFLECTION(simple, id, code, age)
+REFLECTION(simple, id, code, age, arr)
 
 // TEST_CASE(mysql performance){
 //    dbng<mysql> mysql;
@@ -760,16 +761,16 @@ TEST_CASE("delete") {
 
 TEST_CASE("query") {
   ormpp_key key{"id"};
-  simple s1 = {1, 2.5, 3};
-  simple s2 = {2, 3.5, 4};
-  simple s3 = {3, 4.5, 5};
+  simple s1 = {1, 2.5, 3, {"s1"}};
+  simple s2 = {2, 3.5, 4, {"s2"}};
+  simple s3 = {3, 4.5, 5, {"s3"}};
   std::vector<simple> v{s1, s2, s3};
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists simple");
     mysql.create_datatable<simple>(key);
-    mysql.delete_records<simple>();
     CHECK(mysql.insert(v) == 3);
     auto vec1 = mysql.query<simple>();
     CHECK(vec1.size() == 3);
@@ -781,8 +782,8 @@ TEST_CASE("query") {
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
   if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists simple");
     postgres.create_datatable<simple>(key);
-    postgres.delete_records<simple>();
     CHECK(postgres.insert(v) == 3);
     auto vec1 = postgres.query<simple>();
     CHECK(vec1.size() == 3);
@@ -794,8 +795,8 @@ TEST_CASE("query") {
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists simple");
     sqlite.create_datatable<simple>(key);
-    sqlite.delete_records<simple>();
     CHECK(sqlite.insert(v) == 3);
     auto vec1 = sqlite.query<simple>();
     CHECK(vec1.size() == 3);

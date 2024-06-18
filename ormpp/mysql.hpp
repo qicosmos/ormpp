@@ -177,7 +177,13 @@ class mysql {
       param.buffer = (void *)(value.c_str());
       param.buffer_length = (unsigned long)value.size();
     }
-    else if constexpr (std::is_same_v<const char *, U> || is_char_array_v<U>) {
+    else if constexpr (iguana::array_v<U>) {
+      param.buffer_type = MYSQL_TYPE_STRING;
+      param.buffer = (void *)(value.data());
+      param.buffer_length = (unsigned long)value.size();
+    }
+    else if constexpr (iguana::c_array_v<U> ||
+                       std::is_same_v<const char *, U>) {
       param.buffer_type = MYSQL_TYPE_STRING;
       param.buffer = (void *)(value);
       param.buffer_length = (unsigned long)strlen(value);
@@ -221,7 +227,7 @@ class mysql {
       param_bind.buffer = &(mp.rbegin()->second[0]);
       param_bind.buffer_length = 65536;
     }
-    else if constexpr (is_char_array_v<U>) {
+    else if constexpr (iguana::array_v<U>) {
       param_bind.buffer_type = MYSQL_TYPE_VAR_STRING;
       std::vector<char> tmp(sizeof(U), 0);
       mp.emplace(i, std::move(tmp));
@@ -262,7 +268,7 @@ class mysql {
       auto &vec = mp[i];
       value = std::string(&vec[0], strlen(vec.data()));
     }
-    else if constexpr (is_char_array_v<U>) {
+    else if constexpr (iguana::array_v<U>) {
       auto &vec = mp[i];
       memcpy(value, vec.data(), vec.size());
     }

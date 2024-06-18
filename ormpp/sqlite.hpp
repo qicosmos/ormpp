@@ -562,18 +562,15 @@ class sqlite {
     else if constexpr (std::is_floating_point_v<U>) {
       return SQLITE_OK == sqlite3_bind_double(stmt_, i, value);
     }
-    else if constexpr (std::is_same_v<std::string, U>) {
+    else if constexpr (iguana::array_v<U> || std::is_same_v<std::string, U>) {
       return SQLITE_OK ==
              sqlite3_bind_text(stmt_, i, value.data(), value.size(), nullptr);
     }
-    else if constexpr (std::is_same_v<char,
+    else if constexpr (iguana::c_array_v<U> ||
+                       std::is_same_v<char,
                                       std::remove_pointer_t<std::decay_t<U>>>) {
       return SQLITE_OK ==
              sqlite3_bind_text(stmt_, i, value, strlen(value), nullptr);
-    }
-    else if constexpr (is_char_array_v<U>) {
-      return SQLITE_OK ==
-             sqlite3_bind_text(stmt_, i, value, sizeof(U), nullptr);
     }
 #ifdef ORMPP_WITH_CSTRING
     else if constexpr (std::is_same_v<CString, U>) {
@@ -621,7 +618,10 @@ class sqlite {
       value.assign((const char *)sqlite3_column_text(stmt_, i),
                    (size_t)sqlite3_column_bytes(stmt_, i));
     }
-    else if constexpr (is_char_array_v<U>) {
+    else if constexpr (iguana::array_v<U>) {
+      memcpy(value.data(), sqlite3_column_text(stmt_, i), sizeof(U));
+    }
+    else if constexpr (iguana::c_array_v<U>) {
       memcpy(value, sqlite3_column_text(stmt_, i), sizeof(U));
     }
 #ifdef ORMPP_WITH_CSTRING
