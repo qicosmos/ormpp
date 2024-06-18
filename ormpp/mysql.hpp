@@ -270,7 +270,7 @@ class mysql {
     }
     else if constexpr (iguana::array_v<U>) {
       auto &vec = mp[i];
-      memcpy(value, vec.data(), vec.size());
+      memcpy(value.data(), vec.data(), value.size());
     }
     else if constexpr (std::is_same_v<blob, U>) {
       auto &vec = mp[i];

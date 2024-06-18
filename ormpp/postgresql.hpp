@@ -708,7 +708,7 @@ class postgresql {
       sprintf(temp.data(), "%f", value);
       param_values.push_back(std::move(temp));
     }
-    else if constexpr (iguana::array_v<U> || std::is_same_v<std::string, U>) {
+    else if constexpr (std::is_same_v<std::string, U>) {
       std::vector<char> temp = {};
       std::copy(value.data(), value.data() + value.size() + 1,
                 std::back_inserter(temp));
@@ -718,6 +718,10 @@ class postgresql {
       std::vector<char> temp = {};
       std::copy(value, value + sizeof(U), std::back_inserter(temp));
       param_values.push_back(std::move(temp));
+    }
+    else if constexpr (iguana::array_v<U>) {
+      auto p = PQgetvalue(res_, row, i);
+      memcpy(value.data(), p, value.size());
     }
     else {
       static_assert(!sizeof(U), "this type has not supported yet");
