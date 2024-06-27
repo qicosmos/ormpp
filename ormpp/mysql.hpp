@@ -972,7 +972,7 @@ class mysql {
 
     int count = (int)mysql_stmt_affected_rows(stmt_);
     if (count == 0) {
-      return INT_MIN;
+      return type == OptType::update ? count : INT_MIN;
     }
 
     return count;

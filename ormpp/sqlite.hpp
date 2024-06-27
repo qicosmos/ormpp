@@ -535,7 +535,7 @@ class sqlite {
 
     int count = sqlite3_changes(handle_);
     if (count == 0) {
-      return INT_MIN;
+      return type == OptType::update ? count : INT_MIN;
     }
 
     return 1;
