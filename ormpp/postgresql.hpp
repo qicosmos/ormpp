@@ -776,7 +776,7 @@ class postgresql {
     }
     else if constexpr (std::is_same_v<blob, U>) {
       auto p = PQgetvalue(res_, row, i);
-      // value = blob(p, p + ); TODOW
+      value = blob(p, p + PQgetlength(res_, row, i));
     }
 #ifdef ORMPP_WITH_CSTRING
     else if constexpr (std::is_same_v<CString, U>) {
