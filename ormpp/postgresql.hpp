@@ -719,6 +719,20 @@ class postgresql {
       std::copy(value, value + sizeof(U), std::back_inserter(temp));
       param_values.push_back(std::move(temp));
     }
+    else if constexpr (std::is_same_v<blob, U>) {
+      std::vector<char> temp = {};
+      std::copy(value.data(), value.data() + value.size() + 1,
+                std::back_inserter(temp));
+      param_values.push_back(std::move(temp));
+    }
+#ifdef ORMPP_WITH_CSTRING
+    else if constexpr (std::is_same_v<CString, U>) {
+      std::vector<char> temp = {};
+      std::copy(value.GetString(), value.GetString() + value.GetLength() + 1,
+                std::back_inserter(temp));
+      param_values.push_back(std::move(temp));
+    }
+#endif
     else {
       static_assert(!sizeof(U), "this type has not supported yet");
     }
@@ -752,14 +766,23 @@ class postgresql {
     else if constexpr (std::is_same_v<std::string, U>) {
       value = PQgetvalue(res_, row, i);
     }
-    else if constexpr (iguana::c_array_v<U>) {
-      auto p = PQgetvalue(res_, row, i);
-      memcpy(value, p, sizeof(U));
-    }
     else if constexpr (iguana::array_v<U>) {
       auto p = PQgetvalue(res_, row, i);
       memcpy(value.data(), p, value.size());
     }
+    else if constexpr (iguana::c_array_v<U>) {
+      auto p = PQgetvalue(res_, row, i);
+      memcpy(value, p, sizeof(U));
+    }
+    else if constexpr (std::is_same_v<blob, U>) {
+      auto p = PQgetvalue(res_, row, i);
+      // value = blob(p, p + ); TODOW
+    }
+#ifdef ORMPP_WITH_CSTRING
+    else if constexpr (std::is_same_v<CString, U>) {
+      value.SetString(PQgetvalue(res_, row, i));
+    }
+#endif
     else {
       static_assert(!sizeof(U), "this type has not supported yet");
     }

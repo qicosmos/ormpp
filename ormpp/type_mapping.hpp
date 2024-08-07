@@ -19,6 +19,9 @@ using namespace std::string_view_literals;
 #define EXAMPLE1_TYPE_MAPPING_HPP
 
 namespace ormpp {
+
+using blob = std::vector<char>;
+
 template <class T>
 struct identity {};
 
@@ -38,8 +41,6 @@ REGISTER_TYPE(int, MYSQL_TYPE_LONG)
 REGISTER_TYPE(float, MYSQL_TYPE_FLOAT)
 REGISTER_TYPE(double, MYSQL_TYPE_DOUBLE)
 REGISTER_TYPE(int64_t, MYSQL_TYPE_LONGLONG)
-
-using blob = std::vector<char>;
 
 inline int type_to_id(identity<std::string>) noexcept {
   return MYSQL_TYPE_VAR_STRING;
@@ -92,6 +93,12 @@ inline std::string id_to_type(
   return res;
 }
 
+inline constexpr auto type_to_name(identity<float>) noexcept {
+  return "FLOAT"sv;
+}
+inline constexpr auto type_to_name(identity<double>) noexcept {
+  return "DOUBLE"sv;
+}
 inline constexpr auto type_to_name(identity<bool>) noexcept {
   return "INTEGER"sv;
 }
@@ -104,15 +111,22 @@ inline constexpr auto type_to_name(identity<short>) noexcept {
 inline constexpr auto type_to_name(identity<int>) noexcept {
   return "INTEGER"sv;
 }
-inline constexpr auto type_to_name(identity<float>) noexcept {
-  return "FLOAT"sv;
-}
-inline constexpr auto type_to_name(identity<double>) noexcept {
-  return "DOUBLE"sv;
-}
 inline constexpr auto type_to_name(identity<int64_t>) noexcept {
   return "INTEGER"sv;
 }
+inline constexpr auto type_to_name(identity<uint8_t>) noexcept {
+  return "INTEGER"sv;
+}
+inline constexpr auto type_to_name(identity<uint16_t>) noexcept {
+  return "INTEGER"sv;
+}
+inline constexpr auto type_to_name(identity<uint32_t>) noexcept {
+  return "INTEGER"sv;
+}
+inline constexpr auto type_to_name(identity<uint64_t>) noexcept {
+  return "INTEGER"sv;
+}
+inline constexpr auto type_to_name(identity<blob>) noexcept { return "BLOB"sv; }
 inline auto type_to_name(identity<std::string>) noexcept { return "TEXT"sv; }
 template <size_t N>
 inline auto type_to_name(identity<std::array<char, N>>) noexcept {
@@ -157,6 +171,7 @@ inline constexpr auto type_to_name(identity<double>) noexcept {
 inline constexpr auto type_to_name(identity<int64_t>) noexcept {
   return "bigint"sv;
 }
+inline constexpr auto type_to_name(identity<blob>) noexcept { return "BLOB"sv; }
 inline auto type_to_name(identity<std::string>) noexcept { return "text"sv; }
 template <size_t N>
 inline auto type_to_name(identity<std::array<char, N>>) noexcept {

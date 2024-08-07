@@ -16,8 +16,6 @@
 
 namespace ormpp {
 
-using blob = ormpp_mysql::blob;
-
 class mysql {
  public:
   ~mysql() { disconnect(); }
@@ -193,6 +191,13 @@ class mysql {
       param.buffer = (void *)(value.data());
       param.buffer_length = (unsigned long)value.size();
     }
+#ifdef ORMPP_WITH_CSTRING
+    else if constexpr (std::is_same_v<CString, U>) {
+      param.buffer_type = MYSQL_TYPE_STRING;
+      param.buffer = (void *)(value.GetString());
+      param.buffer_length = (unsigned long)value.GetLength();
+    }
+#endif
     else {
       static_assert(!sizeof(U), "this type has not supported yet");
     }
@@ -241,6 +246,15 @@ class mysql {
       param_bind.buffer = &(mp.rbegin()->second[0]);
       param_bind.buffer_length = 65536;
     }
+#ifdef ORMPP_WITH_CSTRING
+    else if constexpr (std::is_same_v<CString, U>) {
+      param_bind.buffer_type = MYSQL_TYPE_STRING;
+      std::vector<char> tmp(65536, 0);
+      mp.emplace(i, std::move(tmp));
+      param_bind.buffer = &(mp.rbegin()->second[0]);
+      param_bind.buffer_length = 65536;
+    }
+#endif
     else {
       static_assert(!sizeof(U), "this type has not supported yet");
     }
@@ -276,6 +290,12 @@ class mysql {
       auto &vec = mp[i];
       value = blob(vec.data(), vec.data() + get_blob_len(i));
     }
+#ifdef ORMPP_WITH_CSTRING
+    else if constexpr (std::is_same_v<CString, U>) {
+      auto &vec = mp[i];
+      value.SetString(std::string(&vec[0], strlen(vec.data()).c_str()));
+    }
+#endif
   }
 
   template <typename T, typename... Args>
