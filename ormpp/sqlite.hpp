@@ -573,8 +573,9 @@ class sqlite {
              sqlite3_bind_text(stmt_, i, value, strlen(value), nullptr);
     }
     else if constexpr (std::is_same_v<std::vector<char>, U>) {
-      return SQLITE_OK ==
-             sqlite3_bind_blob(stmt_, i, value.data(),static_cast<int>(value.size()), nullptr);
+      return SQLITE_OK == sqlite3_bind_blob(stmt_, i, value.data(),
+                                            static_cast<int>(value.size()),
+                                            nullptr);
     }
 #ifdef ORMPP_WITH_CSTRING
     else if constexpr (std::is_same_v<CString, U>) {
@@ -630,7 +631,8 @@ class sqlite {
     }
     else if constexpr (std::is_same_v<std::vector<char>, U>) {
       value.reserve(sqlite3_column_bytes(stmt_, i));
-      memcpy(value.data(),(const char *)sqlite3_column_blob(stmt_, i),(size_t)sqlite3_column_bytes(stmt_, i));
+      memcpy(value.data(), (const char *)sqlite3_column_blob(stmt_, i),
+             (size_t)sqlite3_column_bytes(stmt_, i));
     }
 #ifdef ORMPP_WITH_CSTRING
     else if constexpr (std::is_same_v<CString, U>) {
