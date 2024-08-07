@@ -85,6 +85,8 @@ namespace ormpp_sqlite {
 REGISTER_TYPE(int, SQLITE_INTEGER)
 REGISTER_TYPE(double, SQLITE_FLOAT)
 
+using blob = std::vector<char>;
+
 inline int type_to_id(identity<std::string>) noexcept { return SQLITE_TEXT; }
 inline std::string id_to_type(
     std::integral_constant<std::size_t, SQLITE_TEXT>) noexcept {
@@ -113,6 +115,7 @@ inline constexpr auto type_to_name(identity<double>) noexcept {
 inline constexpr auto type_to_name(identity<int64_t>) noexcept {
   return "INTEGER"sv;
 }
+inline constexpr auto type_to_name(identity<blob>) noexcept { return "BLOB"sv; }
 inline auto type_to_name(identity<std::string>) noexcept { return "TEXT"sv; }
 template <size_t N>
 inline auto type_to_name(identity<std::array<char, N>>) noexcept {
