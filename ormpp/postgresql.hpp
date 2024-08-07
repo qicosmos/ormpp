@@ -721,7 +721,7 @@ class postgresql {
     }
     else if constexpr (std::is_same_v<blob, U>) {
       std::vector<char> temp = {};
-      std::copy(value.data(), value.data() + value.size() + 1,
+      std::copy(value.data(), value.data() + value.size(),
                 std::back_inserter(temp));
       param_values.push_back(std::move(temp));
     }
