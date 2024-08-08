@@ -150,6 +150,11 @@ inline constexpr auto get_type_names(DBType type) {
       else if constexpr (is_optional_v<U>::value) {
         s = ormpp_mysql::type_to_name(identity<typename U::value_type>{});
       }
+#ifdef ORMPP_WITH_CSTRING
+      else if constexpr (std::is_same_v<CString, U>) {
+        s = "TEXT"sv;
+      }
+#endif
       else {
         s = ormpp_mysql::type_to_name(identity<U>{});
       }
@@ -181,6 +186,11 @@ inline constexpr auto get_type_names(DBType type) {
       else if constexpr (is_optional_v<U>::value) {
         s = ormpp_postgresql::type_to_name(identity<typename U::value_type>{});
       }
+#ifdef ORMPP_WITH_CSTRING
+      else if constexpr (std::is_same_v<CString, U>) {
+        s = "TEXT"sv;
+      }
+#endif
       else {
         s = ormpp_postgresql::type_to_name(identity<U>{});
       }

@@ -1029,7 +1029,6 @@ struct validate {
   }
 };
 
-#ifdef ORMPP_ENABLE_MYSQL
 TEST_CASE("aop") {
   // dbng<mysql> mysql;
   // auto r = mysql.wraper_connect<log, validate>(ip, username, password,
@@ -1054,21 +1053,53 @@ struct image {
 };
 REFLECTION(image, id, bin);
 
-TEST_CASE("mysql blob") {
+TEST_CASE("blob") {
+#ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
-    mysql.execute("DROP TABLE IF EXISTS image");
+    mysql.execute("drop table if exists image");
     mysql.create_datatable<image>();
     auto data = "this is a test binary stream\0, and ?...";
     auto size = 40;
-    image img;
-    img.id = 1;
+    image img{1};
     img.bin.assign(data, data + size);
     CHECK(mysql.insert(img) == 1);
-    auto vec = mysql.query<image>("id=1");
+    auto vec = mysql.query_s<image>("id=?", 1);
     CHECK(vec.size() == 1);
-    CHECK(vec[0].bin.size() == size);
+    CHECK(vec.front().bin.size() == size);
   }
+#endif
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists image");
+    postgres.create_datatable<image>();
+    auto data = "this is a test binary stream\0, and ?...";
+    auto size = 40;
+    image img{1};
+    img.bin.assign(data, data + size);
+    CHECK(postgres.insert(img) == 1);
+    auto vec = postgres.query_s<image>(
+        "select id,convert_from(bin,'utf8') from image where id=$1;", 1);
+    CHECK(vec.size() == 1);
+    // CHECK(vec.front().bin.size() == size);
+  }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists image");
+    sqlite.create_datatable<image>();
+    auto data = "this is a test binary stream\0, and ?...";
+    auto size = 40;
+    image img{1};
+    img.bin.assign(data, data + size);
+    CHECK(sqlite.insert(img) == 1);
+    auto vec = sqlite.query_s<image>("id=?", 1);
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().bin.size() == size);
+  }
+#endif
 }
 
 struct image_ex {
@@ -1078,33 +1109,86 @@ struct image_ex {
 };
 REFLECTION(image_ex, id, bin, time);
 
-TEST_CASE("mysql blob tuple") {
+TEST_CASE("blob tuple") {
+#ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
-    mysql.execute("DROP TABLE IF EXISTS image_ex");
+    mysql.execute("drop table if exists image_ex");
     mysql.create_datatable<image_ex>();
     auto data = "this is a test binary stream\0, and ?...";
     auto size = 40;
-    image_ex img_ex;
-    img_ex.id = 1;
+    image_ex img_ex{1};
     img_ex.bin.assign(data, data + size);
     img_ex.time = "2023-03-29 13:55:00";
     CHECK(mysql.insert(img_ex) == 1);
-    auto vec1 = mysql.query<image_ex>("id=1");
+    auto vec1 = mysql.query_s<image_ex>("id=?", 1);
     CHECK(vec1.size() == 1);
-    CHECK(vec1[0].bin.size() == size);
+    CHECK(vec1.front().bin.size() == size);
     using image_t = std::tuple<image, std::string>;
-    auto vec2 =
-        mysql.query<image_t>("select id,bin,time from image_ex where id=1;");
+    auto vec2 = mysql.query_s<image_t>(
+        "select id,bin,time from image_ex where id=?;", 1);
     CHECK(vec2.size() == 1);
-    auto &img = std::get<0>(vec2[0]);
-    auto &time = std::get<1>(vec2[0]);
+    auto &img = std::get<0>(vec2.front());
+    auto &time = std::get<1>(vec2.front());
     CHECK(img.id == 1);
-    CHECK(img.bin.size() == size);
     CHECK(time == img_ex.time);
+    CHECK(img.bin.size() == size);
   }
-}
 #endif
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists image_ex");
+    postgres.create_datatable<image_ex>();
+    auto data = "this is a test binary stream\0, and ?...";
+    auto size = 40;
+    image_ex img_ex{1};
+    img_ex.bin.assign(data, data + size);
+    img_ex.time = "2023-03-29 13:55:00";
+    CHECK(postgres.insert(img_ex) == 1);
+    auto vec1 = postgres.query_s<image_ex>(
+        "select id,convert_from(bin,'utf8'),time from image_ex where id=$1;",
+        1);
+    CHECK(vec1.size() == 1);
+    // CHECK(vec1.front().bin.size() == size);
+    using image_t = std::tuple<image, std::string>;
+    auto vec2 = postgres.query_s<image_t>(
+        "select id,convert_from(bin,'utf8'),time from image_ex where id=$1;",
+        1);
+    CHECK(vec2.size() == 1);
+    auto &img = std::get<0>(vec2.front());
+    auto &time = std::get<1>(vec2.front());
+    CHECK(img.id == 1);
+    CHECK(time == img_ex.time);
+    // CHECK(img.bin.size() == size);
+  }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists image_ex");
+    sqlite.create_datatable<image_ex>();
+    auto data = "this is a test binary stream\0, and ?...";
+    auto size = 40;
+    image_ex img_ex{1};
+    img_ex.bin.assign(data, data + size);
+    img_ex.time = "2023-03-29 13:55:00";
+    CHECK(sqlite.insert(img_ex) == 1);
+    auto vec1 = sqlite.query_s<image_ex>("id=?", 1);
+    CHECK(vec1.size() == 1);
+    CHECK(vec1.front().bin.size() == size);
+    using image_t = std::tuple<image, std::string>;
+    auto vec2 = sqlite.query_s<image_t>(
+        "select id,bin,time from image_ex where id=?;", 1);
+    CHECK(vec2.size() == 1);
+    auto &img = std::get<0>(vec2.front());
+    auto &time = std::get<1>(vec2.front());
+    CHECK(img.id == 1);
+    CHECK(time == img_ex.time);
+    CHECK(img.bin.size() == size);
+  }
+#endif
+}
 
 TEST_CASE("create table with unique") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1679,12 +1763,12 @@ TEST_CASE("test bool") {
     mysql.execute("drop table if exists test_bool_t");
     mysql.create_datatable<test_bool_t>(ormpp_auto_key{"id"});
     mysql.insert(test_bool_t{true});
-    auto vec = mysql.query<test_bool_t>();
+    auto vec = mysql.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().ok == true);
     mysql.delete_records<test_bool_t>();
     mysql.insert(test_bool_t{false});
-    vec = mysql.query<test_bool_t>();
+    vec = mysql.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().ok == false);
   }
@@ -1695,12 +1779,12 @@ TEST_CASE("test bool") {
     postgres.execute("drop table if exists test_bool_t");
     postgres.create_datatable<test_bool_t>(ormpp_auto_key{"id"});
     postgres.insert(test_bool_t{true});
-    auto vec = postgres.query<test_bool_t>();
+    auto vec = postgres.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().ok == true);
     postgres.delete_records<test_bool_t>();
     postgres.insert(test_bool_t{false});
-    vec = postgres.query<test_bool_t>();
+    vec = postgres.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().ok == false);
   }
@@ -1711,12 +1795,12 @@ TEST_CASE("test bool") {
     sqlite.execute("drop table if exists test_bool_t");
     sqlite.create_datatable<test_bool_t>(ormpp_auto_key{"id"});
     sqlite.insert(test_bool_t{true});
-    auto vec = sqlite.query<test_bool_t>();
+    auto vec = sqlite.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().ok == true);
     sqlite.delete_records<test_bool_t>();
     sqlite.insert(test_bool_t{false});
-    vec = sqlite.query<test_bool_t>();
+    vec = sqlite.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().ok == false);
   }
@@ -1738,7 +1822,7 @@ TEST_CASE("alias") {
     mysql.create_datatable<alias>(ormpp_auto_key{"alias_id"});
     mysql.delete_records<alias>();
     mysql.insert<alias>({"purecpp"});
-    auto vec = mysql.query<alias>();
+    auto vec = mysql.query_s<alias>();
     CHECK(vec.front().name == "purecpp");
   }
 #endif
@@ -1749,7 +1833,7 @@ TEST_CASE("alias") {
     sqlite.create_datatable<alias>(ormpp_auto_key{"alias_id"});
     sqlite.delete_records<alias>();
     sqlite.insert<alias>({"purecpp"});
-    auto vec = sqlite.query<alias>();
+    auto vec = sqlite.query_s<alias>();
     CHECK(vec.front().name == "purecpp");
   }
 #endif
@@ -1762,11 +1846,11 @@ TEST_CASE("pg update") {
     postgres.execute("drop table if exists person");
     postgres.create_datatable<person>(ormpp_auto_key{"id"});
     postgres.insert<person>({"purecpp"});
-    auto vec1 = postgres.query<person>();
+    auto vec1 = postgres.query_s<person>();
     CHECK(vec1.size() == 1);
     vec1.front().name = "other";
     postgres.update<person>(vec1.front());
-    auto vec2 = postgres.query<person>();
+    auto vec2 = postgres.query_s<person>();
     CHECK(vec2.size() == 1);
     CHECK(vec2.front().name == "other");
     CHECK(vec1.front().id == vec2.front().id);
@@ -1926,6 +2010,75 @@ TEST_CASE("update section filed") {
     CHECK(vec2.front().age == 666);
     CHECK(vec1.front().name == "purecpp_aaaa");
     CHECK(vec2.front().name == "purecpp_bbbb");
+  }
+#endif
+}
+
+struct unsigned_type_t {
+  uint8_t a;
+  uint16_t b;
+  uint32_t c;
+  uint64_t d;
+  int8_t e;
+  int16_t f;
+  int32_t g;
+  int64_t h;
+};
+REFLECTION(unsigned_type_t, a, b, c, d, e, f, g, h)
+
+TEST_CASE("unsigned type") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists unsigned_type_t");
+    mysql.create_datatable<unsigned_type_t>();
+    mysql.insert(unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8});
+    auto vec = mysql.query_s<unsigned_type_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().a == 1);
+    CHECK(vec.front().b == 2);
+    CHECK(vec.front().c == 3);
+    CHECK(vec.front().d == 4);
+    CHECK(vec.front().e == 5);
+    CHECK(vec.front().f == 6);
+    CHECK(vec.front().g == 7);
+    CHECK(vec.front().h == 8);
+  }
+#endif
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists unsigned_type_t");
+    postgres.create_datatable<unsigned_type_t>();
+    postgres.insert(unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8});
+    auto vec = postgres.query_s<unsigned_type_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().a == 1);
+    CHECK(vec.front().b == 2);
+    CHECK(vec.front().c == 3);
+    CHECK(vec.front().d == 4);
+    CHECK(vec.front().e == 5);
+    CHECK(vec.front().f == 6);
+    CHECK(vec.front().g == 7);
+    CHECK(vec.front().h == 8);
+  }
+#endif
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+  if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists unsigned_type_t");
+    sqlite.create_datatable<unsigned_type_t>();
+    sqlite.insert(unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8});
+    auto vec = sqlite.query_s<unsigned_type_t>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().a == 1);
+    CHECK(vec.front().b == 2);
+    CHECK(vec.front().c == 3);
+    CHECK(vec.front().d == 4);
+    CHECK(vec.front().e == 5);
+    CHECK(vec.front().f == 6);
+    CHECK(vec.front().g == 7);
+    CHECK(vec.front().h == 8);
   }
 #endif
 }
