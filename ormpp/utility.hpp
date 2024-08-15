@@ -346,11 +346,9 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
     }
   }
   if (fields.back() != ')') {
-    fields.pop_back();
     fields.back() = ')';
   }
   if (values.back() != ')') {
-    values.pop_back();
     values.back() = ')';
   }
   append(sql, fields, values);
