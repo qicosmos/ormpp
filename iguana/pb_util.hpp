@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstring>
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -28,12 +29,8 @@ enum class WireType : uint32_t {
   Unknown
 };
 
-struct pb_base {
-  size_t cache_size;
-};
-
 template <typename T>
-constexpr bool inherits_from_pb_base_v = std::is_base_of_v<pb_base, T>;
+constexpr bool inherits_from_base_v = std::is_base_of_v<detail::base, T>;
 
 namespace detail {
 template <typename T>
@@ -253,13 +250,55 @@ IGUANA_INLINE size_t variant_uint32_size(uint32_t value) {
   return static_cast<size_t>((log2value * 9 + 73) / 64);
 }
 
+IGUANA_INLINE int Log2FloorNonZero_Portable(uint32_t n) {
+  if (n == 0)
+    return -1;
+  int log = 0;
+  uint32_t value = n;
+  for (int i = 4; i >= 0; --i) {
+    int shift = (1 << i);
+    uint32_t x = value >> shift;
+    if (x != 0) {
+      value = x;
+      log += shift;
+    }
+  }
+  assert(value == 1);
+  return log;
+}
+
+IGUANA_INLINE uint32_t Log2FloorNonZero(uint32_t n) {
+#if defined(__GNUC__)
+  return 31 ^ static_cast<uint32_t>(__builtin_clz(n));
+#elif defined(_MSC_VER)
+  unsigned long where;
+  _BitScanReverse(&where, n);
+  return where;
+#else
+  return Log2FloorNonZero_Portable(n);
+#endif
+}
+
+IGUANA_INLINE int Log2FloorNonZero64_Portable(uint64_t n) {
+  const uint32_t topbits = static_cast<uint32_t>(n >> 32);
+  if (topbits == 0) {
+    // Top bits are zero, so scan in bottom bits
+    return static_cast<int>(Log2FloorNonZero(static_cast<uint32_t>(n)));
+  }
+  else {
+    return 32 + static_cast<int>(Log2FloorNonZero(topbits));
+  }
+}
+
 IGUANA_INLINE uint32_t log2_floor_uint64(uint64_t n) {
 #if defined(__GNUC__)
   return 63 ^ static_cast<uint32_t>(__builtin_clzll(n));
-#else
+#elif defined(_MSC_VER) && defined(_M_X64)
   unsigned long where;
   _BitScanReverse64(&where, n);
   return where;
+#else
+  return Log2FloorNonZero64_Portable(n);
 #endif
 }
 
@@ -297,55 +336,66 @@ IGUANA_INLINE constexpr void for_each_n(F&& f, std::index_sequence<I...>) {
   (std::forward<F>(f)(std::integral_constant<size_t, I>{}), ...);
 }
 
-// cache the size of reflection type
-template <typename T>
-IGUANA_INLINE auto& get_set_size_cache(T& t) {
-  static std::map<size_t, size_t> cache;
-  return cache[reinterpret_cast<size_t>(&t)];
-}
-
-template <size_t key_size, bool omit_default_val, typename T>
-IGUANA_INLINE size_t numeric_size(T&& t) {
-  using value_type = std::remove_const_t<std::remove_reference_t<T>>;
-  if constexpr (omit_default_val) {
-    if constexpr (is_fixed_v<value_type> || is_signed_varint_v<value_type>) {
-      if (t.val == 0)
+template <size_t key_size, bool omit_default_val, typename Type>
+IGUANA_INLINE size_t str_numeric_size(Type&& t) {
+  using T = std::remove_const_t<std::remove_reference_t<Type>>;
+  if constexpr (std::is_same_v<T, std::string> ||
+                std::is_same_v<T, std::string_view>) {
+    // string
+    if constexpr (omit_default_val) {
+      if (t.size() == 0)
         IGUANA_UNLIKELY { return 0; }
     }
-    else {
-      if (t == static_cast<value_type>(0))
-        IGUANA_UNLIKELY { return 0; }
-    }
-  }
-  if constexpr (std::is_integral_v<value_type>) {
-    if constexpr (std::is_same_v<bool, value_type>) {
-      return 1 + key_size;
+    if constexpr (key_size == 0) {
+      return t.size();
     }
     else {
-      return key_size + variant_intergal_size(t);
+      return key_size + variant_uint32_size(static_cast<uint32_t>(t.size())) +
+             t.size();
     }
-  }
-  else if constexpr (detail::is_signed_varint_v<value_type>) {
-    return key_size + variant_intergal_size(encode_zigzag(t.val));
-  }
-  else if constexpr (detail::is_fixed_v<value_type>) {
-    return key_size + sizeof(typename value_type::value_type);
-  }
-  else if constexpr (std::is_same_v<value_type, double> ||
-                     std::is_same_v<value_type, float>) {
-    return key_size + sizeof(value_type);
-  }
-  else if constexpr (std::is_enum_v<value_type>) {
-    using U = std::underlying_type_t<value_type>;
-    return key_size + variant_intergal_size(static_cast<U>(t));
   }
   else {
-    static_assert(!sizeof(value_type), "err");
+    // numeric
+    if constexpr (omit_default_val) {
+      if constexpr (is_fixed_v<T> || is_signed_varint_v<T>) {
+        if (t.val == 0)
+          IGUANA_UNLIKELY { return 0; }
+      }
+      else {
+        if (t == static_cast<T>(0))
+          IGUANA_UNLIKELY { return 0; }
+      }
+    }
+    if constexpr (std::is_integral_v<T>) {
+      if constexpr (std::is_same_v<bool, T>) {
+        return 1 + key_size;
+      }
+      else {
+        return key_size + variant_intergal_size(t);
+      }
+    }
+    else if constexpr (detail::is_signed_varint_v<T>) {
+      return key_size + variant_intergal_size(encode_zigzag(t.val));
+    }
+    else if constexpr (detail::is_fixed_v<T>) {
+      return key_size + sizeof(typename T::value_type);
+    }
+    else if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
+      return key_size + sizeof(T);
+    }
+    else if constexpr (std::is_enum_v<T>) {
+      using U = std::underlying_type_t<T>;
+      return key_size + variant_intergal_size(static_cast<U>(t));
+    }
+    else {
+      static_assert(!sizeof(T), "err");
+    }
   }
 }
 
-template <size_t key_size, bool omit_default_val = true, typename T>
-IGUANA_INLINE size_t pb_key_value_size(T&& t);
+template <size_t key_size, bool omit_default_val = true, typename Type,
+          typename Arr>
+IGUANA_INLINE size_t pb_key_value_size(Type&& t, Arr& size_arr);
 
 template <typename Variant, typename T, size_t I>
 constexpr inline size_t get_variant_index() {
@@ -363,12 +413,13 @@ constexpr inline size_t get_variant_index() {
   }
 }
 
-template <size_t field_no, typename Type>
-IGUANA_INLINE size_t pb_oneof_size(Type&& t) {
+template <size_t field_no, typename Type, typename Arr>
+IGUANA_INLINE size_t pb_oneof_size(Type&& t, Arr& size_arr) {
   using T = std::decay_t<Type>;
   int len = 0;
   std::visit(
-      [&len](auto&& value) IGUANA__INLINE_LAMBDA {
+      [&len, &size_arr](auto&& value) IGUANA__INLINE_LAMBDA {
+        using raw_value_type = decltype(value);
         using value_type =
             std::remove_const_t<std::remove_reference_t<decltype(value)>>;
         constexpr auto offset =
@@ -377,7 +428,7 @@ IGUANA_INLINE size_t pb_oneof_size(Type&& t) {
             ((field_no + offset) << 3) |
             static_cast<uint32_t>(get_wire_type<value_type>());
         len = pb_key_value_size<variant_uint32_size_constexpr(key), false>(
-            std::forward<value_type>(value));
+            std::forward<raw_value_type>(value), size_arr);
       },
       std::forward<Type>(t));
   return len;
@@ -385,28 +436,32 @@ IGUANA_INLINE size_t pb_oneof_size(Type&& t) {
 
 // returns size = key_size + optional(len_size) + len
 // when key_size == 0, return len
-template <size_t key_size, bool omit_default_val, typename Type>
-IGUANA_INLINE size_t pb_key_value_size(Type&& t) {
+template <size_t key_size, bool omit_default_val, typename Type, typename Arr>
+IGUANA_INLINE size_t pb_key_value_size(Type&& t, Arr& size_arr) {
   using T = std::remove_const_t<std::remove_reference_t<Type>>;
   if constexpr (is_reflection_v<T> || is_custom_reflection_v<T>) {
     size_t len = 0;
-    constexpr auto tuple = get_members_tuple<T>();
+    static constexpr auto tuple = get_members_tuple<T>();
     constexpr size_t SIZE = std::tuple_size_v<std::decay_t<decltype(tuple)>>;
+    size_t pre_index = -1;
+    if constexpr (!inherits_from_base_v<T> && key_size != 0) {
+      pre_index = size_arr.size();
+      size_arr.push_back(0);  // placeholder
+    }
     for_each_n(
-        [&len, &t](auto i) IGUANA__INLINE_LAMBDA {
-          constexpr auto tuple = get_members_tuple<T>();
+        [&len, &t, &size_arr](auto i) IGUANA__INLINE_LAMBDA {
           using field_type =
               std::tuple_element_t<decltype(i)::value,
                                    std::decay_t<decltype(tuple)>>;
           constexpr auto value = std::get<decltype(i)::value>(tuple);
           using U = typename field_type::value_type;
-          auto& val = value.value(t);
+          auto const& val = value.value(t);
           if constexpr (variant_v<U>) {
             constexpr auto offset =
                 get_variant_index<U, typename field_type::sub_type,
                                   std::variant_size_v<U> - 1>();
             if constexpr (offset == 0) {
-              len += pb_oneof_size<value.field_no>(val);
+              len += pb_oneof_size<value.field_no>(val, size_arr);
             }
           }
           else {
@@ -414,15 +469,15 @@ IGUANA_INLINE size_t pb_key_value_size(Type&& t) {
                 (value.field_no << 3) |
                 static_cast<uint32_t>(get_wire_type<U>());
             constexpr auto sub_keysize = variant_uint32_size_constexpr(sub_key);
-            len += pb_key_value_size<sub_keysize>(val);
+            len += pb_key_value_size<sub_keysize>(val, size_arr);
           }
         },
         std::make_index_sequence<SIZE>{});
-    if constexpr (inherits_from_pb_base_v<T>) {
+    if constexpr (inherits_from_base_v<T>) {
       t.cache_size = len;
     }
-    else {
-      get_set_size_cache(t) = len;
+    else if constexpr (key_size != 0) {
+      size_arr[pre_index] = len;
     }
     if constexpr (key_size == 0) {
       // for top level
@@ -443,14 +498,14 @@ IGUANA_INLINE size_t pb_key_value_size(Type&& t) {
     size_t len = 0;
     if constexpr (is_lenprefix_v<item_type>) {
       for (auto& item : t) {
-        len += pb_key_value_size<key_size, false>(item);
+        len += pb_key_value_size<key_size, false>(item, size_arr);
       }
       return len;
     }
     else {
       for (auto& item : t) {
-        // here 0 to get pakced size
-        len += numeric_size<0, false>(item);
+        // here 0 to get pakced size, and item must be numeric
+        len += str_numeric_size<0, false>(item);
       }
       if (len == 0) {
         return 0;
@@ -464,8 +519,8 @@ IGUANA_INLINE size_t pb_key_value_size(Type&& t) {
     size_t len = 0;
     for (auto& [k, v] : t) {
       // the key_size of  k and v  is constant 1
-      size_t kv_len =
-          pb_key_value_size<1, false>(k) + pb_key_value_size<1, false>(v);
+      auto kv_len = pb_key_value_size<1, false>(k, size_arr) +
+                    pb_key_value_size<1, false>(v, size_arr);
       len += key_size + variant_uint32_size(static_cast<uint32_t>(kv_len)) +
              kv_len;
     }
@@ -475,45 +530,37 @@ IGUANA_INLINE size_t pb_key_value_size(Type&& t) {
     if (!t.has_value()) {
       return 0;
     }
-    return pb_key_value_size<key_size, omit_default_val>(*t);
-  }
-  else if constexpr (std::is_same_v<T, std::string> ||
-                     std::is_same_v<T, std::string_view>) {
-    if constexpr (omit_default_val) {
-      if (t.size() == 0)
-        IGUANA_UNLIKELY { return 0; }
-    }
-    if constexpr (key_size == 0) {
-      return t.size();
-    }
-    else {
-      return key_size + variant_uint32_size(static_cast<uint32_t>(t.size())) +
-             t.size();
-    }
+    return pb_key_value_size<key_size, omit_default_val>(*t, size_arr);
   }
   else {
-    return numeric_size<key_size, omit_default_val>(t);
+    return str_numeric_size<key_size, omit_default_val>(t);
   }
 }
 
 // return the payload size
-template <typename T>
-IGUANA_INLINE size_t pb_value_size(T&& t) {
-  using value_type = std::remove_const_t<std::remove_reference_t<T>>;
-  if constexpr (is_reflection_v<value_type>) {
-    if constexpr (inherits_from_pb_base_v<value_type>) {
+template <bool skip_next = true, typename Type>
+IGUANA_INLINE size_t pb_value_size(Type&& t, uint32_t*& sz_ptr) {
+  using T = std::remove_const_t<std::remove_reference_t<Type>>;
+  if constexpr (is_reflection_v<T> || is_custom_reflection_v<T>) {
+    if constexpr (inherits_from_base_v<T>) {
       return t.cache_size;
     }
     else {
-      return get_set_size_cache(t);
+      // *sz_ptr is secure and logically guaranteed
+      if constexpr (skip_next) {
+        return *(sz_ptr++);
+      }
+      else {
+        return *sz_ptr;
+      }
     }
   }
-  else if constexpr (is_sequence_container<value_type>::value) {
-    using item_type = typename value_type::value_type;
+  else if constexpr (is_sequence_container<T>::value) {
+    using item_type = typename T::value_type;
     size_t len = 0;
     if constexpr (!is_lenprefix_v<item_type>) {
       for (auto& item : t) {
-        len += numeric_size<0, false>(item);
+        len += str_numeric_size<0, false>(item);
       }
       return len;
     }
@@ -521,17 +568,17 @@ IGUANA_INLINE size_t pb_value_size(T&& t) {
       static_assert(!sizeof(item_type), "the size of this type is meaningless");
     }
   }
-  else if constexpr (is_map_container<value_type>::value) {
-    static_assert(!sizeof(value_type), "the size of this type is meaningless");
+  else if constexpr (is_map_container<T>::value) {
+    static_assert(!sizeof(T), "the size of this type is meaningless");
   }
-  else if constexpr (optional_v<value_type>) {
+  else if constexpr (optional_v<T>) {
     if (!t.has_value()) {
       return 0;
     }
-    return pb_value_size(*t);
+    return pb_value_size(*t, sz_ptr);
   }
   else {
-    return pb_key_value_size<0>(t);
+    return str_numeric_size<0, false>(t);
   }
 }
 
