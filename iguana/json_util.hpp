@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "detail/pb_type.hpp"
 #include "util.hpp"
 #include "value.hpp"
 

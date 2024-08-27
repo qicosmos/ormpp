@@ -14,20 +14,6 @@ IGUANA_INLINE void from_yaml(T &value, It &&it, It &&end,
 
 namespace detail {
 
-template <typename U, typename It,
-          std::enable_if_t<yaml_not_support_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
-                                   size_t min_spaces) {
-  throw std::bad_function_call();
-}
-
-template <typename U, class It,
-          std::enable_if_t<yaml_not_support_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_value(U &value, It &&value_begin,
-                                    It &&value_end) {
-  throw std::bad_function_call();
-}
-
 template <typename U, typename It, std::enable_if_t<string_v<U>, int> = 0>
 IGUANA_INLINE void parse_escape_str(U &value, It &&it, It &&end) {
   auto start = it;
@@ -119,12 +105,10 @@ IGUANA_INLINE void parse_block_str(U &value, It &&it, It &&end,
 
 template <typename U, typename It,
           std::enable_if_t<map_container_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
-                                   size_t min_spaces);
+IGUANA_INLINE void parse_item(U &value, It &&it, It &&end, size_t min_spaces);
 
 template <typename U, class It, std::enable_if_t<num_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_value(U &value, It &&value_begin,
-                                    It &&value_end) {
+IGUANA_INLINE void parse_value(U &value, It &&value_begin, It &&value_end) {
   if (value_begin == value_end)
     IGUANA_UNLIKELY { return; }
   auto size = std::distance(value_begin, value_end);
@@ -132,17 +116,10 @@ IGUANA_INLINE void yaml_parse_value(U &value, It &&value_begin,
   detail::from_chars(start, start + size, value);
 }
 
-template <typename U, typename It, std::enable_if_t<is_pb_type_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_value(U &value, It &&value_begin,
-                                    It &&value_end) {
-  yaml_parse_value(value.val, value_begin, value_end);
-}
-
 // string_view should be used  for string with ' " ?
 template <typename U, typename It,
           std::enable_if_t<string_container_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_value(U &value, It &&value_begin,
-                                    It &&value_end) {
+IGUANA_INLINE void parse_value(U &value, It &&value_begin, It &&value_end) {
   using T = std::decay_t<U>;
   auto start = value_begin;
   auto end = value_end;
@@ -175,21 +152,19 @@ IGUANA_INLINE void yaml_parse_value(U &value, It &&value_begin,
 }
 
 template <typename U, typename It, std::enable_if_t<char_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_value(U &value, It &&value_begin,
-                                    It &&value_end) {
+IGUANA_INLINE void parse_value(U &value, It &&value_begin, It &&value_end) {
   if (static_cast<size_t>(std::distance(value_begin, value_end)) != 1)
     IGUANA_UNLIKELY { throw std::runtime_error("Expected one character"); }
   value = *value_begin;
 }
 
 template <typename U, typename It, std::enable_if_t<enum_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_value(U &value, It &&value_begin,
-                                    It &&value_end) {
+IGUANA_INLINE void parse_value(U &value, It &&value_begin, It &&value_end) {
   static constexpr auto str_to_enum = get_enum_map<true, std::decay_t<U>>();
   if constexpr (bool_v<decltype(str_to_enum)>) {
     // not defined a specialization template
     using T = std::underlying_type_t<std::decay_t<U>>;
-    yaml_parse_value(reinterpret_cast<T &>(value), value_begin, value_end);
+    parse_value(reinterpret_cast<T &>(value), value_begin, value_end);
   }
   else {
     auto enum_names = std::string_view(
@@ -206,8 +181,7 @@ IGUANA_INLINE void yaml_parse_value(U &value, It &&value_begin,
 }
 
 template <typename U, typename It, std::enable_if_t<bool_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_value(U &&value, It &&value_begin,
-                                    It &&value_end) {
+IGUANA_INLINE void parse_value(U &&value, It &&value_begin, It &&value_end) {
   auto bool_v = std::string_view(
       &*value_begin,
       static_cast<size_t>(std::distance(value_begin, value_end)));
@@ -222,14 +196,12 @@ IGUANA_INLINE void yaml_parse_value(U &&value, It &&value_begin,
 }
 
 template <typename U, typename It, std::enable_if_t<refletable_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
-                                   size_t min_spaces) {
+IGUANA_INLINE void parse_item(U &value, It &&it, It &&end, size_t min_spaces) {
   from_yaml(value, it, end, min_spaces);
 }
 
 template <typename U, typename It, std::enable_if_t<plain_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
-                                   size_t min_spaces) {
+IGUANA_INLINE void parse_item(U &value, It &&it, It &&end, size_t min_spaces) {
   using T = std::decay_t<U>;
   if constexpr (string_v<T>) {
     if (skip_space_till_end(it, end))
@@ -252,36 +224,27 @@ IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
       skip_space_and_lines(it, end, min_spaces);
       auto start = it;
       auto value_end = skip_till_newline(it, end);
-      yaml_parse_value(value, start, value_end);
+      parse_value(value, start, value_end);
     }
   }
   else {
     skip_space_and_lines(it, end, min_spaces);
     auto start = it;
     auto value_end = skip_till_newline(it, end);
-    yaml_parse_value(value, start, value_end);
+    parse_value(value, start, value_end);
   }
 }
 
-template <typename U, typename It, std::enable_if_t<is_pb_type_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
-                                   size_t min_spaces) {
-  yaml_parse_item(value.val, it, end, min_spaces);
-}
-
 template <typename U, typename It, std::enable_if_t<optional_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
-                                   size_t min_spaces);
+IGUANA_INLINE void parse_item(U &value, It &&it, It &&end, size_t min_spaces);
 
 template <typename U, typename It, std::enable_if_t<smart_ptr_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
-                                   size_t min_spaces);
+IGUANA_INLINE void parse_item(U &value, It &&it, It &&end, size_t min_spaces);
 
 // minspaces : The minimum indentation
 template <typename U, typename It,
           std::enable_if_t<sequence_container_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
-                                   size_t min_spaces) {
+IGUANA_INLINE void parse_item(U &value, It &&it, It &&end, size_t min_spaces) {
   value.clear();
   auto spaces = skip_space_and_lines(it, end, min_spaces);
   using value_type = typename std::remove_cv_t<U>::value_type;
@@ -296,13 +259,13 @@ IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
         }
       if constexpr (plain_v<value_type>) {
         auto start = it;
-        auto value_end = yaml_skip_till<',', ']'>(it, end);
-        yaml_parse_value(value.emplace_back(), start, value_end);
+        auto value_end = skip_till<',', ']'>(it, end);
+        parse_value(value.emplace_back(), start, value_end);
         if (*(it - 1) == ']')
           IGUANA_UNLIKELY { return; }
       }
       else {
-        yaml_parse_item(value.emplace_back(), it, end, spaces + 1);
+        parse_item(value.emplace_back(), it, end, spaces + 1);
         skip_space_and_lines(it, end, min_spaces);
         if (*it == ',')
           IGUANA_LIKELY { ++it; }
@@ -326,15 +289,15 @@ IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
       subspaces = skip_space_and_lines(it, end, spaces + 1);
       if constexpr (string_v<value_type>) {
         // except string_v because of scalar blocks
-        yaml_parse_item(value.emplace_back(), it, end, spaces + 1);
+        parse_item(value.emplace_back(), it, end, spaces + 1);
       }
       else if constexpr (plain_v<value_type>) {
         auto start = it;
         auto value_end = skip_till_newline(it, end);
-        yaml_parse_value(value.emplace_back(), start, value_end);
+        parse_value(value.emplace_back(), start, value_end);
       }
       else {
-        yaml_parse_item(value.emplace_back(), it, end, subspaces);
+        parse_item(value.emplace_back(), it, end, subspaces);
       }
     }
   }
@@ -343,8 +306,7 @@ IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
 }
 
 template <typename U, typename It, std::enable_if_t<tuple_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
-                                   size_t min_spaces) {
+IGUANA_INLINE void parse_item(U &value, It &&it, It &&end, size_t min_spaces) {
   auto spaces = skip_space_and_lines(it, end, min_spaces);
   if (*it == '[') {
     ++it;
@@ -354,11 +316,11 @@ IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
       skip_space_and_lines(it, end, min_spaces);
       if constexpr (plain_v<value_type>) {
         auto start = it;
-        auto value_end = yaml_skip_till<',', ']'>(it, end);
-        yaml_parse_value(v, start, value_end);
+        auto value_end = skip_till<',', ']'>(it, end);
+        parse_value(v, start, value_end);
       }
       else {
-        yaml_parse_item(v, it, end, spaces + 1);
+        parse_item(v, it, end, spaces + 1);
         skip_space_and_lines(it, end, min_spaces);
         ++it;  // skip ,
       }
@@ -375,15 +337,15 @@ IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
       [[maybe_unused]] auto subspaces =
           skip_space_and_lines(it, end, spaces + 1);
       if constexpr (string_v<value_type>) {
-        yaml_parse_item(v, it, end, spaces + 1);
+        parse_item(v, it, end, spaces + 1);
       }
       else if constexpr (plain_v<value_type>) {
         auto start = it;
         auto value_end = skip_till_newline(it, end);
-        yaml_parse_value(v, start, value_end);
+        parse_value(v, start, value_end);
       }
       else {
-        yaml_parse_item(v, it, end, subspaces);
+        parse_item(v, it, end, subspaces);
       }
     });
   }
@@ -393,8 +355,7 @@ IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
 }
 
 template <typename U, typename It, std::enable_if_t<map_container_v<U>, int>>
-IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
-                                   size_t min_spaces) {
+IGUANA_INLINE void parse_item(U &value, It &&it, It &&end, size_t min_spaces) {
   using T = std::remove_reference_t<U>;
   using key_type = typename T::key_type;
   using value_type = typename T::mapped_type;
@@ -409,19 +370,19 @@ IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
           return;
         }
       auto start = it;
-      auto value_end = yaml_skip_till<':'>(it, end);
+      auto value_end = skip_till<':'>(it, end);
       key_type key;
-      yaml_parse_value(key, start, value_end);
+      parse_value(key, start, value_end);
       subspaces = skip_space_and_lines(it, end, min_spaces);
       if constexpr (plain_v<value_type>) {
         start = it;
-        value_end = yaml_skip_till<',', '}'>(it, end);
-        yaml_parse_value(value[key], start, value_end);
+        value_end = skip_till<',', '}'>(it, end);
+        parse_value(value[key], start, value_end);
         if (*(it - 1) == '}')
           IGUANA_UNLIKELY { return; }
       }
       else {
-        yaml_parse_item(value[key], it, end, min_spaces);
+        parse_item(value[key], it, end, min_spaces);
         subspaces = skip_space_and_lines(it, end, min_spaces);
         if (*it == ',')
           IGUANA_LIKELY { ++it; }
@@ -438,17 +399,17 @@ IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
           return;
         }
       auto start = it;
-      auto value_end = yaml_skip_till<':'>(it, end);
+      auto value_end = skip_till<':'>(it, end);
       key_type key;
-      yaml_parse_value(key, start, value_end);
+      parse_value(key, start, value_end);
       subspaces = skip_space_and_lines(it, end, min_spaces);
       if constexpr (plain_v<value_type> && !string_v<value_type>) {
         start = it;
         value_end = skip_till_newline(it, end);
-        yaml_parse_value(value[key], start, value_end);
+        parse_value(value[key], start, value_end);
       }
       else {
-        yaml_parse_item(value[key], it, end, spaces + 1);
+        parse_item(value[key], it, end, spaces + 1);
       }
       subspaces = skip_space_and_lines<false>(it, end, min_spaces);
     }
@@ -456,8 +417,7 @@ IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
 }
 
 template <typename U, typename It, std::enable_if_t<smart_ptr_v<U>, int>>
-IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
-                                   size_t min_spaces) {
+IGUANA_INLINE void parse_item(U &value, It &&it, It &&end, size_t min_spaces) {
   using T = std::remove_reference_t<U>;
   if constexpr (unique_ptr_v<T>) {
     value = std::make_unique<typename T::element_type>();
@@ -467,12 +427,11 @@ IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
   }
   static_assert(!string_v<typename T::element_type>,
                 "smart_ptr<string> is not allowed");
-  yaml_parse_item(*value, it, end, min_spaces);
+  parse_item(*value, it, end, min_spaces);
 }
 
 template <typename U, typename It, std::enable_if_t<optional_v<U>, int>>
-IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
-                                   size_t min_spaces) {
+IGUANA_INLINE void parse_item(U &value, It &&it, It &&end, size_t min_spaces) {
   using T = std::remove_reference_t<U>;
   using value_type = typename T::value_type;
   auto spaces = skip_space_and_lines<false>(it, end, min_spaces);
@@ -495,7 +454,7 @@ IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
   }
   if constexpr (string_v<value_type> || !plain_v<value_type>) {
     it = start;
-    yaml_parse_item(value.emplace(), it, end, min_spaces);
+    parse_item(value.emplace(), it, end, min_spaces);
   }
   else {
     if (value_end == end)
@@ -503,7 +462,7 @@ IGUANA_INLINE void yaml_parse_item(U &value, It &&it, It &&end,
         // if value_end isn't touched
         value_end = skip_till_newline(it, end);
       }
-    yaml_parse_value(value.emplace(), start, value_end);
+    parse_value(value.emplace(), start, value_end);
   }
 }
 
@@ -535,7 +494,7 @@ IGUANA_INLINE void from_yaml(T &value, It &&it, It &&end, size_t min_spaces) {
   auto spaces = skip_space_and_lines(it, end, min_spaces);
   while (it != end) {
     auto start = it;
-    auto keyend = yaml_skip_till<':'>(it, end);
+    auto keyend = skip_till<':'>(it, end);
     std::string_view key = std::string_view{
         &*start, static_cast<size_t>(std::distance(start, keyend))};
     static constexpr auto frozen_map = get_iguana_struct_map<T>();
@@ -547,8 +506,7 @@ IGUANA_INLINE void from_yaml(T &value, It &&it, It &&end, size_t min_spaces) {
               [&](auto &&member_ptr) IGUANA__INLINE_LAMBDA {
                 using V = std::decay_t<decltype(member_ptr)>;
                 if constexpr (std::is_member_pointer_v<V>) {
-                  detail::yaml_parse_item(value.*member_ptr, it, end,
-                                          spaces + 1);
+                  detail::parse_item(value.*member_ptr, it, end, spaces + 1);
                 }
                 else {
                   static_assert(!sizeof(V), "type not supported");
@@ -577,7 +535,7 @@ IGUANA_INLINE void from_yaml(T &value, It &&it, It &&end, size_t min_spaces) {
 template <typename T, typename It,
           std::enable_if_t<non_refletable_v<T>, int> = 0>
 IGUANA_INLINE void from_yaml(T &value, It &&it, It &&end) {
-  detail::yaml_parse_item(value, it, end, 0);
+  detail::parse_item(value, it, end, 0);
 }
 
 template <typename T, typename It>
@@ -607,12 +565,6 @@ IGUANA_INLINE void from_yaml(T &value, const View &view,
   } catch (std::runtime_error &e) {
     ec = iguana::make_error_code(e.what());
   }
-}
-
-template <typename T>
-IGUANA_INLINE void from_yaml_adl(iguana_adl_t *p, T &t,
-                                 std::string_view pb_str) {
-  iguana::from_yaml(t, pb_str);
 }
 
 }  // namespace iguana
