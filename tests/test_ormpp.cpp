@@ -1392,6 +1392,8 @@ TEST_CASE("query_s delete_records_s") {
     auto vec5 = sqlite.query_s<person>("name=? and age=?", "purecpp", 200);
     auto vec6 =
         sqlite.query_s<person>("select * from person where name=?", "purecpp");
+    auto vec11 =
+        sqlite.query_s<person>("SELECT * FROM PERSON WHERE NAME=?", "purecpp");
     auto vec7 = sqlite.query_s<person>("name=?", "purecpp' or '1=1");
     sqlite.delete_records_s<person>("name=?", "purecpp' or '1=1");
     auto vec8 = sqlite.query_s<person>();
@@ -1415,6 +1417,7 @@ TEST_CASE("query_s delete_records_s") {
     CHECK(vec8.size() == 2);
     CHECK(vec9.size() == 1);
     CHECK(vec10.size() == 0);
+    CHECK(vec11.front().age == 200);
   }
 #endif
 }
