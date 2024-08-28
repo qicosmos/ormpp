@@ -4,6 +4,7 @@
 #ifndef ORM_UTILITY_HPP
 #define ORM_UTILITY_HPP
 #include <optional>
+#include <algorithm>
 
 #include "entity.hpp"
 #include "iguana/reflection.hpp"
@@ -440,16 +441,18 @@ inline void get_sql_conditions(std::string &) {}
 template <typename... Args>
 inline void get_sql_conditions(std::string &sql, const std::string &arg,
                                Args &&...args) {
-  if (arg.find("select") != std::string::npos) {
+  std::string temp=arg;
+  std::transform(arg.begin(),arg.end(),temp.begin(),::tolower);
+  if (temp.find("select") != std::string::npos) {
     sql = arg;
   }
   else {
-    if (arg.find("order by") != std::string::npos) {
-      auto pos = sql.find("where");
+    if (temp.find("order by") != std::string::npos) {
+      auto pos = temp.find("where");
       sql = sql.substr(0, pos);
     }
-    if (arg.find("limit") != std::string::npos) {
-      auto pos = sql.find("where");
+    if (temp.find("limit") != std::string::npos) {
+      auto pos = temp.find("where");
       sql = sql.substr(0, pos);
     }
     append(sql, arg, std::forward<Args>(args)...);
