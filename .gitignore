@@ -36,3 +36,5 @@
 *build*
 .vscode
 .cache
+/.vs
+/CMakeSettings.json
