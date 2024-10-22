@@ -225,8 +225,10 @@ class sqlite {
       iguana::for_each(
           tp,
           [this, &index](auto &item, auto /*I*/) {
-            if constexpr (iguana::is_reflection_v<decltype(item)>) {
-              std::remove_reference_t<decltype(item)> t = {};
+            using U =
+                std::remove_const_t<std::remove_reference_t<decltype(item)>>;
+            if constexpr (iguana::is_reflection_v<U>) {
+              U t = {};
               iguana::for_each(t, [this, &index, &t](auto ele, auto /*i*/) {
                 assign(t.*ele, index++);
               });
@@ -324,8 +326,10 @@ class sqlite {
       iguana::for_each(
           tp,
           [this, &index](auto &item, auto /*I*/) {
-            if constexpr (iguana::is_reflection_v<decltype(item)>) {
-              std::remove_reference_t<decltype(item)> t = {};
+            using U =
+                std::remove_const_t<std::remove_reference_t<decltype(item)>>;
+            if constexpr (iguana::is_reflection_v<U>) {
+              U t = {};
               iguana::for_each(t, [this, &index, &t](auto ele, auto /*i*/) {
                 assign(t.*ele, index++);
               });
@@ -410,8 +414,8 @@ class sqlite {
     // auto_increment_key and key can't exist at the same time
     using U = std::tuple<std::decay_t<Args>...>;
     if constexpr (SIZE > 0) {
-      // using U = std::tuple<std::decay_t <Args>...>; //the code can't compile
-      // in vs2017, why?maybe args... in if constexpr?
+      // using U = std::tuple<std::decay_t <Args>...>; //the code can't
+      // compile in vs2017, why?maybe args... in if constexpr?
       static_assert(!(iguana::has_type<ormpp_key, U>::value &&
                       iguana::has_type<ormpp_auto_key, U>::value),
                     "should only one key");
