@@ -238,8 +238,9 @@ class postgresql {
       iguana::for_each(
           tp,
           [this, i, &index](auto &item, auto I) {
-            if constexpr (iguana::is_reflection_v<decltype(item)>) {
-              std::remove_reference_t<decltype(item)> t = {};
+            using U = std::remove_reference_t<decltype(t)>;
+            if constexpr (iguana::is_reflection_v<U>) {
+              U t = {};
               iguana::for_each(t, [this, &index, &t, i](auto ele, auto /*i*/) {
                 assign(t.*ele, (int)i, index++);
               });
@@ -321,8 +322,9 @@ class postgresql {
       iguana::for_each(
           tp,
           [this, i, &index](auto &item, auto I) {
-            if constexpr (iguana::is_reflection_v<decltype(item)>) {
-              std::remove_reference_t<decltype(item)> t = {};
+            using U = std::remove_reference_t<decltype(t)>;
+            if constexpr (iguana::is_reflection_v<U>) {
+              U t = {};
               iguana::for_each(t, [this, &index, &t, i](auto ele, auto /*i*/) {
                 assign(t.*ele, (int)i, index++);
               });

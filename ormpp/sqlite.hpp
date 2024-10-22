@@ -225,8 +225,7 @@ class sqlite {
       iguana::for_each(
           tp,
           [this, &index](auto &item, auto /*I*/) {
-            using U =
-                std::remove_const_t<std::remove_reference_t<decltype(item)>>;
+            using U = std::remove_reference_t<decltype(t)>;
             if constexpr (iguana::is_reflection_v<U>) {
               U t = {};
               iguana::for_each(t, [this, &index, &t](auto ele, auto /*i*/) {
@@ -326,8 +325,7 @@ class sqlite {
       iguana::for_each(
           tp,
           [this, &index](auto &item, auto /*I*/) {
-            using U =
-                std::remove_const_t<std::remove_reference_t<decltype(item)>>;
+            using U = std::remove_reference_t<decltype(t)>;
             if constexpr (iguana::is_reflection_v<U>) {
               U t = {};
               iguana::for_each(t, [this, &index, &t](auto ele, auto /*i*/) {
