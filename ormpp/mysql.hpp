@@ -412,7 +412,8 @@ class mysql {
       iguana::for_each(t, [nulls, &t](auto item, auto i) {
         constexpr auto Idx = decltype(i)::value;
         if (nulls.at(Idx)) {
-          using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
+          using U = std::remove_const_t<
+              std::remove_reference_t<decltype(std::declval<T>().*item)>>;
           if constexpr (is_optional_v<U>::value || std::is_arithmetic_v<U>) {
             t.*item = {};
           }
@@ -469,7 +470,8 @@ class mysql {
     iguana::for_each(
         tp,
         [&param_binds, &index, &nulls, &mp, &tp, this](auto &t, auto /*i*/) {
-          using U = std::remove_reference_t<decltype(t)>;
+          using U =
+              std::remove_const_t<std::remove_reference_t<decltype(item)>>;
           if constexpr (iguana::is_reflection_v<U>) {
             iguana::for_each(t, [&param_binds, &index, &nulls, &mp, &t, this](
                                     auto &item, auto /*i*/) {
@@ -504,7 +506,8 @@ class mysql {
       iguana::for_each(
           tp,
           [&param_binds, &index, &mp, &tp, this](auto &t, auto /*i*/) {
-            using U = std::remove_reference_t<decltype(t)>;
+            using U =
+                std::remove_const_t<std::remove_reference_t<decltype(item)>>;
             if constexpr (iguana::is_reflection_v<U>) {
               iguana::for_each(t, [&param_binds, &index, &mp, &t, this](
                                       auto ele, auto /*i*/) {
@@ -527,12 +530,13 @@ class mysql {
       iguana::for_each(
           tp,
           [&index, nulls, &tp](auto &t, auto /*i*/) {
-            using U = std::remove_reference_t<decltype(t)>;
+            using U =
+                std::remove_const_t<std::remove_reference_t<decltype(item)>>;
             if constexpr (iguana::is_reflection_v<U>) {
               iguana::for_each(t, [&index, nulls, &t](auto ele, auto /*i*/) {
                 if (nulls.at(index++)) {
-                  using W =
-                      std::remove_reference_t<decltype(std::declval<U>().*ele)>;
+                  using W = std::remove_const_t<std::remove_reference_t<
+                      decltype(std::declval<U>().*ele)>>;
                   if constexpr (is_optional_v<W>::value ||
                                 std::is_arithmetic_v<W>) {
                     t.*ele = {};
@@ -681,7 +685,7 @@ class mysql {
     iguana::for_each(
         tp,
         [&param_binds, &index, &nulls, &mp, &tp, this](auto &t, auto /*i*/) {
-          using U = std::remove_reference_t<decltype(t)>;
+          using U = std::remove_const_t<std::remove_reference_t<decltype(t)>>;
           if constexpr (iguana::is_reflection_v<U>) {
             iguana::for_each(t, [&param_binds, &index, &nulls, &mp, &t, this](
                                     auto &item, auto /*i*/) {
@@ -716,7 +720,7 @@ class mysql {
       iguana::for_each(
           tp,
           [&param_binds, &index, &mp, &tp, this](auto &t, auto /*i*/) {
-            using U = std::remove_reference_t<decltype(t)>;
+            using U = std::remove_const_t<std::remove_reference_t<decltype(t)>>;
             if constexpr (iguana::is_reflection_v<U>) {
               iguana::for_each(t, [&param_binds, &index, &mp, &t, this](
                                       auto ele, auto /*i*/) {
@@ -739,7 +743,7 @@ class mysql {
       iguana::for_each(
           tp,
           [&index, nulls, &tp](auto &t, auto /*i*/) {
-            using U = std::remove_reference_t<decltype(t)>;
+            using U = std::remove_const_t<std::remove_reference_t<decltype(t)>>;
             if constexpr (iguana::is_reflection_v<U>) {
               iguana::for_each(t, [&index, nulls, &t](auto ele, auto /*i*/) {
                 if (nulls.at(index++)) {
