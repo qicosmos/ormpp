@@ -224,9 +224,10 @@ add_subdirectory(ormpp)
 ```cmake
 set(ENABLE_SQLITE3 ON)
 add_definitions(-DORMPP_ENABLE_SQLITE3)
+add_subdirectory(ormpp/thirdparty)
 add_library(ormpp INTERFACE)
 target_link_libraries(ormpp INTERFACE sqlite3)
-target_include_directories(ormpp INTERFACE ormpp ormpp/ormpp thirdparty/sqlite3)
+target_include_directories(ormpp INTERFACE ormpp ormpp/ormpp ormpp/thirdparty/sqlite3)
 ```
 
 pg
