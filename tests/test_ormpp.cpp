@@ -121,6 +121,18 @@ TEST_CASE("optional") {
     CHECK(vec2.front().age.value() == 200);
     CHECK(vec2.front().name.value() == "purecpp");
     CHECK(vec2.front().empty_.has_value() == false);
+
+    auto vec3 = mysql.query_s<test_optional>();
+    REQUIRE(vec3.size() > 0);
+    CHECK(vec3.front().age.value() == 200);
+    CHECK(vec3.front().name.value() == "purecpp");
+    CHECK(vec3.front().empty_.has_value() == false);
+    auto vec4 = mysql.query_s<test_optional>("select * from test_optional;");
+    REQUIRE(vec4.size() > 0);
+    CHECK(vec4.front().age.value() == 200);
+    CHECK(vec4.front().name.value() == "purecpp");
+    CHECK(vec4.front().empty_.has_value() == false);
+
   }
 #endif
 #ifdef ORMPP_ENABLE_PG
