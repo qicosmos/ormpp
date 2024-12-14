@@ -132,7 +132,6 @@ TEST_CASE("optional") {
     CHECK(vec4.front().age.value() == 200);
     CHECK(vec4.front().name.value() == "purecpp");
     CHECK(vec4.front().empty_.has_value() == false);
-
   }
 #endif
 #ifdef ORMPP_ENABLE_PG
