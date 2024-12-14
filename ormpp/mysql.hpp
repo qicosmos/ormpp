@@ -210,7 +210,7 @@ class mysql {
     using U = std::remove_const_t<std::remove_reference_t<T>>;
     if constexpr (is_optional_v<U>::value) {
       using value_type = typename U::value_type;
-      if(!value.has_value()) {
+      if (!value.has_value()) {
         value = value_type{};
       }
       return set_param_bind(param_bind, *value, i, mp, is_null);
