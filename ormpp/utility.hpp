@@ -23,14 +23,14 @@ inline int add_auto_key_field(std::string_view key, std::string_view value) {
 
 template <typename T>
 inline auto get_auto_key() {
-  using U = decltype(iguana_reflect_members(std::declval<T>()));
+  using U = decltype(iguana::Reflect_members<T>());
   auto it = g_ormpp_auto_key_map.find(U::struct_name());
   return it == g_ormpp_auto_key_map.end() ? "" : it->second;
 }
 
 template <typename T>
 inline auto is_auto_key(std::string_view field_name) {
-  using U = decltype(iguana_reflect_members(std::declval<T>()));
+  using U = decltype(iguana::Reflect_members<T>());
   auto it = g_ormpp_auto_key_map.find(U::struct_name());
   return it == g_ormpp_auto_key_map.end() ? false : it->second == field_name;
 }
@@ -50,7 +50,7 @@ inline int add_conflict_key_field(std::string_view key,
 
 template <typename T>
 inline auto get_conflict_key() {
-  using U = decltype(iguana_reflect_members(std::declval<T>()));
+  using U = decltype(iguana::Reflect_members<T>());
   auto key = U::struct_name();
   auto it = g_ormpp_conflict_key_map.find(key);
   if (it == g_ormpp_conflict_key_map.end()) {
@@ -513,8 +513,8 @@ struct field_attribute<U T::*> {
 
 template <typename U>
 constexpr std::string_view get_field_name(std::string_view full_name) {
-  using T = decltype(iguana_reflect_members(
-      std::declval<typename field_attribute<U>::type>()));
+  using T =
+      decltype(iguana::Reflect_members<typename field_attribute<U>::type>());
   return full_name.substr(T::struct_name().length() + 2, full_name.length());
 }
 

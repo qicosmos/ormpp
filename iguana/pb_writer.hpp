@@ -27,10 +27,11 @@ IGUANA_INLINE void encode_fixed_field(V val, It&& it) {
 
 template <uint32_t key, bool omit_default_val = true, typename Type,
           typename It>
-IGUANA_INLINE void to_pb_impl(Type&& t, It&& it);
+IGUANA_INLINE void to_pb_impl(Type&& t, It&& it, uint32_t*& sz_ptr);
 
 template <uint32_t key, typename V, typename It>
-IGUANA_INLINE void encode_pair_value(V&& val, It&& it, size_t size) {
+IGUANA_INLINE void encode_pair_value(V&& val, It&& it, size_t size,
+                                     uint32_t*& sz_ptr) {
   if (size == 0)
     IGUANA_UNLIKELY {
       // map keys can't be omitted even if values are empty
@@ -39,7 +40,7 @@ IGUANA_INLINE void encode_pair_value(V&& val, It&& it, size_t size) {
       serialize_varint(0, it);
     }
   else {
-    to_pb_impl<key, false>(val, it);
+    to_pb_impl<key, false>(val, it, sz_ptr);
   }
 }
 
@@ -78,10 +79,11 @@ IGUANA_INLINE void encode_numeric_field(T t, It&& it) {
 }
 
 template <uint32_t field_no, typename Type, typename It>
-IGUANA_INLINE void to_pb_oneof(Type&& t, It&& it) {
+IGUANA_INLINE void to_pb_oneof(Type&& t, It&& it, uint32_t*& sz_ptr) {
   using T = std::decay_t<Type>;
   std::visit(
-      [&it](auto&& value) IGUANA__INLINE_LAMBDA {
+      [&it, &sz_ptr](auto&& value) IGUANA__INLINE_LAMBDA {
+        using raw_value_type = decltype(value);
         using value_type =
             std::remove_const_t<std::remove_reference_t<decltype(value)>>;
         constexpr auto offset =
@@ -89,20 +91,19 @@ IGUANA_INLINE void to_pb_oneof(Type&& t, It&& it) {
         constexpr uint32_t key =
             ((field_no + offset) << 3) |
             static_cast<uint32_t>(get_wire_type<value_type>());
-        to_pb_impl<key, false>(std::forward<value_type>(value), it);
+        to_pb_impl<key, false>(std::forward<raw_value_type>(value), it, sz_ptr);
       },
       std::forward<Type>(t));
 }
 
 // omit_default_val = true indicates to omit the default value in searlization
 template <uint32_t key, bool omit_default_val, typename Type, typename It>
-IGUANA_INLINE void to_pb_impl(Type&& t, It&& it) {
+IGUANA_INLINE void to_pb_impl(Type&& t, It&& it, uint32_t*& sz_ptr) {
   using T = std::remove_const_t<std::remove_reference_t<Type>>;
   if constexpr (is_reflection_v<T> || is_custom_reflection_v<T>) {
-    // TODO: improve the key serialize
-    auto len = pb_value_size(t);
     // can't be omitted even if values are empty
     if constexpr (key != 0) {
+      auto len = pb_value_size(t, sz_ptr);
       serialize_varint_u32_constexpr<key>(it);
       serialize_varint(len, it);
       if (len == 0)
@@ -111,7 +112,7 @@ IGUANA_INLINE void to_pb_impl(Type&& t, It&& it) {
     static constexpr auto tuple = get_members_tuple<T>();
     constexpr size_t SIZE = std::tuple_size_v<std::decay_t<decltype(tuple)>>;
     for_each_n(
-        [&t, &it](auto i) IGUANA__INLINE_LAMBDA {
+        [&t, &it, &sz_ptr](auto i) IGUANA__INLINE_LAMBDA {
           using field_type =
               std::tuple_element_t<decltype(i)::value,
                                    std::decay_t<decltype(tuple)>>;
@@ -124,14 +125,14 @@ IGUANA_INLINE void to_pb_impl(Type&& t, It&& it) {
                 get_variant_index<U, typename field_type::sub_type,
                                   std::variant_size_v<U> - 1>();
             if constexpr (offset == 0) {
-              to_pb_oneof<value.field_no>(val, it);
+              to_pb_oneof<value.field_no>(val, it, sz_ptr);
             }
           }
           else {
             constexpr uint32_t sub_key =
                 (value.field_no << 3) |
                 static_cast<uint32_t>(get_wire_type<U>());
-            to_pb_impl<sub_key>(val, it);
+            to_pb_impl<sub_key>(val, it, sz_ptr);
           }
         },
         std::make_index_sequence<SIZE>{});
@@ -143,14 +144,14 @@ IGUANA_INLINE void to_pb_impl(Type&& t, It&& it) {
     if constexpr (is_lenprefix_v<item_type>) {
       // non-packed
       for (auto& item : t) {
-        to_pb_impl<key, false>(item, it);
+        to_pb_impl<key, false>(item, it, sz_ptr);
       }
     }
     else {
       if (t.empty())
         IGUANA_UNLIKELY { return; }
       serialize_varint_u32_constexpr<key>(it);
-      serialize_varint(pb_value_size(t), it);
+      serialize_varint(pb_value_size(t, sz_ptr), it);
       for (auto& item : t) {
         encode_numeric_field<false, 0>(item, it);
       }
@@ -168,26 +169,27 @@ IGUANA_INLINE void to_pb_impl(Type&& t, It&& it) {
 
     for (auto& [k, v] : t) {
       serialize_varint_u32_constexpr<key>(it);
-      auto k_len = pb_value_size(k);
-      auto v_len = pb_value_size(v);
-      auto pair_len = key1_size + key2_size + k_len + v_len;
+      // k must be string or numeric
+      auto k_val_len = str_numeric_size<0, false>(k);
+      auto v_val_len = pb_value_size<false>(v, sz_ptr);
+      auto pair_len = key1_size + key2_size + k_val_len + v_val_len;
       if constexpr (is_lenprefix_v<first_type>) {
-        pair_len += variant_uint32_size(k_len);
+        pair_len += variant_uint32_size(k_val_len);
       }
       if constexpr (is_lenprefix_v<second_type>) {
-        pair_len += variant_uint32_size(v_len);
+        pair_len += variant_uint32_size(v_val_len);
       }
       serialize_varint(pair_len, it);
       // map k and v can't be omitted even if values are empty
-      encode_pair_value<key1>(k, it, k_len);
-      encode_pair_value<key2>(v, it, v_len);
+      encode_pair_value<key1>(k, it, k_val_len, sz_ptr);
+      encode_pair_value<key2>(v, it, v_val_len, sz_ptr);
     }
   }
   else if constexpr (optional_v<T>) {
     if (!t.has_value()) {
       return;
     }
-    to_pb_impl<key, omit_default_val>(*t, it);
+    to_pb_impl<key, omit_default_val>(*t, it, sz_ptr);
   }
   else if constexpr (std::is_same_v<T, std::string> ||
                      std::is_same_v<T, std::string_view>) {
@@ -204,12 +206,294 @@ IGUANA_INLINE void to_pb_impl(Type&& t, It&& it) {
     encode_numeric_field<key, omit_default_val>(t, it);
   }
 }
+
+#if defined(__clang__) || defined(_MSC_VER) || \
+    (defined(__GNUC__) && __GNUC__ > 8)
+template <typename T>
+IGUANA_INLINE constexpr std::string_view get_type_string() {
+  if constexpr (std::is_integral_v<T>) {
+    if constexpr (std::is_same_v<T, bool>) {
+      return "bool";
+    }
+    else if constexpr (sizeof(T) <= 4) {
+      if constexpr (std::is_unsigned_v<T>) {
+        return "uint32";
+      }
+      else {
+        return "int32";
+      }
+    }
+    else {
+      if constexpr (std::is_unsigned_v<T>) {
+        return "uint64";
+      }
+      else {
+        return "int64";
+      }
+    }
+  }
+  else if constexpr (std::is_same_v<T, std::string> ||
+                     std::is_same_v<T, std::string_view>) {
+    return "string";
+  }
+  else if constexpr (std::is_floating_point_v<T>) {
+    return type_string<T>();
+  }
+  else {
+    constexpr auto str_type_name = type_string<T>();
+    constexpr size_t pos = str_type_name.rfind("::");
+    if constexpr (pos != std::string_view::npos) {
+      constexpr size_t pos = str_type_name.rfind("::") + 2;
+      if constexpr (detail::is_signed_varint_v<T> || detail::is_fixed_v<T>) {
+        return str_type_name.substr(pos, str_type_name.size() - pos - 2);
+      }
+      else {
+        return str_type_name.substr(pos);
+      }
+    }
+    else {
+      return str_type_name;
+    }
+  }
+}
+
+template <typename T, typename Stream>
+IGUANA_INLINE void numeric_to_proto(Stream& out, std::string_view field_name,
+                                    uint32_t field_no) {
+  constexpr auto name = get_type_string<T>();
+  out.append(name).append(" ");
+  out.append(field_name)
+      .append(" = ")
+      .append(std::to_string(field_no))
+      .append(";\n");
+}
+
+template <size_t space_count = 2, typename Stream>
+IGUANA_INLINE void build_proto_field(Stream& out, std::string_view str_type,
+                                     std::string_view field_name,
+                                     uint32_t field_no) {
+  for (size_t i = 0; i < space_count; i++) {
+    out.append(" ");
+  }
+
+  if (!str_type.empty()) {
+    out.append(str_type);
+  }
+
+  out.append(" ")
+      .append(field_name)
+      .append(" = ")
+      .append(std::to_string(field_no))
+      .append(";\n");
+}
+
+template <typename T, typename Map>
+IGUANA_INLINE void build_sub_proto(Map& map, std::string_view str_type,
+                                   std::string& sub_str);
+
+template <typename Type, typename Stream>
+IGUANA_INLINE void to_proto_impl(
+    Stream& out, std::unordered_map<std::string_view, std::string>& map,
+    std::string_view field_name = "", uint32_t field_no = 0) {
+  std::string sub_str;
+  using T = std::remove_const_t<std::remove_reference_t<Type>>;
+  if constexpr (is_reflection_v<T> || is_custom_reflection_v<T>) {
+    constexpr auto name = get_name<T>();
+    out.append("message ").append(name).append(" {\n");
+    static constexpr auto tuple = get_members_tuple<T>();
+    constexpr size_t SIZE = std::tuple_size_v<std::decay_t<decltype(tuple)>>;
+
+    for_each_n(
+        [&out, &sub_str, &map](auto i) mutable {
+          using field_type =
+              std::tuple_element_t<decltype(i)::value,
+                                   std::decay_t<decltype(tuple)>>;
+          constexpr auto value = std::get<decltype(i)::value>(tuple);
+
+          using U = typename field_type::value_type;
+          if constexpr (is_reflection_v<U>) {
+            constexpr auto str_type = get_type_string<U>();
+            build_proto_field(
+                out, str_type,
+                {value.field_name.data(), value.field_name.size()},
+                value.field_no);
+
+            build_sub_proto<U>(map, str_type, sub_str);
+          }
+          else if constexpr (variant_v<U>) {
+            constexpr size_t var_size = std::variant_size_v<U>;
+            using sub_type = typename field_type::sub_type;
+
+            constexpr auto offset =
+                get_variant_index<U, sub_type, var_size - 1>();
+
+            if (offset == 0) {
+              out.append("  oneof ");
+              out.append(value.field_name.data(), value.field_name.size())
+                  .append(" {\n");
+            }
+
+            constexpr auto str_type = get_type_string<sub_type>();
+            std::string field_name = " one_of_";
+            field_name.append(str_type);
+
+            out.append("  ");
+            build_proto_field(out, str_type, field_name, value.field_no);
+
+            if constexpr (is_reflection_v<sub_type>) {
+              build_sub_proto<sub_type>(map, str_type, sub_str);
+            }
+
+            if (offset == var_size - 1) {
+              out.append("  }\n");
+            }
+          }
+          else {
+            to_proto_impl<U>(out, map,
+                             {value.field_name.data(), value.field_name.size()},
+                             value.field_no);
+          }
+        },
+        std::make_index_sequence<SIZE>{});
+    out.append("}\r\n\r\n");
+  }
+  else if constexpr (is_sequence_container<T>::value) {
+    out.append("  repeated");
+    using item_type = typename T::value_type;
+
+    if constexpr (is_lenprefix_v<item_type>) {
+      // non-packed
+      if constexpr (is_reflection_v<item_type>) {
+        constexpr auto str_type = get_type_string<item_type>();
+        build_proto_field(out, str_type, field_name, field_no);
+
+        build_sub_proto<item_type>(map, str_type, sub_str);
+      }
+      else {
+        to_proto_impl<item_type>(out, map, field_name, field_no);
+      }
+    }
+    else {
+      out.append("  ");
+      numeric_to_proto<item_type>(out, field_name, field_no);
+    }
+  }
+  else if constexpr (is_map_container<T>::value) {
+    out.append("  map<");
+    using first_type = typename T::key_type;
+    using second_type = typename T::mapped_type;
+
+    constexpr auto str_first = get_type_string<first_type>();
+    constexpr auto str_second = get_type_string<second_type>();
+    out.append(str_first).append(", ").append(str_second).append(">");
+
+    build_proto_field<1>(out, "", field_name, field_no);
+
+    if constexpr (is_reflection_v<second_type>) {
+      constexpr auto str_type = get_type_string<second_type>();
+      build_sub_proto<second_type>(map, str_type, sub_str);
+    }
+  }
+  else if constexpr (optional_v<T>) {
+    to_proto_impl<typename T::value_type>(
+        out, map, {field_name.data(), field_name.size()}, field_no);
+  }
+  else if constexpr (std::is_same_v<T, std::string> ||
+                     std::is_same_v<T, std::string_view>) {
+    build_proto_field(out, "string ", field_name, field_no);
+  }
+  else if constexpr (enum_v<T>) {
+    constexpr auto str_type = get_type_string<T>();
+    static constexpr auto enum_to_str = get_enum_map<false, std::decay_t<T>>();
+    if constexpr (bool_v<decltype(enum_to_str)>) {
+      build_proto_field(out, "int32", field_name, field_no);
+    }
+    else {
+      static_assert(enum_to_str.size() > 0, "empty enum not allowed");
+      static_assert((int)(enum_to_str.begin()->first) == 0,
+                    "the first enum value must be zero in proto3");
+      build_proto_field(out, str_type, field_name, field_no);
+      if (map.find(str_type) == map.end()) {
+        sub_str.append("enum ").append(str_type).append(" {\n");
+        for (auto& [k, field_name] : enum_to_str) {
+          std::string_view name{field_name.data(), field_name.size()};
+          size_t pos = name.rfind("::");
+          if (pos != std::string_view::npos) {
+            name = name.substr(pos + 2);
+          }
+          sub_str.append("  ")
+              .append(name)
+              .append(" = ")
+              .append(std::to_string(static_cast<std::underlying_type_t<T>>(k)))
+              .append(";\n");
+        }
+        sub_str.append("}\r\n\r\n");
+        map.emplace(str_type, std::move(sub_str));
+      }
+    }
+  }
+  else {
+    out.append("  ");
+    numeric_to_proto<Type>(out, field_name, field_no);
+  }
+}
+
+template <typename T, typename Map>
+IGUANA_INLINE void build_sub_proto(Map& map, std::string_view str_type,
+                                   std::string& sub_str) {
+  if (map.find(str_type) == map.end()) {
+    to_proto_impl<T>(sub_str, map);
+    map.emplace(str_type, std::move(sub_str));
+  }
+}
+#endif
 }  // namespace detail
 
 template <typename T, typename Stream>
-IGUANA_INLINE void to_pb(T& t, Stream& out) {
-  auto byte_len = detail::pb_key_value_size<0>(t);
+IGUANA_INLINE void to_pb(T const& t, Stream& out) {
+  std::vector<uint32_t> size_arr;
+  auto byte_len = detail::pb_key_value_size<0>(t, size_arr);
   detail::resize(out, byte_len);
-  detail::to_pb_impl<0>(t, &out[0]);
+  auto sz_ptr = size_arr.empty() ? nullptr : &size_arr[0];
+  detail::to_pb_impl<0>(t, &out[0], sz_ptr);
 }
+
+#if defined(__clang__) || defined(_MSC_VER) || \
+    (defined(__GNUC__) && __GNUC__ > 8)
+template <typename T, bool gen_header = true, typename Stream>
+IGUANA_INLINE void to_proto(Stream& out, std::string_view ns = "") {
+  if (gen_header) {
+    constexpr std::string_view crlf = "\r\n\r\n";
+    out.append(R"(syntax = "proto3";)").append(crlf);
+    if (!ns.empty()) {
+      out.append("package ").append(ns).append(";").append(crlf);
+    }
+
+    out.append(R"(option optimize_for = SPEED;)").append(crlf);
+    out.append(R"(option cc_enable_arenas = true;)").append(crlf);
+  }
+
+  std::unordered_map<std::string_view, std::string> map;
+  detail::to_proto_impl<T>(out, map);
+  for (auto& [k, s] : map) {
+    out.append(s);
+  }
+}
+
+template <typename T, bool gen_header = true, typename Stream>
+IGUANA_INLINE void to_proto_file(Stream& stream, std::string_view ns = "") {
+  if (!stream.is_open()) {
+    return;
+  }
+  std::string out;
+  to_proto<T, gen_header>(out, ns);
+  stream.write(out.data(), out.size());
+}
+#endif
+
+template <typename T, typename Stream>
+IGUANA_INLINE void to_pb_adl(iguana_adl_t* p, T const& t, Stream& out) {
+  to_pb(t, out);
+}
+
 }  // namespace iguana
