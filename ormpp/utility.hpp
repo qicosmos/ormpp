@@ -16,6 +16,12 @@ namespace ormpp {
 
 //-------------------------------------------------------------------------------------------------------------//
 //-------------------------------------------------------------------------------------------------------------//
+template <auto... members>
+constexpr std::array<size_t, sizeof...(members)> indexs_of() {
+  return std::array<size_t, sizeof...(members)>{
+      ylt::reflection::index_of<members>()...};
+}
+
 template <typename... Args, typename F, std::size_t... Idx>
 constexpr void for_each(std::tuple<Args...> &t, F &&f,
                         std::index_sequence<Idx...>) {
@@ -93,6 +99,39 @@ struct is_optional_v : std::false_type {};
 
 template <typename T>
 struct is_optional_v<std::optional<T>> : std::true_type {};
+
+template <typename T>
+constexpr std::enable_if_t<iguana::ylt_refletable_v<T>, size_t> get_value() {
+  return ylt::reflection::members_count_v<T>;
+}
+
+template <typename T>
+constexpr std::enable_if_t<iguana::non_ylt_refletable_v<T>, size_t>
+get_value() {
+  return 1;
+}
+
+template <typename... Args>
+struct value_of;
+
+template <typename T>
+struct value_of<T> {
+  static const auto value = (get_value<T>());
+};
+
+template <typename T, typename... Rest>
+struct value_of<T, Rest...> {
+  static const auto value = (value_of<T>::value + value_of<Rest...>::value);
+};
+
+template <typename List>
+struct result_size;
+
+template <template <class...> class List, class... T>
+struct result_size<List<T...>> {
+  constexpr static const size_t value =
+      value_of<T...>::value;  // (iguana::get_value<T>() + ...);
+};
 
 template <typename T>
 inline void append_impl(std::string &sql, const T &str) {
@@ -288,12 +327,12 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
     std::string fields = "(";
     std::string values = "values(";
     for (auto i = 0; i < Count; ++i) {
-      std::string field_name = iguana::get_name<T>(i).data();
+      std::string field_name = ylt::reflection::name_of<T>(i).data();
       std::string value = "$" + std::to_string(++index);
       append(set, field_name, "=", value);
       fields += field_name;
       values += value;
-      if (i < SIZE - 1) {
+      if (i < Count - 1) {
         fields += ",";
         values += ",";
         set += ",";

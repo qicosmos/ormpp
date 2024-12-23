@@ -341,11 +341,11 @@ class mysql {
   template <typename T, typename... Args>
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &str, Args &&...args) {
+    constexpr auto SIZE = ylt::reflection::members_count_v<T>;
     std::string sql = generate_query_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    constexpr auto SIZE = iguana::get_value<T>();
 
     stmt_ = mysql_stmt_init(con_);
     if (!stmt_) {
@@ -482,7 +482,7 @@ class mysql {
             index++;
           }
         },
-        std::make_index_sequence<std::tuple_size_v<T>>{});
+        std::make_index_sequence<SIZE>{});
 
     if (index == 0) {
       return {};
@@ -506,7 +506,7 @@ class mysql {
             using U = ylt::reflection::remove_cvref_t<decltype(item)>;
             if constexpr (iguana::ylt_refletable_v<U>) {
               ylt::reflection::for_each(
-                  item, [&param_binds, &index, &mp, &t, this](
+                  item, [&param_binds, &index, &mp, this](
                             auto &field, auto /*name*/, auto /*index*/) {
                     set_value(param_binds.at(index), field, index, mp);
                     index++;
@@ -529,9 +529,9 @@ class mysql {
           [&index, nulls](auto &item, auto /*index*/) {
             using U = ylt::reflection::remove_cvref_t<decltype(item)>;
             if constexpr (iguana::ylt_refletable_v<U>) {
-              ylt::reflection::for_each(item, [&index, nulls, &t](
-                                                  auto &field, auto /*name*/,
-                                                  auto /*index*/) {
+              ylt::reflection::for_each(item, [&index, nulls](auto &field,
+                                                              auto /*name*/,
+                                                              auto /*index*/) {
                 if (nulls.at(index++)) {
                   using W = ylt::reflection::remove_cvref_t<decltype(field)>;
                   if constexpr (is_optional_v<W>::value ||
@@ -562,11 +562,11 @@ class mysql {
   template <typename T, typename... Args>
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query(
       Args &&...args) {
+    constexpr auto SIZE = ylt::reflection::members_count_v<T>;
     std::string sql = generate_query_sql<T>(args...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    constexpr auto SIZE = iguana::get_value<T>();
 
     stmt_ = mysql_stmt_init(con_);
     if (!stmt_) {
@@ -945,7 +945,7 @@ class mysql {
   template <auto... members, typename T, typename... Args>
   int stmt_execute(const T &t, OptType type, Args &&...args) {
     std::vector<MYSQL_BIND> param_binds;
-    constexpr auto arr = iguana::indexs_of<members...>();
+    constexpr auto arr = indexs_of<members...>();
     if constexpr (sizeof...(members) > 0) {
       (set_param_bind(
            param_binds,

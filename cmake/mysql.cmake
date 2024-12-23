@@ -23,6 +23,13 @@ ELSEIF (APPLE)
   /opt/homebrew/include/mysql
   /opt/homebrew/opt/mysql@8.0/include
   /opt/homebrew/Cellar/mysql@8.0/*/include/mysql)
+ELSE (WIN32)
+  FIND_PATH(MYSQL_INCLUDE_DIR mysql.h
+  /opt/homebrew/Cellar/mysql@8.0/*/include/mysql
+  /opt/homebrew/opt/mysql@8.0/include
+  /opt/homebrew/include/mysql
+  /usr/local/include/mysql
+  /usr/include/mysql)
 ENDIF()
 
 SET(MYSQL_NAMES mysqlclient)
@@ -42,6 +49,15 @@ ELSEIF (APPLE)
   FIND_LIBRARY(MYSQL_LIBRARY
     NAMES ${MYSQL_NAMES}
     PATHS /opt/homebrew/lib
+    /opt/homebrew/opt/mysql@8.0/lib
+    /opt/homebrew/Cellar/mysql@8.0/*/lib
+    PATH_SUFFIXES mysql)
+ELSE (WIN32)
+  FIND_LIBRARY(MYSQL_LIBRARY
+    NAMES ${MYSQL_NAMES}
+    PATHS /usr/lib 
+    /usr/local/lib
+    /opt/homebrew/lib
     /opt/homebrew/opt/mysql@8.0/lib
     /opt/homebrew/Cellar/mysql@8.0/*/lib
     PATH_SUFFIXES mysql)

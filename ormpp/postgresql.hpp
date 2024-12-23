@@ -298,7 +298,6 @@ class postgresql {
       const Arg &s, Args &&...args) {
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
-
     std::string sql = s;
     constexpr auto Args_Size = sizeof...(Args);
     if (Args_Size != 0) {
@@ -449,8 +448,8 @@ class postgresql {
       bool has_add_field = false;
       for_each0(
           tp,
-          [&sql, &i, &has_add_field, &unique_fields, field_name, name, this](
-              auto item, auto I) {
+          [&sql, &i, &has_add_field, &unique_fields, field_name, name,
+           this](auto item) {
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null> ||
                           std::is_same_v<decltype(item), ormpp_unique>) {
               if (item.fields.find(field_name.data()) == item.fields.end())
@@ -522,8 +521,8 @@ class postgresql {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    res_ =
-        PQprepare(con_, "", sql.data(), (int)iguana::get_value<T>(), nullptr);
+    res_ = PQprepare(con_, "", sql.data(), ylt::reflection::members_count_v<T>,
+                     nullptr);
     auto guard = guard_statment(res_);
     return PQresultStatus(res_) == PGRES_COMMAND_OK;
   }
@@ -532,7 +531,7 @@ class postgresql {
   std::optional<uint64_t> stmt_execute(const T &t, OptType type,
                                        Args &&...args) {
     std::vector<std::vector<char>> param_values;
-    constexpr auto arr = iguana::indexs_of<members...>();
+    constexpr auto arr = indexs_of<members...>();
     if constexpr (sizeof...(members) > 0) {
       (set_param_values(
            param_values,

@@ -292,7 +292,6 @@ class sqlite {
       const Arg &s, Args &&...args) {
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
-
     std::string sql = s;
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
