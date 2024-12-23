@@ -414,7 +414,7 @@ class mysql {
       ylt::reflection::for_each(t, [nulls](auto &field, auto /*name*/,
                                            auto index) {
         if (nulls.at(index)) {
-          using U = ylt::reflection::remove_cvref_t<T>;
+          using U = ylt::reflection::remove_cvref_t<decltype(field)>;
           if constexpr (is_optional_v<U>::value || std::is_arithmetic_v<U>) {
             field = {};
           }
@@ -481,7 +481,6 @@ class mysql {
                 });
           }
           else {
-            set_param_bind(param_binds[index], item, index, mp, nulls[index]);
             set_param_bind(param_binds[index], item, index, mp, nulls[index]);
             index++;
           }
