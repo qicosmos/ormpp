@@ -94,28 +94,6 @@ struct is_optional_v : std::false_type {};
 template <typename T>
 struct is_optional_v<std::optional<T>> : std::true_type {};
 
-template <typename... Args>
-struct value_of;
-
-template <typename T>
-struct value_of<T> {
-  static const auto value = (iguana::get_value<T>());
-};
-
-template <typename T, typename... Rest>
-struct value_of<T, Rest...> {
-  static const auto value = (value_of<T>::value + value_of<Rest...>::value);
-};
-
-template <typename List>
-struct result_size;
-
-template <template <class...> class List, class... T>
-struct result_size<List<T...>> {
-  constexpr static const size_t value =
-      value_of<T...>::value;  // (iguana::get_value<T>() + ...);
-};
-
 template <typename T>
 inline void append_impl(std::string &sql, const T &str) {
   if constexpr (std::is_same_v<std::string, T> ||
@@ -454,16 +432,6 @@ inline std::string generate_delete_sql(Args &&...where_conditon) {
       append(sql, "where", std::forward<Args>(where_conditon)...);
   }
   return sql;
-}
-
-template <typename T>
-inline bool has_key(const std::string &s) {
-  auto arr = iguana::get_array<T>();
-  for (size_t i = 0; i < arr.size(); ++i) {
-    if (s.find(arr[i].data()) != std::string::npos)
-      return true;
-  }
-  return false;
 }
 
 inline void get_sql_conditions(std::string &) {}
