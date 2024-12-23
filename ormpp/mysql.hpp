@@ -478,6 +478,7 @@ class mysql {
           }
           else {
             set_param_bind(param_binds[index], item, index, mp, nulls[index]);
+            set_param_bind(param_binds[index], item, index, mp, nulls[index]);
             index++;
           }
         },
