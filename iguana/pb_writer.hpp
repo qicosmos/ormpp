@@ -5,47 +5,46 @@
 namespace iguana {
 namespace detail {
 
-template <uint32_t key, typename V, typename It>
-IGUANA_INLINE void encode_varint_field(V val, It&& it) {
+template <uint32_t key, typename V, typename Writer>
+IGUANA_INLINE void encode_varint_field(V val, Writer& writer) {
   static_assert(std::is_integral_v<V>, "must be integral");
   if constexpr (key != 0) {
-    serialize_varint_u32_constexpr<key>(it);
+    serialize_varint_u32<key>(writer);
   }
-  serialize_varint(val, it);
+  serialize_varint(val, writer);
 }
 
-template <uint32_t key, typename V, typename It>
-IGUANA_INLINE void encode_fixed_field(V val, It&& it) {
+template <uint32_t key, typename V, typename Writer>
+IGUANA_INLINE void encode_fixed_field(V val, Writer& writer) {
   if constexpr (key != 0) {
-    serialize_varint_u32_constexpr<key>(it);
+    serialize_varint_u32<key>(writer);
   }
   constexpr size_t size = sizeof(V);
   // TODO: check Stream continuous
-  memcpy(it, &val, size);
-  it += size;
+  writer.write((const char*)&val, size);
 }
 
 template <uint32_t key, bool omit_default_val = true, typename Type,
-          typename It>
-IGUANA_INLINE void to_pb_impl(Type&& t, It&& it, uint32_t*& sz_ptr);
+          typename Writer>
+IGUANA_INLINE void to_pb_impl(Type&& t, uint32_t*& sz_ptr, Writer& writer);
 
-template <uint32_t key, typename V, typename It>
-IGUANA_INLINE void encode_pair_value(V&& val, It&& it, size_t size,
-                                     uint32_t*& sz_ptr) {
+template <uint32_t key, typename V, typename Writer>
+IGUANA_INLINE void encode_pair_value(V&& val, size_t size, uint32_t*& sz_ptr,
+                                     Writer& writer) {
   if (size == 0)
     IGUANA_UNLIKELY {
       // map keys can't be omitted even if values are empty
       // TODO: repeated ?
-      serialize_varint_u32_constexpr<key>(it);
-      serialize_varint(0, it);
+      serialize_varint_u32<key>(writer);
+      serialize_varint(0, writer);
     }
   else {
-    to_pb_impl<key, false>(val, it, sz_ptr);
+    to_pb_impl<key, false>(val, sz_ptr, writer);
   }
 }
 
-template <uint32_t key, bool omit_default_val, typename T, typename It>
-IGUANA_INLINE void encode_numeric_field(T t, It&& it) {
+template <uint32_t key, bool omit_default_val, typename T, typename Writer>
+IGUANA_INLINE void encode_numeric_field(T t, Writer& writer) {
   if constexpr (omit_default_val) {
     if constexpr (is_fixed_v<T> || is_signed_varint_v<T>) {
       if (t.val == 0) {
@@ -58,31 +57,31 @@ IGUANA_INLINE void encode_numeric_field(T t, It&& it) {
     }
   }
   if constexpr (std::is_integral_v<T>) {
-    detail::encode_varint_field<key>(t, it);
+    detail::encode_varint_field<key>(t, writer);
   }
   else if constexpr (detail::is_signed_varint_v<T>) {
-    detail::encode_varint_field<key>(encode_zigzag(t.val), it);
+    detail::encode_varint_field<key>(encode_zigzag(t.val), writer);
   }
   else if constexpr (detail::is_fixed_v<T>) {
-    detail::encode_fixed_field<key>(t.val, it);
+    detail::encode_fixed_field<key>(t.val, writer);
   }
   else if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
-    detail::encode_fixed_field<key>(t, it);
+    detail::encode_fixed_field<key>(t, writer);
   }
   else if constexpr (std::is_enum_v<T>) {
     using U = std::underlying_type_t<T>;
-    detail::encode_varint_field<key>(static_cast<U>(t), it);
+    detail::encode_varint_field<key>(static_cast<U>(t), writer);
   }
   else {
     static_assert(!sizeof(T), "unsupported type");
   }
 }
 
-template <uint32_t field_no, typename Type, typename It>
-IGUANA_INLINE void to_pb_oneof(Type&& t, It&& it, uint32_t*& sz_ptr) {
+template <uint32_t field_no, typename Type, typename Writer>
+IGUANA_INLINE void to_pb_oneof(Type&& t, uint32_t*& sz_ptr, Writer& writer) {
   using T = std::decay_t<Type>;
   std::visit(
-      [&it, &sz_ptr](auto&& value) IGUANA__INLINE_LAMBDA {
+      [&sz_ptr, &writer](auto&& value) IGUANA__INLINE_LAMBDA {
         using raw_value_type = decltype(value);
         using value_type =
             std::remove_const_t<std::remove_reference_t<decltype(value)>>;
@@ -91,48 +90,49 @@ IGUANA_INLINE void to_pb_oneof(Type&& t, It&& it, uint32_t*& sz_ptr) {
         constexpr uint32_t key =
             ((field_no + offset) << 3) |
             static_cast<uint32_t>(get_wire_type<value_type>());
-        to_pb_impl<key, false>(std::forward<raw_value_type>(value), it, sz_ptr);
+        to_pb_impl<key, false>(std::forward<raw_value_type>(value), sz_ptr,
+                               writer);
       },
       std::forward<Type>(t));
 }
 
 // omit_default_val = true indicates to omit the default value in searlization
-template <uint32_t key, bool omit_default_val, typename Type, typename It>
-IGUANA_INLINE void to_pb_impl(Type&& t, It&& it, uint32_t*& sz_ptr) {
+template <uint32_t key, bool omit_default_val, typename Type, typename Writer>
+IGUANA_INLINE void to_pb_impl(Type&& t, uint32_t*& sz_ptr, Writer& writer) {
   using T = std::remove_const_t<std::remove_reference_t<Type>>;
-  if constexpr (is_reflection_v<T> || is_custom_reflection_v<T>) {
+  if constexpr (ylt_refletable_v<T> || is_custom_reflection_v<T>) {
     // can't be omitted even if values are empty
     if constexpr (key != 0) {
       auto len = pb_value_size(t, sz_ptr);
-      serialize_varint_u32_constexpr<key>(it);
-      serialize_varint(len, it);
+      serialize_varint_u32<key>(writer);
+      serialize_varint(len, writer);
       if (len == 0)
         IGUANA_UNLIKELY { return; }
     }
-    static constexpr auto tuple = get_members_tuple<T>();
+    static auto tuple = get_pb_members_tuple(std::forward<Type>(t));
     constexpr size_t SIZE = std::tuple_size_v<std::decay_t<decltype(tuple)>>;
     for_each_n(
-        [&t, &it, &sz_ptr](auto i) IGUANA__INLINE_LAMBDA {
+        [&t, &sz_ptr, &writer](auto i) IGUANA__INLINE_LAMBDA {
           using field_type =
               std::tuple_element_t<decltype(i)::value,
                                    std::decay_t<decltype(tuple)>>;
-          constexpr auto value = std::get<decltype(i)::value>(tuple);
+          auto value = std::get<decltype(i)::value>(tuple);
           auto& val = value.value(t);
 
           using U = typename field_type::value_type;
+          using sub_type = typename field_type::sub_type;
           if constexpr (variant_v<U>) {
             constexpr auto offset =
-                get_variant_index<U, typename field_type::sub_type,
-                                  std::variant_size_v<U> - 1>();
+                get_variant_index<U, sub_type, std::variant_size_v<U> - 1>();
             if constexpr (offset == 0) {
-              to_pb_oneof<value.field_no>(val, it, sz_ptr);
+              to_pb_oneof<value.field_no>(val, sz_ptr, writer);
             }
           }
           else {
             constexpr uint32_t sub_key =
                 (value.field_no << 3) |
                 static_cast<uint32_t>(get_wire_type<U>());
-            to_pb_impl<sub_key>(val, it, sz_ptr);
+            to_pb_impl<sub_key>(val, sz_ptr, writer);
           }
         },
         std::make_index_sequence<SIZE>{});
@@ -144,16 +144,16 @@ IGUANA_INLINE void to_pb_impl(Type&& t, It&& it, uint32_t*& sz_ptr) {
     if constexpr (is_lenprefix_v<item_type>) {
       // non-packed
       for (auto& item : t) {
-        to_pb_impl<key, false>(item, it, sz_ptr);
+        to_pb_impl<key, false>(item, sz_ptr, writer);
       }
     }
     else {
       if (t.empty())
         IGUANA_UNLIKELY { return; }
-      serialize_varint_u32_constexpr<key>(it);
-      serialize_varint(pb_value_size(t, sz_ptr), it);
+      serialize_varint_u32<key>(writer);
+      serialize_varint(pb_value_size(t, sz_ptr), writer);
       for (auto& item : t) {
-        encode_numeric_field<false, 0>(item, it);
+        encode_numeric_field<false, 0>(item, writer);
       }
     }
   }
@@ -168,7 +168,7 @@ IGUANA_INLINE void to_pb_impl(Type&& t, It&& it, uint32_t*& sz_ptr) {
     constexpr auto key2_size = variant_uint32_size_constexpr(key2);
 
     for (auto& [k, v] : t) {
-      serialize_varint_u32_constexpr<key>(it);
+      serialize_varint_u32<key>(writer);
       // k must be string or numeric
       auto k_val_len = str_numeric_size<0, false>(k);
       auto v_val_len = pb_value_size<false>(v, sz_ptr);
@@ -179,17 +179,17 @@ IGUANA_INLINE void to_pb_impl(Type&& t, It&& it, uint32_t*& sz_ptr) {
       if constexpr (is_lenprefix_v<second_type>) {
         pair_len += variant_uint32_size(v_val_len);
       }
-      serialize_varint(pair_len, it);
+      serialize_varint(pair_len, writer);
       // map k and v can't be omitted even if values are empty
-      encode_pair_value<key1>(k, it, k_val_len, sz_ptr);
-      encode_pair_value<key2>(v, it, v_val_len, sz_ptr);
+      encode_pair_value<key1>(k, k_val_len, sz_ptr, writer);
+      encode_pair_value<key2>(v, v_val_len, sz_ptr, writer);
     }
   }
   else if constexpr (optional_v<T>) {
     if (!t.has_value()) {
       return;
     }
-    to_pb_impl<key, omit_default_val>(*t, it, sz_ptr);
+    to_pb_impl<key, omit_default_val>(*t, sz_ptr, writer);
   }
   else if constexpr (std::is_same_v<T, std::string> ||
                      std::is_same_v<T, std::string_view>) {
@@ -197,13 +197,12 @@ IGUANA_INLINE void to_pb_impl(Type&& t, It&& it, uint32_t*& sz_ptr) {
       if (t.size() == 0)
         IGUANA_UNLIKELY { return; }
     }
-    serialize_varint_u32_constexpr<key>(it);
-    serialize_varint(t.size(), it);
-    memcpy(it, t.data(), t.size());
-    it += t.size();
+    serialize_varint_u32<key>(writer);
+    serialize_varint(t.size(), writer);
+    writer.write(t.data(), t.size());
   }
   else {
-    encode_numeric_field<key, omit_default_val>(t, it);
+    encode_numeric_field<key, omit_default_val>(t, writer);
   }
 }
 
@@ -231,6 +230,24 @@ IGUANA_INLINE constexpr std::string_view get_type_string() {
         return "int64";
       }
     }
+  }
+  else if constexpr (std::is_same_v<T, iguana::sint32_t>) {
+    return "sint32";
+  }
+  else if constexpr (std::is_same_v<T, iguana::sint64_t>) {
+    return "sint64";
+  }
+  else if constexpr (std::is_same_v<T, iguana::fixed32_t>) {
+    return "fixed32";
+  }
+  else if constexpr (std::is_same_v<T, iguana::fixed64_t>) {
+    return "fixed64";
+  }
+  else if constexpr (std::is_same_v<T, iguana::sfixed32_t>) {
+    return "sfixed32";
+  }
+  else if constexpr (std::is_same_v<T, iguana::sfixed64_t>) {
+    return "sfixed64";
   }
   else if constexpr (std::is_same_v<T, std::string> ||
                      std::is_same_v<T, std::string_view>) {
@@ -297,10 +314,11 @@ IGUANA_INLINE void to_proto_impl(
     std::string_view field_name = "", uint32_t field_no = 0) {
   std::string sub_str;
   using T = std::remove_const_t<std::remove_reference_t<Type>>;
-  if constexpr (is_reflection_v<T> || is_custom_reflection_v<T>) {
-    constexpr auto name = get_name<T>();
+  if constexpr (ylt_refletable_v<T> || is_custom_reflection_v<T>) {
+    constexpr auto name = type_string<T>();
     out.append("message ").append(name).append(" {\n");
-    static constexpr auto tuple = get_members_tuple<T>();
+    static T t;
+    static auto tuple = get_pb_members_tuple(t);
     constexpr size_t SIZE = std::tuple_size_v<std::decay_t<decltype(tuple)>>;
 
     for_each_n(
@@ -308,10 +326,11 @@ IGUANA_INLINE void to_proto_impl(
           using field_type =
               std::tuple_element_t<decltype(i)::value,
                                    std::decay_t<decltype(tuple)>>;
-          constexpr auto value = std::get<decltype(i)::value>(tuple);
+          auto value = std::get<decltype(i)::value>(tuple);
 
           using U = typename field_type::value_type;
-          if constexpr (is_reflection_v<U>) {
+          using sub_type = typename field_type::sub_type;
+          if constexpr (ylt_refletable_v<U>) {
             constexpr auto str_type = get_type_string<U>();
             build_proto_field(
                 out, str_type,
@@ -322,7 +341,6 @@ IGUANA_INLINE void to_proto_impl(
           }
           else if constexpr (variant_v<U>) {
             constexpr size_t var_size = std::variant_size_v<U>;
-            using sub_type = typename field_type::sub_type;
 
             constexpr auto offset =
                 get_variant_index<U, sub_type, var_size - 1>();
@@ -340,7 +358,7 @@ IGUANA_INLINE void to_proto_impl(
             out.append("  ");
             build_proto_field(out, str_type, field_name, value.field_no);
 
-            if constexpr (is_reflection_v<sub_type>) {
+            if constexpr (ylt_refletable_v<sub_type>) {
               build_sub_proto<sub_type>(map, str_type, sub_str);
             }
 
@@ -363,7 +381,7 @@ IGUANA_INLINE void to_proto_impl(
 
     if constexpr (is_lenprefix_v<item_type>) {
       // non-packed
-      if constexpr (is_reflection_v<item_type>) {
+      if constexpr (ylt_refletable_v<item_type>) {
         constexpr auto str_type = get_type_string<item_type>();
         build_proto_field(out, str_type, field_name, field_no);
 
@@ -389,7 +407,7 @@ IGUANA_INLINE void to_proto_impl(
 
     build_proto_field<1>(out, "", field_name, field_no);
 
-    if constexpr (is_reflection_v<second_type>) {
+    if constexpr (ylt_refletable_v<second_type>) {
       constexpr auto str_type = get_type_string<second_type>();
       build_sub_proto<second_type>(map, str_type, sub_str);
     }
@@ -449,13 +467,26 @@ IGUANA_INLINE void build_sub_proto(Map& map, std::string_view str_type,
 #endif
 }  // namespace detail
 
-template <typename T, typename Stream>
+template <
+    typename T, typename Stream,
+    std::enable_if_t<ylt_refletable_v<T> || detail::is_custom_reflection_v<T>,
+                     int> = 0>
 IGUANA_INLINE void to_pb(T const& t, Stream& out) {
   std::vector<uint32_t> size_arr;
   auto byte_len = detail::pb_key_value_size<0>(t, size_arr);
-  detail::resize(out, byte_len);
   auto sz_ptr = size_arr.empty() ? nullptr : &size_arr[0];
-  detail::to_pb_impl<0>(t, &out[0], sz_ptr);
+
+  if constexpr (is_resizable_char_container_v<Stream>) {
+    detail::resize(out, byte_len);
+    memory_writer writer{out.data()};
+    detail::to_pb_impl<0>(t, sz_ptr, writer);
+  }
+  else if constexpr (char_writer<Stream>) {
+    detail::to_pb_impl<0>(t, sz_ptr, out);
+  }
+  else {
+    static_assert(!sizeof(Stream), "Invalid stream type");
+  }
 }
 
 #if defined(__clang__) || defined(_MSC_VER) || \

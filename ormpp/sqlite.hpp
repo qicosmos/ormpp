@@ -150,7 +150,7 @@ class sqlite {
   }
 
   template <typename T, typename... Args>
-  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query_s(
+  std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &str, Args &&...args) {
     std::string sql = generate_query_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
@@ -180,9 +180,10 @@ class sqlite {
         break;
 
       T t = {};
-      iguana::for_each(t, [this, &t](auto item, auto I) {
-        assign(t.*item, (int)decltype(I)::value);
-      });
+      ylt::reflection::for_each(t,
+                                [this](auto &field, auto /*name*/, auto index) {
+                                  assign(field, index);
+                                });
 
       v.push_back(std::move(t));
     }
@@ -191,7 +192,7 @@ class sqlite {
   }
 
   template <typename T, typename... Args>
-  std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query_s(
+  std::enable_if_t<iguana::non_ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &sql, Args &&...args) {
     static_assert(iguana::is_tuple<T>::value);
 #ifdef ORMPP_ENABLE_LOG
@@ -221,17 +222,18 @@ class sqlite {
         break;
 
       T tp = {};
-      int index = 0;
-      iguana::for_each(
+      size_t index = 0;
+      ormpp::for_each(
           tp,
-          [this, &index](auto &item, auto /*I*/) {
-            using U =
-                std::remove_const_t<std::remove_reference_t<decltype(item)>>;
-            if constexpr (iguana::is_reflection_v<U>) {
+          [this, &index](auto &item, auto /*index*/) {
+            using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+            if constexpr (iguana::ylt_refletable_v<U>) {
               U t = {};
-              iguana::for_each(t, [this, &index, &t](auto ele, auto /*i*/) {
-                assign(t.*ele, index++);
-              });
+              ylt::reflection::for_each(
+                  t,
+                  [this, &index](auto &field, auto /*name*/, auto /*index*/) {
+                    assign(field, index++);
+                  });
               item = std::move(t);
             }
             else {
@@ -250,7 +252,7 @@ class sqlite {
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
   template <typename T, typename... Args>
-  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
+  std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query(
       Args &&...args) {
     std::string sql = generate_query_sql<T>(args...);
 #ifdef ORMPP_ENABLE_LOG
@@ -275,10 +277,10 @@ class sqlite {
         break;
 
       T t = {};
-      iguana::for_each(t, [this, &t](auto item, auto I) {
-        assign(t.*item, (int)decltype(I)::value);
-      });
-
+      ylt::reflection::for_each(t,
+                                [this](auto &field, auto /*name*/, auto index) {
+                                  assign(field, index);
+                                });
       v.push_back(std::move(t));
     }
 
@@ -286,7 +288,7 @@ class sqlite {
   }
 
   template <typename T, typename Arg, typename... Args>
-  std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(
+  std::enable_if_t<iguana::non_ylt_refletable_v<T>, std::vector<T>> query(
       const Arg &s, Args &&...args) {
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
@@ -322,17 +324,18 @@ class sqlite {
         break;
 
       T tp = {};
-      int index = 0;
-      iguana::for_each(
+      size_t index = 0;
+      ormpp::for_each(
           tp,
-          [this, &index](auto &item, auto /*I*/) {
-            using U =
-                std::remove_const_t<std::remove_reference_t<decltype(item)>>;
-            if constexpr (iguana::is_reflection_v<U>) {
+          [this, &index](auto &item, auto /*index*/) {
+            using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+            if constexpr (iguana::ylt_refletable_v<U>) {
               U t = {};
-              iguana::for_each(t, [this, &index, &t](auto ele, auto /*i*/) {
-                assign(t.*ele, index++);
-              });
+              ylt::reflection::for_each(
+                  t,
+                  [this, &index](auto &field, auto /*name*/, auto /*index*/) {
+                    assign(field, index++);
+                  });
               item = std::move(t);
             }
             else {
@@ -404,12 +407,12 @@ class sqlite {
  private:
   template <typename T, typename... Args>
   std::string generate_createtb_sql(Args &&...args) {
-    const auto type_name_arr = get_type_names<T>(DBType::sqlite);
-    auto name = get_name<T>();
+    static const auto type_name_arr = get_type_names<T>(DBType::sqlite);
+    auto arr = ylt::reflection::get_member_names<T>();
+    constexpr auto SIZE = sizeof...(Args);
+    auto name = get_struct_name<T>();
     std::string sql =
         std::string("CREATE TABLE IF NOT EXISTS ") + name.data() + "(";
-    auto arr = iguana::get_array<T>();
-    constexpr auto SIZE = sizeof...(Args);
 
     // auto_increment_key and key can't exist at the same time
     using U = std::tuple<std::decay_t<Args>...>;
@@ -429,8 +432,8 @@ class sqlite {
       bool has_add_field = false;
       for_each0(
           tp,
-          [&sql, &i, &has_add_field, &unique_fields, field_name, type_name_arr,
-           name, this](auto item) {
+          [&sql, &i, &has_add_field, &unique_fields, field_name, name,
+           this](auto item) {
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null> ||
                           std::is_same_v<decltype(item), ormpp_unique>) {
               if (item.fields.find(field_name.data()) == item.fields.end())
@@ -497,33 +500,35 @@ class sqlite {
     size_t index = 0;
     bool bind_ok = true;
     if constexpr (sizeof...(members) > 0) {
-      ((bind_ok && (bind_ok = set_param_bind(
-                        iguana::get<iguana::index_of<members>()>(t), ++index)),
+      ((bind_ok &&
+            (bind_ok = set_param_bind(
+                 ylt::reflection::get<ylt::reflection::index_of<members>()>(t),
+                 ++index)),
         true),
        ...);
     }
     else {
-      iguana::for_each(t,
-                       [&t, &bind_ok, &index, type, this](auto item, auto i) {
-                         if ((type == OptType::insert &&
-                              is_auto_key<T>(iguana::get_name<T>(i).data())) ||
-                             !bind_ok) {
-                           return;
-                         }
-                         bind_ok = set_param_bind(t.*item, ++index);
-                       });
+      ylt::reflection::for_each(t, [&bind_ok, &index, type, this](
+                                       auto &field, auto name, auto /*index*/) {
+        if ((type == OptType::insert && is_auto_key<T>(name)) || !bind_ok) {
+          return;
+        }
+        bind_ok = set_param_bind(field, ++index);
+      });
     }
 
     if constexpr (sizeof...(Args) == 0) {
       if (type == OptType::update) {
-        iguana::for_each(t, [&t, &bind_ok, &index, this](auto item, auto i) {
-          if (!bind_ok) {
-            return;
-          }
-          if (is_conflict_key<T>(iguana::get_name<T>(i).data())) {
-            bind_ok = set_param_bind(t.*item, ++index);
-          }
-        });
+        ylt::reflection::for_each(
+            t,
+            [&bind_ok, &index, this](auto &field, auto name, auto /*index*/) {
+              if (!bind_ok) {
+                return;
+              }
+              if (is_conflict_key<T>(name)) {
+                bind_ok = set_param_bind(field, ++index);
+              }
+            });
       }
     }
 
@@ -547,7 +552,7 @@ class sqlite {
 
   template <typename T>
   bool set_param_bind(T &&value, int i) {
-    using U = std::remove_const_t<std::remove_reference_t<T>>;
+    using U = ylt::reflection::remove_cvref_t<T>;
     if constexpr (is_optional_v<U>::value) {
       if (value.has_value()) {
         return set_param_bind(std::move(value.value()), i);
@@ -595,7 +600,7 @@ class sqlite {
 
   template <typename T>
   void assign(T &&value, int i) {
-    using U = std::remove_const_t<std::remove_reference_t<T>>;
+    using U = ylt::reflection::remove_cvref_t<T>;
     if (sqlite3_column_type(stmt_, i) == SQLITE_NULL) {
       value = U{};
       return;
@@ -664,17 +669,17 @@ class sqlite {
 
   template <auto... members, typename T, typename... Args>
   int update_impl(const T &t, Args &&...args) {
-    auto sql = generate_update_sql<T, members...>(std::forward<Args>(args)...);
-    auto res = insert_or_update_impl<members...>(t, sql, OptType::update, false,
-                                                 std::forward<Args>(args)...);
+    auto res = insert_or_update_impl<members...>(
+        t, generate_update_sql<T, members...>(std::forward<Args>(args)...),
+        OptType::update, false, std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
 
   template <auto... members, typename T, typename... Args>
   int update_impl(const std::vector<T> &v, Args &&...args) {
-    auto sql = generate_update_sql<T, members...>(std::forward<Args>(args)...);
-    auto res = insert_or_update_impl<members...>(v, sql, OptType::update, false,
-                                                 std::forward<Args>(args)...);
+    auto res = insert_or_update_impl<members...>(
+        v, generate_update_sql<T, members...>(std::forward<Args>(args)...),
+        OptType::update, false, std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
 

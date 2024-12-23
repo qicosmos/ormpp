@@ -146,8 +146,7 @@ class mysql {
   constexpr void set_param_bind(std::vector<MYSQL_BIND> &param_binds,
                                 T &&value) {
     MYSQL_BIND param = {};
-
-    using U = std::remove_const_t<std::remove_reference_t<T>>;
+    using U = ylt::reflection::remove_cvref_t<T>;
     if constexpr (is_optional_v<U>::value) {
       if (value.has_value()) {
         return set_param_bind(param_binds, std::move(value.value()));
@@ -207,7 +206,7 @@ class mysql {
   template <typename T, typename B>
   void set_param_bind(MYSQL_BIND &param_bind, T &&value, int i,
                       std::map<size_t, std::vector<char>> &mp, B &is_null) {
-    using U = std::remove_const_t<std::remove_reference_t<T>>;
+    using U = ylt::reflection::remove_cvref_t<T>;
     if constexpr (is_optional_v<U>::value) {
       return set_param_bind(param_bind, *value, i, mp, is_null);
     }
@@ -264,7 +263,7 @@ class mysql {
   template <typename T>
   void set_value(MYSQL_BIND &param_bind, T &&value, int i,
                  std::map<size_t, std::vector<char>> &mp) {
-    using U = std::remove_const_t<std::remove_reference_t<T>>;
+    using U = ylt::reflection::remove_cvref_t<T>;
     if constexpr (is_optional_v<U>::value) {
       using value_type = typename U::value_type;
       if constexpr (std::is_arithmetic_v<value_type>) {
@@ -340,7 +339,7 @@ class mysql {
   }
 
   template <typename T, typename... Args>
-  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query_s(
+  std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &str, Args &&...args) {
     std::string sql = generate_query_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
@@ -362,7 +361,6 @@ class mysql {
     }
 
     if constexpr (sizeof...(Args) > 0) {
-      size_t index = 0;
       std::vector<MYSQL_BIND> param_binds;
       (set_param_bind(param_binds, args), ...);
       if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
@@ -375,15 +373,15 @@ class mysql {
     std::array<MYSQL_BIND, SIZE> param_binds = {};
     std::map<size_t, std::vector<char>> mp;
 
-    std::vector<T> v;
     T t{};
-
-    int index = 0;
-    iguana::for_each(t, [&param_binds, &index, &nulls, &mp, &t, this](
-                            auto item, auto /*i*/) {
-      set_param_bind(param_binds[index], t.*item, index, mp, nulls[index]);
-      index++;
-    });
+    size_t index = 0;
+    std::vector<T> v;
+    ylt::reflection::for_each(
+        t, [&param_binds, &index, &nulls, &mp, this](auto &field, auto /*name*/,
+                                                     auto /*index*/) {
+          set_param_bind(param_binds[index], field, index, mp, nulls[index]);
+          index++;
+        });
 
     if (index == 0) {
       return {};
@@ -400,22 +398,21 @@ class mysql {
     }
 
     while (mysql_stmt_fetch(stmt_) == 0) {
-      iguana::for_each(t, [&param_binds, &mp, &t, this](auto item, auto i) {
-        constexpr auto Idx = decltype(i)::value;
-        set_value(param_binds.at(Idx), t.*item, Idx, mp);
-      });
+      ylt::reflection::for_each(
+          t, [&param_binds, &mp, this](auto &field, auto /*name*/, auto index) {
+            set_value(param_binds.at(index), field, index, mp);
+          });
 
       for (auto &p : mp) {
         p.second.assign(p.second.size(), 0);
       }
 
-      iguana::for_each(t, [nulls, &t](auto item, auto i) {
-        constexpr auto Idx = decltype(i)::value;
-        if (nulls.at(Idx)) {
-          using U = std::remove_const_t<
-              std::remove_reference_t<decltype(std::declval<T>().*item)>>;
+      ylt::reflection::for_each(t, [nulls](auto &field, auto /*name*/,
+                                           auto index) {
+        if (nulls.at(index)) {
+          using U = ylt::reflection::remove_cvref_t<T>;
           if constexpr (is_optional_v<U>::value || std::is_arithmetic_v<U>) {
-            t.*item = {};
+            field = {};
           }
         }
       });
@@ -427,7 +424,7 @@ class mysql {
   }
 
   template <typename T, typename... Args>
-  std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query_s(
+  std::enable_if_t<iguana::non_ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &sql, Args &&...args) {
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
@@ -463,25 +460,24 @@ class mysql {
     std::array<MYSQL_BIND, result_size<T>::value> param_binds = {};
     std::map<size_t, std::vector<char>> mp;
 
-    std::vector<T> v;
     T tp{};
-
-    int index = 0;
-    iguana::for_each(
+    size_t index = 0;
+    std::vector<T> v;
+    ormpp::for_each(
         tp,
-        [&param_binds, &index, &nulls, &mp, &tp, this](auto &t, auto /*i*/) {
-          using U =
-              std::remove_const_t<std::remove_reference_t<decltype(item)>>;
-          if constexpr (iguana::is_reflection_v<U>) {
-            iguana::for_each(t, [&param_binds, &index, &nulls, &mp, &t, this](
-                                    auto &item, auto /*i*/) {
-              set_param_bind(param_binds[index], t.*item, index, mp,
-                             nulls[index]);
-              index++;
-            });
+        [&param_binds, &index, &nulls, &mp, this](auto &item, auto /*index*/) {
+          using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+          if constexpr (iguana::ylt_refletable_v<U>) {
+            ylt::reflection::for_each(
+                item, [&param_binds, &index, &nulls, &mp, this](
+                          auto &field, auto /*name*/, auto /*index*/) {
+                  set_param_bind(param_binds[index], field, index, mp,
+                                 nulls[index]);
+                  index++;
+                });
           }
           else {
-            set_param_bind(param_binds[index], t, index, mp, nulls[index]);
+            set_param_bind(param_binds[index], item, index, mp, nulls[index]);
             index++;
           }
         },
@@ -503,20 +499,20 @@ class mysql {
 
     while (mysql_stmt_fetch(stmt_) == 0) {
       index = 0;
-      iguana::for_each(
+      ormpp::for_each(
           tp,
-          [&param_binds, &index, &mp, &tp, this](auto &t, auto /*i*/) {
-            using U =
-                std::remove_const_t<std::remove_reference_t<decltype(item)>>;
-            if constexpr (iguana::is_reflection_v<U>) {
-              iguana::for_each(t, [&param_binds, &index, &mp, &t, this](
-                                      auto ele, auto /*i*/) {
-                set_value(param_binds.at(index), t.*ele, index, mp);
-                index++;
-              });
+          [&param_binds, &index, &mp, this](auto &item, auto /*index*/) {
+            using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+            if constexpr (iguana::ylt_refletable_v<U>) {
+              ylt::reflection::for_each(
+                  item, [&param_binds, &index, &mp, &t, this](
+                            auto &field, auto /*name*/, auto /*index*/) {
+                    set_value(param_binds.at(index), field, index, mp);
+                    index++;
+                  });
             }
             else {
-              set_value(param_binds.at(index), t, index, mp);
+              set_value(param_binds.at(index), item, index, mp);
               index++;
             }
           },
@@ -527,19 +523,19 @@ class mysql {
       }
 
       index = 0;
-      iguana::for_each(
+      ormpp::for_each(
           tp,
-          [&index, nulls, &tp](auto &t, auto /*i*/) {
-            using U =
-                std::remove_const_t<std::remove_reference_t<decltype(item)>>;
-            if constexpr (iguana::is_reflection_v<U>) {
-              iguana::for_each(t, [&index, nulls, &t](auto ele, auto /*i*/) {
+          [&index, nulls](auto &item, auto /*index*/) {
+            using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+            if constexpr (iguana::ylt_refletable_v<U>) {
+              ylt::reflection::for_each(item, [&index, nulls, &t](
+                                                  auto &field, auto /*name*/,
+                                                  auto /*index*/) {
                 if (nulls.at(index++)) {
-                  using W = std::remove_const_t<std::remove_reference_t<
-                      decltype(std::declval<U>().*ele)>>;
+                  using W = ylt::reflection::remove_cvref_t<decltype(field)>;
                   if constexpr (is_optional_v<W>::value ||
                                 std::is_arithmetic_v<W>) {
-                    t.*ele = {};
+                    field = {};
                   }
                 }
               });
@@ -548,7 +544,7 @@ class mysql {
               if (nulls.at(index++)) {
                 if constexpr (is_optional_v<U>::value ||
                               std::is_arithmetic_v<U>) {
-                  t = {};
+                  item = {};
                 }
               }
             }
@@ -563,7 +559,7 @@ class mysql {
 
   // if there is a sql error, how to tell the user? throw exception?
   template <typename T, typename... Args>
-  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
+  std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query(
       Args &&...args) {
     std::string sql = generate_query_sql<T>(args...);
 #ifdef ORMPP_ENABLE_LOG
@@ -588,15 +584,15 @@ class mysql {
     std::array<MYSQL_BIND, SIZE> param_binds = {};
     std::map<size_t, std::vector<char>> mp;
 
-    std::vector<T> v;
     T t{};
-
-    int index = 0;
-    iguana::for_each(t, [&param_binds, &index, &nulls, &mp, &t, this](
-                            auto item, auto /*i*/) {
-      set_param_bind(param_binds[index], t.*item, index, mp, nulls[index]);
-      index++;
-    });
+    size_t index = 0;
+    std::vector<T> v;
+    ylt::reflection::for_each(
+        t, [&param_binds, &index, &nulls, &mp, this](auto &field, auto /*name*/,
+                                                     auto /*index*/) {
+          set_param_bind(param_binds[index], field, index, mp, nulls[index]);
+          index++;
+        });
 
     if (index == 0) {
       return {};
@@ -613,21 +609,21 @@ class mysql {
     }
 
     while (mysql_stmt_fetch(stmt_) == 0) {
-      iguana::for_each(t, [&param_binds, &mp, &t, this](auto item, auto i) {
-        constexpr auto Idx = decltype(i)::value;
-        set_value(param_binds.at(Idx), t.*item, Idx, mp);
-      });
+      ylt::reflection::for_each(
+          t, [&param_binds, &mp, this](auto &field, auto /*name*/, auto index) {
+            set_value(param_binds.at(index), field, index, mp);
+          });
 
       for (auto &p : mp) {
         p.second.assign(p.second.size(), 0);
       }
 
-      iguana::for_each(t, [nulls, &t](auto item, auto i) {
-        constexpr auto Idx = decltype(i)::value;
-        if (nulls.at(Idx)) {
-          using U = std::remove_reference_t<decltype(std::declval<T>().*item)>;
+      ylt::reflection::for_each(t, [nulls](auto &field, auto /*name*/,
+                                           auto index) {
+        if (nulls.at(index)) {
+          using U = std::remove_reference_t<decltype(field)>;
           if constexpr (is_optional_v<U>::value || std::is_arithmetic_v<U>) {
-            t.*item = {};
+            field = {};
           }
         }
       });
@@ -640,7 +636,7 @@ class mysql {
 
   // for tuple and string with args...
   template <typename T, typename Arg, typename... Args>
-  std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(
+  std::enable_if_t<iguana::non_ylt_refletable_v<T>, std::vector<T>> query(
       const Arg &s, Args &&...args) {
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
@@ -678,24 +674,24 @@ class mysql {
     std::array<MYSQL_BIND, result_size<T>::value> param_binds = {};
     std::map<size_t, std::vector<char>> mp;
 
-    std::vector<T> v;
     T tp{};
-
-    int index = 0;
-    iguana::for_each(
+    size_t index = 0;
+    std::vector<T> v;
+    ormpp::for_each(
         tp,
-        [&param_binds, &index, &nulls, &mp, &tp, this](auto &t, auto /*i*/) {
-          using U = std::remove_const_t<std::remove_reference_t<decltype(t)>>;
-          if constexpr (iguana::is_reflection_v<U>) {
-            iguana::for_each(t, [&param_binds, &index, &nulls, &mp, &t, this](
-                                    auto &item, auto /*i*/) {
-              set_param_bind(param_binds[index], t.*item, index, mp,
-                             nulls[index]);
-              index++;
-            });
+        [&param_binds, &index, &nulls, &mp, this](auto &item, auto /*index*/) {
+          using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+          if constexpr (iguana::ylt_refletable_v<U>) {
+            ylt::reflection::for_each(
+                item, [&param_binds, &index, &nulls, &mp, this](
+                          auto &field, auto /*name*/, auto /*index*/) {
+                  set_param_bind(param_binds[index], field, index, mp,
+                                 nulls[index]);
+                  index++;
+                });
           }
           else {
-            set_param_bind(param_binds[index], t, index, mp, nulls[index]);
+            set_param_bind(param_binds[index], item, index, mp, nulls[index]);
             index++;
           }
         },
@@ -717,19 +713,20 @@ class mysql {
 
     while (mysql_stmt_fetch(stmt_) == 0) {
       index = 0;
-      iguana::for_each(
+      ormpp::for_each(
           tp,
-          [&param_binds, &index, &mp, &tp, this](auto &t, auto /*i*/) {
-            using U = std::remove_const_t<std::remove_reference_t<decltype(t)>>;
-            if constexpr (iguana::is_reflection_v<U>) {
-              iguana::for_each(t, [&param_binds, &index, &mp, &t, this](
-                                      auto ele, auto /*i*/) {
-                set_value(param_binds.at(index), t.*ele, index, mp);
-                index++;
-              });
+          [&param_binds, &index, &mp, this](auto &item, auto /*index*/) {
+            using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+            if constexpr (iguana::ylt_refletable_v<U>) {
+              ylt::reflection::for_each(
+                  item, [&param_binds, &index, &mp, this](
+                            auto &field, auto /*name*/, auto /*index*/) {
+                    set_value(param_binds.at(index), field, index, mp);
+                    index++;
+                  });
             }
             else {
-              set_value(param_binds.at(index), t, index, mp);
+              set_value(param_binds.at(index), item, index, mp);
               index++;
             }
           },
@@ -740,27 +737,28 @@ class mysql {
       }
 
       index = 0;
-      iguana::for_each(
+      ormpp::for_each(
           tp,
-          [&index, nulls, &tp](auto &t, auto /*i*/) {
-            using U = std::remove_const_t<std::remove_reference_t<decltype(t)>>;
-            if constexpr (iguana::is_reflection_v<U>) {
-              iguana::for_each(t, [&index, nulls, &t](auto ele, auto /*i*/) {
-                if (nulls.at(index++)) {
-                  using W =
-                      std::remove_reference_t<decltype(std::declval<U>().*ele)>;
-                  if constexpr (is_optional_v<W>::value ||
-                                std::is_arithmetic_v<W>) {
-                    t.*ele = {};
-                  }
-                }
-              });
+          [&index, nulls](auto &item, auto /*index*/) {
+            using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+            if constexpr (iguana::ylt_refletable_v<U>) {
+              ylt::reflection::for_each(
+                  item,
+                  [&index, nulls](auto &field, auto /*name*/, auto /*index*/) {
+                    if (nulls.at(index++)) {
+                      using W = std::remove_reference_t<decltype(field)>;
+                      if constexpr (is_optional_v<W>::value ||
+                                    std::is_arithmetic_v<W>) {
+                        field = {};
+                      }
+                    }
+                  });
             }
             else {
               if (nulls.at(index++)) {
                 if constexpr (is_optional_v<U>::value ||
                               std::is_arithmetic_v<U>) {
-                  t = {};
+                  item = {};
                 }
               }
             }
@@ -846,12 +844,12 @@ class mysql {
  private:
   template <typename T, typename... Args>
   std::string generate_createtb_sql(Args &&...args) {
-    const auto type_name_arr = get_type_names<T>(DBType::mysql);
-    auto name = get_name<T>();
+    static const auto type_name_arr = get_type_names<T>(DBType::mysql);
+    auto arr = ylt::reflection::get_member_names<T>();
+    constexpr auto SIZE = sizeof...(Args);
+    auto name = get_struct_name<T>();
     std::string sql =
         std::string("CREATE TABLE IF NOT EXISTS ") + name.data() + "(";
-    auto arr = iguana::get_array<T>();
-    constexpr auto SIZE = sizeof...(Args);
 
     // auto_increment_key and key can't exist at the same time
     using U = std::tuple<std::decay_t<Args>...>;
@@ -870,8 +868,8 @@ class mysql {
       bool has_add_field = false;
       for_each0(
           tp,
-          [&sql, &i, &has_add_field, &unique_fields, field_name, type_name_arr,
-           name, this](auto item) {
+          [&sql, &i, &has_add_field, &unique_fields, field_name, name,
+           this](auto item) {
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null> ||
                           std::is_same_v<decltype(item), ormpp_unique>) {
               if (item.fields.find(field_name.data()) == item.fields.end())
@@ -948,39 +946,41 @@ class mysql {
     std::vector<MYSQL_BIND> param_binds;
     constexpr auto arr = iguana::indexs_of<members...>();
     if constexpr (sizeof...(members) > 0) {
-      (set_param_bind(param_binds, iguana::get<iguana::index_of<members>()>(t)),
+      (set_param_bind(
+           param_binds,
+           ylt::reflection::get<ylt::reflection::index_of<members>()>(t)),
        ...);
     }
     else {
-      iguana::for_each(t,
-                       [&t, arr, &param_binds, type, this](auto item, auto i) {
-                         if (type == OptType::insert &&
-                             is_auto_key<T>(iguana::get_name<T>(i).data())) {
-                           return;
-                         }
-                         if constexpr (sizeof...(members) > 0) {
-                           for (auto idx : arr) {
-                             if (idx == decltype(i)::value) {
-                               set_param_bind(param_binds, t.*item);
-                             }
-                           }
-                         }
-                         else {
-                           set_param_bind(param_binds, t.*item);
-                         }
-                       });
+      ylt::reflection::for_each(t, [arr, &param_binds, type, this](
+                                       auto &field, auto name, auto index) {
+        if (type == OptType::insert && is_auto_key<T>(name)) {
+          return;
+        }
+        if constexpr (sizeof...(members) > 0) {
+          for (auto idx : arr) {
+            if (idx == index) {
+              set_param_bind(param_binds, field);
+            }
+          }
+        }
+        else {
+          set_param_bind(param_binds, field);
+        }
+      });
     }
 
     if constexpr (sizeof...(Args) == 0) {
       if (type == OptType::update) {
-        iguana::for_each(t, [&t, &param_binds, this](auto item, auto i) {
-          std::string field_name = "`";
-          field_name += iguana::get_name<T>(i).data();
-          field_name += "`";
-          if (is_conflict_key<T>(field_name)) {
-            set_param_bind(param_binds, t.*item);
-          }
-        });
+        ylt::reflection::for_each(
+            t, [&param_binds, this](auto &field, auto name, auto /*index*/) {
+              std::string field_name = "`";
+              field_name += name;
+              field_name += "`";
+              if (is_conflict_key<T>(field_name)) {
+                set_param_bind(param_binds, field);
+              }
+            });
       }
     }
 
@@ -1018,17 +1018,17 @@ class mysql {
 
   template <auto... members, typename T, typename... Args>
   int update_impl(const T &t, Args &&...args) {
-    auto sql = generate_update_sql<T, members...>(std::forward<Args>(args)...);
-    auto res = insert_or_update_impl<members...>(t, sql, OptType::update, false,
-                                                 std::forward<Args>(args)...);
+    auto res = insert_or_update_impl<members...>(
+        t, generate_update_sql<T, members...>(std::forward<Args>(args)...),
+        OptType::update, false, std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
 
   template <auto... members, typename T, typename... Args>
   int update_impl(const std::vector<T> &v, Args &&...args) {
-    auto sql = generate_update_sql<T, members...>(std::forward<Args>(args)...);
-    auto res = insert_or_update_impl<members...>(v, sql, OptType::update, false,
-                                                 std::forward<Args>(args)...);
+    auto res = insert_or_update_impl<members...>(
+        v, generate_update_sql<T, members...>(std::forward<Args>(args)...),
+        OptType::update, false, std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
 

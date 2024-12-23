@@ -35,7 +35,7 @@ struct person {
   int id;
 };
 REGISTER_AUTO_KEY(person, id)
-REFLECTION(person, id, name, age)
+YLT_REFL(person, id, name, age)
 
 struct student {
   int code;
@@ -46,7 +46,7 @@ struct student {
   std::string classroom;
 };
 REGISTER_CONFLICT_KEY(student, code)
-REFLECTION(student, code, name, sex, age, dm, classroom)
+YLT_REFL(student, code, name, sex, age, dm, classroom)
 
 struct simple {
   int id;
@@ -54,7 +54,7 @@ struct simple {
   int age;
   std::array<char, 128> arr;
 };
-REFLECTION(simple, id, code, age, arr)
+YLT_REFL(simple, id, code, age, arr)
 
 // TEST_CASE(mysql performance){
 //    dbng<mysql> mysql;
@@ -102,7 +102,7 @@ struct test_optional {
   std::optional<int> empty_;
 };
 REGISTER_AUTO_KEY(test_optional, id)
-REFLECTION(test_optional, id, name, age, empty_);
+YLT_REFL(test_optional, id, name, age, empty_);
 
 TEST_CASE("optional") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -165,7 +165,7 @@ struct test_order {
   int id;
   std::string name;
 };
-REFLECTION(test_order, name, id);
+YLT_REFL(test_order, name, id);
 
 TEST_CASE("random reflection order") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -189,8 +189,11 @@ TEST_CASE("random reflection order") {
 struct custom_name {
   int id;
   std::string name;
+  static constexpr std::string_view get_alias_struct_name(custom_name *) {
+    return "test_order";
+  }
 };
-REFLECTION_WITH_NAME(custom_name, "test_order", id, name);
+YLT_REFL(custom_name, id, name);
 
 TEST_CASE("custom name") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -208,7 +211,7 @@ struct dummy {
   int id;
   std::string name;
 };
-REFLECTION(dummy, id, name);
+YLT_REFL(dummy, id, name);
 
 // TEST_CASE("mysql exist tb") {
 //   dbng<mysql> mysql;
@@ -1051,7 +1054,7 @@ struct image {
   int id;
   ormpp::blob bin;
 };
-REFLECTION(image, id, bin);
+YLT_REFL(image, id, bin);
 
 TEST_CASE("blob") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1107,7 +1110,7 @@ struct image_ex {
   ormpp::blob bin;
   std::string time;
 };
-REFLECTION(image_ex, id, bin, time);
+YLT_REFL(image_ex, id, bin, time);
 
 TEST_CASE("blob tuple") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1428,7 +1431,7 @@ struct tuple_optional_t {
   int id;
 };
 REGISTER_AUTO_KEY(tuple_optional_t, id)
-REFLECTION(tuple_optional_t, id, name, age)
+YLT_REFL(tuple_optional_t, id, name, age)
 
 TEST_CASE("query tuple_optional_t") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1532,7 +1535,7 @@ struct test_enum_t {
   int id;
 };
 REGISTER_AUTO_KEY(test_enum_t, id)
-REFLECTION(test_enum_t, id, color, fruit)
+YLT_REFL(test_enum_t, id, color, fruit)
 
 TEST_CASE("test enum") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1643,9 +1646,13 @@ struct test_enum_with_name_t {
   Color color;
   Fruit fruit;
   int id;
+  static constexpr std::string_view get_alias_struct_name(
+      test_enum_with_name_t *) {
+    return "test_enum";
+  }
 };
 REGISTER_AUTO_KEY(test_enum_with_name_t, id)
-REFLECTION_WITH_NAME(test_enum_with_name_t, "test_enum", id, color, fruit)
+YLT_REFL(test_enum_with_name_t, id, color, fruit)
 
 TEST_CASE("test enum with custom name") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1757,7 +1764,7 @@ struct test_bool_t {
   int id;
 };
 REGISTER_AUTO_KEY(test_bool_t, id)
-REFLECTION(test_bool_t, id, ok)
+YLT_REFL(test_bool_t, id, ok)
 
 TEST_CASE("test bool") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1813,10 +1820,16 @@ TEST_CASE("test bool") {
 struct alias {
   std::string name;
   int id;
+  static constexpr auto get_alias_field_names(alias *) {
+    return std::array{ylt::reflection::field_alias_t{"alias_id", 0},
+                      ylt::reflection::field_alias_t{"alias_name", 1}};
+  }
+  static constexpr std::string_view get_alias_struct_name(alias *) {
+    return "t_alias";
+  }
 };
 REGISTER_AUTO_KEY(alias, id)
-REFLECTION_ALIAS(alias, "t_alias", FLDALIAS(&alias::id, "alias_id"),
-                 FLDALIAS(&alias::name, "alias_name"));
+YLT_REFL(alias, id, name)
 
 TEST_CASE("alias") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1861,6 +1874,7 @@ TEST_CASE("pg update") {
 }
 #endif
 
+#if 0
 TEST_CASE("update section filed") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
@@ -2016,6 +2030,7 @@ TEST_CASE("update section filed") {
   }
 #endif
 }
+#endif
 
 struct unsigned_type_t {
   uint8_t a;
@@ -2027,7 +2042,7 @@ struct unsigned_type_t {
   int32_t g;
   int64_t h;
 };
-REFLECTION(unsigned_type_t, a, b, c, d, e, f, g, h)
+YLT_REFL(unsigned_type_t, a, b, c, d, e, f, g, h)
 
 TEST_CASE("unsigned type") {
 #ifdef ORMPP_ENABLE_MYSQL

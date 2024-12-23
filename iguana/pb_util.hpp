@@ -13,8 +13,8 @@
 #include <variant>
 #include <vector>
 
+#include "common.hpp"
 #include "detail/pb_type.hpp"
-#include "reflection.hpp"
 #include "util.hpp"
 
 namespace iguana {
@@ -60,7 +60,7 @@ constexpr inline WireType get_wire_type() {
   }
   else if constexpr (std::is_same_v<T, std::string> ||
                      std::is_same_v<T, std::string_view> ||
-                     is_reflection_v<T> || is_sequence_container<T>::value ||
+                     ylt_refletable_v<T> || is_sequence_container<T>::value ||
                      is_map_container<T>::value) {
     return WireType::LengthDelimeted;
   }
@@ -193,41 +193,45 @@ constexpr size_t variant_uint32_size_constexpr(uint32_t value) {
   return log / 7 + 1;
 }
 
-template <uint64_t v, size_t I, typename It>
-IGUANA_INLINE void append_varint_u32_constexpr_help(It&& it) {
-  *(it++) = static_cast<uint8_t>((v >> (7 * I)) | 0x80);
+template <uint64_t v, typename Writer, size_t... I>
+IGUANA_INLINE void append_varint_u32(Writer& writer,
+                                     std::index_sequence<I...>) {
+  uint8_t temp = 0;
+  ((temp = static_cast<uint8_t>(v >> (7 * I)),
+    writer.write((const char*)&temp, 1)),
+   ...);
 }
 
-template <uint64_t v, typename It, size_t... I>
-IGUANA_INLINE void append_varint_u32_constexpr(It&& it,
-                                               std::index_sequence<I...>) {
-  (append_varint_u32_constexpr_help<v, I>(it), ...);
-}
-
-template <uint32_t v, typename It>
-IGUANA_INLINE void serialize_varint_u32_constexpr(It&& it) {
+template <uint32_t v, typename Writer>
+IGUANA_INLINE void serialize_varint_u32(Writer& writer) {
   constexpr auto size = variant_uint32_size_constexpr(v);
-  append_varint_u32_constexpr<v>(it, std::make_index_sequence<size - 1>{});
-  *(it++) = static_cast<uint8_t>(v >> (7 * (size - 1)));
+  append_varint_u32<v>(writer, std::make_index_sequence<size - 1>{});
+  uint8_t temp = static_cast<uint8_t>(v >> (7 * (size - 1)));
+  writer.write((const char*)&temp, 1);
 }
 
-template <typename It>
-IGUANA_INLINE void serialize_varint(uint64_t v, It&& it) {
+template <typename Writer>
+IGUANA_INLINE void serialize_varint(uint64_t v, Writer& writer) {
+  uint8_t temp = static_cast<uint8_t>(v);
   if (v < 0x80) {
-    *(it++) = static_cast<uint8_t>(v);
+    writer.write((const char*)&temp, 1);
     return;
   }
-  *(it++) = static_cast<uint8_t>(v | 0x80);
+  temp = static_cast<uint8_t>(v | 0x80);
+  writer.write((const char*)&temp, 1);
   v >>= 7;
   if (v < 0x80) {
-    *(it++) = static_cast<uint8_t>(v);
+    temp = static_cast<uint8_t>(v);
+    writer.write((const char*)&temp, 1);
     return;
   }
   do {
-    *(it++) = static_cast<uint8_t>(v | 0x80);
+    temp = static_cast<uint8_t>(v | 0x80);
+    writer.write((const char*)&temp, 1);
     v >>= 7;
   } while (v >= 0x80);
-  *(it++) = static_cast<uint8_t>(v);
+  temp = static_cast<uint8_t>(v);
+  writer.write((const char*)&temp, 1);
 }
 
 IGUANA_INLINE uint32_t log2_floor_uint32(uint32_t n) {
@@ -439,9 +443,9 @@ IGUANA_INLINE size_t pb_oneof_size(Type&& t, Arr& size_arr) {
 template <size_t key_size, bool omit_default_val, typename Type, typename Arr>
 IGUANA_INLINE size_t pb_key_value_size(Type&& t, Arr& size_arr) {
   using T = std::remove_const_t<std::remove_reference_t<Type>>;
-  if constexpr (is_reflection_v<T> || is_custom_reflection_v<T>) {
+  if constexpr (ylt_refletable_v<T> || is_custom_reflection_v<T>) {
     size_t len = 0;
-    static constexpr auto tuple = get_members_tuple<T>();
+    static auto tuple = get_pb_members_tuple(std::forward<Type>(t));
     constexpr size_t SIZE = std::tuple_size_v<std::decay_t<decltype(tuple)>>;
     size_t pre_index = -1;
     if constexpr (!inherits_from_base_v<T> && key_size != 0) {
@@ -453,13 +457,13 @@ IGUANA_INLINE size_t pb_key_value_size(Type&& t, Arr& size_arr) {
           using field_type =
               std::tuple_element_t<decltype(i)::value,
                                    std::decay_t<decltype(tuple)>>;
-          constexpr auto value = std::get<decltype(i)::value>(tuple);
+          auto value = std::get<decltype(i)::value>(tuple);
           using U = typename field_type::value_type;
-          auto const& val = value.value(t);
+          using sub_type = typename field_type::sub_type;
+          auto& val = value.value(t);
           if constexpr (variant_v<U>) {
             constexpr auto offset =
-                get_variant_index<U, typename field_type::sub_type,
-                                  std::variant_size_v<U> - 1>();
+                get_variant_index<U, sub_type, std::variant_size_v<U> - 1>();
             if constexpr (offset == 0) {
               len += pb_oneof_size<value.field_no>(val, size_arr);
             }
@@ -541,7 +545,7 @@ IGUANA_INLINE size_t pb_key_value_size(Type&& t, Arr& size_arr) {
 template <bool skip_next = true, typename Type>
 IGUANA_INLINE size_t pb_value_size(Type&& t, uint32_t*& sz_ptr) {
   using T = std::remove_const_t<std::remove_reference_t<Type>>;
-  if constexpr (is_reflection_v<T> || is_custom_reflection_v<T>) {
+  if constexpr (ylt_refletable_v<T> || is_custom_reflection_v<T>) {
     if constexpr (inherits_from_base_v<T>) {
       return t.cache_size;
     }
