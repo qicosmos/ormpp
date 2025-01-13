@@ -22,8 +22,8 @@ struct ormpp_cfg {
   int db_conn_num;
   int db_port;
 };
-REFLECTION(ormpp_cfg, db_ip, user_name, pwd, db_name, timeout, db_conn_num,
-           db_port);
+YLT_REFL(ormpp_cfg, db_ip, user_name, pwd, db_name, timeout, db_conn_num,
+         db_port);
 
 /*
         int max_thread_num = config_manager::get<int>("max_thread_num",
@@ -47,10 +47,10 @@ class config_manager {
 
     T val{};
     bool has_key = false;
-    iguana::for_each(
-        cfg, [key, &val, &cfg, &has_key](const auto &item, auto I) {
-          if (key == iguana::get_name<ormpp_cfg>(decltype(I)::value)) {
-            assign(val, cfg.*item);
+    ylt::reflection::for_each(
+        cfg, [key, &val, &has_key](auto &field, auto name, auto /*index*/) {
+          if (key == name) {
+            assign(val, field);
             has_key = true;
           }
         });
@@ -72,12 +72,13 @@ class config_manager {
     }
 
     bool has_key = false;
-    iguana::for_each(cfg, [key, &val, &cfg, &has_key](auto &item, auto I) {
-      if (key == iguana::get_name<ormpp_cfg>(decltype(I)::value)) {
-        assign(cfg.*item, val);
-        has_key = true;
-      }
-    });
+    ylt::reflection::for_each(
+        cfg, [key, &val, &has_key](auto &field, auto name, auto /*index*/) {
+          if (key == name) {
+            assign(field, val);
+            has_key = true;
+          }
+        });
 
     if (!has_key)
       return false;

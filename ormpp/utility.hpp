@@ -4,14 +4,39 @@
 #ifndef ORM_UTILITY_HPP
 #define ORM_UTILITY_HPP
 #include <algorithm>
+#include <iostream>
 #include <optional>
+#include <sstream>
 
 #include "entity.hpp"
-#include "iguana/reflection.hpp"
 #include "iguana/util.hpp"
 #include "type_mapping.hpp"
 
 namespace ormpp {
+
+//-------------------------------------------------------------------------------------------------------------//
+//-------------------------------------------------------------------------------------------------------------//
+template <auto... members>
+constexpr std::array<size_t, sizeof...(members)> indexs_of() {
+  return std::array<size_t, sizeof...(members)>{
+      ylt::reflection::index_of<members>()...};
+}
+
+template <typename... Args, typename F, std::size_t... Idx>
+constexpr void for_each(std::tuple<Args...> &t, F &&f,
+                        std::index_sequence<Idx...>) {
+  (std::forward<F>(f)(std::get<Idx>(t), std::integral_constant<size_t, Idx>{}),
+   ...);
+}
+
+template <typename... Args, typename F, std::size_t... Idx>
+constexpr void for_each(const std::tuple<Args...> &t, F &&f,
+                        std::index_sequence<Idx...>) {
+  (std::forward<F>(f)(std::get<Idx>(t), std::integral_constant<size_t, Idx>{}),
+   ...);
+}
+//-------------------------------------------------------------------------------------------------------------//
+//-------------------------------------------------------------------------------------------------------------//
 
 inline std::unordered_map<std::string_view, std::string_view>
     g_ormpp_auto_key_map;
@@ -23,20 +48,24 @@ inline int add_auto_key_field(std::string_view key, std::string_view value) {
 
 template <typename T>
 inline auto get_auto_key() {
-  using U = decltype(iguana_reflect_members(std::declval<T>()));
-  auto it = g_ormpp_auto_key_map.find(U::struct_name());
+  auto it = g_ormpp_auto_key_map.find(ylt::reflection::type_string<T>());
   return it == g_ormpp_auto_key_map.end() ? "" : it->second;
 }
 
 template <typename T>
 inline auto is_auto_key(std::string_view field_name) {
-  using U = decltype(iguana_reflect_members(std::declval<T>()));
-  auto it = g_ormpp_auto_key_map.find(U::struct_name());
+  auto it = g_ormpp_auto_key_map.find(ylt::reflection::type_string<T>());
   return it == g_ormpp_auto_key_map.end() ? false : it->second == field_name;
 }
 
-#define REGISTER_AUTO_KEY(STRUCT_NAME, KEY)         \
-  inline auto IGUANA_UNIQUE_VARIABLE(STRUCT_NAME) = \
+#ifdef _MSC_VER
+#define ORMPP_UNIQUE_VARIABLE(str) YLT_CONCAT(str, __COUNTER__)
+#else
+#define ORMPP_UNIQUE_VARIABLE(str) YLT_CONCAT(str, __LINE__)
+#endif
+
+#define REGISTER_AUTO_KEY(STRUCT_NAME, KEY)        \
+  inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) = \
       ormpp::add_auto_key_field(#STRUCT_NAME, #KEY);
 
 inline std::unordered_map<std::string_view, std::string_view>
@@ -50,18 +79,19 @@ inline int add_conflict_key_field(std::string_view key,
 
 template <typename T>
 inline auto get_conflict_key() {
-  using U = decltype(iguana_reflect_members(std::declval<T>()));
-  auto key = U::struct_name();
-  auto it = g_ormpp_conflict_key_map.find(key);
+  auto it = g_ormpp_conflict_key_map.find(ylt::reflection::type_string<T>());
   if (it == g_ormpp_conflict_key_map.end()) {
-    auto auto_key = g_ormpp_auto_key_map.find(key);
+    auto auto_key =
+        g_ormpp_auto_key_map.find(ylt::reflection::type_string<T>());
     return auto_key == g_ormpp_auto_key_map.end() ? "" : auto_key->second;
   }
   return it->second;
 }
 
-#define REGISTER_CONFLICT_KEY(STRUCT_NAME, ...)     \
-  inline auto IGUANA_UNIQUE_VARIABLE(STRUCT_NAME) = \
+#define MAKE_NAMES(...) #__VA_ARGS__,
+
+#define REGISTER_CONFLICT_KEY(STRUCT_NAME, ...)    \
+  inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) = \
       ormpp::add_conflict_key_field(#STRUCT_NAME, {MAKE_NAMES(__VA_ARGS__)});
 
 template <typename T>
@@ -70,12 +100,23 @@ struct is_optional_v : std::false_type {};
 template <typename T>
 struct is_optional_v<std::optional<T>> : std::true_type {};
 
+template <typename T>
+constexpr std::enable_if_t<iguana::ylt_refletable_v<T>, size_t> get_value() {
+  return ylt::reflection::members_count_v<T>;
+}
+
+template <typename T>
+constexpr std::enable_if_t<iguana::non_ylt_refletable_v<T>, size_t>
+get_value() {
+  return 1;
+}
+
 template <typename... Args>
 struct value_of;
 
 template <typename T>
 struct value_of<T> {
-  static const auto value = (iguana::get_value<T>());
+  static const auto value = (get_value<T>());
 };
 
 template <typename T, typename... Rest>
@@ -134,12 +175,10 @@ enum class DBType { mysql, sqlite, postgresql, unknown };
 
 template <typename T>
 inline constexpr auto get_type_names(DBType type) {
-  constexpr auto SIZE = iguana::get_value<T>();
-  std::array<std::string, SIZE> arr = {};
-  iguana::for_each(T{}, [&](auto & /*item*/, auto i) {
-    constexpr auto Idx = decltype(i)::value;
-    using U =
-        std::remove_reference_t<decltype(iguana::get<Idx>(std::declval<T>()))>;
+  std::array<std::string, ylt::reflection::members_count_v<T>> arr = {};
+  ylt::reflection::for_each(T{}, [&arr, type](auto &field, auto /*name*/,
+                                              auto index) {
+    using U = ylt::reflection::remove_cvref_t<decltype(field)>;
     std::string s;
     if (type == DBType::unknown) {
     }
@@ -198,7 +237,7 @@ inline constexpr auto get_type_names(DBType type) {
     }
 #endif
 
-    arr[Idx] = s;
+    arr[index] = s;
   });
 
   return arr;
@@ -210,23 +249,25 @@ inline void for_each0(const std::tuple<Args...> &t, Func &&f,
   (f(std::get<Idx>(t)), ...);
 }
 
-template <typename T, typename = std::enable_if_t<iguana::is_reflection_v<T>>>
-inline std::string get_name() {
+template <typename T, typename = std::enable_if_t<iguana::ylt_refletable_v<T>>>
+inline std::string get_struct_name() {
 #ifdef ORMPP_ENABLE_PG
-  std::string quota_name = "\"" + std::string(iguana::get_name<T>()) + "\"";
+  std::string quota_name =
+      "\"" + std::string(ylt::reflection::get_struct_name<T>()) + "\"";
 #else
-  std::string quota_name = "`" + std::string(iguana::get_name<T>()) + "`";
+  std::string quota_name =
+      "`" + std::string(ylt::reflection::get_struct_name<T>()) + "`";
 #endif
   return quota_name;
 }
 
-template <typename T, typename = std::enable_if_t<iguana::is_reflection_v<T>>>
+template <typename T, typename = std::enable_if_t<iguana::ylt_refletable_v<T>>>
 inline std::string get_fields() {
   static std::string fields;
   if (!fields.empty()) {
     return fields;
   }
-  for (const auto &it : iguana::Reflect_members<T>::arr()) {
+  for (const auto &it : ylt::reflection::get_member_names<T>()) {
 #ifdef ORMPP_ENABLE_MYSQL
     fields += "`" + std::string(it.data()) + "`";
 #else
@@ -238,7 +279,7 @@ inline std::string get_fields() {
   return fields;
 }
 
-template <typename T, typename = std::enable_if_t<iguana::is_reflection_v<T>>>
+template <typename T, typename = std::enable_if_t<iguana::ylt_refletable_v<T>>>
 inline std::vector<std::string> get_conflict_keys() {
   static std::vector<std::string> res;
   if (!res.empty()) {
@@ -277,21 +318,21 @@ template <typename T, typename... Args>
 inline std::string generate_insert_sql(bool insert, Args &&...args) {
 #ifdef ORMPP_ENABLE_PG
   if (!insert) {
-    constexpr auto SIZE = iguana::get_value<T>();
+    constexpr auto Count = ylt::reflection::members_count_v<T>;
     std::string sql = "insert into ";
-    auto name = get_name<T>();
+    auto name = get_struct_name<T>();
     append(sql, name.data());
     int index = 0;
     std::string set;
     std::string fields = "(";
     std::string values = "values(";
-    for (auto i = 0; i < SIZE; ++i) {
-      std::string field_name = iguana::get_name<T>(i).data();
+    for (auto i = 0; i < Count; ++i) {
+      std::string field_name = ylt::reflection::name_of<T>(i).data();
       std::string value = "$" + std::to_string(++index);
       append(set, field_name, "=", value);
       fields += field_name;
       values += value;
-      if (i < SIZE - 1) {
+      if (i < Count - 1) {
         fields += ",";
         values += ",";
         set += ",";
@@ -315,15 +356,15 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
   }
 #endif
   std::string sql = insert ? "insert into " : "replace into ";
-  constexpr auto SIZE = iguana::get_value<T>();
-  auto name = get_name<T>();
+  constexpr auto Count = ylt::reflection::members_count_v<T>;
+  auto name = get_struct_name<T>();
   append(sql, name.data());
 
   int index = 0;
   std::string fields = "(";
   std::string values = "values(";
-  for (size_t i = 0; i < SIZE; ++i) {
-    std::string field_name = iguana::get_name<T>(i).data();
+  for (size_t i = 0; i < Count; ++i) {
+    std::string field_name = ylt::reflection::name_of<T>(i).data();
     if (insert && is_auto_key<T>(field_name)) {
       continue;
     }
@@ -337,7 +378,7 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
 #else
     fields += field_name;
 #endif
-    if (i < SIZE - 1) {
+    if (i < Count - 1) {
       fields += ",";
       values += ",";
     }
@@ -358,28 +399,32 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
 
 template <typename T, auto... members, typename... Args>
 inline std::string generate_update_sql(Args &&...args) {
-  constexpr auto SIZE = iguana::get_value<T>();
-  std::string sql = "update ";
-  auto name = get_name<T>();
-  append(sql, name.data());
-  append(sql, "set");
-  std::string fields;
+  std::string sql, fields;
+  append(sql, "update", get_struct_name<T>(), "set");
+
 #ifdef ORMPP_ENABLE_PG
-  int index = 0;
+  size_t index = 0;
 #endif
 
   if constexpr (sizeof...(members) > 0) {
 #ifdef ORMPP_ENABLE_PG
-    (fields.append(iguana::name_of<members>())
+    (fields
+         .append(
+             ylt::reflection::name_of<T>(ylt::reflection::index_of<members>()))
          .append("=$" + std::to_string(++index) + ","),
      ...);
 #else
-    (fields.append(iguana::name_of<members>()).append("=?,"), ...);
+    (fields
+         .append(
+             ylt::reflection::name_of<T>(ylt::reflection::index_of<members>()))
+         .append("=?,"),
+     ...);
 #endif
   }
   else {
-    for (size_t i = 0; i < SIZE; ++i) {
-      std::string field_name = iguana::get_name<T>(i).data();
+    constexpr auto Count = ylt::reflection::members_count_v<T>;
+    for (size_t i = 0; i < Count; ++i) {
+      std::string field_name = ylt::reflection::name_of<T>(i).data();
 #ifdef ORMPP_ENABLE_MYSQL
       fields.append("`").append(field_name).append("`");
 #else
@@ -409,6 +454,8 @@ inline std::string generate_update_sql(Args &&...args) {
   }
 
   append(sql, fields, conflict);
+  sql.pop_back();
+  sql.pop_back();
   return sql;
 }
 
@@ -417,23 +464,13 @@ inline bool is_empty(const std::string &t) { return t.empty(); }
 template <typename T, typename... Args>
 inline std::string generate_delete_sql(Args &&...where_conditon) {
   std::string sql = "delete from ";
-  auto name = get_name<T>();
+  auto name = get_struct_name<T>();
   append(sql, name.data());
   if constexpr (sizeof...(Args) > 0) {
     if (!is_empty(std::forward<Args>(where_conditon)...))
       append(sql, "where", std::forward<Args>(where_conditon)...);
   }
   return sql;
-}
-
-template <typename T>
-inline bool has_key(const std::string &s) {
-  auto arr = iguana::get_array<T>();
-  for (size_t i = 0; i < arr.size(); ++i) {
-    if (s.find(arr[i].data()) != std::string::npos)
-      return true;
-  }
-  return false;
 }
 
 inline void get_sql_conditions(std::string &) {}
@@ -462,9 +499,9 @@ inline void get_sql_conditions(std::string &sql, const std::string &arg,
 template <typename T, typename... Args>
 inline std::string generate_query_sql(Args &&...args) {
   bool where = false;
-  auto name = get_name<T>();
   std::string sql = "select ";
   auto fields = get_fields<T>();
+  auto name = get_struct_name<T>();
   append(sql, fields.data(), "from", name.data());
   if constexpr (sizeof...(Args) > 0) {
     using expander = int[];
@@ -513,9 +550,9 @@ struct field_attribute<U T::*> {
 
 template <typename U>
 constexpr std::string_view get_field_name(std::string_view full_name) {
-  using T = decltype(iguana_reflect_members(
-      std::declval<typename field_attribute<U>::type>()));
-  return full_name.substr(T::struct_name().length() + 2, full_name.length());
+  using T = typename field_attribute<U>::type;
+  return ylt::reflection::get_member_names<T>()[ylt::reflection::index_of<T>(
+      full_name.substr(full_name.rfind(":") + 1))];
 }
 
 #define FID(field)                                                       \

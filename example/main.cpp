@@ -27,15 +27,18 @@ struct person {
   int id;
 };
 REGISTER_AUTO_KEY(person, id)
-REFLECTION(person, id, name, age)
+YLT_REFL(person, id, name, age)
 
 struct student {
   std::string name;
   int age;
   int id;
+  static constexpr std::string_view get_alias_struct_name(student *) {
+    return "t_student";
+  }
 };
 REGISTER_AUTO_KEY(student, id)
-REFLECTION_WITH_NAME(student, "t_student", id, name, age)
+YLT_REFL(student, id, name, age)
 
 int main() {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -70,8 +73,8 @@ int main() {
 
   {
     sqlite.delete_records<person>();
-    sqlite.insert<person>({"purecpp"});
-    sqlite.insert<person>({"purecpp", 6});
+    sqlite.insert<person>({"purecpp", 1});
+    sqlite.insert<person>({"purecpp", 2});
     auto vec = sqlite.query<person>();
     for (auto &[name, age, id] : vec) {
       std::cout << id << ", " << *name << ", " << *age << "\n";

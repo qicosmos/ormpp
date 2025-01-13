@@ -1,7 +1,6 @@
 #pragma once
 
 #include "detail/charconv.h"
-#include "reflection.hpp"
 #include "xml_util.hpp"
 
 namespace iguana {
@@ -64,7 +63,12 @@ IGUANA_INLINE void render_xml_value(Stream &ss, const T &value,
                                     std::string_view name);
 
 template <bool pretty, size_t spaces, typename Stream, typename T,
-          std::enable_if_t<refletable_v<T>, int> = 0>
+          std::enable_if_t<map_container_v<T>, int> = 0>
+IGUANA_INLINE void render_xml_value(Stream &ss, const T &value,
+                                    std::string_view name);
+
+template <bool pretty, size_t spaces, typename Stream, typename T,
+          std::enable_if_t<ylt_refletable_v<T>, int> = 0>
 IGUANA_INLINE void render_xml_value(Stream &ss, T &&t, std::string_view name);
 
 template <bool pretty, size_t spaces, typename Stream>
@@ -133,6 +137,12 @@ IGUANA_INLINE void render_value(Stream &ss, const T &value) {
   }
 }
 
+template <bool escape_quote_apos = false, typename Stream, typename T,
+          std::enable_if_t<is_pb_type_v<T>, int> = 0>
+IGUANA_INLINE void render_value(Stream &ss, const T &value) {
+  render_value<escape_quote_apos>(ss, value);
+}
+
 template <bool pretty, size_t spaces, typename Stream, typename T,
           std::enable_if_t<map_container_v<T>, int> = 0>
 inline void render_xml_attr(Stream &ss, const T &value, std::string_view name) {
@@ -158,6 +168,20 @@ IGUANA_INLINE void render_xml_value(Stream &ss, const T &value,
                                     std::string_view name) {
   render_value(ss, value);
   render_tail<pretty, 0>(ss, name);
+}
+
+template <bool pretty, size_t spaces, typename Stream, typename T,
+          std::enable_if_t<is_pb_type_v<std::decay_t<T>>, int> = 0>
+IGUANA_INLINE void render_xml_value(Stream &ss, const T &value,
+                                    std::string_view name) {
+  render_xml_value<pretty, spaces>(ss, value.val, name);
+}
+
+template <bool pretty, size_t spaces, typename Stream, typename T,
+          std::enable_if_t<variant_v<std::decay_t<T>>, int> = 0>
+IGUANA_INLINE void render_xml_value(Stream &ss, const T &value,
+                                    std::string_view name) {
+  throw std::bad_function_call();
 }
 
 template <bool pretty, size_t spaces, typename Stream, typename T,
@@ -210,41 +234,47 @@ IGUANA_INLINE void render_xml_value(Stream &ss, const T &value,
 }
 
 template <bool pretty, size_t spaces, typename Stream, typename T,
-          std::enable_if_t<refletable_v<T>, int>>
+          std::enable_if_t<map_container_v<T>, int>>
+IGUANA_INLINE void render_xml_value(Stream &ss, const T &value,
+                                    std::string_view name) {
+  throw std::bad_function_call();
+}
+
+template <bool pretty, size_t spaces, typename Stream, typename T,
+          std::enable_if_t<variant_v<T>, int>>
+IGUANA_INLINE void render_xml_value(Stream &ss, const T &value,
+                                    std::string_view name) {
+  throw std::bad_function_call();
+}
+
+template <bool pretty, size_t spaces, typename Stream, typename T,
+          std::enable_if_t<ylt_refletable_v<T>, int>>
 IGUANA_INLINE void render_xml_value(Stream &ss, T &&t, std::string_view name) {
   if constexpr (pretty) {
     ss.push_back('\n');
   }
-  for_each(std::forward<T>(t),
-           [&](const auto &v, auto i) IGUANA__INLINE_LAMBDA {
-             using M = decltype(iguana_reflect_type(std::forward<T>(t)));
-             using value_type = underline_type_t<decltype(t.*v)>;
-             constexpr auto Idx = decltype(i)::value;
-             constexpr auto Count = M::value();
-             [[maybe_unused]] constexpr std::string_view tag_name =
-                 std::string_view(get_name<std::decay_t<T>, Idx>().data(),
-                                  get_name<std::decay_t<T>, Idx>().size());
-             static_assert(Idx < Count);
-             if constexpr (sequence_container_v<value_type>) {
-               render_xml_value<pretty, spaces + 1>(ss, t.*v, tag_name);
-             }
-             else if constexpr (attr_v<value_type>) {
-               render_xml_value<pretty, spaces + 1>(ss, t.*v, tag_name);
-             }
-             else if constexpr (cdata_v<value_type>) {
-               if constexpr (pretty) {
-                 ss.append(spaces + 1, '\t');
-                 ss.append("<![CDATA[").append((t.*v).value()).append("]]>\n");
-               }
-               else {
-                 ss.append("<![CDATA[").append((t.*v).value()).append("]]>");
-               }
-             }
-             else {
-               render_head<pretty, spaces + 1>(ss, tag_name);
-               render_xml_value<pretty, spaces + 1>(ss, t.*v, tag_name);
-             }
-           });
+  ylt::reflection::for_each(t, [&](auto &field, auto tag_name, auto index) {
+    using value_type = underline_type_t<decltype(field)>;
+    if constexpr (sequence_container_v<value_type>) {
+      render_xml_value<pretty, spaces + 1>(ss, field, tag_name);
+    }
+    else if constexpr (attr_v<value_type>) {
+      render_xml_value<pretty, spaces + 1>(ss, field, tag_name);
+    }
+    else if constexpr (cdata_v<value_type>) {
+      if constexpr (pretty) {
+        ss.append(spaces + 1, '\t');
+        ss.append("<![CDATA[").append(field.value()).append("]]>\n");
+      }
+      else {
+        ss.append("<![CDATA[").append(field.value()).append("]]>");
+      }
+    }
+    else {
+      render_head<pretty, spaces + 1>(ss, tag_name);
+      render_xml_value<pretty, spaces + 1>(ss, field, tag_name);
+    }
+  });
   render_tail<pretty, spaces>(ss, name);
 }
 
@@ -252,19 +282,24 @@ template <bool pretty = false, typename Stream, typename T,
           std::enable_if_t<attr_v<T>, int> = 0>
 IGUANA_INLINE void to_xml(T &&t, Stream &s) {
   using value_type = typename std::decay_t<T>::value_type;
-  static_assert(refletable_v<value_type>, "value_type must be refletable");
-  constexpr std::string_view root_name = std::string_view(
-      get_name<value_type>().data(), get_name<value_type>().size());
+  static_assert(ylt_refletable_v<value_type>, "value_type must be refletable");
+  constexpr std::string_view root_name =
+      ylt::reflection::get_struct_name<value_type>();
   render_xml_value<pretty, 0>(s, std::forward<T>(t), root_name);
 }
 
 template <bool pretty = false, typename Stream, typename T,
-          std::enable_if_t<refletable_v<T>, int> = 0>
+          std::enable_if_t<ylt_refletable_v<T>, int> = 0>
 IGUANA_INLINE void to_xml(T &&t, Stream &s) {
-  constexpr std::string_view root_name = std::string_view(
-      get_name<std::decay_t<T>>().data(), get_name<std::decay_t<T>>().size());
+  constexpr std::string_view root_name =
+      ylt::reflection::get_struct_name<ylt::reflection::remove_cvref_t<T>>();
   render_head<pretty, 0>(s, root_name);
   render_xml_value<pretty, 0>(s, std::forward<T>(t), root_name);
+}
+
+template <typename T>
+IGUANA_INLINE void to_xml_adl(iguana_adl_t *p, T &t, std::string &pb_str) {
+  to_xml(t, pb_str);
 }
 
 }  // namespace iguana

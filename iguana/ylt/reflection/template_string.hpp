@@ -5,7 +5,7 @@
 #include "frozen/string.h"
 #include "frozen/unordered_map.h"
 
-namespace iguana {
+namespace ylt::reflection {
 
 #if defined(__clang__) || defined(_MSC_VER) || \
     (defined(__GNUC__) && __GNUC__ > 8)
@@ -57,6 +57,12 @@ inline constexpr std::string_view enum_string() {
   constexpr auto s1 = str.substr(pos + 5, next1 - pos - 5);
 #endif
   return s1;
+}
+
+template <auto field>
+inline constexpr std::string_view field_string() {
+  constexpr std::string_view raw_name = enum_string<field>();
+  return raw_name.substr(raw_name.rfind(":") + 1);
 }
 
 #if defined(__clang__) && (__clang_major__ >= 17)
@@ -183,4 +189,4 @@ constexpr inline auto get_enum_map() {
 #pragma clang diagnostic pop
 #endif
 
-}  // namespace iguana
+}  // namespace ylt::reflection
