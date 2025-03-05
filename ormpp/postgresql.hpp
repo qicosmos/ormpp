@@ -802,7 +802,7 @@ class postgresql {
     ~guard_statment() {
       if (res_ != nullptr) {
         auto status = PQresultStatus(res_);
-        if (status != PGRES_COMMAND_OK || status != PGRES_TUPLES_OK) {
+        if (status != PGRES_COMMAND_OK && status != PGRES_TUPLES_OK) {
           set_last_error(PQresultErrorMessage(res_));
         }
         PQclear(res_);
