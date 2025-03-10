@@ -21,7 +21,8 @@
 
 # 一个很酷的Modern C++ ORM库----ormpp
 
-感谢Selina同学将中文wiki翻译为英文
+iguana版本1.0.8
+https://github.com/qicosmos/iguana.git
 
 [谁在用ormpp](https://github.com/qicosmos/ormpp/wiki), 也希望ormpp用户帮助编辑用户列表，也是为了让更多用户把ormpp用起来，也是对ormpp 最大的支持，用户列表的用户问题会优先处理。
 
@@ -60,7 +61,7 @@ struct person {
   int id;
 };
 REGISTER_AUTO_KEY(person, id)
-REFLECTION(person, id, name, age)
+YLT_REFL(person, id, name, age)
 ```
 
 ## 冲突主键
@@ -77,7 +78,7 @@ struct student {
   std::string classroom;
 };
 REGISTER_CONFLICT_KEY(student, code)
-REFLECTION(student, code, name, sex, age, dm, classroom)
+YLT_REFL(student, code, name, sex, age, dm, classroom)
 ```
 
 ## 快速示例
@@ -94,16 +95,19 @@ struct person {
   std::optional<int> age; // 可以插入null值
   std::string name;
   int id;
+  static constexpr auto get_alias_field_names(alias *) {
+    return std::array{ylt::reflection::field_alias_t{"person_id", 0},
+                      ylt::reflection::field_alias_t{"person_name", 1},
+                      ylt::reflection::field_alias_t{"person_age", 2}}; // 注意: 这里需与YLT_REFL的注册顺序一致
+  }
+  static constexpr std::string_view get_alias_struct_name(student *) {
+    return "CUSTOM_TABLE_NAME"; // 表名默认结构体名字(person), 这里可以修改表名
+  }
 };
 REGISTER_AUTO_KEY(person, id)
 REGISTER_CONFLICT_KEY(person, name)
-// REGISTER_CONFLICT_KEY(person, name, age)
-REFLECTION(person, id, name, age)
-// REFLECTION_WITH_NAME(person, "CUSTOM_TABLE_NAME", id, name, age)
-// REFLECTION_ALIAS(person, "CUSTOM_TABLE_NAME",
-//                  FLDALIAS(&person::id, "person_id"),
-//                  FLDALIAS(&person::name, "person_name"),
-//                  FLDALIAS(&person::age, "person_age"));
+// REGISTER_CONFLICT_KEY(person, name, age) // 如果是多个
+YLT_REFL(person, id, name, age)
 
 int main() {
   person p = {"test1", 2};
@@ -115,21 +119,29 @@ int main() {
   mysql.connect("127.0.0.1", "dbuser", "yourpwd", "testdb");
   mysql.create_datatable<person>(ormpp_auto_key{"id"});
 
+  // 插入数据
   mysql.insert(p);
   mysql.insert(v);
+
+  // 查询数据(id=1)
+  auto result = mysql.query_s<person>("id=?", 1);
+
+  // 获取插入后的自增id
   auto id1 = mysql.get_insert_id_after_insert<person>(p);
   auto id2 = mysql.get_insert_id_after_insert<person>(v);
 
+  // 更新数据
   mysql.update(p);
   mysql.update(v);
   mysql.update(p, "id=1");
 
+  // 替换数据
   mysql.replace(p);
   mysql.replace(v);
 
   // 更新指定字段
-  mysql.update_some<&person::name, &person::age>(p);
-  mysql.update_some<&person::name, &person::age>(v);
+  // mysql.update_some<&person::name, &person::age>(p);
+  // mysql.update_some<&person::name, &person::age>(v);
 
   auto result = mysql.query_s<person>();
   for (auto &person : result) {
@@ -163,7 +175,7 @@ struct test_enum_t {
   int id;
 };
 REGISTER_AUTO_KEY(test_enum_t, id)
-REFLECTION(test_enum_t, id, color, fruit)
+YLT_REFL(test_enum_t, id, color, fruit)
 
 int main() {
   dbng<sqlite> sqlite;
@@ -209,7 +221,7 @@ add_subdirectory(ormpp)
 set(ENABLE_MYSQL ON)
 add_definitions(-DORMPP_ENABLE_MYSQL)
 add_library(ormpp INTERFACE)
-include(cmake/mysql.cmake)
+include(ormpp/cmake/mysql.cmake)
 target_link_libraries(ormpp INTERFACE ${MYSQL_LIBRARY})
 target_include_directories(ormpp INTERFACE ormpp ormpp/ormpp ${MYSQL_INCLUDE_DIR})
 ```
@@ -241,7 +253,7 @@ add_subdirectory(ormpp)
 set(ENABLE_PG ON)
 add_definitions(-DORMPP_ENABLE_PG)
 add_library(ormpp INTERFACE)
-include(cmake/pgsql.cmake)
+include(ormpp/cmake/pgsql.cmake)
 target_link_libraries(ormpp INTERFACE ${PGSQL_LIBRARY})
 target_include_directories(ormpp INTERFACE ormpp ormpp/ormpp ${PGSQL_INCLUDE_DIR})
 ```
@@ -252,7 +264,7 @@ target_include_directories(ormpp INTERFACE ormpp ormpp/ormpp ${PGSQL_INCLUDE_DIR
 
 ### 数据库的安装
 
-因为ormpp支持mysql和postgresql，所以需要安装mysql，postgresql，postgresql官方提供的libpq，安装之后，在CMakeLists.txt配置目录和库路径。
+因为ormpp支持mysql和postgresql，所以需要安装mysql，postgresql，postgresql官方提供的libpq，安装之后，在CMakeLists.txt配置目录和库路径(默认安装不需要)。
 
 ## 接口介绍
 ormpp屏蔽了不同数据库操作接口的差异，提供了统一简单的数据库操作接口，具体提供了数据库连接、断开连接、创建数据表、插入数据、更新数据、删除数据、查询数据和事务相关的接口。
@@ -279,6 +291,14 @@ int insert(const T& t, Args&&... args);
 template<typename T, typename... Args>
 int insert(const std::vector<T>& t, Args&&... args);
 
+//替换单条数据
+template <typename T, typename... Args>
+int replace(const T &t, Args &&...args);
+
+//替换多条数据
+template <typename T, typename... Args>
+int replace(const std::vector<T> &v, Args &&...args);
+
 //更新单条数据
 template<typename T, typename... Args>
 int update(const T& t, Args&&... args);
@@ -287,13 +307,33 @@ int update(const T& t, Args&&... args);
 template<typename T, typename... Args>
 int update(const std::vector<T>& t, Args&&... args);
 
-//删除数据
-template<typename T, typename... Args>
-bool delete_records(Args&&... where_conditon);
+//更新单条数据(指定字段)
+template <auto... members, typename T, typename... Args>
+int update_some(const T &t, Args &&...args);
 
-//查询数据，包括单表查询和多表查询
-template<typename T, typename... Args>
-auto query(Args&&... args);
+//更新多条数据(指定字段)
+template <auto... members, typename T, typename... Args>
+int update_some(const std::vector<T> &v, Args &&...args);
+
+//获取插入后的自增id
+template <typename T, typename... Args>
+uint64_t get_insert_id_after_insert(const T &t, Args &&...args);
+
+//删除数据(带预处理)
+template <typename T, typename... Args>
+bool delete_records_s(const std::string &str = "", Args &&...args);
+
+//查询数据，包括单表查询和多表查询(带预处理)
+template <typename T, typename... Args>
+std::vector<T> query_s(const std::string &str = "", Args &&...args);
+
+//删除数据(不安全)
+template <typename T, typename... Args>
+[[deprecated]] bool delete_records(Args &&...where_condition)
+
+//查询数据，包括单表查询和多表查询(不安全)
+template <typename T, typename... Args>
+[[deprecated]] std::vector<T> query(Args &&...args);
 
 //执行原生的sql语句
 int execute(const std::string& sql);
@@ -320,12 +360,14 @@ struct person {
   int id;
   std::string name;
   std::optional<int> age; // 插入null值
+  static constexpr std::string_view get_alias_struct_name(student *) {
+    return "CUSTOM_TABLE_NAME";
+  }
 };
-REFLECTION(person, id, name, age)
-// REFLECTION_WITH_NAME(person, "CUSTOM_TABLE_NAME", id, name, age)
+REGISTER_AUTO_KEY(person, id)
+YLT_REFL(person, id, name, age)
 
 int main(){
-
 	dbng<mysql> mysql;
   dbng<sqlite> sqlite;
   dbng<postgresql> postgres;
@@ -512,92 +554,84 @@ TEST_CHECK(sqlite.update(v1)==3);
 8. 删除数据
 ```cpp
 template<typename T, typename... Args>
-bool delete_records(Args&&... where_conditon);
+bool delete_records_s(Args&&... where_conditon);
 ```
 
-delete_records example:
+delete_records_s example:
 
 ```C++
 //删除所有数据
-TEST_REQUIRE(mysql.delete_records<person>());
-TEST_REQUIRE(postgres.delete_records<person>());
-TEST_REQUIRE(sqlite.delete_records<person>());
+TEST_REQUIRE(mysql.delete_records_s<person>());
+TEST_REQUIRE(postgres.delete_records_s<person>());
+TEST_REQUIRE(sqlite.delete_records_s<person>());
 
 //根据条件删除数据
-TEST_REQUIRE(mysql.delete_records<person>("id=1"));
-TEST_REQUIRE(postgres.delete_records<person>("id=1"));
-TEST_REQUIRE(sqlite.delete_records<person>("id=1"));
+TEST_REQUIRE(mysql.delete_records_s<person>("id=?", 1));
+TEST_REQUIRE(postgres.delete_records_s<person>("id=$1", 1));
+TEST_REQUIRE(sqlite.delete_records_s<person>("id=?", 1));
 ```
 
 返回值：bool，成功返回true，失败返回false.
 
-9. 单表查询
+9. 查询数据
 
 ```C++
 template<typename T, typename... Args>
-auto query(Args&&... args);
-
-//如果T是一个反射对象则返回的是单表查询结果vector<T>
-template<typename T, typename... Args>
-std::vector<T> query(Args&&... args);
+std::vector<T> query_s(const std::string &str = "", Args &&...args);
 ```
 
-single table query example:
+query_s example:
 
 ```C++
-auto result = mysql.query<person>();
+auto result = mysql.query_s<person>();
 TEST_CHECK(result.size()==3);
 
-auto result1 = postgres.query<person>();
+auto result1 = postgres.query_s<person>();
 TEST_CHECK(result1.size()==3);
 
-auto result2 = sqlite.query<person>();
+auto result2 = sqlite.query_s<person>();
 TEST_CHECK(result2.size()==3);
 
 //可以根据条件查询
-auto result3 = mysql.query<person>("id=1");
+auto result3 = mysql.query_s<person>("id=?", 1);
 TEST_CHECK(result3.size()==1);
 
-auto result4 = postgres.query<person>("id=2");
+auto result4 = postgres.query_s<person>("id=$1", 2);
 TEST_CHECK(result4.size()==1);
 
-auto result5 = sqlite.query<person>("id=3");
+auto result5 = sqlite.query_s<person>("id=?", 3);
 ```
 
 返回值：std::vector<T>，成功vector不为空，失败则为空.
 
-10. 多表或特定列查询
+10. 特定列查询
 
 ```C++
 template<typename T, typename... Args>
-auto query(Args&&... args);
-
-//如果T是一个tuple类型则返回的是多表或特定列查询，结果vector<tuple<T>>
-template<typename T, typename... Args>
-std::vector<std::tuple<T>> query(Args&&... args);
+std::vector<T> query_s(const std::string &str = "", Args &&...args);
 ```
 
-multiple or some fields query example:
+some fields query_s example:
 
 ```C++
-auto result = mysql.query<std::tuple<int, std::string, int>>("select code, name, dm from person");
+auto result = mysql.query_s<std::tuple<int, std::string, int>>("select code, name, dm from person");
 TEST_CHECK(result.size()==3);
 
-auto result1 = postgres.query<std::tuple<int, std::string, int>>("select code, name, dm from person");
+auto result1 = postgres.query_s<std::tuple<int, std::string, int>>("select code, name, dm from person");
 TEST_CHECK(result1.size()==3);
 
-auto result2 = sqlite.query<std::tuple<int, std::string, int>>("select code, name, dm from person");
+auto result2 = sqlite.query_s<std::tuple<int, std::string, int>>("select code, name, dm from person");
 TEST_CHECK(result2.size()==3);
 
-auto result3 = mysql.query<std::tuple<int>>("select count(1) from person");
+auto result3 = mysql.query_s<std::tuple<int>>("select count(1) from person");
 TEST_CHECK(result3.size()==1);
 TEST_CHECK(std::get<0>(result3[0])==3);
 
-auto result4 = postgres.query<std::tuple<int>>("select count(1) from person");
+auto result4 = postgres.query_s<std::tuple<int>>("select count(1) from person");
 TEST_CHECK(result4.size()==1);
 TEST_CHECK(std::get<0>(result4[0])==3);
 
-auto result5 = sqlite.query<std::tuple<int>>("select count(1) from person");
+auto result5 = sqlite.query_s<std::tuple<int>>("select count(1) from person");
 TEST_CHECK(result5.size()==1);
 TEST_CHECK(std::get<0>(result5[0])==3);
 ```
@@ -616,7 +650,7 @@ execute example:
 r = mysql.execute("drop table if exists person");
 TEST_REQUIRE(r);
 
-r = postgres("drop table if exists person");
+r = postgres.execute("drop table if exists person");
 TEST_REQUIRE(r);
 
 r = sqlite.execute("drop table if exists person");
@@ -635,11 +669,11 @@ TEST_REQUIRE(r);
 //transaction
 mysql.begin();
 for (int i = 0; i < 10; ++i) {
-    person s = {i, "tom", 19};
-        if(!mysql.insert(s)){
-            mysql.rollback();
-            return -1;
-        }
+  person s = {i, "tom", 19};
+      if(!mysql.insert(s)){
+          mysql.rollback();
+          return -1;
+      }
 }
 mysql.commit();
 ```
