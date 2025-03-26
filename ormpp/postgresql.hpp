@@ -37,10 +37,11 @@ class postgresql {
   std::string get_last_error() const { return last_error_; }
 
   // ip, user, pwd, db, timeout  the sequence must be fixed like this
-  template <typename... Args>
-  bool connect(Args &&...args) {
+  bool connect(
+      const std::tuple<std::string, std::string, std::string, std::string,
+                       std::optional<int>, std::optional<int>> &tp) {
     reset_error();
-    auto sql = generate_conn_sql(std::make_tuple(std::forward<Args>(args)...));
+    auto sql = generate_conn_sql(tp);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -50,6 +51,13 @@ class postgresql {
       return false;
     }
     return true;
+  }
+
+  bool connect(const std::string &host, const std::string &user,
+               const std::string &passwd, const std::string &db,
+               const std::optional<int> &timeout,
+               const std::optional<int> &port) {
+    return connect(std::make_tuple(host, user, passwd, db, timeout, port));
   }
 
   template <typename... Args>
@@ -125,13 +133,13 @@ class postgresql {
   }
 
   template <typename T, typename... Args>
-  bool delete_records_s(const std::string &str, Args &&...args) {
+  int delete_records_s(const std::string &str, Args &&...args) {
     auto sql = generate_delete_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     if (!prepare<T>(sql))
-      return false;
+      return 0;
 
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
@@ -150,9 +158,9 @@ class postgresql {
 
     auto guard = guard_statment(res_);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      return false;
+      return 0;
     }
-    return true;
+    return std::strtoimax(PQcmdTuples(res_), nullptr, 10);
   }
 
   template <typename T, typename... Args>
@@ -359,6 +367,8 @@ class postgresql {
   }
 
   // transaction
+  void set_enable_transaction(bool enable) { transaction_ = enable; }
+
   bool begin() {
     res_ = PQexec(con_, "begin;");
     auto guard = guard_statment(res_);
@@ -378,46 +388,26 @@ class postgresql {
   }
 
  private:
-  template <typename T>
-  auto to_str(T &&t) {
-    if constexpr (std::is_integral_v<std::decay_t<T>>)
-      return std::to_string(std::forward<T>(t));
-    else
-      return t;
-  }
-
-  template <typename Tuple>
-  std::string generate_conn_sql(const Tuple &tp) {
-    constexpr size_t SIZE = std::tuple_size_v<Tuple>;
-    if constexpr (SIZE == 4) {
-      return generate_conn_sql(
-          std::make_tuple("host", "user", "password", "dbname"), tp,
-          std::make_index_sequence<SIZE>{});
+  std::string generate_conn_sql(
+      const std::tuple<std::string, std::string, std::string, std::string,
+                       std::optional<int>, std::optional<int>> &tp) {
+    std::string params;
+    params.append("host=").append(std::get<0>(tp)).append(" ");
+    params.append("user=").append(std::get<1>(tp)).append(" ");
+    params.append("password=").append(std::get<2>(tp)).append(" ");
+    params.append("dbname=").append(std::get<3>(tp)).append(" ");
+    if (std::get<4>(tp).has_value()) {
+      params.append("connect_timeout=")
+          .append(std::to_string(std::get<4>(tp).value()))
+          .append(" ");
     }
-    else if constexpr (SIZE == 5) {
-      return generate_conn_sql(std::make_tuple("host", "user", "password",
-                                               "dbname", "connect_timeout"),
-                               tp, std::make_index_sequence<SIZE>{});
+    if (std::get<5>(tp).has_value()) {
+      params.append("port=")
+          .append(std::to_string(std::get<5>(tp).value()))
+          .append(" ");
     }
-    else if constexpr (SIZE == 6) {
-      return generate_conn_sql(
-          std::make_tuple("host", "user", "password", "dbname",
-                          "connect_timeout", "port"),
-          tp, std::make_index_sequence<SIZE>{});
-    }
-    else {
-      return "";
-    }
-  }
-
-  template <typename... Args1, typename... Args2, std::size_t... Idx>
-  std::string generate_conn_sql(const std::tuple<Args1...> &tp1,
-                                const std::tuple<Args2...> &tp2,
-                                std::index_sequence<Idx...>) {
-    std::string sql = "";
-    (append(sql, std::get<Idx>(tp1), "=", to_str(std::get<Idx>(tp2)), " "),
-     ...);
-    return sql;
+    params.pop_back();
+    return params;
   }
 
   template <typename T, typename... Args>
@@ -650,7 +640,7 @@ class postgresql {
                                                 OptType type,
                                                 bool get_insert_id = false,
                                                 Args &&...args) {
-    if (!begin()) {
+    if (transaction_ && !begin()) {
       return std::nullopt;
     }
 
@@ -664,12 +654,14 @@ class postgresql {
     for (auto &item : v) {
       res = stmt_execute<members...>(item, type, std::forward<Args>(args)...);
       if (!res.has_value()) {
-        rollback();
+        if (transaction_) {
+          rollback();
+        }
         return std::nullopt;
       }
     }
 
-    if (!commit()) {
+    if (transaction_ && !commit()) {
       return std::nullopt;
     }
 
@@ -816,8 +808,9 @@ class postgresql {
  private:
   PGconn *con_ = nullptr;
   PGresult *res_ = nullptr;
-  inline static bool has_error_ = false;
   inline static std::string last_error_;
+  inline static bool has_error_ = false;
+  inline static bool transaction_ = true;
 };
 }  // namespace ormpp
 #endif  // ORM_POSTGRESQL_HPP

@@ -35,8 +35,9 @@ class mysql {
 
   std::string get_last_error() const { return last_error_; }
 
-  template <typename... Args>
-  bool connect(Args &&...args) {
+  bool connect(
+      const std::tuple<std::string, std::string, std::string, std::string,
+                       std::optional<int>, std::optional<int>> &tp) {
     reset_error();
     if (con_ != nullptr) {
       mysql_close(con_);
@@ -48,8 +49,7 @@ class mysql {
       return false;
     }
 
-    int timeout = -1;
-    auto tp = get_tp(timeout, std::forward<Args>(args)...);
+    int timeout = std::get<4>(tp).has_value() ? std::get<4>(tp).value() : -1;
 
     if (timeout > 0) {
       if (mysql_options(con_, MYSQL_OPT_CONNECT_TIMEOUT, &timeout) != 0) {
@@ -62,12 +62,23 @@ class mysql {
     mysql_options(con_, MYSQL_OPT_RECONNECT, &value);
     mysql_options(con_, MYSQL_SET_CHARSET_NAME, "utf8");
 
-    if (std::apply(&mysql_real_connect, tp) == nullptr) {
+    if (mysql_real_connect(
+            con_, std::get<0>(tp).c_str(), std::get<1>(tp).c_str(),
+            std::get<2>(tp).c_str(), std::get<3>(tp).c_str(),
+            std::get<5>(tp).has_value() ? std::get<5>(tp).value() : 0, nullptr,
+            0) == nullptr) {
       set_last_error(mysql_error(con_));
       return false;
     }
 
     return true;
+  }
+
+  bool connect(const std::string &host, const std::string &user,
+               const std::string &passwd, const std::string &db,
+               const std::optional<int> &timeout,
+               const std::optional<int> &port) {
+    return connect(std::make_tuple(host, user, passwd, db, timeout, port));
   }
 
   bool ping() { return mysql_ping(con_) == 0; }
@@ -308,7 +319,7 @@ class mysql {
   }
 
   template <typename T, typename... Args>
-  bool delete_records_s(const std::string &str, Args &&...args) {
+  int delete_records_s(const std::string &str, Args &&...args) {
     auto sql = generate_delete_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -316,13 +327,13 @@ class mysql {
     stmt_ = mysql_stmt_init(con_);
     if (!stmt_) {
       set_last_error(mysql_error(con_));
-      return false;
+      return 0;
     }
 
     auto guard = guard_statment(stmt_);
     if (mysql_stmt_prepare(stmt_, sql.c_str(), (unsigned long)sql.size())) {
       set_last_error(mysql_stmt_error(stmt_));
-      return false;
+      return 0;
     }
 
     if constexpr (sizeof...(Args) > 0) {
@@ -331,15 +342,15 @@ class mysql {
       (set_param_bind(param_binds, args), ...);
       if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
         set_last_error(mysql_stmt_error(stmt_));
-        return false;
+        return 0;
       }
     }
 
     if (mysql_stmt_execute(stmt_)) {
       set_last_error(mysql_stmt_error(stmt_));
-      return false;
+      return 0;
     }
-    return true;
+    return (int)mysql_stmt_affected_rows(stmt_);
   }
 
   template <typename T, typename... Args>
@@ -818,6 +829,8 @@ class mysql {
   }
 
   // transaction
+  void set_enable_transaction(bool enable) { transaction_ = enable; }
+
   bool begin() {
     reset_error();
     if (mysql_query(con_, "BEGIN")) {
@@ -1088,41 +1101,25 @@ class mysql {
 
     auto guard = guard_statment(stmt_);
 
-    if (!get_insert_id && !begin()) {
+    if (transaction_ && !get_insert_id && !begin()) {
       return std::nullopt;
     }
 
     for (auto &item : v) {
       if (stmt_execute<members...>(item, type, std::forward<Args>(args)...) ==
           INT_MIN) {
-        rollback();
+        if (transaction_) {
+          rollback();
+        }
         return std::nullopt;
       }
     }
 
-    if (!get_insert_id && !commit()) {
+    if (transaction_ && !get_insert_id && !commit()) {
       return std::nullopt;
     }
 
     return get_insert_id ? stmt_->mysql->insert_id : (int)v.size();
-  }
-
-  template <typename... Args>
-  auto get_tp(int &timeout, Args &&...args) {
-    auto tp = std::make_tuple(con_, std::forward<Args>(args)...);
-    if constexpr (sizeof...(Args) == 5) {
-      auto [c, s1, s2, s3, s4, i] = tp;
-      timeout = i;
-      return std::make_tuple(c, s1, s2, s3, s4, 0, nullptr, 0);
-    }
-    else if constexpr (sizeof...(Args) == 6) {
-      auto [c, s1, s2, s3, s4, i, port] = tp;
-      timeout = i;
-      return std::make_tuple(c, s1, s2, s3, s4, port, nullptr, 0);
-    }
-    else {
-      return std::tuple_cat(tp, std::make_tuple(0, nullptr, 0));
-    }
   }
 
  private:
@@ -1144,8 +1141,9 @@ class mysql {
  private:
   MYSQL *con_ = nullptr;
   MYSQL_STMT *stmt_ = nullptr;
-  inline static bool has_error_ = false;
   inline static std::string last_error_;
+  inline static bool has_error_ = false;
+  inline static bool transaction_ = true;
 };
 }  // namespace ormpp
 

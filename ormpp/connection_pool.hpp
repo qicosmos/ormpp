@@ -23,10 +23,12 @@ class connection_pool {
   }
 
   // call_once
-  template <typename... Args>
-  void init(int maxsize, Args &&...args) {
-    std::call_once(flag_, &connection_pool<DB>::template init_impl<Args...>,
-                   this, maxsize, std::forward<Args>(args)...);
+  void init(int maxsize, const std::string &host = "",
+            const std::string &user = "", const std::string &passwd = "",
+            const std::string &db = "", const std::optional<int> &timeout = {},
+            const std::optional<int> &port = {}) {
+    std::call_once(flag_, &connection_pool<DB>::init_impl, this, maxsize, host,
+                   user, passwd, db, timeout, port);
   }
 
   std::shared_ptr<DB> get() {
@@ -72,13 +74,15 @@ class connection_pool {
   }
 
  private:
-  template <typename... Args>
-  void init_impl(int maxsize, Args &&...args) {
-    args_ = std::make_tuple(std::forward<Args>(args)...);
+  void init_impl(int maxsize, const std::string &host, const std::string &user,
+                 const std::string &passwd, const std::string &db,
+                 const std::optional<int> &timeout,
+                 const std::optional<int> &port) {
+    args_ = std::make_tuple(host, user, passwd, db, timeout, port);
 
     for (int i = 0; i < maxsize; ++i) {
       auto conn = std::make_shared<DB>();
-      if (conn->connect(std::forward<Args>(args)...)) {
+      if (conn->connect(args_)) {
         pool_.push_back(conn);
       }
       else {
@@ -89,11 +93,7 @@ class connection_pool {
 
   auto create_connection() {
     auto conn = std::make_shared<DB>();
-    auto fn = [conn](auto... targs) {
-      return conn->connect(targs...);
-    };
-
-    return std::apply(fn, args_) ? conn : nullptr;
+    return conn->connect(args_) ? conn : nullptr;
   }
 
   connection_pool() = default;
@@ -101,11 +101,12 @@ class connection_pool {
   connection_pool(const connection_pool &) = delete;
   connection_pool &operator=(const connection_pool &) = delete;
 
-  std::deque<std::shared_ptr<DB>> pool_;
   std::mutex mutex_;
-  std::condition_variable condition_;
   std::once_flag flag_;
-  std::tuple<const char *, const char *, const char *, const char *, int, int>
+  std::condition_variable condition_;
+  std::deque<std::shared_ptr<DB>> pool_;
+  std::tuple<std::string, std::string, std::string, std::string,
+             std::optional<int>, std::optional<int>>
       args_;
 };
 
