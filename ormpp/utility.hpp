@@ -38,24 +38,26 @@ constexpr void for_each(const std::tuple<Args...> &t, F &&f,
 //-------------------------------------------------------------------------------------------------------------//
 //-------------------------------------------------------------------------------------------------------------//
 
-inline std::unordered_map<std::string_view, std::string_view>
-    g_ormpp_auto_key_map;
+inline auto &get_auto_key_map() {
+  static std::unordered_map<std::string_view, std::string_view> map;
+  return map;
+}
 
 inline int add_auto_key_field(std::string_view key, std::string_view value) {
-  g_ormpp_auto_key_map.emplace(key, value);
+  get_auto_key_map().emplace(key, value);
   return 0;
 }
 
 template <typename T>
 inline auto get_auto_key() {
-  auto it = g_ormpp_auto_key_map.find(ylt::reflection::type_string<T>());
-  return it == g_ormpp_auto_key_map.end() ? "" : it->second;
+  auto it = get_auto_key_map().find(ylt::reflection::type_string<T>());
+  return it == get_auto_key_map().end() ? "" : it->second;
 }
 
 template <typename T>
 inline auto is_auto_key(std::string_view field_name) {
-  auto it = g_ormpp_auto_key_map.find(ylt::reflection::type_string<T>());
-  return it == g_ormpp_auto_key_map.end() ? false : it->second == field_name;
+  auto it = get_auto_key_map().find(ylt::reflection::type_string<T>());
+  return it == get_auto_key_map().end() ? false : it->second == field_name;
 }
 
 #ifdef _MSC_VER
@@ -68,22 +70,23 @@ inline auto is_auto_key(std::string_view field_name) {
   inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) = \
       ormpp::add_auto_key_field(#STRUCT_NAME, #KEY);
 
-inline std::unordered_map<std::string_view, std::string_view>
-    g_ormpp_conflict_key_map;
+inline auto &get_conflict_map() {
+  static std::unordered_map<std::string_view, std::string_view> map;
+  return map;
+}
 
 inline int add_conflict_key_field(std::string_view key,
                                   std::string_view value) {
-  g_ormpp_conflict_key_map.emplace(key, value);
+  get_conflict_map().emplace(key, value);
   return 0;
 }
 
 template <typename T>
 inline auto get_conflict_key() {
-  auto it = g_ormpp_conflict_key_map.find(ylt::reflection::type_string<T>());
-  if (it == g_ormpp_conflict_key_map.end()) {
-    auto auto_key =
-        g_ormpp_auto_key_map.find(ylt::reflection::type_string<T>());
-    return auto_key == g_ormpp_auto_key_map.end() ? "" : auto_key->second;
+  auto it = get_conflict_map().find(ylt::reflection::type_string<T>());
+  if (it == get_conflict_map().end()) {
+    auto auto_key = get_auto_key_map().find(ylt::reflection::type_string<T>());
+    return auto_key == get_auto_key_map().end() ? "" : auto_key->second;
   }
   return it->second;
 }
