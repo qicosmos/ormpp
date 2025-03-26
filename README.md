@@ -321,17 +321,17 @@ uint64_t get_insert_id_after_insert(const T &t, Args &&...args);
 
 //删除数据(带预处理)
 template <typename T, typename... Args>
-bool delete_records_s(const std::string &str = "", Args &&...args);
+int delete_records_s(const std::string &str = "", Args &&...args);
 
 //查询数据，包括单表查询和多表查询(带预处理)
 template <typename T, typename... Args>
 std::vector<T> query_s(const std::string &str = "", Args &&...args);
 
-//删除数据(不安全)
+//删除数据(不带预处理)
 template <typename T, typename... Args>
 [[deprecated]] bool delete_records(Args &&...where_condition)
 
-//查询数据，包括单表查询和多表查询(不安全)
+//查询数据，包括单表查询和多表查询(不带预处理)
 template <typename T, typename... Args>
 [[deprecated]] std::vector<T> query(Args &&...args);
 
@@ -554,7 +554,7 @@ TEST_CHECK(sqlite.update(v1)==3);
 8. 删除数据
 ```cpp
 template<typename T, typename... Args>
-bool delete_records_s(Args&&... where_conditon);
+int delete_records_s(const std::string &str = "", Args &&...args);
 ```
 
 delete_records_s example:
