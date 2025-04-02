@@ -884,8 +884,9 @@ TEST_CASE("query multi table") {
   student s2 = {3, "mike", 2, 21, 3.5, "room4"};
   std::vector<student> v{s, s1, s2};
 
-  ormpp_key key1{"id"};
-  ormpp_not_null not_null1{{"name"}};
+  ormpp_auto_key key1{"id"};
+  ormpp_not_null not_null1{{"name", "age"}};
+
   person p = {"test1", 2, 1};
   person p1 = {"test2", 3, 2};
   person p2 = {"test3", 4, 3};
