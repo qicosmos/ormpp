@@ -878,7 +878,6 @@ TEST_CASE("query some") {
 TEST_CASE("query multi table") {
   ormpp_key key{"code"};
   ormpp_not_null not_null{{"code", "age"}};
-  ormpp_auto_key auto_key{"code"};
 
   student s = {1, "tom", 0, 19, 1.5, "room2"};
   student s1 = {2, "jack", 1, 20, 2.5, "room3"};
@@ -886,6 +885,7 @@ TEST_CASE("query multi table") {
   std::vector<student> v{s, s1, s2};
 
   ormpp_key key1{"id"};
+  ormpp_not_null not_null1{{"name"}};
   person p = {"test1", 2, 1};
   person p1 = {"test2", 3, 2};
   person p2 = {"test3", 4, 3};
@@ -897,7 +897,7 @@ TEST_CASE("query multi table") {
     mysql.execute("drop table if exists student;");
     mysql.execute("drop table if exists person;");
     mysql.create_datatable<student>(key, not_null);
-    mysql.create_datatable<person>(key1, not_null);
+    mysql.create_datatable<person>(key1, not_null1);
     CHECK(mysql.insert(v) == 3);
     CHECK(mysql.insert(v1) == 3);
     auto vec1 = mysql.query<std::tuple<person, std::string, int>>(
@@ -915,7 +915,7 @@ TEST_CASE("query multi table") {
     postgres.execute("drop table if exists student;");
     postgres.execute("drop table if exists person;");
     postgres.create_datatable<student>(key, not_null);
-    postgres.create_datatable<person>(key1, not_null);
+    postgres.create_datatable<person>(key1, not_null1);
     CHECK(postgres.insert(v) == 3);
     CHECK(postgres.insert(v1) == 3);
     auto vec1 = postgres.query<std::tuple<int, std::string, double>>(
@@ -932,8 +932,8 @@ TEST_CASE("query multi table") {
   if (sqlite.connect(db)) {
     sqlite.execute("drop table if exists student;");
     sqlite.execute("drop table if exists person;");
-    sqlite.create_datatable<student>(key);
-    sqlite.create_datatable<person>(key1);
+    sqlite.create_datatable<student>(key, not_null);
+    sqlite.create_datatable<person>(key1, not_null1);
     CHECK(sqlite.insert(v) == 3);
     CHECK(sqlite.insert(v1) == 3);
     auto vec1 = sqlite.query<std::tuple<int, std::string, double>>(
@@ -949,7 +949,6 @@ TEST_CASE("query multi table") {
 TEST_CASE("transaction") {
   ormpp_key key{"code"};
   ormpp_not_null not_null{{"code", "age"}};
-  ormpp_auto_key auto_key{"code"};
 
   student s = {1, "tom", 0, 19, 1.5, "room2"};
   student s1 = {2, "jack", 1, 20, 2.5, "room3"};
