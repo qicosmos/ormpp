@@ -21,9 +21,17 @@ class dbng {
   dbng(const dbng &) = delete;
   ~dbng() { disconnect(); }
 
-  template <typename... Args>
-  bool connect(Args &&...args) {
-    return db_.connect(std::forward<Args>(args)...);
+  bool connect(
+      const std::tuple<std::string, std::string, std::string, std::string,
+                       std::optional<int>, std::optional<int>> &tp) {
+    return db_.connect(tp);
+  }
+
+  bool connect(const std::string &host, const std::string &user = "",
+               const std::string &passwd = "", const std::string &db = "",
+               const std::optional<int> &timeout = {},
+               const std::optional<int> &port = {}) {
+    return db_.connect(host, user, passwd, db, timeout, port);
   }
 
   bool disconnect() { return db_.disconnect(); }
@@ -84,7 +92,7 @@ class dbng {
   }
 
   template <typename T, typename... Args>
-  bool delete_records_s(const std::string &str = "", Args &&...args) {
+  uint64_t delete_records_s(const std::string &str = "", Args &&...args) {
     return db_.template delete_records_s<T>(str, std::forward<Args>(args)...);
   }
 
@@ -125,6 +133,10 @@ class dbng {
   bool execute(const std::string &sql) { return db_.execute(sql); }
 
   // transaction
+  void set_enable_transaction(bool enable = true) {
+    return db_.set_enable_transaction(enable);
+  }
+
   bool begin() { return db_.begin(); }
 
   bool commit() { return db_.commit(); }

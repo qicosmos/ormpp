@@ -31,15 +31,24 @@ class sqlite {
 
   std::string get_last_error() const { return last_error_; }
 
-  template <typename Arg, typename... Args>
-  bool connect(Arg &&arg, Args &&...) {
+  bool connect(
+      const std::tuple<std::string, std::string, std::string, std::string,
+                       std::optional<int>, std::optional<int>> &tp) {
     reset_error();
-    auto r = sqlite3_open(std::forward<Arg>(arg), &handle_);
+    auto r = sqlite3_open(std::get<3>(tp).c_str(), &handle_);
     if (r != SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
       return false;
     }
     return true;
+  }
+
+  bool connect(const std::string &host, const std::string &user,
+               const std::string &passwd, const std::string &db,
+               const std::optional<int> &timeout,
+               const std::optional<int> &port) {
+    return connect(std::make_tuple(host, user, passwd, db.empty() ? host : db,
+                                   timeout, port));
   }
 
   bool ping() { return true; }
@@ -124,7 +133,7 @@ class sqlite {
   }
 
   template <typename T, typename... Args>
-  bool delete_records_s(const std::string &str, Args &&...args) {
+  uint64_t delete_records_s(const std::string &str, Args &&...args) {
     auto sql = generate_delete_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -133,7 +142,7 @@ class sqlite {
                                     &stmt_, nullptr);
     if (result != SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
-      return false;
+      return 0;
     }
 
     if constexpr (sizeof...(Args) > 0) {
@@ -144,9 +153,9 @@ class sqlite {
     auto guard = guard_statment(stmt_);
     if (sqlite3_step(stmt_) != SQLITE_DONE) {
       set_last_error(sqlite3_errmsg(handle_));
-      return false;
+      return 0;
     }
-    return true;
+    return sqlite3_changes(handle_);
   }
 
   template <typename T, typename... Args>
@@ -373,6 +382,8 @@ class sqlite {
   int get_last_affect_rows() { return sqlite3_changes(handle_); }
 
   // transaction
+  void set_enable_transaction(bool enable) { transaction_ = enable; }
+
   bool begin() {
     reset_error();
     if (sqlite3_exec(handle_, "BEGIN", nullptr, nullptr, nullptr) !=
@@ -724,25 +735,29 @@ class sqlite {
 
     auto guard = guard_statment(stmt_);
 
-    if (!begin()) {
+    if (transaction_ && !begin()) {
       return std::nullopt;
     }
 
     for (auto &item : v) {
       if (stmt_execute<members...>(item, type, std::forward<Args>(args)...) ==
           INT_MIN) {
-        rollback();
+        if (transaction_) {
+          rollback();
+        }
         return std::nullopt;
       }
 
       if (sqlite3_reset(stmt_) != SQLITE_OK) {
-        rollback();
+        if (transaction_) {
+          rollback();
+        }
         set_last_error(sqlite3_errmsg(handle_));
         return std::nullopt;
       }
     }
 
-    if (!commit()) {
+    if (transaction_ && !commit()) {
       return std::nullopt;
     }
 
@@ -768,8 +783,9 @@ class sqlite {
  private:
   sqlite3 *handle_ = nullptr;
   sqlite3_stmt *stmt_ = nullptr;
-  inline static bool has_error_ = false;
   inline static std::string last_error_;
+  inline static bool has_error_ = false;
+  inline static bool transaction_ = true;
 };
 }  // namespace ormpp
 
