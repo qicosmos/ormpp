@@ -133,7 +133,7 @@ class sqlite {
   }
 
   template <typename T, typename... Args>
-  int delete_records_s(const std::string &str, Args &&...args) {
+  uint64_t delete_records_s(const std::string &str, Args &&...args) {
     auto sql = generate_delete_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -156,7 +156,6 @@ class sqlite {
       return 0;
     }
     return sqlite3_changes(handle_);
-    ;
   }
 
   template <typename T, typename... Args>

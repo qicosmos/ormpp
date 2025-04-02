@@ -975,8 +975,8 @@ TEST_CASE("transaction") {
     CHECK(mysql.delete_records_s<student>() == 10);
     mysql.set_enable_transaction(false);
     mysql.begin();
-    if (!mysql.insert({{1, "tom1", 0, 19, 1.5, "room1"},
-                       {2, "tom2", 0, 19, 1.5, "room2"}})) {
+    if (!mysql.insert(std::vector<student>{{1, "tom1", 0, 19, 1.5, "room1"},
+                                           {2, "tom2", 0, 19, 1.5, "room2"}})) {
       mysql.rollback();
     }
     mysql.commit();
@@ -1004,8 +1004,9 @@ TEST_CASE("transaction") {
     CHECK(postgres.delete_records_s<student>() == 10);
     postgres.set_enable_transaction(false);
     postgres.begin();
-    if (!postgres.insert({{1, "tom1", 0, 19, 1.5, "room1"},
-                          {2, "tom2", 0, 19, 1.5, "room2"}})) {
+    if (!postgres.insert(
+            std::vector<student>{{1, "tom1", 0, 19, 1.5, "room1"},
+                                 {2, "tom2", 0, 19, 1.5, "room2"}})) {
       postgres.rollback();
     }
     postgres.commit();
@@ -1033,8 +1034,9 @@ TEST_CASE("transaction") {
     CHECK(sqlite.delete_records_s<student>() == 10);
     sqlite.set_enable_transaction(false);
     sqlite.begin();
-    if (!sqlite.insert({{1, "tom1", 0, 19, 1.5, "room1"},
-                        {2, "tom2", 0, 19, 1.5, "room2"}})) {
+    if (!sqlite.insert(
+            std::vector<student>{{1, "tom1", 0, 19, 1.5, "room1"},
+                                 {2, "tom2", 0, 19, 1.5, "room2"}})) {
       sqlite.rollback();
     }
     sqlite.commit();

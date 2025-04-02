@@ -133,7 +133,7 @@ class postgresql {
   }
 
   template <typename T, typename... Args>
-  int delete_records_s(const std::string &str, Args &&...args) {
+  uint64_t delete_records_s(const std::string &str, Args &&...args) {
     auto sql = generate_delete_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -160,7 +160,7 @@ class postgresql {
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
       return 0;
     }
-    return std::strtoimax(PQcmdTuples(res_), nullptr, 10);
+    return std::strtoull(PQcmdTuples(res_), nullptr, 10);
   }
 
   template <typename T, typename... Args>

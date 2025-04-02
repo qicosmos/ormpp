@@ -319,7 +319,7 @@ class mysql {
   }
 
   template <typename T, typename... Args>
-  int delete_records_s(const std::string &str, Args &&...args) {
+  uint64_t delete_records_s(const std::string &str, Args &&...args) {
     auto sql = generate_delete_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -350,7 +350,7 @@ class mysql {
       set_last_error(mysql_stmt_error(stmt_));
       return 0;
     }
-    return (int)mysql_stmt_affected_rows(stmt_);
+    return (uint64_t)mysql_stmt_affected_rows(stmt_);
   }
 
   template <typename T, typename... Args>
@@ -1011,7 +1011,7 @@ class mysql {
       return INT_MIN;
     }
 
-    int count = (int)mysql_stmt_affected_rows(stmt_);
+    uint64_t count = (uint64_t)mysql_stmt_affected_rows(stmt_);
     if (count == 0) {
       return type == OptType::update ? count : INT_MIN;
     }

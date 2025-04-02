@@ -92,7 +92,7 @@ class dbng {
   }
 
   template <typename T, typename... Args>
-  int delete_records_s(const std::string &str = "", Args &&...args) {
+  uint64_t delete_records_s(const std::string &str = "", Args &&...args) {
     return db_.template delete_records_s<T>(str, std::forward<Args>(args)...);
   }
 
