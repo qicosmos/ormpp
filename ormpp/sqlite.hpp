@@ -2,7 +2,6 @@
 // Created by qiyu on 10/28/17.
 //
 #include <sqlite3.h>
-
 #include <climits>
 #include <string>
 #include <vector>
@@ -40,6 +39,54 @@ class sqlite {
       set_last_error(sqlite3_errmsg(handle_));
       return false;
     }
+    
+    // Use password as SQLCipher encryption key if it's not empty,
+    // otherwise use user as key if it's not empty
+    std::string key;
+    if (!std::get<2>(tp).empty()) {
+      // Use password as key
+      key = std::get<2>(tp);
+    }
+    else if (!std::get<1>(tp).empty()) {
+      // Use user as key
+      key = std::get<1>(tp);
+    }
+    
+    if (!key.empty()) {
+      auto r2 = sqlite3_key(handle_, key.c_str(), key.length());
+      if (r2 != SQLITE_OK) {
+        set_last_error(sqlite3_errmsg(handle_));
+        return false;
+      }
+      
+      // Test if the key is correct by executing a simple query
+      bool can_query = true;
+      const char* test_query = "PRAGMA user_version;";
+      sqlite3_stmt* stmt = nullptr;
+      auto r3 = sqlite3_prepare_v2(handle_, test_query, -1, &stmt, nullptr);
+      if (r3 != SQLITE_OK) {
+        set_last_error(sqlite3_errmsg(handle_));
+        can_query = false;
+      }
+      else {
+        r3 = sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+        if (r3 != SQLITE_ROW) {
+          set_last_error("Invalid SQLCipher key");
+          can_query = false;
+        }
+      }
+      
+      // If key is incorrect, try connecting without a key
+      if (!can_query) {
+        if (!disconnect()) return false;
+        auto tp_without_key = std::make_tuple(
+          std::get<0>(tp), std::get<1>(tp), "", std::get<3>(tp),
+          std::get<4>(tp), std::get<5>(tp));
+        return connect(tp_without_key);
+      }
+    }
+    
     return true;
   }
 
