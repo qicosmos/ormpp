@@ -106,12 +106,6 @@ struct test_optional {
 REGISTER_AUTO_KEY(test_optional, id)
 YLT_REFL(test_optional, id, name, age, empty_);
 
-#if defined(ORMPP_ENABLE_SQLITE3) && defined(SQLITE_HAS_CODEC)
-TEST_CASE("sqlcipher connect"){
-
-}
-#endif
-
 TEST_CASE("optional") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
@@ -162,7 +156,11 @@ TEST_CASE("optional") {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists test_optional;");
     sqlite.create_datatable<test_optional>(ormpp_auto_key{"id"});
     sqlite.insert<test_optional>({0, "purecpp", 200});
@@ -359,9 +357,80 @@ TEST_CASE("connect") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  REQUIRE(sqlite.connect(db, password));
+#else
   REQUIRE(sqlite.connect(db));
+#endif
   REQUIRE(sqlite.disconnect());
+#ifdef SQLITE_HAS_CODEC
+  REQUIRE(sqlite.connect(db, password));
+#else
   REQUIRE(sqlite.connect(db));
+#endif
+#endif
+}
+
+TEST_CASE("sqlcipher false password connection") {
+#if defined(ORMPP_ENABLE_SQLITE3) && defined(SQLITE_HAS_CODEC)
+  dbng<sqlite> sqlite;
+  // First connect with the correct password
+  REQUIRE(sqlite.connect(db, password));
+
+  // Create a test table and insert data
+  sqlite.execute("DROP TABLE IF EXISTS person");
+  REQUIRE(sqlite.create_datatable<person>(ormpp_auto_key{"id"}));
+  REQUIRE(sqlite.insert<person>({"encryption_test", 100}) == 1);
+
+  // Verify data was inserted correctly
+  auto results = sqlite.query<person>();
+  REQUIRE(results.size() == 1);
+  CHECK(results[0].name == "encryption_test");
+
+  // Disconnect database
+  REQUIRE(sqlite.disconnect());
+
+  // Try to connect with incorrect password
+  const char *wrong_password = "wrong_password";
+  CHECK(sqlite.connect(db, wrong_password) == false);
+
+  // Connect again with correct password to verify database is still intact
+  REQUIRE(sqlite.connect(db, password));
+  results = sqlite.query<person>();
+  REQUIRE(results.size() == 1);
+  CHECK(results[0].name == "encryption_test");
+#endif
+}
+
+TEST_CASE("sqlcipehr with username and password connection") {
+#if defined(ORMPP_ENABLE_SQLITE3) && defined(SQLITE_HAS_CODEC)
+
+  dbng<sqlite> sqlite;
+  // First connect with the correct password
+  REQUIRE(sqlite.connect(db, username, password));
+
+  // Create a test table and insert data
+  sqlite.execute("DROP TABLE IF EXISTS person");
+  REQUIRE(sqlite.create_datatable<person>(ormpp_auto_key{"id"}));
+  REQUIRE(sqlite.insert<person>({"encryption_test", 100}) == 1);
+
+  // Verify data was inserted correctly
+  auto results = sqlite.query<person>();
+  REQUIRE(results.size() == 1);
+  CHECK(results[0].name == "encryption_test");
+
+  // Disconnect database
+  REQUIRE(sqlite.disconnect());
+
+  // Try to connect with incorrect password
+  const char *wrong_password = "wrong_password";
+  CHECK(sqlite.connect(db, username, wrong_password) == false);
+
+  // Connect again with correct password to verify database is still intact
+  REQUIRE(sqlite.connect(db, username, password));
+  results = sqlite.query<person>();
+  REQUIRE(results.size() == 1);
+  CHECK(results[0].name == "encryption_test");
 #endif
 }
 
@@ -385,7 +454,11 @@ TEST_CASE("create table") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  REQUIRE(sqlite.connect(db, password));
+#else
   REQUIRE(sqlite.connect(db));
+#endif
   REQUIRE(sqlite.create_datatable<person>());
   REQUIRE(sqlite.create_datatable<person>(key));
   REQUIRE(sqlite.create_datatable<person>(not_null));
@@ -436,7 +509,11 @@ TEST_CASE("insert query") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     auto vec = sqlite.query(FID(person::id), "<", "5");
   }
 #endif
@@ -583,7 +660,11 @@ TEST_CASE("update replace") {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
     sqlite.insert<person>({"purecpp", 100});
@@ -654,7 +735,11 @@ TEST_CASE("update") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key);
     CHECK(sqlite.insert(v) == 3);
@@ -710,7 +795,11 @@ TEST_CASE("multi update") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists student");
     sqlite.create_datatable<student>(auto_key, not_null);
     CHECK(sqlite.insert(v) == 3);
@@ -766,7 +855,11 @@ TEST_CASE("delete") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key);
     CHECK(sqlite.insert(v) == 3);
@@ -815,7 +908,11 @@ TEST_CASE("query") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists simple");
     sqlite.create_datatable<simple>(key);
     CHECK(sqlite.insert(v) == 3);
@@ -869,7 +966,11 @@ TEST_CASE("query some") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key);
     CHECK(sqlite.insert(v) == 3);
@@ -938,7 +1039,11 @@ TEST_CASE("query multi table") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists student;");
     sqlite.execute("drop table if exists person;");
     sqlite.create_datatable<student>(key, not_null);
@@ -1025,7 +1130,11 @@ TEST_CASE("transaction") {
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key);
     sqlite.begin();
@@ -1140,7 +1249,11 @@ TEST_CASE("blob") {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists image");
     sqlite.create_datatable<image>();
     auto data = "this is a test binary stream\0, and ?...";
@@ -1218,7 +1331,11 @@ TEST_CASE("blob tuple") {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists image_ex");
     sqlite.create_datatable<image_ex>();
     auto data = "this is a test binary stream\0, and ?...";
@@ -1278,7 +1395,11 @@ TEST_CASE("create table with unique") {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"},
                                     ormpp_unique{{"name", "age"}});
@@ -1324,7 +1445,11 @@ TEST_CASE("get insert id after insert") {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
     sqlite.insert<person>({"purecpp"});
@@ -1429,7 +1554,11 @@ TEST_CASE("query_s delete_records_s") {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
     sqlite.insert<person>({"other"});
@@ -1547,7 +1676,11 @@ TEST_CASE("query tuple_optional_t") {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists tuple_optional_t");
     sqlite.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
     sqlite.insert<tuple_optional_t>({"purecpp", 6});
@@ -1659,7 +1792,11 @@ TEST_CASE("test enum") {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists test_enum_t");
     sqlite.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
     sqlite.insert<test_enum_t>({Color::BLUE});
@@ -1776,7 +1913,11 @@ TEST_CASE("test enum with custom name") {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists test_enum");
     sqlite.create_datatable<test_enum_with_name_t>(ormpp_auto_key{"id"});
     sqlite.insert<test_enum_with_name_t>({Color::BLUE});
@@ -1852,7 +1993,11 @@ TEST_CASE("test bool") {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists test_bool_t");
     sqlite.create_datatable<test_bool_t>(ormpp_auto_key{"id"});
     sqlite.insert(test_bool_t{true});
@@ -1905,7 +2050,11 @@ TEST_CASE("alias") {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists t_alias;");
     sqlite.create_datatable<alias>(ormpp_auto_key{"alias_id"});
     sqlite.insert<alias>({"purecpp"});
@@ -2040,7 +2189,11 @@ TEST_CASE("update section filed") {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
     sqlite.insert<person>({"person_a", 1});
@@ -2143,7 +2296,11 @@ TEST_CASE("unsigned type") {
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
   if (sqlite.connect(db)) {
+#endif
     sqlite.execute("drop table if exists unsigned_type_t");
     sqlite.create_datatable<unsigned_type_t>();
     sqlite.insert(unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8});

@@ -24,6 +24,7 @@ endif()
 
 add_library(sqlite3 STATIC sqlite3/sqlite3.c)
 target_include_directories(sqlite3 INTERFACE sqlite3)
+
 if(SQLITE3_CODEC)
 target_include_directories(sqlite3 PUBLIC ${OPENSSL_INCLUDE_DIR})
 target_link_libraries(sqlite3 PUBLIC ${OPENSSL_LIBRARIES})
