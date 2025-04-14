@@ -22,6 +22,8 @@ using namespace std::string_literals;
 using namespace ormpp;
 #ifdef ORMPP_ENABLE_PG
 const char *password = "123456";
+#elif defined(ORMPP_ENABLE_SQLITE3) && defined(SQLITE_HAS_CODEC)
+const char *password = "123456";
 #else
 const char *password = "";
 #endif
@@ -103,6 +105,12 @@ struct test_optional {
 };
 REGISTER_AUTO_KEY(test_optional, id)
 YLT_REFL(test_optional, id, name, age, empty_);
+
+#if defined(ORMPP_ENABLE_SQLITE3) && defined(SQLITE_HAS_CODEC)
+TEST_CASE("sqlcipher connect"){
+
+}
+#endif
 
 TEST_CASE("optional") {
 #ifdef ORMPP_ENABLE_MYSQL

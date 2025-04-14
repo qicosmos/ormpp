@@ -81,7 +81,7 @@ class sqlite {
       if (!can_query) {
         if (!disconnect()) return false;
         auto tp_without_key = std::make_tuple(
-          std::get<0>(tp), std::get<1>(tp), "", std::get<3>(tp),
+          std::get<0>(tp), "", "", std::get<3>(tp),
           std::get<4>(tp), std::get<5>(tp));
         return connect(tp_without_key);
       }
