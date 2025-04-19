@@ -1,10 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 project(ormpp)
 
-set(ENABLE_SQLITE3 ON)
-set(ENABLE_SQLITE3_CODEC ON)
-set(BUILD_UNIT_TESTS ON)
-
 if(ENABLE_SQLITE3_CODEC)
     include(cmake/openssl.cmake)
 endif()
