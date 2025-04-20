@@ -29,7 +29,7 @@ jobs:
 
       - name: Install OpenSSL on Windows
         if: runner.os == 'Windows'
-        run: choco install openssl.light -y
+        run: choco install openssl -y
 
       - name: Configure CMake
         run: cmake -B${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_SQLITE3=ON -DENABLE_SQLITE3_CODEC=ON

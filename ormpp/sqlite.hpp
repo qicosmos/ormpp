@@ -77,7 +77,7 @@ class sqlite {
           can_query = false;
         }
       }
-      if(!can_query) {
+      if (!can_query) {
         disconnect();
       }
       return can_query;
