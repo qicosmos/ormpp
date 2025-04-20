@@ -424,8 +424,10 @@ mysql.connect("127.0.0.1", "root", "12345", "testdb", 5, 3306);
   
 postgres.connect("127.0.0.1", "root", "12345", "testdb");
 
-sqlite.connect("127.0.0.1", "testdb");
-sqlite.connect("127.0.0.1", "root", "12345", "testdb");
+sqlite.connect("127.0.0.1", "testdb");//或直接sqlite.connect("testdb")；
+
+//开启sqlcipher后
+sqlite.connect("127.0.0.1", "root", "12345", "testdb");//或者直接sqlite.connect("testdb", "123456");
 ```
 
 返回值：bool，成功返回true，失败返回false.
