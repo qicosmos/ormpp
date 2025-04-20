@@ -41,19 +41,10 @@ class sqlite {
     }
 
 #ifdef SQLITE_HAS_CODEC
-    // Use password as SQLCipher encryption key if it's not empty,
-    // otherwise use user as key if it's not empty
-    std::string key;
+    // Use password as SQLCipher encryption key if it's not empty
     if (!std::get<2>(tp).empty()) {
       // Use password as key
-      key = std::get<2>(tp);
-    }
-    else if (!std::get<1>(tp).empty()) {
-      // Use user as key
-      key = std::get<1>(tp);
-    }
-
-    if (!key.empty()) {
+      std::string key = std::get<2>(tp);
       auto r2 = sqlite3_key(handle_, key.c_str(), key.length());
       if (r2 != SQLITE_OK) {
         set_last_error(sqlite3_errmsg(handle_));
@@ -90,8 +81,8 @@ class sqlite {
                const std::string &passwd, const std::string &db,
                const std::optional<int> &timeout,
                const std::optional<int> &port) {
-    return connect(std::make_tuple(host, user, passwd, db.empty() ? host : db,
-                                   timeout, port));
+    return connect(std::make_tuple(host, user, passwd.empty() ? user : passwd,
+                                   db.empty() ? host : db, timeout, port));
   }
 
   bool ping() { return true; }
