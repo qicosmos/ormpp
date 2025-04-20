@@ -1,107 +1,25 @@
 # - Find OpenSSL
 # Find the native OpenSSL includes and libraries
+# Uses the standard CMake FindOpenSSL module.
 #
-#  OPENSSL_INCLUDE_DIR - where to find openssl/ssl.h, etc.
-#  OPENSSL_LIBRARIES   - List of libraries when using OpenSSL.
-#  OPENSSL_FOUND       - True if OpenSSL found.
+# It sets the following variables:
+#  OpenSSL_FOUND       - True if OpenSSL found.
+#  OpenSSL_INCLUDE_DIRS - where to find openssl/ssl.h, etc.
+#  OpenSSL_LIBRARIES   - List of libraries when using OpenSSL.
+#  OpenSSL_VERSION     - The version of OpenSSL found (x.y.z)
 
-IF (OPENSSL_INCLUDE_DIR)
-  # Already in cache, be silent
-  SET(OPENSSL_FIND_QUIETLY TRUE)
-ENDIF (OPENSSL_INCLUDE_DIR)
+# Find OpenSSL using the standard CMake module.
+# The REQUIRED keyword ensures that CMake will halt with an error if OpenSSL is not found.
+find_package(OpenSSL REQUIRED)
 
-IF (WIN32)
-  FIND_PATH(OPENSSL_INCLUDE_DIR openssl/ssl.h
-    $ENV{PROGRAMFILES}/OpenSSL/include
-    $ENV{PROGRAMFILES}/OpenSSL-Win32/include
-    $ENV{PROGRAMFILES}/OpenSSL-Win64/include
-    $ENV{SYSTEMDRIVE}/OpenSSL/include)
-ELSEIF (LINUX)
-  FIND_PATH(OPENSSL_INCLUDE_DIR openssl/ssl.h
-    /usr/local/include
-    /usr/include)
-ELSEIF (APPLE)
-  FIND_PATH(OPENSSL_INCLUDE_DIR openssl/ssl.h
-    /opt/homebrew/include
-    /opt/homebrew/opt/openssl/include
-    /opt/homebrew/Cellar/openssl/*/include)
-ELSE (WIN32)
-  FIND_PATH(OPENSSL_INCLUDE_DIR openssl/ssl.h
-    /opt/homebrew/include
-    /opt/homebrew/opt/openssl/include
-    /opt/homebrew/Cellar/openssl/*/include
-    /usr/local/include
-    /usr/include)
+# Optional: Add status messages if OpenSSL is found and find_package is not called quietly.
+# The find_package command itself handles the error reporting when REQUIRED is used.
+IF (OpenSSL_FOUND)
+  MESSAGE(STATUS "Found OpenSSL: ${OpenSSL_LIBRARIES} (found version \"${OpenSSL_VERSION}\")")
+  MESSAGE(STATUS "OpenSSL include directories: ${OpenSSL_INCLUDE_DIRS}")
+ELSE(OpenSSL_FOUND)
+  MESSAGE(FATAL_ERROR "OpenSSL not found. Please install OpenSSL")
 ENDIF()
 
-SET(SSL_NAMES ssl libssl)
-SET(CRYPTO_NAMES crypto libcrypto)
-
-IF (WIN32)
-  FIND_LIBRARY(SSL_LIBRARY
-    NAMES ${SSL_NAMES}
-    PATHS $ENV{PROGRAMFILES}/OpenSSL/*/lib
-    $ENV{PROGRAMFILES}/OpenSSL-Win64/lib/VC/x64/MD
-    $ENV{PROGRAMFILES}/OpenSSL-Win32/lib/VC/x86/MD
-    $ENV{SYSTEMDRIVE}/OpenSSL/*/lib)
-  FIND_LIBRARY(CRYPTO_LIBRARY
-    NAMES ${CRYPTO_NAMES}
-    PATHS $ENV{PROGRAMFILES}/OpenSSL/*/lib
-    $ENV{PROGRAMFILES}/OpenSSL-Win64/lib/VC/x64/MD
-    $ENV{PROGRAMFILES}/OpenSSL-Win32/lib/VC/x86/MD
-    $ENV{SYSTEMDRIVE}/OpenSSL/*/lib)
-ELSEIF (LINUX)
-  FIND_LIBRARY(SSL_LIBRARY
-    NAMES ${SSL_NAMES}
-    PATHS /usr/lib 
-    /usr/local/lib)
-  FIND_LIBRARY(CRYPTO_LIBRARY
-    NAMES ${CRYPTO_NAMES}
-    PATHS /usr/lib 
-    /usr/local/lib)
-ELSEIF (APPLE)
-  FIND_LIBRARY(SSL_LIBRARY
-    NAMES ${SSL_NAMES}
-    PATHS /opt/homebrew/lib
-    /opt/homebrew/opt/openssl/lib
-    /opt/homebrew/Cellar/openssl/*/lib)
-  FIND_LIBRARY(CRYPTO_LIBRARY
-    NAMES ${CRYPTO_NAMES}
-    PATHS /opt/homebrew/lib
-    /opt/homebrew/opt/openssl/lib
-    /opt/homebrew/Cellar/openssl/*/lib)
-ELSE (WIN32)
-  FIND_LIBRARY(SSL_LIBRARY
-    NAMES ${SSL_NAMES}
-    PATHS /usr/lib 
-    /usr/local/lib
-    /opt/homebrew/lib
-    /opt/homebrew/opt/openssl/lib
-    /opt/homebrew/Cellar/openssl/*/lib)
-  FIND_LIBRARY(CRYPTO_LIBRARY
-    NAMES ${CRYPTO_NAMES}
-    PATHS /usr/lib 
-    /usr/local/lib
-    /opt/homebrew/lib
-    /opt/homebrew/opt/openssl/lib
-    /opt/homebrew/Cellar/openssl/*/lib)
-ENDIF()
-
-IF (OPENSSL_INCLUDE_DIR AND SSL_LIBRARY AND CRYPTO_LIBRARY)
-  SET(OPENSSL_FOUND TRUE)
-  SET(OPENSSL_LIBRARIES ${SSL_LIBRARY} ${CRYPTO_LIBRARY})
-ELSE (OPENSSL_INCLUDE_DIR AND SSL_LIBRARY AND CRYPTO_LIBRARY)
-  SET(OPENSSL_FOUND FALSE)
-  SET(OPENSSL_LIBRARIES)
-ENDIF (OPENSSL_INCLUDE_DIR AND SSL_LIBRARY AND CRYPTO_LIBRARY)
-
-IF (OPENSSL_FOUND)
-  IF (NOT OPENSSL_FIND_QUIETLY)
-    MESSAGE(STATUS "Found OpenSSL: ${SSL_LIBRARY}, ${CRYPTO_LIBRARY}")
-  ENDIF (NOT OPENSSL_FIND_QUIETLY)
-ELSE (OPENSSL_FOUND)
-    MESSAGE(STATUS "Looked for OpenSSL libraries named ${SSL_NAMES} and ${CRYPTO_NAMES}.")
-    MESSAGE(FATAL_ERROR "Could NOT find OpenSSL libraries")
-ENDIF (OPENSSL_FOUND)
-
-MARK_AS_ADVANCED(SSL_LIBRARY OPENSSL_INCLUDE_DIR)
+# The standard variables OpenSSL_INCLUDE_DIRS and OpenSSL_LIBRARIES
+# are now available for use with target_include_directories and target_link_libraries.
