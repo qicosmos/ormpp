@@ -5,7 +5,7 @@
 #include "frozen/string.h"
 #include "frozen/unordered_map.h"
 
-namespace iguana {
+namespace ylt::reflection {
 
 #if defined(__clang__) || defined(_MSC_VER) || \
     (defined(__GNUC__) && __GNUC__ > 8)
@@ -31,18 +31,21 @@ constexpr std::string_view get_raw_name() {
 template <typename T>
 inline constexpr std::string_view type_string() {
   constexpr std::string_view sample = get_raw_name<int>();
-  constexpr size_t pos = sample.find("int");
+  constexpr size_t prefix_length = sample.find("int");
   constexpr std::string_view str = get_raw_name<T>();
-  constexpr auto next1 = str.rfind(sample[pos + 3]);
+  constexpr size_t suffix_length = sample.size() - prefix_length - 3;
+  constexpr auto name =
+      str.substr(prefix_length, str.size() - prefix_length - suffix_length);
 #if defined(_MSC_VER)
-  constexpr std::size_t npos = str.find_first_of(" ", pos);
-  if (npos != std::string_view::npos)
-    return str.substr(npos + 1, next1 - npos - 1);
-  else
-    return str.substr(pos, next1 - pos);
-#else
-  return str.substr(pos, next1 - pos);
+  constexpr size_t space_pos = name.find(" ");
+  if constexpr (space_pos != std::string_view::npos) {
+    constexpr auto prefix = name.substr(0, space_pos);
+    if constexpr (prefix != "const" && prefix != "volatile") {
+      return name.substr(space_pos + 1);
+    }
+  }
 #endif
+  return name;
 }
 
 template <auto T>
@@ -57,6 +60,12 @@ inline constexpr std::string_view enum_string() {
   constexpr auto s1 = str.substr(pos + 5, next1 - pos - 5);
 #endif
   return s1;
+}
+
+template <auto field>
+inline constexpr std::string_view field_string() {
+  constexpr std::string_view raw_name = enum_string<field>();
+  return raw_name.substr(raw_name.rfind(":") + 1);
 }
 
 #if defined(__clang__) && (__clang_major__ >= 17)
@@ -183,4 +192,4 @@ constexpr inline auto get_enum_map() {
 #pragma clang diagnostic pop
 #endif
 
-}  // namespace iguana
+}  // namespace ylt::reflection

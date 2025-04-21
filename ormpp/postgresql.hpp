@@ -37,10 +37,11 @@ class postgresql {
   std::string get_last_error() const { return last_error_; }
 
   // ip, user, pwd, db, timeout  the sequence must be fixed like this
-  template <typename... Args>
-  bool connect(Args &&...args) {
+  bool connect(
+      const std::tuple<std::string, std::string, std::string, std::string,
+                       std::optional<int>, std::optional<int>> &tp) {
     reset_error();
-    auto sql = generate_conn_sql(std::make_tuple(std::forward<Args>(args)...));
+    auto sql = generate_conn_sql(tp);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -50,6 +51,13 @@ class postgresql {
       return false;
     }
     return true;
+  }
+
+  bool connect(const std::string &host, const std::string &user,
+               const std::string &passwd, const std::string &db,
+               const std::optional<int> &timeout,
+               const std::optional<int> &port) {
+    return connect(std::make_tuple(host, user, passwd, db, timeout, port));
   }
 
   template <typename... Args>
@@ -125,13 +133,13 @@ class postgresql {
   }
 
   template <typename T, typename... Args>
-  bool delete_records_s(const std::string &str, Args &&...args) {
+  uint64_t delete_records_s(const std::string &str, Args &&...args) {
     auto sql = generate_delete_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
     if (!prepare<T>(sql))
-      return false;
+      return 0;
 
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
@@ -150,13 +158,13 @@ class postgresql {
 
     auto guard = guard_statment(res_);
     if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
-      return false;
+      return 0;
     }
-    return true;
+    return std::strtoull(PQcmdTuples(res_), nullptr, 10);
   }
 
   template <typename T, typename... Args>
-  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query_s(
+  std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &str, Args &&...args) {
     std::string sql = generate_query_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
@@ -190,9 +198,10 @@ class postgresql {
 
     for (auto i = 0; i < ntuples; i++) {
       T t = {};
-      iguana::for_each(t, [this, i, &t](auto item, auto I) {
-        assign(t.*item, i, (int)decltype(I)::value);
-      });
+      ylt::reflection::for_each(
+          t, [this, i](auto &field, auto /*name*/, auto index) {
+            assign(field, i, index);
+          });
       v.push_back(std::move(t));
     }
 
@@ -200,7 +209,7 @@ class postgresql {
   }
 
   template <typename T, typename... Args>
-  std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query_s(
+  std::enable_if_t<iguana::non_ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &sql, Args &&...args) {
     static_assert(iguana::is_tuple<T>::value);
 #ifdef ORMPP_ENABLE_LOG
@@ -234,15 +243,18 @@ class postgresql {
 
     for (auto i = 0; i < ntuples; i++) {
       T tp = {};
-      int index = 0;
-      iguana::for_each(
+      size_t index = 0;
+      ormpp::for_each(
           tp,
-          [this, i, &index](auto &item, auto I) {
-            if constexpr (iguana::is_reflection_v<decltype(item)>) {
-              std::remove_reference_t<decltype(item)> t = {};
-              iguana::for_each(t, [this, &index, &t, i](auto ele, auto /*i*/) {
-                assign(t.*ele, (int)i, index++);
-              });
+          [this, i, &index](auto &item, auto /*index*/) {
+            using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+            if constexpr (iguana::ylt_refletable_v<U>) {
+              U t = {};
+              ylt::reflection::for_each(
+                  t, [this, &index, &t, i](auto &field, auto /*name*/,
+                                           auto /*index*/) {
+                    assign(field, (int)i, index++);
+                  });
               item = std::move(t);
             }
             else {
@@ -259,7 +271,7 @@ class postgresql {
   }
 
   template <typename T, typename... Args>
-  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
+  std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query(
       Args &&...args) {
     std::string sql = generate_query_sql<T>(args...);
 #ifdef ORMPP_ENABLE_LOG
@@ -279,9 +291,10 @@ class postgresql {
 
     for (auto i = 0; i < ntuples; i++) {
       T t = {};
-      iguana::for_each(t, [this, i, &t](auto item, auto I) {
-        assign(t.*item, i, (int)decltype(I)::value);
-      });
+      ylt::reflection::for_each(
+          t, [this, i](auto &field, auto /*name*/, auto index) {
+            assign(field, i, index);
+          });
       v.push_back(std::move(t));
     }
 
@@ -289,11 +302,10 @@ class postgresql {
   }
 
   template <typename T, typename Arg, typename... Args>
-  std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(
+  std::enable_if_t<iguana::non_ylt_refletable_v<T>, std::vector<T>> query(
       const Arg &s, Args &&...args) {
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
-
     std::string sql = s;
     constexpr auto Args_Size = sizeof...(Args);
     if (Args_Size != 0) {
@@ -318,14 +330,17 @@ class postgresql {
     for (auto i = 0; i < ntuples; i++) {
       T tp = {};
       int index = 0;
-      iguana::for_each(
+      ormpp::for_each(
           tp,
-          [this, i, &index](auto &item, auto I) {
-            if constexpr (iguana::is_reflection_v<decltype(item)>) {
-              std::remove_reference_t<decltype(item)> t = {};
-              iguana::for_each(t, [this, &index, &t, i](auto ele, auto /*i*/) {
-                assign(t.*ele, (int)i, index++);
-              });
+          [this, i, &index](auto &item, auto /*index*/) {
+            using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+            if constexpr (iguana::ylt_refletable_v<U>) {
+              U t = {};
+              ylt::reflection::for_each(
+                  t, [this, &index, i](auto &field, auto /*name*/,
+                                       auto /*index*/) {
+                    assign(field, (int)i, index++);
+                  });
               item = std::move(t);
             }
             else {
@@ -352,6 +367,8 @@ class postgresql {
   }
 
   // transaction
+  void set_enable_transaction(bool enable) { transaction_ = enable; }
+
   bool begin() {
     res_ = PQexec(con_, "begin;");
     auto guard = guard_statment(res_);
@@ -371,56 +388,36 @@ class postgresql {
   }
 
  private:
-  template <typename T>
-  auto to_str(T &&t) {
-    if constexpr (std::is_integral_v<std::decay_t<T>>)
-      return std::to_string(std::forward<T>(t));
-    else
-      return t;
-  }
-
-  template <typename Tuple>
-  std::string generate_conn_sql(const Tuple &tp) {
-    constexpr size_t SIZE = std::tuple_size_v<Tuple>;
-    if constexpr (SIZE == 4) {
-      return generate_conn_sql(
-          std::make_tuple("host", "user", "password", "dbname"), tp,
-          std::make_index_sequence<SIZE>{});
+  std::string generate_conn_sql(
+      const std::tuple<std::string, std::string, std::string, std::string,
+                       std::optional<int>, std::optional<int>> &tp) {
+    std::string params;
+    params.append("host=").append(std::get<0>(tp)).append(" ");
+    params.append("user=").append(std::get<1>(tp)).append(" ");
+    params.append("password=").append(std::get<2>(tp)).append(" ");
+    params.append("dbname=").append(std::get<3>(tp)).append(" ");
+    if (std::get<4>(tp).has_value()) {
+      params.append("connect_timeout=")
+          .append(std::to_string(std::get<4>(tp).value()))
+          .append(" ");
     }
-    else if constexpr (SIZE == 5) {
-      return generate_conn_sql(std::make_tuple("host", "user", "password",
-                                               "dbname", "connect_timeout"),
-                               tp, std::make_index_sequence<SIZE>{});
+    if (std::get<5>(tp).has_value()) {
+      params.append("port=")
+          .append(std::to_string(std::get<5>(tp).value()))
+          .append(" ");
     }
-    else if constexpr (SIZE == 6) {
-      return generate_conn_sql(
-          std::make_tuple("host", "user", "password", "dbname",
-                          "connect_timeout", "port"),
-          tp, std::make_index_sequence<SIZE>{});
-    }
-    else {
-      return "";
-    }
-  }
-
-  template <typename... Args1, typename... Args2, std::size_t... Idx>
-  std::string generate_conn_sql(const std::tuple<Args1...> &tp1,
-                                const std::tuple<Args2...> &tp2,
-                                std::index_sequence<Idx...>) {
-    std::string sql = "";
-    (append(sql, std::get<Idx>(tp1), "=", to_str(std::get<Idx>(tp2)), " "),
-     ...);
-    return sql;
+    params.pop_back();
+    return params;
   }
 
   template <typename T, typename... Args>
   std::string generate_createtb_sql(Args &&...args) {
-    const auto type_name_arr = get_type_names<T>(DBType::postgresql);
-    auto name = get_name<T>();
+    static const auto type_name_arr = get_type_names<T>(DBType::postgresql);
+    auto arr = ylt::reflection::get_member_names<T>();
+    constexpr auto SIZE = sizeof...(Args);
+    auto name = get_struct_name<T>();
     std::string sql =
         std::string("CREATE TABLE IF NOT EXISTS ") + name.data() + "(";
-    auto arr = iguana::get_array<T>();
-    constexpr const size_t SIZE = sizeof...(Args);
 
     // auto_increment_key and key can't exist at the same time
     using U = std::tuple<std::decay_t<Args>...>;
@@ -439,10 +436,10 @@ class postgresql {
     for (size_t i = 0; i < arr_size; ++i) {
       auto field_name = arr[i];
       bool has_add_field = false;
-      iguana::for_each(
+      for_each0(
           tp,
-          [&sql, &i, &has_add_field, &unique_fields, field_name, type_name_arr,
-           name, this](auto item, auto I) {
+          [&sql, &i, &has_add_field, &unique_fields, field_name, name,
+           this](auto item) {
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null> ||
                           std::is_same_v<decltype(item), ormpp_unique>) {
               if (item.fields.find(field_name.data()) == item.fields.end())
@@ -514,8 +511,8 @@ class postgresql {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    res_ =
-        PQprepare(con_, "", sql.data(), (int)iguana::get_value<T>(), nullptr);
+    res_ = PQprepare(con_, "", sql.data(), ylt::reflection::members_count_v<T>,
+                     nullptr);
     auto guard = guard_statment(res_);
     return PQresultStatus(res_) == PGRES_COMMAND_OK;
   }
@@ -524,39 +521,40 @@ class postgresql {
   std::optional<uint64_t> stmt_execute(const T &t, OptType type,
                                        Args &&...args) {
     std::vector<std::vector<char>> param_values;
-    constexpr auto arr = iguana::indexs_of<members...>();
+    constexpr auto arr = indexs_of<members...>();
     if constexpr (sizeof...(members) > 0) {
-      (set_param_values(param_values,
-                        iguana::get<iguana::index_of<members>()>(t)),
+      (set_param_values(
+           param_values,
+           ylt::reflection::get<ylt::reflection::index_of<members>()>(t)),
        ...);
     }
     else {
-      iguana::for_each(t,
-                       [&t, arr, &param_values, type, this](auto item, auto i) {
-                         if (type == OptType::insert &&
-                             is_auto_key<T>(iguana::get_name<T>(i).data())) {
-                           return;
-                         }
-                         if constexpr (sizeof...(members) > 0) {
-                           for (auto idx : arr) {
-                             if (idx == decltype(i)::value) {
-                               set_param_values(param_values, t.*item);
-                             }
-                           }
-                         }
-                         else {
-                           set_param_values(param_values, t.*item);
-                         }
-                       });
+      ylt::reflection::for_each(t, [arr, &param_values, type, this](
+                                       auto &field, auto name, auto index) {
+        if (type == OptType::insert && is_auto_key<T>(name)) {
+          return;
+        }
+        if constexpr (sizeof...(members) > 0) {
+          for (auto idx : arr) {
+            if (idx == index) {
+              set_param_values(param_values, field);
+            }
+          }
+        }
+        else {
+          set_param_values(param_values, field);
+        }
+      });
     }
 
     if constexpr (sizeof...(Args) == 0) {
       if (type == OptType::update) {
-        iguana::for_each(t, [&t, &param_values, this](auto item, auto i) {
-          if (is_conflict_key<T>(iguana::get_name<T>(i).data())) {
-            set_param_values(param_values, t.*item);
-          }
-        });
+        ylt::reflection::for_each(
+            t, [&param_values, this](auto &field, auto name, auto /*index*/) {
+              if (is_conflict_key<T>(name)) {
+                set_param_values(param_values, field);
+              }
+            });
       }
     }
 
@@ -607,17 +605,17 @@ class postgresql {
 
   template <auto... members, typename T, typename... Args>
   int update_impl(const T &t, Args &&...args) {
-    auto sql = generate_update_sql<T, members...>(std::forward<Args>(args)...);
-    auto res = insert_or_update_impl<members...>(t, sql, OptType::update, false,
-                                                 std::forward<Args>(args)...);
+    auto res = insert_or_update_impl<members...>(
+        t, generate_update_sql<T, members...>(std::forward<Args>(args)...),
+        OptType::update, false, std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
 
   template <auto... members, typename T, typename... Args>
   int update_impl(const std::vector<T> &v, Args &&...args) {
-    auto sql = generate_update_sql<T, members...>(std::forward<Args>(args)...);
-    auto res = insert_or_update_impl<members...>(v, sql, OptType::update, false,
-                                                 std::forward<Args>(args)...);
+    auto res = insert_or_update_impl<members...>(
+        v, generate_update_sql<T, members...>(std::forward<Args>(args)...),
+        OptType::update, false, std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
 
@@ -642,7 +640,7 @@ class postgresql {
                                                 OptType type,
                                                 bool get_insert_id = false,
                                                 Args &&...args) {
-    if (!begin()) {
+    if (transaction_ && !begin()) {
       return std::nullopt;
     }
 
@@ -656,12 +654,14 @@ class postgresql {
     for (auto &item : v) {
       res = stmt_execute<members...>(item, type, std::forward<Args>(args)...);
       if (!res.has_value()) {
-        rollback();
+        if (transaction_) {
+          rollback();
+        }
         return std::nullopt;
       }
     }
 
-    if (!commit()) {
+    if (transaction_ && !commit()) {
       return std::nullopt;
     }
 
@@ -671,7 +671,7 @@ class postgresql {
   template <typename T>
   void set_param_values(std::vector<std::vector<char>> &param_values,
                         T &&value) {
-    using U = std::remove_const_t<std::remove_reference_t<T>>;
+    using U = ylt::reflection::remove_cvref_t<T>;
     if constexpr (is_optional_v<U>::value) {
       if (value.has_value()) {
         return set_param_values(param_values, std::move(value.value()));
@@ -744,7 +744,7 @@ class postgresql {
       value = {};
       return;
     }
-    using U = std::remove_const_t<std::remove_reference_t<T>>;
+    using U = ylt::reflection::remove_cvref_t<T>;
     if constexpr (is_optional_v<U>::value) {
       using value_type = typename U::value_type;
       value_type item;
@@ -793,7 +793,8 @@ class postgresql {
     guard_statment(PGresult *res) : res_(res) { reset_error(); }
     ~guard_statment() {
       if (res_ != nullptr) {
-        if (PQresultStatus(res_) != PGRES_COMMAND_OK) {
+        auto status = PQresultStatus(res_);
+        if (status != PGRES_COMMAND_OK && status != PGRES_TUPLES_OK) {
           set_last_error(PQresultErrorMessage(res_));
         }
         PQclear(res_);
@@ -807,8 +808,9 @@ class postgresql {
  private:
   PGconn *con_ = nullptr;
   PGresult *res_ = nullptr;
-  inline static bool has_error_ = false;
   inline static std::string last_error_;
+  inline static bool has_error_ = false;
+  inline static bool transaction_ = true;
 };
 }  // namespace ormpp
 #endif  // ORM_POSTGRESQL_HPP

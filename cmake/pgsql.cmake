@@ -21,6 +21,11 @@ ELSEIF (LINUX)
 ELSEIF (APPLE)
   FIND_PATH(PGSQL_INCLUDE_DIR libpq-fe.h
     /opt/homebrew/include/postgresql)
+ELSE (WIN32)
+  FIND_PATH(PGSQL_INCLUDE_DIR libpq-fe.h
+    /opt/homebrew/include/postgresql
+    /usr/local/include/postgresql
+    /usr/include/postgresql)
 ENDIF()
 
 IF (WIN32)
@@ -40,6 +45,13 @@ ELSEIF (APPLE)
   FIND_LIBRARY(PGSQL_LIBRARY
     NAMES ${PGSQL_NAMES}
     PATHS /opt/homebrew/lib)
+ELSE (WIN32)
+  SET(PGSQL_NAMES pq)
+  FIND_LIBRARY(PGSQL_LIBRARY
+    NAMES ${PGSQL_NAMES}
+    PATHS /usr/lib
+    /usr/local/lib
+    /opt/homebrew/lib)
 ENDIF()
 
 IF (PGSQL_INCLUDE_DIR AND PGSQL_LIBRARY)

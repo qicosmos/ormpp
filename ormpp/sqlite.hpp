@@ -31,15 +31,24 @@ class sqlite {
 
   std::string get_last_error() const { return last_error_; }
 
-  template <typename Arg, typename... Args>
-  bool connect(Arg &&arg, Args &&...) {
+  bool connect(
+      const std::tuple<std::string, std::string, std::string, std::string,
+                       std::optional<int>, std::optional<int>> &tp) {
     reset_error();
-    auto r = sqlite3_open(std::forward<Arg>(arg), &handle_);
+    auto r = sqlite3_open(std::get<3>(tp).c_str(), &handle_);
     if (r != SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
       return false;
     }
     return true;
+  }
+
+  bool connect(const std::string &host, const std::string &user,
+               const std::string &passwd, const std::string &db,
+               const std::optional<int> &timeout,
+               const std::optional<int> &port) {
+    return connect(std::make_tuple(host, user, passwd, db.empty() ? host : db,
+                                   timeout, port));
   }
 
   bool ping() { return true; }
@@ -124,7 +133,7 @@ class sqlite {
   }
 
   template <typename T, typename... Args>
-  bool delete_records_s(const std::string &str, Args &&...args) {
+  uint64_t delete_records_s(const std::string &str, Args &&...args) {
     auto sql = generate_delete_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -133,7 +142,7 @@ class sqlite {
                                     &stmt_, nullptr);
     if (result != SQLITE_OK) {
       set_last_error(sqlite3_errmsg(handle_));
-      return false;
+      return 0;
     }
 
     if constexpr (sizeof...(Args) > 0) {
@@ -144,13 +153,13 @@ class sqlite {
     auto guard = guard_statment(stmt_);
     if (sqlite3_step(stmt_) != SQLITE_DONE) {
       set_last_error(sqlite3_errmsg(handle_));
-      return false;
+      return 0;
     }
-    return true;
+    return sqlite3_changes(handle_);
   }
 
   template <typename T, typename... Args>
-  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query_s(
+  std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &str, Args &&...args) {
     std::string sql = generate_query_sql<T>(str);
 #ifdef ORMPP_ENABLE_LOG
@@ -180,9 +189,10 @@ class sqlite {
         break;
 
       T t = {};
-      iguana::for_each(t, [this, &t](auto item, auto I) {
-        assign(t.*item, (int)decltype(I)::value);
-      });
+      ylt::reflection::for_each(t,
+                                [this](auto &field, auto /*name*/, auto index) {
+                                  assign(field, index);
+                                });
 
       v.push_back(std::move(t));
     }
@@ -191,7 +201,7 @@ class sqlite {
   }
 
   template <typename T, typename... Args>
-  std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query_s(
+  std::enable_if_t<iguana::non_ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &sql, Args &&...args) {
     static_assert(iguana::is_tuple<T>::value);
 #ifdef ORMPP_ENABLE_LOG
@@ -221,15 +231,18 @@ class sqlite {
         break;
 
       T tp = {};
-      int index = 0;
-      iguana::for_each(
+      size_t index = 0;
+      ormpp::for_each(
           tp,
-          [this, &index](auto &item, auto /*I*/) {
-            if constexpr (iguana::is_reflection_v<decltype(item)>) {
-              std::remove_reference_t<decltype(item)> t = {};
-              iguana::for_each(t, [this, &index, &t](auto ele, auto /*i*/) {
-                assign(t.*ele, index++);
-              });
+          [this, &index](auto &item, auto /*index*/) {
+            using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+            if constexpr (iguana::ylt_refletable_v<U>) {
+              U t = {};
+              ylt::reflection::for_each(
+                  t,
+                  [this, &index](auto &field, auto /*name*/, auto /*index*/) {
+                    assign(field, index++);
+                  });
               item = std::move(t);
             }
             else {
@@ -248,7 +261,7 @@ class sqlite {
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
   template <typename T, typename... Args>
-  std::enable_if_t<iguana::is_reflection_v<T>, std::vector<T>> query(
+  std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query(
       Args &&...args) {
     std::string sql = generate_query_sql<T>(args...);
 #ifdef ORMPP_ENABLE_LOG
@@ -273,10 +286,10 @@ class sqlite {
         break;
 
       T t = {};
-      iguana::for_each(t, [this, &t](auto item, auto I) {
-        assign(t.*item, (int)decltype(I)::value);
-      });
-
+      ylt::reflection::for_each(t,
+                                [this](auto &field, auto /*name*/, auto index) {
+                                  assign(field, index);
+                                });
       v.push_back(std::move(t));
     }
 
@@ -284,11 +297,10 @@ class sqlite {
   }
 
   template <typename T, typename Arg, typename... Args>
-  std::enable_if_t<!iguana::is_reflection_v<T>, std::vector<T>> query(
+  std::enable_if_t<iguana::non_ylt_refletable_v<T>, std::vector<T>> query(
       const Arg &s, Args &&...args) {
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
-
     std::string sql = s;
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -320,15 +332,18 @@ class sqlite {
         break;
 
       T tp = {};
-      int index = 0;
-      iguana::for_each(
+      size_t index = 0;
+      ormpp::for_each(
           tp,
-          [this, &index](auto &item, auto /*I*/) {
-            if constexpr (iguana::is_reflection_v<decltype(item)>) {
-              std::remove_reference_t<decltype(item)> t = {};
-              iguana::for_each(t, [this, &index, &t](auto ele, auto /*i*/) {
-                assign(t.*ele, index++);
-              });
+          [this, &index](auto &item, auto /*index*/) {
+            using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+            if constexpr (iguana::ylt_refletable_v<U>) {
+              U t = {};
+              ylt::reflection::for_each(
+                  t,
+                  [this, &index](auto &field, auto /*name*/, auto /*index*/) {
+                    assign(field, index++);
+                  });
               item = std::move(t);
             }
             else {
@@ -367,6 +382,8 @@ class sqlite {
   int get_last_affect_rows() { return sqlite3_changes(handle_); }
 
   // transaction
+  void set_enable_transaction(bool enable) { transaction_ = enable; }
+
   bool begin() {
     reset_error();
     if (sqlite3_exec(handle_, "BEGIN", nullptr, nullptr, nullptr) !=
@@ -400,18 +417,18 @@ class sqlite {
  private:
   template <typename T, typename... Args>
   std::string generate_createtb_sql(Args &&...args) {
-    const auto type_name_arr = get_type_names<T>(DBType::sqlite);
-    auto name = get_name<T>();
+    static const auto type_name_arr = get_type_names<T>(DBType::sqlite);
+    auto arr = ylt::reflection::get_member_names<T>();
+    constexpr auto SIZE = sizeof...(Args);
+    auto name = get_struct_name<T>();
     std::string sql =
         std::string("CREATE TABLE IF NOT EXISTS ") + name.data() + "(";
-    auto arr = iguana::get_array<T>();
-    constexpr auto SIZE = sizeof...(Args);
 
     // auto_increment_key and key can't exist at the same time
     using U = std::tuple<std::decay_t<Args>...>;
     if constexpr (SIZE > 0) {
-      // using U = std::tuple<std::decay_t <Args>...>; //the code can't compile
-      // in vs2017, why?maybe args... in if constexpr?
+      // using U = std::tuple<std::decay_t <Args>...>; //the code can't
+      // compile in vs2017, why?maybe args... in if constexpr?
       static_assert(!(iguana::has_type<ormpp_key, U>::value &&
                       iguana::has_type<ormpp_auto_key, U>::value),
                     "should only one key");
@@ -425,8 +442,8 @@ class sqlite {
       bool has_add_field = false;
       for_each0(
           tp,
-          [&sql, &i, &has_add_field, &unique_fields, field_name, type_name_arr,
-           name, this](auto item) {
+          [&sql, &i, &has_add_field, &unique_fields, field_name, name,
+           this](auto item) {
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null> ||
                           std::is_same_v<decltype(item), ormpp_unique>) {
               if (item.fields.find(field_name.data()) == item.fields.end())
@@ -493,33 +510,35 @@ class sqlite {
     size_t index = 0;
     bool bind_ok = true;
     if constexpr (sizeof...(members) > 0) {
-      ((bind_ok && (bind_ok = set_param_bind(
-                        iguana::get<iguana::index_of<members>()>(t), ++index)),
+      ((bind_ok &&
+            (bind_ok = set_param_bind(
+                 ylt::reflection::get<ylt::reflection::index_of<members>()>(t),
+                 ++index)),
         true),
        ...);
     }
     else {
-      iguana::for_each(t,
-                       [&t, &bind_ok, &index, type, this](auto item, auto i) {
-                         if ((type == OptType::insert &&
-                              is_auto_key<T>(iguana::get_name<T>(i).data())) ||
-                             !bind_ok) {
-                           return;
-                         }
-                         bind_ok = set_param_bind(t.*item, ++index);
-                       });
+      ylt::reflection::for_each(t, [&bind_ok, &index, type, this](
+                                       auto &field, auto name, auto /*index*/) {
+        if ((type == OptType::insert && is_auto_key<T>(name)) || !bind_ok) {
+          return;
+        }
+        bind_ok = set_param_bind(field, ++index);
+      });
     }
 
     if constexpr (sizeof...(Args) == 0) {
       if (type == OptType::update) {
-        iguana::for_each(t, [&t, &bind_ok, &index, this](auto item, auto i) {
-          if (!bind_ok) {
-            return;
-          }
-          if (is_conflict_key<T>(iguana::get_name<T>(i).data())) {
-            bind_ok = set_param_bind(t.*item, ++index);
-          }
-        });
+        ylt::reflection::for_each(
+            t,
+            [&bind_ok, &index, this](auto &field, auto name, auto /*index*/) {
+              if (!bind_ok) {
+                return;
+              }
+              if (is_conflict_key<T>(name)) {
+                bind_ok = set_param_bind(field, ++index);
+              }
+            });
       }
     }
 
@@ -543,7 +562,7 @@ class sqlite {
 
   template <typename T>
   bool set_param_bind(T &&value, int i) {
-    using U = std::remove_const_t<std::remove_reference_t<T>>;
+    using U = ylt::reflection::remove_cvref_t<T>;
     if constexpr (is_optional_v<U>::value) {
       if (value.has_value()) {
         return set_param_bind(std::move(value.value()), i);
@@ -591,7 +610,7 @@ class sqlite {
 
   template <typename T>
   void assign(T &&value, int i) {
-    using U = std::remove_const_t<std::remove_reference_t<T>>;
+    using U = ylt::reflection::remove_cvref_t<T>;
     if (sqlite3_column_type(stmt_, i) == SQLITE_NULL) {
       value = U{};
       return;
@@ -660,17 +679,17 @@ class sqlite {
 
   template <auto... members, typename T, typename... Args>
   int update_impl(const T &t, Args &&...args) {
-    auto sql = generate_update_sql<T, members...>(std::forward<Args>(args)...);
-    auto res = insert_or_update_impl<members...>(t, sql, OptType::update, false,
-                                                 std::forward<Args>(args)...);
+    auto res = insert_or_update_impl<members...>(
+        t, generate_update_sql<T, members...>(std::forward<Args>(args)...),
+        OptType::update, false, std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
 
   template <auto... members, typename T, typename... Args>
   int update_impl(const std::vector<T> &v, Args &&...args) {
-    auto sql = generate_update_sql<T, members...>(std::forward<Args>(args)...);
-    auto res = insert_or_update_impl<members...>(v, sql, OptType::update, false,
-                                                 std::forward<Args>(args)...);
+    auto res = insert_or_update_impl<members...>(
+        v, generate_update_sql<T, members...>(std::forward<Args>(args)...),
+        OptType::update, false, std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
 
@@ -716,25 +735,29 @@ class sqlite {
 
     auto guard = guard_statment(stmt_);
 
-    if (!begin()) {
+    if (transaction_ && !begin()) {
       return std::nullopt;
     }
 
     for (auto &item : v) {
       if (stmt_execute<members...>(item, type, std::forward<Args>(args)...) ==
           INT_MIN) {
-        rollback();
+        if (transaction_) {
+          rollback();
+        }
         return std::nullopt;
       }
 
       if (sqlite3_reset(stmt_) != SQLITE_OK) {
-        rollback();
+        if (transaction_) {
+          rollback();
+        }
         set_last_error(sqlite3_errmsg(handle_));
         return std::nullopt;
       }
     }
 
-    if (!commit()) {
+    if (transaction_ && !commit()) {
       return std::nullopt;
     }
 
@@ -760,8 +783,9 @@ class sqlite {
  private:
   sqlite3 *handle_ = nullptr;
   sqlite3_stmt *stmt_ = nullptr;
-  inline static bool has_error_ = false;
   inline static std::string last_error_;
+  inline static bool has_error_ = false;
+  inline static bool transaction_ = true;
 };
 }  // namespace ormpp
 

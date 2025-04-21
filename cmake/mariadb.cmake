@@ -20,7 +20,12 @@ ELSEIF (LINUX)
     /usr/include/mariadb)
 ELSEIF (APPLE)
   FIND_PATH(MARIADB_INCLUDE_DIR mysql.h
-  /opt/homebrew/include/mariadb)
+    /opt/homebrew/include/mariadb)
+ELSE (WIN32)
+  FIND_PATH(MARIADB_INCLUDE_DIR mysql.h
+    /opt/homebrew/include/mariadb
+    /usr/local/include/mariadb
+    /usr/include/mariadb)
 ENDIF()
 
 SET(MARIADB_NAMES mariadb)
@@ -40,6 +45,13 @@ ELSEIF (APPLE)
   FIND_LIBRARY(MARIADB_LIBRARY
     NAMES ${MARIADB_NAMES}
     PATHS /opt/homebrew/lib
+    PATH_SUFFIXES mariadb)
+ELSE (WIN32)
+  FIND_LIBRARY(MARIADB_LIBRARY
+    NAMES ${MARIADB_NAMES}
+    PATHS /usr/lib 
+    /usr/local/lib
+    /opt/homebrew/lib
     PATH_SUFFIXES mariadb)
 ENDIF()
 

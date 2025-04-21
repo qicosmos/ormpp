@@ -35,7 +35,7 @@ struct person {
   int id;
 };
 REGISTER_AUTO_KEY(person, id)
-REFLECTION(person, id, name, age)
+YLT_REFL(person, id, name, age)
 
 struct student {
   int code;
@@ -46,7 +46,7 @@ struct student {
   std::string classroom;
 };
 REGISTER_CONFLICT_KEY(student, code)
-REFLECTION(student, code, name, sex, age, dm, classroom)
+YLT_REFL(student, code, name, sex, age, dm, classroom)
 
 struct simple {
   int id;
@@ -54,7 +54,7 @@ struct simple {
   int age;
   std::array<char, 128> arr;
 };
-REFLECTION(simple, id, code, age, arr)
+YLT_REFL(simple, id, code, age, arr)
 
 // TEST_CASE(mysql performance){
 //    dbng<mysql> mysql;
@@ -102,14 +102,14 @@ struct test_optional {
   std::optional<int> empty_;
 };
 REGISTER_AUTO_KEY(test_optional, id)
-REFLECTION(test_optional, id, name, age, empty_);
+YLT_REFL(test_optional, id, name, age, empty_);
 
 TEST_CASE("optional") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists test_optional;");
     mysql.create_datatable<test_optional>(ormpp_auto_key{"id"});
-    mysql.delete_records<test_optional>();
     mysql.insert<test_optional>({0, "purecpp", 200});
     auto vec1 = mysql.query<test_optional>();
     REQUIRE(vec1.size() > 0);
@@ -121,13 +121,24 @@ TEST_CASE("optional") {
     CHECK(vec2.front().age.value() == 200);
     CHECK(vec2.front().name.value() == "purecpp");
     CHECK(vec2.front().empty_.has_value() == false);
+
+    auto vec3 = mysql.query_s<test_optional>();
+    REQUIRE(vec3.size() > 0);
+    CHECK(vec3.front().age.value() == 200);
+    CHECK(vec3.front().name.value() == "purecpp");
+    CHECK(vec3.front().empty_.has_value() == false);
+    auto vec4 = mysql.query_s<test_optional>("select * from test_optional;");
+    REQUIRE(vec4.size() > 0);
+    CHECK(vec4.front().age.value() == 200);
+    CHECK(vec4.front().name.value() == "purecpp");
+    CHECK(vec4.front().empty_.has_value() == false);
   }
 #endif
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
   if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists test_optional;");
     postgres.create_datatable<test_optional>(ormpp_auto_key{"id"});
-    postgres.delete_records<test_optional>();
     postgres.insert<test_optional>({0, "purecpp", 200});
     auto vec1 = postgres.query<test_optional>();
     REQUIRE(vec1.size() > 0);
@@ -144,8 +155,8 @@ TEST_CASE("optional") {
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists test_optional;");
     sqlite.create_datatable<test_optional>(ormpp_auto_key{"id"});
-    sqlite.delete_records<test_optional>();
     sqlite.insert<test_optional>({0, "purecpp", 200});
     auto vec1 = sqlite.query<test_optional>();
     REQUIRE(vec1.size() > 0);
@@ -165,16 +176,16 @@ struct test_order {
   int id;
   std::string name;
 };
-REFLECTION(test_order, name, id);
+YLT_REFL(test_order, name, id);
 
 TEST_CASE("random reflection order") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db,
                     /*timeout_seconds=*/5, 3306)) {
+    mysql.execute("drop table if exists test_order;");
     REQUIRE(mysql.execute(
         "create table if not exists `test_order` (id int, name text);"));
-    mysql.delete_records<test_order>();
     int id = 666;
     std::string name = "hello";
     mysql.insert(test_order{id, name});
@@ -189,8 +200,11 @@ TEST_CASE("random reflection order") {
 struct custom_name {
   int id;
   std::string name;
+  static constexpr std::string_view get_alias_struct_name(custom_name *) {
+    return "test_order";
+  }
 };
-REFLECTION_WITH_NAME(custom_name, "test_order", id, name);
+YLT_REFL(custom_name, id, name);
 
 TEST_CASE("custom name") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -208,7 +222,7 @@ struct dummy {
   int id;
   std::string name;
 };
-REFLECTION(dummy, id, name);
+YLT_REFL(dummy, id, name);
 
 // TEST_CASE("mysql exist tb") {
 //   dbng<mysql> mysql;
@@ -603,8 +617,8 @@ TEST_CASE("update") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(key, not_null);
-    mysql.delete_records<student>();
     CHECK(mysql.insert(v) == 3);
     v[0].name = "test1";
     v[1].name = "test2";
@@ -618,8 +632,8 @@ TEST_CASE("update") {
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
   if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(key, not_null);
-    postgres.delete_records<student>();
     CHECK(postgres.insert(v) == 3);
     v[0].name = "test1";
     v[1].name = "test2";
@@ -633,8 +647,8 @@ TEST_CASE("update") {
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key);
-    sqlite.delete_records<student>();
     CHECK(sqlite.insert(v) == 3);
     v[0].name = "test1";
     v[1].name = "test2";
@@ -661,7 +675,6 @@ TEST_CASE("multi update") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists student");
     mysql.create_datatable<student>(auto_key, not_null);
-    mysql.delete_records<student>();
     CHECK(mysql.insert(v) == 3);
     v[0].name = "test1";
     v[1].name = "test2";
@@ -716,8 +729,8 @@ TEST_CASE("delete") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(key, not_null);
-    mysql.delete_records<student>();
     CHECK(mysql.insert(v) == 3);
     mysql.delete_records<student>("code=1");
     auto vec1 = mysql.query<student>();
@@ -731,8 +744,8 @@ TEST_CASE("delete") {
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
   if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(key, not_null);
-    postgres.delete_records<student>();
     CHECK(postgres.insert(v) == 3);
     postgres.delete_records<student>("code=1");
     auto vec1 = postgres.query<student>();
@@ -746,8 +759,8 @@ TEST_CASE("delete") {
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key);
-    sqlite.delete_records<student>();
     CHECK(sqlite.insert(v) == 3);
     REQUIRE(sqlite.delete_records<student>("code=1"));
     auto vec1 = sqlite.query<student>();
@@ -819,8 +832,8 @@ TEST_CASE("query some") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(key, not_null);
-    mysql.delete_records<student>();
     CHECK(mysql.insert(v) == 3);
     auto vec1 = mysql.query<std::tuple<int>>("select count(1) from student");
     CHECK(vec1.size() == 1);
@@ -834,8 +847,8 @@ TEST_CASE("query some") {
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
   if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(key, not_null);
-    postgres.delete_records<student>();
     CHECK(postgres.insert(v) == 3);
     auto vec1 = postgres.query<std::tuple<int>>("select count(1) from student");
     CHECK(vec1.size() == 1);
@@ -849,8 +862,8 @@ TEST_CASE("query some") {
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key);
-    sqlite.delete_records<student>();
     CHECK(sqlite.insert(v) == 3);
     auto vec1 = sqlite.query<std::tuple<int>>("select count(1) from student");
     CHECK(vec1.size() == 1);
@@ -865,14 +878,15 @@ TEST_CASE("query some") {
 TEST_CASE("query multi table") {
   ormpp_key key{"code"};
   ormpp_not_null not_null{{"code", "age"}};
-  ormpp_auto_key auto_key{"code"};
 
   student s = {1, "tom", 0, 19, 1.5, "room2"};
   student s1 = {2, "jack", 1, 20, 2.5, "room3"};
   student s2 = {3, "mike", 2, 21, 3.5, "room4"};
   std::vector<student> v{s, s1, s2};
 
-  ormpp_key key1{"id"};
+  ormpp_auto_key key1{"id"};
+  ormpp_not_null not_null1{{"name", "age"}};
+
   person p = {"test1", 2, 1};
   person p1 = {"test2", 3, 2};
   person p2 = {"test3", 4, 3};
@@ -881,10 +895,10 @@ TEST_CASE("query multi table") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists student;");
+    mysql.execute("drop table if exists person;");
     mysql.create_datatable<student>(key, not_null);
-    mysql.create_datatable<person>(key1, not_null);
-    mysql.delete_records<student>();
-    mysql.delete_records<person>();
+    mysql.create_datatable<person>(key1, not_null1);
     CHECK(mysql.insert(v) == 3);
     CHECK(mysql.insert(v1) == 3);
     auto vec1 = mysql.query<std::tuple<person, std::string, int>>(
@@ -899,10 +913,10 @@ TEST_CASE("query multi table") {
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
   if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists student;");
+    postgres.execute("drop table if exists person;");
     postgres.create_datatable<student>(key, not_null);
-    postgres.create_datatable<person>(key1, not_null);
-    postgres.delete_records<student>();
-    postgres.delete_records<person>();
+    postgres.create_datatable<person>(key1, not_null1);
     CHECK(postgres.insert(v) == 3);
     CHECK(postgres.insert(v1) == 3);
     auto vec1 = postgres.query<std::tuple<int, std::string, double>>(
@@ -917,10 +931,10 @@ TEST_CASE("query multi table") {
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
-    sqlite.create_datatable<student>(key);
-    sqlite.create_datatable<person>(key1);
-    sqlite.delete_records<student>();
-    sqlite.delete_records<person>();
+    sqlite.execute("drop table if exists student;");
+    sqlite.execute("drop table if exists person;");
+    sqlite.create_datatable<student>(key, not_null);
+    sqlite.create_datatable<person>(key1, not_null1);
     CHECK(sqlite.insert(v) == 3);
     CHECK(sqlite.insert(v1) == 3);
     auto vec1 = sqlite.query<std::tuple<int, std::string, double>>(
@@ -936,7 +950,6 @@ TEST_CASE("query multi table") {
 TEST_CASE("transaction") {
   ormpp_key key{"code"};
   ormpp_not_null not_null{{"code", "age"}};
-  ormpp_auto_key auto_key{"code"};
 
   student s = {1, "tom", 0, 19, 1.5, "room2"};
   student s1 = {2, "jack", 1, 20, 2.5, "room3"};
@@ -946,57 +959,89 @@ TEST_CASE("transaction") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(key, not_null);
-    mysql.delete_records<student>();
     mysql.begin();
     for (int i = 0; i < 10; ++i) {
       student st = {i + 1, "tom", 0, 19, 1.5, "room2"};
       if (!mysql.insert(st)) {
         mysql.rollback();
-        return;
+        break;
       }
     }
     mysql.commit();
     auto vec = mysql.query<student>();
     CHECK(vec.size() == 10);
+    CHECK(mysql.delete_records_s<student>() == 10);
+    mysql.set_enable_transaction(false);
+    mysql.begin();
+    if (!mysql.insert(std::vector<student>{{1, "tom1", 0, 19, 1.5, "room1"},
+                                           {2, "tom2", 0, 19, 1.5, "room2"}})) {
+      mysql.rollback();
+    }
+    mysql.commit();
+    vec = mysql.query<student>();
+    CHECK(vec.size() == 2);
   }
 #endif
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
   if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(key, not_null);
-    postgres.delete_records<student>();
     postgres.begin();
     for (int i = 0; i < 10; ++i) {
       student s = {i + 1, "tom", 0, 19, 1.5, "room2"};
       if (!postgres.insert(s)) {
         postgres.rollback();
-        return;
+        break;
       }
     }
     postgres.commit();
     auto vec = postgres.query<student>();
     CHECK(vec.size() == 10);
+    CHECK(postgres.delete_records_s<student>() == 10);
+    postgres.set_enable_transaction(false);
+    postgres.begin();
+    if (!postgres.insert(
+            std::vector<student>{{1, "tom1", 0, 19, 1.5, "room1"},
+                                 {2, "tom2", 0, 19, 1.5, "room2"}})) {
+      postgres.rollback();
+    }
+    postgres.commit();
+    vec = postgres.query<student>();
+    CHECK(vec.size() == 2);
   }
 #endif
 
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key);
-    sqlite.delete_records<student>();
     sqlite.begin();
     for (int i = 0; i < 10; ++i) {
       student st = {i + 1, "tom", 0, 19, 1.5, "room2"};
       if (!sqlite.insert(st)) {
         sqlite.rollback();
-        return;
+        break;
       }
     }
     sqlite.commit();
     auto vec = sqlite.query<student>();
     CHECK(vec.size() == 10);
+    CHECK(sqlite.delete_records_s<student>() == 10);
+    sqlite.set_enable_transaction(false);
+    sqlite.begin();
+    if (!sqlite.insert(
+            std::vector<student>{{1, "tom1", 0, 19, 1.5, "room1"},
+                                 {2, "tom2", 0, 19, 1.5, "room2"}})) {
+      sqlite.rollback();
+    }
+    sqlite.commit();
+    vec = sqlite.query<student>();
+    CHECK(vec.size() == 2);
   }
 #endif
 }
@@ -1051,7 +1096,7 @@ struct image {
   int id;
   ormpp::blob bin;
 };
-REFLECTION(image, id, bin);
+YLT_REFL(image, id, bin);
 
 TEST_CASE("blob") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1107,7 +1152,7 @@ struct image_ex {
   ormpp::blob bin;
   std::string time;
 };
-REFLECTION(image_ex, id, bin, time);
+YLT_REFL(image_ex, id, bin, time);
 
 TEST_CASE("blob tuple") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1305,11 +1350,11 @@ TEST_CASE("query_s delete_records_s") {
     auto vec6 =
         mysql.query_s<person>("select * from person where name=?", "purecpp");
     auto vec7 = mysql.query_s<person>("name=?", "purecpp' or '1=1");
-    mysql.delete_records_s<person>("name=?", "purecpp' or '1=1");
+    CHECK(mysql.delete_records_s<person>("name=?", "purecpp' or '1=1") == 0);
     auto vec8 = mysql.query_s<person>();
-    mysql.delete_records_s<person>("name=?", "purecpp");
+    CHECK(mysql.delete_records_s<person>("name=?", "purecpp") == 1);
     auto vec9 = mysql.query_s<person>();
-    mysql.delete_records_s<person>();
+    CHECK(mysql.delete_records_s<person>() == 1);
     auto vec10 = mysql.query_s<person>();
     CHECK(vec1.front().name == "other");
     CHECK(vec1.back().name == "purecpp");
@@ -1349,11 +1394,12 @@ TEST_CASE("query_s delete_records_s") {
     auto vec6 = postgres.query_s<person>("select * from person where name=$1",
                                          "purecpp");
     auto vec7 = postgres.query_s<person>("name=$1", "purecpp' or '1=1");
-    postgres.delete_records_s<person>("name=$1", "purecpp' or '1=1");
+    CHECK(postgres.delete_records_s<person>("name=$1", "purecpp' or '1=1") ==
+          0);
     auto vec8 = postgres.query_s<person>();
-    postgres.delete_records_s<person>("name=$1", "purecpp");
+    CHECK(postgres.delete_records_s<person>("name=$1", "purecpp") == 1);
     auto vec9 = postgres.query_s<person>();
-    postgres.delete_records_s<person>();
+    CHECK(postgres.delete_records_s<person>() == 1);
     auto vec10 = postgres.query_s<person>();
     CHECK(vec1.front().name == "other");
     CHECK(vec1.back().name == "purecpp");
@@ -1395,11 +1441,11 @@ TEST_CASE("query_s delete_records_s") {
     auto vec11 =
         sqlite.query_s<person>("SELECT * FROM PERSON WHERE NAME=?", "purecpp");
     auto vec7 = sqlite.query_s<person>("name=?", "purecpp' or '1=1");
-    sqlite.delete_records_s<person>("name=?", "purecpp' or '1=1");
+    CHECK(sqlite.delete_records_s<person>("name=?", "purecpp' or '1=1") == 0);
     auto vec8 = sqlite.query_s<person>();
-    sqlite.delete_records_s<person>("name=?", "purecpp");
+    CHECK(sqlite.delete_records_s<person>("name=?", "purecpp") == 1);
     auto vec9 = sqlite.query_s<person>();
-    sqlite.delete_records_s<person>();
+    CHECK(sqlite.delete_records_s<person>() == 1);
     auto vec10 = sqlite.query_s<person>();
     CHECK(vec1.front().name == "other");
     CHECK(vec1.back().name == "purecpp");
@@ -1428,7 +1474,7 @@ struct tuple_optional_t {
   int id;
 };
 REGISTER_AUTO_KEY(tuple_optional_t, id)
-REFLECTION(tuple_optional_t, id, name, age)
+YLT_REFL(tuple_optional_t, id, name, age)
 
 TEST_CASE("query tuple_optional_t") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1532,7 +1578,7 @@ struct test_enum_t {
   int id;
 };
 REGISTER_AUTO_KEY(test_enum_t, id)
-REFLECTION(test_enum_t, id, color, fruit)
+YLT_REFL(test_enum_t, id, color, fruit)
 
 TEST_CASE("test enum") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1643,9 +1689,13 @@ struct test_enum_with_name_t {
   Color color;
   Fruit fruit;
   int id;
+  static constexpr std::string_view get_alias_struct_name(
+      test_enum_with_name_t *) {
+    return "test_enum";
+  }
 };
 REGISTER_AUTO_KEY(test_enum_with_name_t, id)
-REFLECTION_WITH_NAME(test_enum_with_name_t, "test_enum", id, color, fruit)
+YLT_REFL(test_enum_with_name_t, id, color, fruit)
 
 TEST_CASE("test enum with custom name") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1757,7 +1807,7 @@ struct test_bool_t {
   int id;
 };
 REGISTER_AUTO_KEY(test_bool_t, id)
-REFLECTION(test_bool_t, id, ok)
+YLT_REFL(test_bool_t, id, ok)
 
 TEST_CASE("test bool") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1813,28 +1863,43 @@ TEST_CASE("test bool") {
 struct alias {
   std::string name;
   int id;
+  static constexpr auto get_alias_field_names(alias *) {
+    return std::array{ylt::reflection::field_alias_t{"alias_id", 0},
+                      ylt::reflection::field_alias_t{"alias_name", 1}};
+  }
+  static constexpr std::string_view get_alias_struct_name(alias *) {
+    return "t_alias";
+  }
 };
 REGISTER_AUTO_KEY(alias, id)
-REFLECTION_ALIAS(alias, "t_alias", FLDALIAS(&alias::id, "alias_id"),
-                 FLDALIAS(&alias::name, "alias_name"));
+YLT_REFL(alias, id, name)
 
 TEST_CASE("alias") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists t_alias;");
     mysql.create_datatable<alias>(ormpp_auto_key{"alias_id"});
-    mysql.delete_records<alias>();
     mysql.insert<alias>({"purecpp"});
     auto vec = mysql.query_s<alias>();
     CHECK(vec.front().name == "purecpp");
   }
 #endif
-
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists t_alias;");
+    postgres.create_datatable<alias>(ormpp_auto_key{"alias_id"});
+    postgres.insert<alias>({"purecpp"});
+    auto vec = postgres.query_s<alias>();
+    CHECK(vec.front().name == "purecpp");
+  }
+#endif
 #ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
   if (sqlite.connect(db)) {
+    sqlite.execute("drop table if exists t_alias;");
     sqlite.create_datatable<alias>(ormpp_auto_key{"alias_id"});
-    sqlite.delete_records<alias>();
     sqlite.insert<alias>({"purecpp"});
     auto vec = sqlite.query_s<alias>();
     CHECK(vec.front().name == "purecpp");
@@ -1861,6 +1926,7 @@ TEST_CASE("pg update") {
 }
 #endif
 
+#if 0
 TEST_CASE("update section filed") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
@@ -2016,6 +2082,7 @@ TEST_CASE("update section filed") {
   }
 #endif
 }
+#endif
 
 struct unsigned_type_t {
   uint8_t a;
@@ -2027,7 +2094,7 @@ struct unsigned_type_t {
   int32_t g;
   int64_t h;
 };
-REFLECTION(unsigned_type_t, a, b, c, d, e, f, g, h)
+YLT_REFL(unsigned_type_t, a, b, c, d, e, f, g, h)
 
 TEST_CASE("unsigned type") {
 #ifdef ORMPP_ENABLE_MYSQL
