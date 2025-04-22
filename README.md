@@ -179,7 +179,7 @@ YLT_REFL(test_enum_t, id, color, fruit)
 
 int main() {
   dbng<sqlite> sqlite;
-  sqlite.connect(db);
+  sqlite.connect(db);//或者开启sqcipher后sqlite.connect(db， password);
   sqlite.execute("drop table if exists test_enum_t");
   sqlite.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
   sqlite.insert<test_enum_t>({Color::BLUE});
@@ -241,6 +241,39 @@ add_library(ormpp INTERFACE)
 target_link_libraries(ormpp INTERFACE sqlite3)
 target_include_directories(ormpp INTERFACE ormpp ormpp/ormpp ormpp/thirdparty/sqlite3)
 ```
+
+如果需要开启sqlcipher
+
+因为sqlcipher需要链接到OpenSSL库，需要在本地先安装OpenSSL，然后添加下述cmake语句
+```cmake
+set(ENABLE_SQLITE3 ON)
+set(ENABLE_SQLITE3_CODEC)#开启sqlcipher需要同时开启ENABLE_SQLITE3和ENABLE_SQLITE3_CODEC
+add_definitions(
+  -DORMPP_ENABLE_SQLITE3 
+  -DSQLITE_HAS_CODEC
+)
+add_subdirectory(ormpp)
+```
+或者
+```cmake
+set(ENABLE_SQLITE3 ON)
+set(ENABLE_SQLITE3_CODEC)#开启sqlcipher需要同时开启ENABLE_SQLITE3和ENABLE_SQLITE3_CODEC
+add_definitions(
+  -DORMPP_ENABLE_SQLITE3 
+  -DSQLITE_HAS_CODEC
+)
+add_subdirectory(ormpp/thirdparty)
+add_library(ormpp INTERFACE)
+target_link_libraries(ormpp INTERFACE sqlite3)
+target_include_directories(ormpp INTERFACE ormpp ormpp/ormpp ormpp/thirdparty/sqlite3)
+```
+注意：最终发布的应用程序依赖于 OpenSSL 的动态库，
+- Windows 下通常为 `libssl-3-x64.dll`和 `libcrypto-3-x64.dll`；  
+  请将这两个 `.dll` 拷贝到可执行文件所在目录。  
+- Linux下通常已安装在 `/usr/lib` 或 `/usr/local/lib`，不需要拷贝；  
+  如果你使用自编译的 OpenSSL 或者希望随同可执行文件一起分发，也可以将 `libssl.so` 与 `libcrypto.so` 放在执行目录，并通过 `LD_LIBRARY_PATH` 或者 `-Wl,-rpath` 指定查找路径。
+- macOS 下通常为 `libssl.dylib` 和 `libcrypto.dylib`；
+  请将这两个 `.dylib` 拷贝到可执行文件所在目录，或通过 `DYLD_LIBRARY_PATH`、Mach-O `@rpath` 设置查找路径。  
 
 pg
 ```cmake
@@ -391,7 +424,10 @@ mysql.connect("127.0.0.1", "root", "12345", "testdb", 5, 3306);
   
 postgres.connect("127.0.0.1", "root", "12345", "testdb");
 
-sqlite.connect("127.0.0.1", "testdb");
+sqlite.connect("127.0.0.1", "testdb");//或直接sqlite.connect("testdb")；
+
+//开启sqlcipher后
+sqlite.connect("127.0.0.1", "root", "12345", "testdb");//或者直接sqlite.connect("testdb", "123456");
 ```
 
 返回值：bool，成功返回true，失败返回false.

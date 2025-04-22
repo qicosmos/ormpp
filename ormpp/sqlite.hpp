@@ -2,7 +2,6 @@
 // Created by qiyu on 10/28/17.
 //
 #include <sqlite3.h>
-
 #include <climits>
 #include <string>
 #include <vector>
@@ -40,6 +39,41 @@ class sqlite {
       set_last_error(sqlite3_errmsg(handle_));
       return false;
     }
+
+#ifdef SQLITE_HAS_CODEC
+    // Use password as SQLCipher encryption key if it's not empty
+    if (!std::get<2>(tp).empty()) {
+      // Use password as key
+      std::string key = std::get<2>(tp);
+      auto r2 = sqlite3_key(handle_, key.c_str(), key.length());
+      if (r2 != SQLITE_OK) {
+        set_last_error(sqlite3_errmsg(handle_));
+        return false;
+      }
+
+      // Test if the key is correct by executing a simple query
+      bool can_query = true;
+      const char *test_query = "PRAGMA user_version;";
+      sqlite3_stmt *stmt = nullptr;
+      auto r3 = sqlite3_prepare_v2(handle_, test_query, -1, &stmt, nullptr);
+      if (r3 != SQLITE_OK) {
+        set_last_error(sqlite3_errmsg(handle_));
+        can_query = false;
+      }
+      else {
+        r3 = sqlite3_step(stmt);
+        sqlite3_finalize(stmt);
+        if (r3 != SQLITE_ROW) {
+          set_last_error("Invalid SQLCipher key");
+          can_query = false;
+        }
+      }
+      if (!can_query) {
+        disconnect();
+      }
+      return can_query;
+    }
+#endif
     return true;
   }
 
@@ -47,8 +81,8 @@ class sqlite {
                const std::string &passwd, const std::string &db,
                const std::optional<int> &timeout,
                const std::optional<int> &port) {
-    return connect(std::make_tuple(host, user, passwd, db.empty() ? host : db,
-                                   timeout, port));
+    return connect(std::make_tuple(host, user, passwd.empty() ? user : passwd,
+                                   db.empty() ? host : db, timeout, port));
   }
 
   bool ping() { return true; }
