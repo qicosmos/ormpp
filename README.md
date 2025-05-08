@@ -21,7 +21,7 @@
 
 # 一个很酷的Modern C++ ORM库----ormpp
 
-iguana版本1.0.8
+iguana版本1.0.9
 https://github.com/qicosmos/iguana.git
 
 [谁在用ormpp](https://github.com/qicosmos/ormpp/wiki), 也希望ormpp用户帮助编辑用户列表，也是为了让更多用户把ormpp用起来，也是对ormpp 最大的支持，用户列表的用户问题会优先处理。
