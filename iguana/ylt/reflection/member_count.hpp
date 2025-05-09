@@ -178,8 +178,11 @@ inline constexpr std::size_t members_count() {
   else if constexpr (internal::tuple_size<type>) {
     return std::tuple_size<type>::value;
   }
-  else {
+  else if constexpr (std::is_aggregate_v<type>) {
     return internal::members_count_impl<type>();
+  }
+  else {
+    static_assert(!sizeof(T), "not supported type!");
   }
 }
 
