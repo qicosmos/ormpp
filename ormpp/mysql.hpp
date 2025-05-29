@@ -786,6 +786,115 @@ class mysql {
     return v;
   }
 
+  template <typename T, typename... Args>
+  std::enable_if_t<iguana::non_ylt_refletable_v<T>, std::vector<T>> execute_s(
+      const std::string &sql, Args &&...args) {
+      static_assert(iguana::is_tuple<T>::value);
+      constexpr auto SIZE = std::tuple_size_v<T>;
+      
+      #ifdef ORMPP_ENABLE_LOG
+      std::cout << sql << std::endl;
+      #endif
+
+      stmt_ = mysql_stmt_init(con_);
+      if (!stmt_) {
+          set_last_error("Failed to initialize statement: " + std::string(mysql_error(con_)));
+          return {};
+      }
+
+      auto guard = guard_statment(stmt_);
+
+      if (mysql_stmt_prepare(stmt_, sql.c_str(), (int)sql.size())) {
+          set_last_error("Prepare failed: " + std::string(mysql_stmt_error(stmt_)));
+          return {};
+      }
+
+      // 绑定输入参数
+      if constexpr (sizeof...(Args) > 0) {
+          std::vector<MYSQL_BIND> param_binds;
+          (set_param_bind(param_binds, args), ...);
+          
+          if (!param_binds.empty() && mysql_stmt_bind_param(stmt_, param_binds.data())) {
+              set_last_error("Bind param failed: " + std::string(mysql_stmt_error(stmt_)));
+              return {};
+          }
+      }
+
+      // 执行存储过程
+      if (mysql_stmt_execute(stmt_)) {
+          set_last_error("Execute failed: " + std::string(mysql_stmt_error(stmt_)));
+          return {};
+      }
+
+      // 处理结果集
+      std::vector<T> results;
+      
+      do {
+          // 检查是否有结果集
+          if (mysql_stmt_field_count(stmt_) == 0) {
+              break;
+          }
+
+          // 准备结果集绑定
+          MYSQL_RES* prepare_meta_result = mysql_stmt_result_metadata(stmt_);
+          if (!prepare_meta_result) {
+              set_last_error("No metadata available: " + std::string(mysql_stmt_error(stmt_)));
+              break;
+          }
+          
+          auto meta_guard = guard_result(prepare_meta_result);
+
+          // 绑定结果集
+          std::array<MYSQL_BIND, SIZE> result_binds{};
+          std::array<my_bool, SIZE> is_null{};
+          std::array<unsigned long, SIZE> length{};
+          
+          T row;
+          size_t index = 0;
+          
+          ormpp::for_each(
+              row,
+              [&](auto &item, auto /*i*/) {
+                  using U = std::decay_t<decltype(item)>;
+                  if constexpr (std::is_same_v<U, std::string>) {
+                      result_binds[index].buffer_type = MYSQL_TYPE_STRING;
+                      result_binds[index].buffer_length = 0;
+                      result_binds[index].length = &length[index];
+                  } else if constexpr (std::is_integral_v<U>) {
+                      result_binds[index].buffer_type = MYSQL_TYPE_LONG;
+                  } else if constexpr (std::is_floating_point_v<U>) {
+                      result_binds[index].buffer_type = MYSQL_TYPE_DOUBLE;
+                  }
+                  
+                  result_binds[index].buffer = &item;
+                  result_binds[index].is_null = &is_null[index];
+                  index++;
+              },
+              std::make_index_sequence<SIZE>{});
+              
+          if (mysql_stmt_bind_result(stmt_, result_binds.data())) {
+              set_last_error("Bind result failed: " + std::string(mysql_stmt_error(stmt_)));
+              break;
+          }
+
+          // 获取结果集
+          if (mysql_stmt_store_result(stmt_)) {
+              set_last_error("Store result failed: " + std::string(mysql_stmt_error(stmt_)));
+              break;
+          }
+
+          // 遍历结果集
+          while (mysql_stmt_fetch(stmt_) == 0) {
+              results.push_back(row);
+          }
+
+          mysql_stmt_free_result(stmt_);
+          
+      } while (mysql_stmt_next_result(stmt_) == 0);
+
+      return results;
+  }
+
   int get_blob_len(int column) {
     reset_error();
     unsigned long data_len = 0;
