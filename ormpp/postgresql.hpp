@@ -452,14 +452,14 @@ class postgresql {
 
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
               if (!has_add_field) {
-                append(sql, field_name.data(), " ", type_name_arr[i]);
+                append(sql, field_name, " ", type_name_arr[i]);
               }
               append(sql, " NOT NULL");
               has_add_field = true;
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
               if (!has_add_field) {
-                append(sql, field_name.data(), " ", type_name_arr[i]);
+                append(sql, field_name, " ", type_name_arr[i]);
               }
               append(sql, " PRIMARY KEY ");
               has_add_field = true;
@@ -467,10 +467,10 @@ class postgresql {
             else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>) {
               if (!has_add_field) {
                 if (type_name_arr[i] == "bigint") {
-                  append(sql, field_name.data(), " ", "bigserial");
+                  append(sql, field_name, " ", "bigserial");
                 }
                 else {
-                  append(sql, field_name.data(), " ", "serial");
+                  append(sql, field_name, " ", "serial");
                 }
               }
               append(sql, " primary key");
@@ -480,13 +480,13 @@ class postgresql {
               unique_fields.insert(field_name.data());
             }
             else {
-              append(sql, field_name.data(), " ", type_name_arr[i]);
+              append(sql, field_name, " ", type_name_arr[i]);
             }
           },
           std::make_index_sequence<SIZE>{});
 
       if (!has_add_field) {
-        append(sql, field_name.data(), " ", type_name_arr[i]);
+        append(sql, field_name, " ", type_name_arr[i]);
       }
 
       if (i < arr_size - 1)
