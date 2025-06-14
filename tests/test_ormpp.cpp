@@ -2317,3 +2317,104 @@ TEST_CASE("unsigned type") {
   }
 #endif
 }
+
+
+#if __cplusplus >= 202002L
+
+struct region_model {
+    int id;
+    double d_score;
+    float f_score;
+    std::string name;
+    static constexpr std::string_view get_alias_struct_name(region_model *) {
+      return "region";
+    }
+    int get_id() const { return id; }
+
+    std::string to_json() {
+      iguana::string_stream json;
+      iguana::to_json(*this, json);
+      return std::move(json);
+    }
+};
+// REGISTER_AUTO_KEY(region_model, id)
+REGISTER_CONFLICT_KEY(region_model, id)
+YLT_REFL(region_model, id, d_score, f_score, name)
+
+TEST_CASE("struct with function") {
+  std::string region_type = "region_type";
+  region_model  region;
+  region.id = 1;
+  region.d_score = 1.1;
+  region.f_score = 1.2f;
+  region.name = "region_name";
+  CHECK(region.name == "region_name");
+  std::cout << region.to_json() << std::endl;
+
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists region");
+    mysql.create_datatable<region_model>();
+    mysql.insert(region);
+
+    auto vec = mysql.query_s<region_model>();
+    CHECK(vec.size() == 1);
+    region.name = "purecpp";
+    mysql.update_some<&region_model::name>(region);
+    vec.clear();
+    CHECK(vec.empty());
+    vec = mysql.query_s<region_model>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "purecpp");
+    CHECK(mysql.delete_records_s<region_model>("name=?", "purecpp") == 1);
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists region");
+    postgres.create_datatable<region_model>();
+    postgres.insert(region);
+    auto vec = postgres.query_s<region_model>();
+    CHECK(vec.size() == 1);
+
+    region.name = "purecpp";
+    postgres.update_some<&region_model::name>(region);
+    vec.clear();
+    CHECK(vec.empty());
+    vec = postgres.query_s<region_model>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "purecpp");
+    CHECK(postgres.delete_records_s<region_model>("name=$1", "purecpp") == 1);
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
+  if (sqlite.connect(db)) {
+#endif
+    auto result = sqlite.execute("drop table if exists region");
+    CHECK(result);
+    result = sqlite.create_datatable<region_model>();
+    CHECK(result);
+    CHECK(sqlite.insert(region));
+    auto vec = sqlite.query_s<region_model>();
+    CHECK(vec.size() == 1);
+
+    region.name = "purecpp";
+    sqlite.update_some<&region_model::name>(region);
+    vec.clear();
+    CHECK(vec.empty());
+    vec = sqlite.query_s<region_model>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "purecpp");
+    CHECK(sqlite.delete_records_s<region_model>("name=?", "purecpp") == 1);
+  }
+#endif
+}
+#endif
