@@ -272,9 +272,9 @@ inline std::string get_fields() {
   }
   for (const auto &it : ylt::reflection::get_member_names<T>()) {
 #ifdef ORMPP_ENABLE_MYSQL
-    fields += "`" + std::string(it.data()) + "`";
+    fields += "`" + std::string(it) + "`";
 #else
-    fields += it.data();
+    fields += it;
 #endif
     fields += ",";
   }
@@ -288,7 +288,8 @@ inline std::vector<std::string> get_conflict_keys() {
   if (!res.empty()) {
     return res;
   }
-  std::stringstream s(get_conflict_key<T>().data());
+  std::stringstream s;
+  s << get_conflict_key<T>();
   while (s.good()) {
     std::string str;
     getline(s, str, ',');
@@ -324,13 +325,13 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
     constexpr auto Count = ylt::reflection::members_count_v<T>;
     std::string sql = "insert into ";
     auto name = get_struct_name<T>();
-    append(sql, name.data());
+    append(sql, name);
     int index = 0;
     std::string set;
     std::string fields = "(";
     std::string values = "values(";
     for (auto i = 0; i < Count; ++i) {
-      std::string field_name = ylt::reflection::name_of<T>(i).data();
+      std::string field_name(ylt::reflection::name_of<T>(i));
       std::string value = "$" + std::to_string(++index);
       append(set, field_name, "=", value);
       fields += field_name;
@@ -361,13 +362,13 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
   std::string sql = insert ? "insert into " : "replace into ";
   constexpr auto Count = ylt::reflection::members_count_v<T>;
   auto name = get_struct_name<T>();
-  append(sql, name.data());
+  append(sql, name);
 
   int index = 0;
   std::string fields = "(";
   std::string values = "values(";
   for (size_t i = 0; i < Count; ++i) {
-    std::string field_name = ylt::reflection::name_of<T>(i).data();
+    std::string field_name(ylt::reflection::name_of<T>(i));
     if (insert && is_auto_key<T>(field_name)) {
       continue;
     }
@@ -427,7 +428,7 @@ inline std::string generate_update_sql(Args &&...args) {
   else {
     constexpr auto Count = ylt::reflection::members_count_v<T>;
     for (size_t i = 0; i < Count; ++i) {
-      std::string field_name = ylt::reflection::name_of<T>(i).data();
+      std::string field_name(ylt::reflection::name_of<T>(i));
 #ifdef ORMPP_ENABLE_MYSQL
       fields.append("`").append(field_name).append("`");
 #else
@@ -468,7 +469,7 @@ template <typename T, typename... Args>
 inline std::string generate_delete_sql(Args &&...where_conditon) {
   std::string sql = "delete from ";
   auto name = get_struct_name<T>();
-  append(sql, name.data());
+  append(sql, name);
   if constexpr (sizeof...(Args) > 0) {
     if (!is_empty(std::forward<Args>(where_conditon)...))
       append(sql, "where", std::forward<Args>(where_conditon)...);
@@ -505,7 +506,7 @@ inline std::string generate_query_sql(Args &&...args) {
   std::string sql = "select ";
   auto fields = get_fields<T>();
   auto name = get_struct_name<T>();
-  append(sql, fields.data(), "from", name.data());
+  append(sql, fields, "from", name);
   if constexpr (sizeof...(Args) > 0) {
     using expander = int[];
     expander{0, (where = where ? where : !is_empty(args), 0)...};
