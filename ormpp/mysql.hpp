@@ -865,8 +865,7 @@ class mysql {
     auto arr = ylt::reflection::get_member_names<T>();
     constexpr auto SIZE = sizeof...(Args);
     auto name = get_struct_name<T>();
-    std::string sql =
-        std::string("CREATE TABLE IF NOT EXISTS ") + name.data() + "(";
+    std::string sql = std::string("CREATE TABLE IF NOT EXISTS ") + name + "(";
 
     // auto_increment_key and key can't exist at the same time
     using U = std::tuple<std::decay_t<Args>...>;
@@ -893,27 +892,27 @@ class mysql {
                 return;
             }
             else {
-              if (item.fields != field_name.data())
+              if (item.fields != field_name)
                 return;
             }
 
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
               if (!has_add_field) {
-                append(sql, field_name.data(), " ", type_name_arr[i]);
+                append(sql, field_name, " ", type_name_arr[i]);
               }
               append(sql, " NOT NULL");
               has_add_field = true;
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
               if (!has_add_field) {
-                append(sql, field_name.data(), " ", type_name_arr[i]);
+                append(sql, field_name, " ", type_name_arr[i]);
               }
               append(sql, " PRIMARY KEY");
               has_add_field = true;
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>) {
               if (!has_add_field) {
-                append(sql, field_name.data(), " ", type_name_arr[i]);
+                append(sql, field_name, " ", type_name_arr[i]);
               }
               append(sql, " AUTO_INCREMENT");
               append(sql, " PRIMARY KEY");
@@ -922,23 +921,23 @@ class mysql {
             else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
               if (!has_add_field) {
                 if (type_name_arr[i] == "TEXT") {
-                  append(sql, field_name.data(), " ", "varchar(512)");
+                  append(sql, field_name, " ", "varchar(512)");
                 }
                 else {
-                  append(sql, field_name.data(), " ", type_name_arr[i]);
+                  append(sql, field_name, " ", type_name_arr[i]);
                 }
               }
-              unique_fields.insert(field_name.data());
+              unique_fields.insert(std::string(field_name));
               has_add_field = true;
             }
             else {
-              append(sql, field_name.data(), " ", type_name_arr[i]);
+              append(sql, field_name, " ", type_name_arr[i]);
             }
           },
           std::make_index_sequence<SIZE>{});
 
       if (!has_add_field) {
-        append(sql, field_name.data(), " ", type_name_arr[i]);
+        append(sql, field_name, " ", type_name_arr[i]);
       }
 
       if (i < arr_size - 1)
