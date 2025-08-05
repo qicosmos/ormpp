@@ -2,6 +2,7 @@
 // Created by qiyu on 10/28/17.
 //
 #include <sqlite3.h>
+
 #include <climits>
 #include <string>
 #include <vector>
@@ -480,46 +481,47 @@ class sqlite {
            this](auto item) {
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null> ||
                           std::is_same_v<decltype(item), ormpp_unique>) {
-              if (item.fields.find(field_name.data()) == item.fields.end())
+              if (item.fields.find(std::string(field_name)) ==
+                  item.fields.end())
                 return;
             }
             else {
-              if (item.fields != field_name.data())
+              if (item.fields != field_name)
                 return;
             }
 
             if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
               if (!has_add_field) {
-                append(sql, field_name.data(), " ", type_name_arr[i]);
+                append(sql, field_name, " ", type_name_arr[i]);
               }
               append(sql, " NOT NULL");
               has_add_field = true;
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
               if (!has_add_field) {
-                append(sql, field_name.data(), " ", type_name_arr[i]);
+                append(sql, field_name, " ", type_name_arr[i]);
               }
               append(sql, " PRIMARY KEY ");
               has_add_field = true;
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>) {
               if (!has_add_field) {
-                append(sql, field_name.data(), " ", type_name_arr[i]);
+                append(sql, field_name, " ", type_name_arr[i]);
               }
               append(sql, " PRIMARY KEY AUTOINCREMENT");
               has_add_field = true;
             }
             else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
-              unique_fields.insert(field_name.data());
+              unique_fields.insert(std::string(field_name));
             }
             else {
-              append(sql, field_name.data(), " ", type_name_arr[i]);
+              append(sql, field_name, " ", type_name_arr[i]);
             }
           },
           std::make_index_sequence<SIZE>{});
 
       if (!has_add_field) {
-        append(sql, field_name.data(), " ", type_name_arr[i]);
+        append(sql, field_name, " ", type_name_arr[i]);
       }
 
       if (i < arr_size - 1)
