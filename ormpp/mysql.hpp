@@ -180,9 +180,10 @@ class mysql {
       }
       param.buffer = const_cast<void *>(static_cast<const void *>(&value));
     }
-    else if constexpr (std::is_same_v<std::string, U>) {
+    else if constexpr (std::is_same_v<std::string, U> ||
+                       std::is_same_v<std::string_view, U>) {
       param.buffer_type = MYSQL_TYPE_STRING;
-      param.buffer = (void *)(value.c_str());
+      param.buffer = (void *)(value.data());
       param.buffer_length = (unsigned long)value.size();
     }
     else if constexpr (iguana::array_v<U>) {

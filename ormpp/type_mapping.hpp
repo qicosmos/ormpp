@@ -86,6 +86,9 @@ inline constexpr auto type_to_name(identity<uint64_t>) noexcept {
 }
 inline constexpr auto type_to_name(identity<blob>) noexcept { return "BLOB"sv; }
 inline auto type_to_name(identity<std::string>) noexcept { return "TEXT"sv; }
+inline auto type_to_name(identity<std::string_view>) noexcept {
+  return "TEXT"sv;
+}
 template <size_t N>
 inline auto type_to_name(identity<std::array<char, N>>) noexcept {
   std::string s = "varchar(" + std::to_string(N) + ")";
