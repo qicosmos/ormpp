@@ -68,7 +68,7 @@ endif()
 
 option(ENABLE_MYSQL "Enable mysql" OFF)
 if (ENABLE_MYSQL)
-    include(cmake/mysql.cmake)
+    include(${ormpp_SOURCE_DIR}/cmake/mysql.cmake)
     message(STATUS "ENABLE_MYSQL")
     add_definitions(-DORMPP_ENABLE_MYSQL)
 endif()
