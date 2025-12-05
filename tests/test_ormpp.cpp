@@ -1365,8 +1365,7 @@ TEST_CASE("create table with unique") {
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists person");
-    mysql.create_datatable<person>(ormpp_auto_key{"id"},
-                                   ormpp_unique{{"name", "age"}});
+    mysql.create_datatable<person>(ormpp_auto_key{"id"}, ormpp_unique{{"age"}});
     mysql.insert<person>({"purecpp"});
     auto vec1 = mysql.query<person>("order by id");
     auto vec2 = mysql.query<person>("limit 1");
