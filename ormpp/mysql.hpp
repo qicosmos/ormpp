@@ -860,7 +860,7 @@ class mysql {
   }
 
  private:
-   template <typename T, typename... Args>
+  template <typename T, typename... Args>
   std::string generate_createtb_sql(Args &&...args) {
     std::set<std::string> not_null;
     std::set<std::string> unique;
@@ -900,7 +900,7 @@ class mysql {
     const auto type_name_arr = get_type_names<T>(DBType::mysql);
 
     std::string sql;
-    sql.append("create table ").append(table_name).append("(");
+    sql.append("CREATE TABLE IF NOT EXISTS ").append(table_name).append("(");
     T t;
     ylt::reflection::for_each(t, [&](auto &field, auto name, size_t index) {
       using item_type = std::decay_t<decltype(field)>;
