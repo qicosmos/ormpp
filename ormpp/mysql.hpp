@@ -240,7 +240,8 @@ class mysql {
       }
       param_bind.buffer = const_cast<void *>(static_cast<const void *>(&value));
     }
-    else if constexpr (std::is_same_v<std::string, U>) {
+    else if constexpr (std::is_same_v<std::string, U> ||
+                       std::is_same_v<std::string_view, U>) {
       param_bind.buffer_type = MYSQL_TYPE_STRING;
       std::vector<char> tmp(65536, 0);
       mp.emplace(i, std::move(tmp));
@@ -296,6 +297,11 @@ class mysql {
     else if constexpr (std::is_same_v<std::string, U>) {
       auto &vec = mp[i];
       value = std::string(&vec[0], strlen(vec.data()));
+    }
+    else if constexpr (std::is_same_v<std::string_view, U>) {
+      auto &vec = mp[i];
+      sv_ = std::string(&vec[0], strlen(vec.data()));
+      value = sv_;
     }
     else if constexpr (iguana::array_v<U>) {
       auto &vec = mp[i];
@@ -1118,6 +1124,7 @@ class mysql {
  private:
   MYSQL *con_ = nullptr;
   MYSQL_STMT *stmt_ = nullptr;
+  inline static std::string sv_;
   inline static std::string last_error_;
   inline static bool has_error_ = false;
   inline static bool transaction_ = true;

@@ -2253,8 +2253,11 @@ struct unsigned_type_t {
   int16_t f;
   int32_t g;
   int64_t h;
+  std::string_view v;
+  int id;
 };
-YLT_REFL(unsigned_type_t, a, b, c, d, e, f, g, h)
+REGISTER_AUTO_KEY(unsigned_type_t, id)
+YLT_REFL(unsigned_type_t, id, a, b, c, d, e, f, g, h, v)
 
 TEST_CASE("unsigned type") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -2262,7 +2265,8 @@ TEST_CASE("unsigned type") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists unsigned_type_t");
     mysql.create_datatable<unsigned_type_t>();
-    mysql.insert(unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8});
+    auto id = mysql.get_insert_id_after_insert(
+        unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8, "purecpp"});
     auto vec = mysql.query_s<unsigned_type_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().a == 1);
@@ -2273,6 +2277,7 @@ TEST_CASE("unsigned type") {
     CHECK(vec.front().f == 6);
     CHECK(vec.front().g == 7);
     CHECK(vec.front().h == 8);
+    CHECK(vec.front().v == "purecpp");
   }
 #endif
 #ifdef ORMPP_ENABLE_PG
@@ -2280,7 +2285,8 @@ TEST_CASE("unsigned type") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists unsigned_type_t");
     postgres.create_datatable<unsigned_type_t>();
-    postgres.insert(unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8});
+    auto id = postgres.get_insert_id_after_insert(
+        unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8, "purecpp"});
     auto vec = postgres.query_s<unsigned_type_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().a == 1);
@@ -2291,6 +2297,7 @@ TEST_CASE("unsigned type") {
     CHECK(vec.front().f == 6);
     CHECK(vec.front().g == 7);
     CHECK(vec.front().h == 8);
+    CHECK(vec.front().v == "purecpp");
   }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -2302,8 +2309,10 @@ TEST_CASE("unsigned type") {
 #endif
     sqlite.execute("drop table if exists unsigned_type_t");
     sqlite.create_datatable<unsigned_type_t>();
-    sqlite.insert(unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8});
+    auto id = sqlite.get_insert_id_after_insert(
+        unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8, "purecpp"});
     auto vec = sqlite.query_s<unsigned_type_t>();
+    CHECK(id == 1);
     CHECK(vec.size() == 1);
     CHECK(vec.front().a == 1);
     CHECK(vec.front().b == 2);
@@ -2313,6 +2322,7 @@ TEST_CASE("unsigned type") {
     CHECK(vec.front().f == 6);
     CHECK(vec.front().g == 7);
     CHECK(vec.front().h == 8);
+    CHECK(vec.front().v == "purecpp");
   }
 #endif
 }
