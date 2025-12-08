@@ -708,7 +708,8 @@ class postgresql {
       sprintf(temp.data(), "%f", value);
       param_values.push_back(std::move(temp));
     }
-    else if constexpr (iguana::array_v<U> || std::is_same_v<std::string, U>) {
+    else if constexpr (iguana::array_v<U> || std::is_same_v<std::string, U> ||
+                       std::is_same_v<std::string_view, U>) {
       std::vector<char> temp = {};
       std::copy(value.data(), value.data() + value.size() + 1,
                 std::back_inserter(temp));
@@ -766,6 +767,10 @@ class postgresql {
     else if constexpr (std::is_same_v<std::string, U>) {
       value = PQgetvalue(res_, row, i);
     }
+    else if constexpr (std::is_same_v<std::string_view, U>) {
+      sv_ = PQgetvalue(res_, row, i);
+      value = sv_;
+    }
     else if constexpr (iguana::array_v<U>) {
       auto p = PQgetvalue(res_, row, i);
       memcpy(value.data(), p, value.size());
@@ -808,6 +813,7 @@ class postgresql {
  private:
   PGconn *con_ = nullptr;
   PGresult *res_ = nullptr;
+  inline static std::string sv_;
   inline static std::string last_error_;
   inline static bool has_error_ = false;
   inline static bool transaction_ = true;

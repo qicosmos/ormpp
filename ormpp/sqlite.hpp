@@ -617,7 +617,8 @@ class sqlite {
     else if constexpr (std::is_floating_point_v<U>) {
       return SQLITE_OK == sqlite3_bind_double(stmt_, i, value);
     }
-    else if constexpr (iguana::array_v<U> || std::is_same_v<std::string, U>) {
+    else if constexpr (iguana::array_v<U> || std::is_same_v<std::string, U> ||
+                       std::is_same_v<std::string_view, U>) {
       return SQLITE_OK ==
              sqlite3_bind_text(stmt_, i, value.data(), value.size(), nullptr);
     }
@@ -678,6 +679,12 @@ class sqlite {
       value.reserve(sqlite3_column_bytes(stmt_, i));
       value.assign((const char *)sqlite3_column_text(stmt_, i),
                    (size_t)sqlite3_column_bytes(stmt_, i));
+    }
+    else if constexpr (std::is_same_v<std::string_view, U>) {
+      sv_.reserve(sqlite3_column_bytes(stmt_, i));
+      sv_.assign((const char *)sqlite3_column_text(stmt_, i),
+                 (size_t)sqlite3_column_bytes(stmt_, i));
+      value = sv_;
     }
     else if constexpr (iguana::array_v<U>) {
       memcpy(value.data(), sqlite3_column_text(stmt_, i), sizeof(U));
@@ -819,6 +826,7 @@ class sqlite {
  private:
   sqlite3 *handle_ = nullptr;
   sqlite3_stmt *stmt_ = nullptr;
+  inline static std::string sv_;
   inline static std::string last_error_;
   inline static bool has_error_ = false;
   inline static bool transaction_ = true;
