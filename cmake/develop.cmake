@@ -66,7 +66,7 @@ if (ENABLE_SQLITE3)
     endif()
 endif()
 
-option(ENABLE_MYSQL "Enable mysql" OFF)
+option(ENABLE_MYSQL "Enable mysql" ON)
 if (ENABLE_MYSQL)
     include(cmake/mysql.cmake)
     message(STATUS "ENABLE_MYSQL")
