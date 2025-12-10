@@ -106,6 +106,28 @@ struct test_optional {
 REGISTER_AUTO_KEY(test_optional, id)
 YLT_REFL(test_optional, id, name, age, empty_);
 
+TEST_CASE("test client pool") {
+#ifdef ORMPP_ENABLE_MYSQL
+  auto &pool = connection_pool<dbng<mysql>>::instance();
+  pool.init(4, ip, username, password, db, 5, 3306);
+  size_t init_size = pool.size();
+  CHECK(init_size == 4);
+  {
+    auto conn = pool.get();
+    init_size = pool.size();
+    CHECK(init_size == 3);
+    auto conn2 = pool.get();
+    init_size = pool.size();
+    CHECK(init_size == 2);
+    conn = nullptr;
+    init_size = pool.size();
+    CHECK(init_size == 3);
+  }
+  init_size = pool.size();
+  CHECK(init_size == 4);
+#endif
+}
+
 TEST_CASE("optional") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;

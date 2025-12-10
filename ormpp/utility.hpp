@@ -509,7 +509,8 @@ inline std::string generate_query_sql(Args &&...args) {
   append(sql, fields, "from", name);
   if constexpr (sizeof...(Args) > 0) {
     using expander = int[];
-    expander{0, (where = where ? where : !is_empty(args), 0)...};
+    [[maybe_unused]] expander i{
+        0, (where = where ? where : !is_empty(args), 0)...};
   }
   if (where) {
     append(sql, "where 1=1 and ");

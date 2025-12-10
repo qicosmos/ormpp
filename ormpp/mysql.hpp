@@ -1112,7 +1112,7 @@ class mysql {
       if (stmt_ != nullptr) {
         auto status = mysql_stmt_close(stmt_);
         if (status) {
-          set_last_error("close statment error code " + status);
+          set_last_error("close statment error code " + std::to_string(status));
         }
       }
     }
