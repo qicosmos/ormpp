@@ -119,6 +119,9 @@ TEST_CASE("test client pool") {
     auto conn2 = pool.get();
     init_size = pool.size();
     CHECK(init_size == 2);
+    conn = nullptr;
+    init_size = pool.size();
+    CHECK(init_size == 3);
   }
   init_size = pool.size();
   CHECK(init_size == 4);
