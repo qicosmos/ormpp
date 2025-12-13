@@ -1775,6 +1775,16 @@ TEST_CASE("test enum") {
     mysql.delete_records<test_enum_t>();
     vec = mysql.query<test_enum_t>();
     CHECK(vec.size() == 0);
+    //  Check that the string array inserted into MySQL does not contain a
+    //  terminator
+    mysql.execute("drop table if exists simple");
+    ormpp_key key{"id"};
+    mysql.create_datatable<simple>(key);
+    simple s1 = {1, 2.5, 1, "purecpp"};
+    CHECK(mysql.insert(s1) == 1);
+    auto vec1 = mysql.query_s<simple>("arr='purecpp'");
+    CHECK(vec1.size() == 1);
+    CHECK(vec1.front().id == 1);
   }
 #endif
 #ifdef ORMPP_ENABLE_PG
