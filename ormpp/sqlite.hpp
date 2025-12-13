@@ -619,8 +619,9 @@ class sqlite {
     }
     else if constexpr (iguana::array_v<U> || std::is_same_v<std::string, U> ||
                        std::is_same_v<std::string_view, U>) {
+      size_t len = (std::min)(std::strlen(value.data()), (size_t)value.size());
       return SQLITE_OK ==
-             sqlite3_bind_text(stmt_, i, value.data(), value.size(), nullptr);
+             sqlite3_bind_text(stmt_, i, value.data(), len, nullptr);
     }
     else if constexpr (iguana::c_array_v<U> ||
                        std::is_same_v<char,

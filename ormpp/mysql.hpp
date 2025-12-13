@@ -189,7 +189,8 @@ class mysql {
     else if constexpr (iguana::array_v<U>) {
       param.buffer_type = MYSQL_TYPE_STRING;
       param.buffer = (void *)(value.data());
-      param.buffer_length = (unsigned long)value.size();
+      param.buffer_length =
+          (std::min)(std::strlen(value.data()), (size_t)value.size());
     }
     else if constexpr (iguana::c_array_v<U> ||
                        std::is_same_v<const char *, U>) {
