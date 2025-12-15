@@ -474,7 +474,6 @@ class postgresql {
 
       if (!auto_primary_key.empty() &&
           auto_primary_key.find(str_name) != auto_primary_key.end()) {
-        sql.append(" NOT NULL AUTO_INCREMENT ");
         auto_key = name;
         auto_primary_key.clear();
       }
