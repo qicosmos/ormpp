@@ -94,7 +94,7 @@ YLT_REFL(person1, name, id, no)
 //
 //    m_begin = high_resolution_clock::now();
 //    for (int j = 0; j < 100; ++j) {
-//        REQUIRE(!mysql.query<student>("limit 1000").empty());
+//        REQUIRE(!mysql.query_s<student>("limit 1000").empty());
 //    }
 //    s = duration_cast<duration<double>>(high_resolution_clock::now() -
 //    m_begin).count(); std::cout<<s<<'\n';
@@ -159,12 +159,12 @@ TEST_CASE("optional") {
     mysql.execute("drop table if exists test_optional;");
     mysql.create_datatable<test_optional>(ormpp_auto_key{"id"});
     mysql.insert<test_optional>({0, "purecpp", 200});
-    auto vec1 = mysql.query<test_optional>();
+    auto vec1 = mysql.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
     CHECK(vec1.front().age.value() == 200);
     CHECK(vec1.front().name.value() == "purecpp");
     CHECK(vec1.front().empty_.has_value() == false);
-    auto vec2 = mysql.query<test_optional>("select * from test_optional;");
+    auto vec2 = mysql.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
     CHECK(vec2.front().age.value() == 200);
     CHECK(vec2.front().name.value() == "purecpp");
@@ -188,12 +188,12 @@ TEST_CASE("optional") {
     postgres.execute("drop table if exists test_optional;");
     postgres.create_datatable<test_optional>(ormpp_auto_key{"id"});
     postgres.insert<test_optional>({0, "purecpp", 200});
-    auto vec1 = postgres.query<test_optional>();
+    auto vec1 = postgres.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
     CHECK(vec1.front().age.value() == 200);
     CHECK(vec1.front().name.value() == "purecpp");
     CHECK(vec1.front().empty_.has_value() == false);
-    auto vec2 = postgres.query<test_optional>("select * from test_optional;");
+    auto vec2 = postgres.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
     CHECK(vec2.front().age.value() == 200);
     CHECK(vec2.front().name.value() == "purecpp");
@@ -210,12 +210,12 @@ TEST_CASE("optional") {
     sqlite.execute("drop table if exists test_optional;");
     sqlite.create_datatable<test_optional>(ormpp_auto_key{"id"});
     sqlite.insert<test_optional>({0, "purecpp", 200});
-    auto vec1 = sqlite.query<test_optional>();
+    auto vec1 = sqlite.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
     CHECK(vec1.front().age.value() == 200);
     CHECK(vec1.front().name.value() == "purecpp");
     CHECK(vec1.front().empty_.has_value() == false);
-    auto vec2 = sqlite.query<test_optional>("select * from test_optional;");
+    auto vec2 = sqlite.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
     CHECK(vec2.front().age.value() == 200);
     CHECK(vec2.front().name.value() == "purecpp");
@@ -241,7 +241,7 @@ TEST_CASE("random reflection order") {
     int id = 666;
     std::string name = "hello";
     mysql.insert(test_order{id, name});
-    auto vec = mysql.query<test_order>();
+    auto vec = mysql.query_s<test_order>();
     REQUIRE(vec.size() > 0);
     CHECK(vec.front().id == id);
     CHECK(vec.front().name == name);
@@ -262,9 +262,9 @@ TEST_CASE("custom name") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
-    auto vec1 = mysql.query<custom_name>();
+    auto vec1 = mysql.query_s<custom_name>();
     CHECK(vec1.size() > 0);
-    auto vec2 = mysql.query(FID(custom_name::name), "=", "hello");
+    auto vec2 = mysql.query_s<custom_name>("name='hello'");
     CHECK(vec2.size() > 0);
   }
 #endif
@@ -284,7 +284,7 @@ YLT_REFL(dummy, id, name);
 //   dummy d1{0, "jerry"};
 //   mysql.insert(d);
 //   mysql.insert(d1);
-//   auto v = mysql.query<dummy>("limit 1, 1");
+//   auto v = mysql.query_s<dummy>("limit 1, 1");
 //   std::cout << v.size() << "\n";
 // }
 
@@ -295,8 +295,8 @@ YLT_REFL(dummy, id, name);
 //	sqlite.create_datatable<test_tb>(ormpp_unique{{"name"}});
 //	test_tb tb{ 1, "aa" };
 //	sqlite.insert(tb);
-//	auto vt = sqlite.query<test_tb>();
-//	auto vt1 = sqlite.query<std::tuple<test_tb>>("select * from test_tb");
+//	auto vt = sqlite.query_s<test_tb>();
+//	auto vt1 = sqlite.query_s<std::tuple<test_tb>>("select * from test_tb");
 //    auto& pool = connection_pool<dbng<mysql>>::instance();
 //    try {
 //        pool.init(1, ip, username, password, db, 2);
@@ -305,7 +305,7 @@ YLT_REFL(dummy, id, name);
 //        return;
 //    }
 //	auto con = pool.get();
-//	auto v = con->query<std::tuple<test_tb>>("select * from test_tb");
+//	auto v = con->query_s<std::tuple<test_tb>>("select * from test_tb");
 //	con->create_datatable<test_tb>(ormpp_unique{{"name"}});
 //    for (int i = 0; i < 10; ++i) {
 //        auto conn = pool.get();
@@ -379,7 +379,7 @@ TEST_CASE("ormpp cfg") {
   }
 
   auto conn1 = pool.get();
-  auto vec = conn1->query<student>();
+  auto vec = conn1->query_s<student>();
   std::cout << vec.size() << std::endl;
 #endif
 }
@@ -429,7 +429,7 @@ TEST_CASE("sqlcipher false password connection") {
   REQUIRE(sqlite.insert<person>({"encryption_test", 100}) == 1);
 
   // Verify data was inserted correctly
-  auto results = sqlite.query<person>();
+  auto results = sqlite.query_s<person>();
   REQUIRE(results.size() == 1);
   CHECK(results[0].name == "encryption_test");
 
@@ -442,7 +442,7 @@ TEST_CASE("sqlcipher false password connection") {
 
   // Connect again with correct password to verify database is still intact
   REQUIRE(sqlite.connect(db, password));
-  results = sqlite.query<person>();
+  results = sqlite.query_s<person>();
   REQUIRE(results.size() == 1);
   CHECK(results[0].name == "encryption_test");
 #endif
@@ -461,7 +461,7 @@ TEST_CASE("sqlcipehr with username and password connection") {
   REQUIRE(sqlite.insert<person>({"encryption_test", 100}) == 1);
 
   // Verify data was inserted correctly
-  auto results = sqlite.query<person>();
+  auto results = sqlite.query_s<person>();
   REQUIRE(results.size() == 1);
   CHECK(results[0].name == "encryption_test");
 
@@ -474,7 +474,7 @@ TEST_CASE("sqlcipehr with username and password connection") {
 
   // Connect again with correct password to verify database is still intact
   REQUIRE(sqlite.connect(db, username, password));
-  results = sqlite.query<person>();
+  results = sqlite.query_s<person>();
   REQUIRE(results.size() == 1);
   CHECK(results[0].name == "encryption_test");
 #endif
@@ -542,7 +542,7 @@ TEST_CASE("insert query") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
-    auto vec = mysql.query(FID(person::id), "<", "5");
+    // auto vec = mysql.query(FID(person::id), "<", "5");
   }
 #endif
 
@@ -570,14 +570,14 @@ TEST_CASE("insert query") {
     mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(auto_key, not_null);
     CHECK(mysql.insert(s) == 1);
-    auto vec1 = mysql.query<student>();
+    auto vec1 = mysql.query_s<student>();
     CHECK(vec1.size() == 1);
     CHECK(mysql.insert(v) == 2);
-    auto vec2 = mysql.query<student>();
+    auto vec2 = mysql.query_s<student>();
     CHECK(vec2.size() == 3);
-    auto vec3 = mysql.query(FID(student::code), "<", "5");
+    auto vec3 = mysql.query_s<student>("code<5");
     CHECK(vec3.size() == 3);
-    auto vec4 = mysql.query<student>("limit 2");
+    auto vec4 = mysql.query_s<student>("limit 2");
     CHECK(vec4.size() == 2);
 #endif
 
@@ -585,14 +585,14 @@ TEST_CASE("insert query") {
     postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(auto_key, not_null);
     CHECK(postgres.insert(s) == 1);
-    auto vec1 = postgres.query<student>();
+    auto vec1 = postgres.query_s<student>();
     CHECK(vec1.size() == 1);
     CHECK(postgres.insert(v) == 2);
-    auto vec2 = postgres.query<student>();
+    auto vec2 = postgres.query_s<student>();
     CHECK(vec2.size() == 3);
     auto vec3 = postgres.query(FID(student::code), "<", "5");
     CHECK(vec3.size() == 3);
-    auto vec4 = postgres.query<student>("limit 2");
+    auto vec4 = postgres.query_s<student>("limit 2");
     CHECK(vec4.size() == 2);
 #endif
 
@@ -600,14 +600,14 @@ TEST_CASE("insert query") {
     sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(auto_key, not_null);
     CHECK(sqlite.insert(s) == 1);
-    auto vec1 = sqlite.query<student>();
+    auto vec1 = sqlite.query_s<student>();
     CHECK(vec1.size() == 1);
     CHECK(sqlite.insert(v) == 2);
-    auto vec2 = sqlite.query<student>();
+    auto vec2 = sqlite.query_s<student>();
     CHECK(vec2.size() == 3);
     auto vec3 = sqlite.query(FID(student::code), "<", "5");
     CHECK(vec3.size() == 3);
-    auto vec4 = sqlite.query<student>("limit 2");
+    auto vec4 = sqlite.query_s<student>("limit 2");
     CHECK(vec4.size() == 2);
 #endif
   }
@@ -618,7 +618,7 @@ TEST_CASE("insert query") {
     mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(key, not_null);
     CHECK(mysql.insert(s) == 1);
-    auto vec = mysql.query<student>();
+    auto vec = mysql.query_s<student>();
     CHECK(vec.size() == 1);
 #endif
 
@@ -626,7 +626,7 @@ TEST_CASE("insert query") {
     postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(key, not_null);
     CHECK(postgres.insert(s) == 1);
-    auto vec = postgres.query<student>();
+    auto vec = postgres.query_s<student>();
     CHECK(vec.size() == 1);
 #endif
 
@@ -634,7 +634,7 @@ TEST_CASE("insert query") {
     sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key, not_null);
     CHECK(sqlite.insert(s) == 1);
-    auto vec = sqlite.query<student>();
+    auto vec = sqlite.query_s<student>();
     CHECK(vec.size() == 1);
 #endif
   }
@@ -647,24 +647,24 @@ TEST_CASE("update replace") {
     mysql.execute("drop table if exists person");
     mysql.create_datatable<person>();
     mysql.insert<person>({"purecpp", 100});
-    auto vec = mysql.query<person>();
+    auto vec = mysql.query_s<person>();
     CHECK(vec.size() == 1);
     vec.front().name = "update";
     vec.front().age = 200;
     mysql.update(vec.front());
-    vec = mysql.query<person>();
+    vec = mysql.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
     mysql.update<person>({"purecpp", 100, 1});
-    vec = mysql.query<person>();
+    vec = mysql.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
     CHECK(vec.front().age == 100);
     vec.front().name = "update";
     vec.front().age = 200;
     mysql.replace(vec.front());
-    vec = mysql.query<person>();
+    vec = mysql.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
@@ -676,29 +676,29 @@ TEST_CASE("update replace") {
     postgres.execute("drop table if exists person");
     postgres.create_datatable<person>(ormpp_auto_key{"id"});
     postgres.insert<person>({"purecpp", 100});
-    auto vec = postgres.query<person>();
+    auto vec = postgres.query_s<person>();
     CHECK(vec.size() == 1);
     vec.front().name = "update";
     vec.front().age = 200;
     postgres.update(vec.front());
-    vec = postgres.query<person>();
+    vec = postgres.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
     postgres.update<person>({"purecpp", 100, 1}, "id=1");
-    vec = postgres.query<person>();
+    vec = postgres.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
     CHECK(vec.front().age == 100);
     vec.front().name = "update";
     vec.front().age = 200;
     postgres.replace(vec.front());
-    vec = postgres.query<person>();
+    vec = postgres.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
     postgres.replace<person>({"purecpp", 100, 1}, "id");
-    vec = postgres.query<person>();
+    vec = postgres.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
     CHECK(vec.front().age == 100);
@@ -714,24 +714,24 @@ TEST_CASE("update replace") {
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
     sqlite.insert<person>({"purecpp", 100});
-    auto vec = sqlite.query<person>();
+    auto vec = sqlite.query_s<person>();
     CHECK(vec.size() == 1);
     vec.front().name = "update";
     vec.front().age = 200;
     sqlite.update(vec.front());
-    vec = sqlite.query<person>();
+    vec = sqlite.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
     sqlite.update<person>({"purecpp", 100, 1}, "id=1");
-    vec = sqlite.query<person>();
+    vec = sqlite.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
     CHECK(vec.front().age == 100);
     vec.front().name = "update";
     vec.front().age = 200;
     sqlite.replace(vec.front());
-    vec = sqlite.query<person>();
+    vec = sqlite.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
@@ -758,9 +758,9 @@ TEST_CASE("update") {
     v[0].name = "test1";
     v[1].name = "test2";
     CHECK(mysql.update(v[0]) == 1);
-    auto vec1 = mysql.query<student>();
+    auto vec1 = mysql.query_s<student>();
     CHECK(mysql.update(v[1]) == 1);
-    auto vec2 = mysql.query<student>();
+    auto vec2 = mysql.query_s<student>();
   }
 #endif
 
@@ -773,9 +773,9 @@ TEST_CASE("update") {
     v[0].name = "test1";
     v[1].name = "test2";
     CHECK(postgres.update(v[0]) == 1);
-    auto vec1 = postgres.query<student>();
+    auto vec1 = postgres.query_s<student>();
     CHECK(postgres.update(v[1]) == 1);
-    auto vec2 = postgres.query<student>();
+    auto vec2 = postgres.query_s<student>();
   }
 #endif
 
@@ -792,9 +792,9 @@ TEST_CASE("update") {
     v[0].name = "test1";
     v[1].name = "test2";
     CHECK(sqlite.update(v[0]) == 1);
-    auto vec1 = sqlite.query<student>();
+    auto vec1 = sqlite.query_s<student>();
     CHECK(sqlite.update(v[1]) == 1);
-    auto vec2 = sqlite.query<student>();
+    auto vec2 = sqlite.query_s<student>();
   }
 #endif
 }
@@ -819,7 +819,7 @@ TEST_CASE("multi update") {
     v[1].name = "test2";
     v[2].name = "test3";
     CHECK(mysql.update(v) == 3);
-    auto vec = mysql.query<student>();
+    auto vec = mysql.query_s<student>();
     CHECK(vec.size() == 3);
   }
 #endif
@@ -834,7 +834,7 @@ TEST_CASE("multi update") {
     v[1].name = "test2";
     v[2].name = "test3";
     CHECK(postgres.update(v) == 3);
-    auto vec = postgres.query<student>();
+    auto vec = postgres.query_s<student>();
     CHECK(vec.size() == 3);
   }
 #endif
@@ -853,7 +853,7 @@ TEST_CASE("multi update") {
     v[1].name = "test2";
     v[2].name = "test3";
     CHECK(sqlite.update(v) == 3);
-    auto vec = sqlite.query<student>();
+    auto vec = sqlite.query_s<student>();
     CHECK(vec.size() == 3);
   }
 #endif
@@ -875,11 +875,11 @@ TEST_CASE("delete") {
     mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(key, not_null);
     CHECK(mysql.insert(v) == 3);
-    mysql.delete_records<student>("code=1");
-    auto vec1 = mysql.query<student>();
+    mysql.delete_records_s<student>("code=1");
+    auto vec1 = mysql.query_s<student>();
     CHECK(vec1.size() == 2);
-    mysql.delete_records<student>("");
-    auto vec2 = mysql.query<student>();
+    mysql.delete_records_s<student>("");
+    auto vec2 = mysql.query_s<student>();
     CHECK(vec2.size() == 0);
   }
 #endif
@@ -890,11 +890,11 @@ TEST_CASE("delete") {
     postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(key, not_null);
     CHECK(postgres.insert(v) == 3);
-    postgres.delete_records<student>("code=1");
-    auto vec1 = postgres.query<student>();
+    postgres.delete_records_s<student>("code=1");
+    auto vec1 = postgres.query_s<student>();
     CHECK(vec1.size() == 2);
-    postgres.delete_records<student>("");
-    auto vec2 = postgres.query<student>();
+    postgres.delete_records_s<student>("");
+    auto vec2 = postgres.query_s<student>();
     CHECK(vec2.size() == 0);
   }
 #endif
@@ -909,11 +909,11 @@ TEST_CASE("delete") {
     sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key);
     CHECK(sqlite.insert(v) == 3);
-    REQUIRE(sqlite.delete_records<student>("code=1"));
-    auto vec1 = sqlite.query<student>();
+    REQUIRE(sqlite.delete_records_s<student>("code=1"));
+    auto vec1 = sqlite.query_s<student>();
     CHECK(vec1.size() == 2);
-    REQUIRE(sqlite.delete_records<student>(""));
-    auto vec2 = sqlite.query<student>();
+    REQUIRE(sqlite.delete_records_s<student>(""));
+    auto vec2 = sqlite.query_s<student>();
     CHECK(vec2.size() == 0);
   }
 #endif
@@ -932,9 +932,9 @@ TEST_CASE("query") {
     mysql.execute("drop table if exists simple");
     mysql.create_datatable<simple>(key);
     CHECK(mysql.insert(v) == 3);
-    auto vec1 = mysql.query<simple>();
+    auto vec1 = mysql.query_s<simple>();
     CHECK(vec1.size() == 3);
-    auto vec2 = mysql.query<simple>("id=1");
+    auto vec2 = mysql.query_s<simple>("id=1");
     CHECK(vec2.size() == 1);
   }
 #endif
@@ -945,9 +945,9 @@ TEST_CASE("query") {
     postgres.execute("drop table if exists simple");
     postgres.create_datatable<simple>(key);
     CHECK(postgres.insert(v) == 3);
-    auto vec1 = postgres.query<simple>();
+    auto vec1 = postgres.query_s<simple>();
     CHECK(vec1.size() == 3);
-    auto vec2 = postgres.query<simple>("id=2");
+    auto vec2 = postgres.query_s<simple>("id=2");
     CHECK(vec2.size() == 1);
   }
 #endif
@@ -962,9 +962,9 @@ TEST_CASE("query") {
     sqlite.execute("drop table if exists simple");
     sqlite.create_datatable<simple>(key);
     CHECK(sqlite.insert(v) == 3);
-    auto vec1 = sqlite.query<simple>();
+    auto vec1 = sqlite.query_s<simple>();
     CHECK(vec1.size() == 3);
-    auto vec2 = sqlite.query<simple>("id=3");
+    auto vec2 = sqlite.query_s<simple>("id=3");
     CHECK(vec2.size() == 1);
   }
 #endif
@@ -986,10 +986,10 @@ TEST_CASE("query some") {
     mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(key, not_null);
     CHECK(mysql.insert(v) == 3);
-    auto vec1 = mysql.query<std::tuple<int>>("select count(1) from student");
+    auto vec1 = mysql.query_s<std::tuple<int>>("select count(1) from student");
     CHECK(vec1.size() == 1);
     CHECK(std::get<0>(vec1[0]) == 3);
-    auto vec2 = mysql.query<std::tuple<int, std::string, double>>(
+    auto vec2 = mysql.query_s<std::tuple<int, std::string, double>>(
         "select code, name, dm from student");
     CHECK(vec2.size() == 3);
   }
@@ -1001,10 +1001,11 @@ TEST_CASE("query some") {
     postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(key, not_null);
     CHECK(postgres.insert(v) == 3);
-    auto vec1 = postgres.query<std::tuple<int>>("select count(1) from student");
+    auto vec1 =
+        postgres.query_s<std::tuple<int>>("select count(1) from student");
     CHECK(vec1.size() == 1);
     CHECK(std::get<0>(vec1[0]) == 3);
-    auto vec2 = postgres.query<std::tuple<int, std::string, double>>(
+    auto vec2 = postgres.query_s<std::tuple<int, std::string, double>>(
         "select code, name, dm from student");
     CHECK(vec2.size() == 3);
   }
@@ -1020,10 +1021,10 @@ TEST_CASE("query some") {
     sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key);
     CHECK(sqlite.insert(v) == 3);
-    auto vec1 = sqlite.query<std::tuple<int>>("select count(1) from student");
+    auto vec1 = sqlite.query_s<std::tuple<int>>("select count(1) from student");
     CHECK(vec1.size() == 1);
     CHECK(std::get<0>(vec1[0]) == 3);
-    auto vec2 = sqlite.query<std::tuple<int, std::string, double>>(
+    auto vec2 = sqlite.query_s<std::tuple<int, std::string, double>>(
         "select code, name, dm from student");
     CHECK(vec2.size() == 3);
   }
@@ -1056,10 +1057,10 @@ TEST_CASE("query multi table") {
     mysql.create_datatable<person>(key1, not_null1);
     CHECK(mysql.insert(v) == 3);
     CHECK(mysql.insert(v1) == 3);
-    auto vec1 = mysql.query<std::tuple<person, std::string, int>>(
+    auto vec1 = mysql.query_s<std::tuple<person, std::string, int>>(
         "select person.*, student.name, student.age from person, student"s);
     CHECK(vec1.size() == 9);
-    auto vec2 = mysql.query<std::tuple<person, student>>(
+    auto vec2 = mysql.query_s<std::tuple<person, student>>(
         "select * from person, student"s);
     CHECK(vec2.size() == 9);
   }
@@ -1074,10 +1075,10 @@ TEST_CASE("query multi table") {
     postgres.create_datatable<person>(key1, not_null1);
     CHECK(postgres.insert(v) == 3);
     CHECK(postgres.insert(v1) == 3);
-    auto vec1 = postgres.query<std::tuple<int, std::string, double>>(
+    auto vec1 = postgres.query_s<std::tuple<int, std::string, double>>(
         "select person.*, student.name, student.age from person, student"s);
     CHECK(vec1.size() == 9);
-    auto vec2 = postgres.query<std::tuple<person, student>>(
+    auto vec2 = postgres.query_s<std::tuple<person, student>>(
         "select * from person, student"s);
     CHECK(vec2.size() == 9);
   }
@@ -1096,10 +1097,10 @@ TEST_CASE("query multi table") {
     sqlite.create_datatable<person>(key1, not_null1);
     CHECK(sqlite.insert(v) == 3);
     CHECK(sqlite.insert(v1) == 3);
-    auto vec1 = sqlite.query<std::tuple<int, std::string, double>>(
+    auto vec1 = sqlite.query_s<std::tuple<int, std::string, double>>(
         "select person.*, student.name, student.age from person, student"s);
     CHECK(vec1.size() == 9);
-    auto vec2 = sqlite.query<std::tuple<person, student>>(
+    auto vec2 = sqlite.query_s<std::tuple<person, student>>(
         "select * from person, student"s);
     CHECK(vec2.size() == 9);
   }
@@ -1129,7 +1130,7 @@ TEST_CASE("transaction") {
       }
     }
     mysql.commit();
-    auto vec = mysql.query<student>();
+    auto vec = mysql.query_s<student>();
     CHECK(vec.size() == 10);
     CHECK(mysql.delete_records_s<student>() == 10);
     mysql.set_enable_transaction(false);
@@ -1139,7 +1140,7 @@ TEST_CASE("transaction") {
       mysql.rollback();
     }
     mysql.commit();
-    vec = mysql.query<student>();
+    vec = mysql.query_s<student>();
     CHECK(vec.size() == 2);
   }
 #endif
@@ -1158,7 +1159,7 @@ TEST_CASE("transaction") {
       }
     }
     postgres.commit();
-    auto vec = postgres.query<student>();
+    auto vec = postgres.query_s<student>();
     CHECK(vec.size() == 10);
     CHECK(postgres.delete_records_s<student>() == 10);
     postgres.set_enable_transaction(false);
@@ -1169,7 +1170,7 @@ TEST_CASE("transaction") {
       postgres.rollback();
     }
     postgres.commit();
-    vec = postgres.query<student>();
+    vec = postgres.query_s<student>();
     CHECK(vec.size() == 2);
   }
 #endif
@@ -1192,7 +1193,7 @@ TEST_CASE("transaction") {
       }
     }
     sqlite.commit();
-    auto vec = sqlite.query<student>();
+    auto vec = sqlite.query_s<student>();
     CHECK(vec.size() == 10);
     CHECK(sqlite.delete_records_s<student>() == 10);
     sqlite.set_enable_transaction(false);
@@ -1203,7 +1204,7 @@ TEST_CASE("transaction") {
       sqlite.rollback();
     }
     sqlite.commit();
-    vec = sqlite.query<student>();
+    vec = sqlite.query_s<student>();
     CHECK(vec.size() == 2);
   }
 #endif
@@ -1413,12 +1414,12 @@ TEST_CASE("create table with unique") {
     mysql.execute("drop table if exists person");
     mysql.create_datatable<person>(ormpp_auto_key{"id"}, ormpp_unique{{"age"}});
     mysql.insert<person>({"purecpp"});
-    auto vec1 = mysql.query<person>("order by id");
-    auto vec2 = mysql.query<person>("limit 1");
+    auto vec1 = mysql.query_s<person>("order by id");
+    auto vec2 = mysql.query_s<person>("limit 1");
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
     mysql.insert<person>({"purecpp"});
-    auto vec3 = mysql.query<person>();
+    auto vec3 = mysql.query_s<person>();
     CHECK(vec3.size() == 1);
   }
 #endif
@@ -1429,12 +1430,12 @@ TEST_CASE("create table with unique") {
     postgres.create_datatable<person>(ormpp_auto_key{"id"},
                                       ormpp_unique{{"name", "age"}});
     postgres.insert<person>({"purecpp"});
-    auto vec1 = postgres.query<person>("order by id");
-    auto vec2 = postgres.query<person>("limit 1");
+    auto vec1 = postgres.query_s<person>("order by id");
+    auto vec2 = postgres.query_s<person>("limit 1");
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
     postgres.insert<person>({"purecpp"});
-    auto vec3 = postgres.query<person>();
+    auto vec3 = postgres.query_s<person>();
     CHECK(vec3.size() == 1);
   }
 #endif
@@ -1449,12 +1450,12 @@ TEST_CASE("create table with unique") {
     sqlite.create_datatable<person>(ormpp_auto_key{"id"},
                                     ormpp_unique{{"name", "age"}});
     sqlite.insert<person>({"purecpp"});
-    auto vec1 = sqlite.query<person>("order by id");
-    auto vec2 = sqlite.query<person>("limit 1");
+    auto vec1 = sqlite.query_s<person>("order by id");
+    auto vec2 = sqlite.query_s<person>("limit 1");
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
     sqlite.insert<person>({"purecpp"});
-    auto vec3 = sqlite.query<person>();
+    auto vec3 = sqlite.query_s<person>();
     CHECK(vec3.size() == 1);
   }
 #endif
@@ -1667,8 +1668,8 @@ TEST_CASE("query tuple_optional_t") {
     mysql.insert<tuple_optional_t>({"purecpp", 6});
     mysql.insert<tuple_optional_t>({std::nullopt});
     auto vec =
-        mysql.query<std::tuple<tuple_optional_t, std::optional<std::string>,
-                               std::optional<int>>>(
+        mysql.query_s<std::tuple<tuple_optional_t, std::optional<std::string>,
+                                 std::optional<int>>>(
             "select id,name,age,name,age from tuple_optional_t;");
     CHECK(vec.size() == 2);
     auto tp1 = vec.front();
@@ -1696,10 +1697,9 @@ TEST_CASE("query tuple_optional_t") {
     postgres.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
     postgres.insert<tuple_optional_t>({"purecpp", 6});
     postgres.insert<tuple_optional_t>({std::nullopt});
-    auto vec =
-        postgres.query<std::tuple<tuple_optional_t, std::optional<std::string>,
-                                  std::optional<int>>>(
-            "select id,name,age,name,age from tuple_optional_t;");
+    auto vec = postgres.query_s<std::tuple<
+        tuple_optional_t, std::optional<std::string>, std::optional<int>>>(
+        "select id,name,age,name,age from tuple_optional_t;");
     CHECK(vec.size() == 2);
     auto tp1 = vec.front();
     auto tp2 = vec.back();
@@ -1731,8 +1731,8 @@ TEST_CASE("query tuple_optional_t") {
     sqlite.insert<tuple_optional_t>({"purecpp", 6});
     sqlite.insert<tuple_optional_t>({std::nullopt});
     auto vec =
-        sqlite.query<std::tuple<tuple_optional_t, std::optional<std::string>,
-                                std::optional<int>>>(
+        sqlite.query_s<std::tuple<tuple_optional_t, std::optional<std::string>,
+                                  std::optional<int>>>(
             "select id,name,age,name,age from tuple_optional_t;");
     CHECK(vec.size() == 2);
     auto tp1 = vec.front();
@@ -1773,31 +1773,31 @@ TEST_CASE("test enum") {
     mysql.execute("drop table if exists test_enum_t");
     mysql.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
     mysql.insert<test_enum_t>({Color::BLUE});
-    auto vec = mysql.query<test_enum_t>();
+    auto vec = mysql.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     mysql.update(vec.front());
-    vec = mysql.query<test_enum_t>();
+    vec = mysql.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
     mysql.update<test_enum_t>({Color::BLUE, APPLE, 1}, "id=1");
-    vec = mysql.query<test_enum_t>();
+    vec = mysql.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     mysql.replace(vec.front());
-    vec = mysql.query<test_enum_t>();
+    vec = mysql.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    mysql.delete_records<test_enum_t>();
-    vec = mysql.query<test_enum_t>();
+    mysql.delete_records_s<test_enum_t>();
+    vec = mysql.query_s<test_enum_t>();
     CHECK(vec.size() == 0);
   }
 #endif
@@ -1807,31 +1807,31 @@ TEST_CASE("test enum") {
     postgres.execute("drop table if exists test_enum_t");
     postgres.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
     postgres.insert<test_enum_t>({Color::BLUE});
-    auto vec = postgres.query<test_enum_t>();
+    auto vec = postgres.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     postgres.update(vec.front());
-    vec = postgres.query<test_enum_t>();
+    vec = postgres.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
     postgres.update<test_enum_t>({Color::BLUE, APPLE, 1}, "id=1");
-    vec = postgres.query<test_enum_t>();
+    vec = postgres.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     postgres.replace(vec.front());
-    vec = postgres.query<test_enum_t>();
+    vec = postgres.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    postgres.delete_records<test_enum_t>();
-    vec = postgres.query<test_enum_t>();
+    postgres.delete_records_s<test_enum_t>();
+    vec = postgres.query_s<test_enum_t>();
     CHECK(vec.size() == 0);
   }
 #endif
@@ -1845,31 +1845,31 @@ TEST_CASE("test enum") {
     sqlite.execute("drop table if exists test_enum_t");
     sqlite.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
     sqlite.insert<test_enum_t>({Color::BLUE});
-    auto vec = sqlite.query<test_enum_t>();
+    auto vec = sqlite.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     sqlite.update(vec.front());
-    vec = sqlite.query<test_enum_t>();
+    vec = sqlite.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
     sqlite.update<test_enum_t>({Color::BLUE, APPLE, 1}, "id=1");
-    vec = sqlite.query<test_enum_t>();
+    vec = sqlite.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     sqlite.replace(vec.front());
-    vec = sqlite.query<test_enum_t>();
+    vec = sqlite.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    sqlite.delete_records<test_enum_t>();
-    vec = sqlite.query<test_enum_t>();
+    sqlite.delete_records_s<test_enum_t>();
+    vec = sqlite.query_s<test_enum_t>();
     CHECK(vec.size() == 0);
   }
 #endif
@@ -1894,31 +1894,31 @@ TEST_CASE("test enum with custom name") {
     mysql.execute("drop table if exists test_enum");
     mysql.create_datatable<test_enum_with_name_t>(ormpp_auto_key{"id"});
     mysql.insert<test_enum_with_name_t>({Color::BLUE});
-    auto vec = mysql.query<test_enum_with_name_t>();
+    auto vec = mysql.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     mysql.update(vec.front());
-    vec = mysql.query<test_enum_with_name_t>();
+    vec = mysql.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
     mysql.update<test_enum_with_name_t>({Color::BLUE, APPLE, 1}, "id=1");
-    vec = mysql.query<test_enum_with_name_t>();
+    vec = mysql.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     mysql.replace(vec.front());
-    vec = mysql.query<test_enum_with_name_t>();
+    vec = mysql.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    mysql.delete_records<test_enum_with_name_t>();
-    vec = mysql.query<test_enum_with_name_t>();
+    mysql.delete_records_s<test_enum_with_name_t>();
+    vec = mysql.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 0);
   }
 #endif
@@ -1928,31 +1928,31 @@ TEST_CASE("test enum with custom name") {
     postgres.execute("drop table if exists test_enum");
     postgres.create_datatable<test_enum_with_name_t>(ormpp_auto_key{"id"});
     postgres.insert<test_enum_with_name_t>({Color::BLUE});
-    auto vec = postgres.query<test_enum_with_name_t>();
+    auto vec = postgres.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     postgres.update(vec.front());
-    vec = postgres.query<test_enum_with_name_t>();
+    vec = postgres.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
     postgres.update<test_enum_with_name_t>({Color::BLUE, APPLE, 1}, "id=1");
-    vec = postgres.query<test_enum_with_name_t>();
+    vec = postgres.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     postgres.replace(vec.front());
-    vec = postgres.query<test_enum_with_name_t>();
+    vec = postgres.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    postgres.delete_records<test_enum_with_name_t>();
-    vec = postgres.query<test_enum_with_name_t>();
+    postgres.delete_records_s<test_enum_with_name_t>();
+    vec = postgres.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 0);
   }
 #endif
@@ -1966,31 +1966,31 @@ TEST_CASE("test enum with custom name") {
     sqlite.execute("drop table if exists test_enum");
     sqlite.create_datatable<test_enum_with_name_t>(ormpp_auto_key{"id"});
     sqlite.insert<test_enum_with_name_t>({Color::BLUE});
-    auto vec = sqlite.query<test_enum_with_name_t>();
+    auto vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     sqlite.update(vec.front());
-    vec = sqlite.query<test_enum_with_name_t>();
+    vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
     sqlite.update<test_enum_with_name_t>({Color::BLUE, APPLE, 1}, "id=1");
-    vec = sqlite.query<test_enum_with_name_t>();
+    vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     sqlite.replace(vec.front());
-    vec = sqlite.query<test_enum_with_name_t>();
+    vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    sqlite.delete_records<test_enum_with_name_t>();
-    vec = sqlite.query<test_enum_with_name_t>();
+    sqlite.delete_records_s<test_enum_with_name_t>();
+    vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 0);
   }
 #endif
@@ -2013,7 +2013,7 @@ TEST_CASE("test bool") {
     auto vec = mysql.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().ok == true);
-    mysql.delete_records<test_bool_t>();
+    mysql.delete_records_s<test_bool_t>();
     mysql.insert(test_bool_t{false});
     vec = mysql.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
@@ -2029,7 +2029,7 @@ TEST_CASE("test bool") {
     auto vec = postgres.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().ok == true);
-    postgres.delete_records<test_bool_t>();
+    postgres.delete_records_s<test_bool_t>();
     postgres.insert(test_bool_t{false});
     vec = postgres.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
@@ -2049,7 +2049,7 @@ TEST_CASE("test bool") {
     auto vec = sqlite.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().ok == true);
-    sqlite.delete_records<test_bool_t>();
+    sqlite.delete_records_s<test_bool_t>();
     sqlite.insert(test_bool_t{false});
     vec = sqlite.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
