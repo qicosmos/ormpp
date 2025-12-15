@@ -528,7 +528,7 @@ inline std::string generate_update_sql(Args &&...args) {
   }
   else {
     auto keys = get_conflict_keys<T>();
-    if (!keys.empty() && keys.back().size() == 2) {
+    if (!keys.empty() && keys.back() == "``") {
       keys.pop_back();
       auto pks = get_primary_keys<T>();
       if (!pks.empty()) {

@@ -560,7 +560,7 @@ TEST_CASE("insert query") {
 #else
   if (sqlite.connect(db)) {
 #endif
-    auto vec = sqlite.query(FID(person::id), "<", "5");
+    auto vec = sqlite.query_s<person>("id<5");
   }
 #endif
 
@@ -605,7 +605,7 @@ TEST_CASE("insert query") {
     CHECK(sqlite.insert(v) == 2);
     auto vec2 = sqlite.query_s<student>();
     CHECK(vec2.size() == 3);
-    auto vec3 = sqlite.query(FID(student::code), "<", "5");
+    auto vec3 = sqlite.query_s<student>("code<5");
     CHECK(vec3.size() == 3);
     auto vec4 = sqlite.query_s<student>("limit 2");
     CHECK(vec4.size() == 2);
