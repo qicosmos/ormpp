@@ -58,6 +58,14 @@ struct simple {
 };
 YLT_REFL(simple, id, code, age, arr)
 
+struct person1 {
+  std::string name;
+  int id;
+  int no;
+};
+REGISTER_PRIMARY_KEY(person1, id, no)
+YLT_REFL(person1, name, id, no)
+
 // TEST_CASE(mysql performance){
 //    dbng<mysql> mysql;
 //
@@ -125,6 +133,22 @@ TEST_CASE("test client pool") {
   }
   init_size = pool.size();
   CHECK(init_size == 4);
+#endif
+}
+
+TEST_CASE("test primary key") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists person1;");
+    mysql.create_datatable<person1>();
+    person1 p{"tom", 1, 1};
+    mysql.insert(p);
+    p.name = "jack";
+    mysql.update(p, "id=1 and no=1");
+    auto vec = mysql.query_s<person1>();
+    CHECK(vec[0].name == "jack");
+  }
 #endif
 }
 
@@ -457,7 +481,7 @@ TEST_CASE("sqlcipehr with username and password connection") {
 }
 
 TEST_CASE("create table") {
-  ormpp_key key{"id"};
+  ormpp_key key{{"id"}};
   ormpp_not_null not_null{{"id", "age"}};
   ormpp_auto_key auto_key{"id"};
 
@@ -494,7 +518,7 @@ TEST_CASE("create table") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   REQUIRE(mysql.connect(ip, username, password, db));
-  REQUIRE(mysql.create_datatable<person>());
+  REQUIRE(mysql.create_datatable<person>(ormpp_key{{"id", "age"}}));
   REQUIRE(mysql.create_datatable<person>(key));
   REQUIRE(mysql.create_datatable<person>(not_null));
   REQUIRE(mysql.create_datatable<person>(key, not_null));
@@ -506,7 +530,7 @@ TEST_CASE("create table") {
 }
 
 TEST_CASE("insert query") {
-  ormpp_key key{"code"};
+  ormpp_key key{{"code"}};
   ormpp_not_null not_null{{"code", "age"}};
   ormpp_auto_key auto_key{"code"};
 
@@ -621,7 +645,7 @@ TEST_CASE("update replace") {
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists person");
-    mysql.create_datatable<person>(ormpp_auto_key{"id"});
+    mysql.create_datatable<person>();
     mysql.insert<person>({"purecpp", 100});
     auto vec = mysql.query<person>();
     CHECK(vec.size() == 1);
@@ -632,7 +656,7 @@ TEST_CASE("update replace") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
-    mysql.update<person>({"purecpp", 100, 1}, "id=1");
+    mysql.update<person>({"purecpp", 100, 1});
     vec = mysql.query<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
@@ -716,7 +740,7 @@ TEST_CASE("update replace") {
 }
 
 TEST_CASE("update") {
-  ormpp_key key{"code"};
+  ormpp_key key{{"code"}};
   ormpp_not_null not_null{{"code", "age"}};
   ormpp_auto_key auto_key{"code"};
 
@@ -776,7 +800,7 @@ TEST_CASE("update") {
 }
 
 TEST_CASE("multi update") {
-  ormpp_key key{"code"};
+  ormpp_key key{{"code"}};
   ormpp_not_null not_null{{"code", "age"}};
   ormpp_auto_key auto_key{"code"};
 
@@ -836,7 +860,7 @@ TEST_CASE("multi update") {
 }
 
 TEST_CASE("delete") {
-  ormpp_key key{"code"};
+  ormpp_key key{{"code"}};
   ormpp_not_null not_null{{"code", "age"}};
   ormpp_auto_key auto_key{"code"};
 
@@ -896,7 +920,7 @@ TEST_CASE("delete") {
 }
 
 TEST_CASE("query") {
-  ormpp_key key{"id"};
+  ormpp_key key{{"id"}};
   simple s1 = {1, 2.5, 3, {"s1"}};
   simple s2 = {2, 3.5, 4, {"s2"}};
   simple s3 = {3, 4.5, 5, {"s3"}};
@@ -947,7 +971,7 @@ TEST_CASE("query") {
 }
 
 TEST_CASE("query some") {
-  ormpp_key key{"code"};
+  ormpp_key key{{"code"}};
   ormpp_not_null not_null{{"code", "age"}};
   ormpp_auto_key auto_key{"code"};
 
@@ -1007,7 +1031,7 @@ TEST_CASE("query some") {
 }
 
 TEST_CASE("query multi table") {
-  ormpp_key key{"code"};
+  ormpp_key key{{"code"}};
   ormpp_not_null not_null{{"code", "age"}};
 
   student s = {1, "tom", 0, 19, 1.5, "room2"};
@@ -1083,7 +1107,7 @@ TEST_CASE("query multi table") {
 }
 
 TEST_CASE("transaction") {
-  ormpp_key key{"code"};
+  ormpp_key key{{"code"}};
   ormpp_not_null not_null{{"code", "age"}};
 
   student s = {1, "tom", 0, 19, 1.5, "room2"};

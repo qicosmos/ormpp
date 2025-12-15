@@ -11,7 +11,7 @@ struct ormpp_not_null {
 };
 
 struct ormpp_key {
-  std::string fields;
+  std::set<std::string> fields;
 };
 
 struct ormpp_auto_key {

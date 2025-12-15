@@ -70,6 +70,85 @@ inline auto is_auto_key(std::string_view field_name) {
   inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) = \
       ormpp::add_auto_key_field(#STRUCT_NAME, #KEY);
 
+inline auto &get_primary_key_map() {
+  static std::unordered_map<std::string_view, std::set<std::string>> map;
+  return map;
+}
+
+inline void trim_sv(std::string_view &sv) {
+  const auto first_non_space = sv.find_first_not_of(" \t\n\r\f\v");
+  if (std::string_view::npos == first_non_space) {
+    sv.remove_prefix(sv.size());
+    return;
+  }
+
+  const auto last_non_space = sv.find_last_not_of(" \t\n\r\f\v");
+  sv.remove_prefix(first_non_space);
+  sv.remove_suffix(sv.size() - last_non_space - 1);
+}
+
+std::vector<std::string_view> split_and_trim_sv(std::string_view sv,
+                                                char delimiter) {
+  std::vector<std::string_view> parts;
+  size_t start_pos = 0;
+  size_t found_pos = sv.find(delimiter);
+
+  while (found_pos != std::string_view::npos) {
+    std::string_view part = sv.substr(start_pos, found_pos - start_pos);
+
+    trim_sv(part);
+
+    if (!part.empty()) {
+      parts.emplace_back(part);
+    }
+
+    start_pos = found_pos + 1;
+    found_pos = sv.find(delimiter, start_pos);
+  }
+
+  std::string_view last_part = sv.substr(start_pos);
+  trim_sv(last_part);
+  if (!last_part.empty()) {
+    if (last_part.back() == '\0') {
+      auto s = last_part.substr(0, last_part.size() - 1);
+      std::cout << "last: " << s.size() << "\n";
+      parts.emplace_back(s);
+    }
+    else {
+      parts.emplace_back(last_part);
+    }
+  }
+
+  return parts;
+}
+
+inline int add_primary_key_field(std::string_view key, std::string str) {
+  // id, no
+  std::cout << str.length() << "\n";
+  std::cout << str.size() << "\n";
+  std::string_view value = str;
+
+  auto vec = split_and_trim_sv(value, ',');
+
+  for (auto item : vec) {
+    std::cout << item.size() << "\n";
+    get_primary_key_map()[key].insert(std::string(item));
+  }
+
+  return 0;
+}
+
+template <typename T>
+inline auto get_primary_keys() {
+  auto it = get_primary_key_map().find(ylt::reflection::type_string<T>());
+  return it == get_primary_key_map().end() ? std::set<std::string>{}
+                                           : it->second;
+}
+
+#define REGISTER_PRIMARY_KEY(STRUCT_NAME, ...)     \
+  inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) = \
+      ormpp::add_primary_key_field(#STRUCT_NAME, {MAKE_NAMES(__VA_ARGS__)});
+
 inline auto &get_conflict_map() {
   static std::unordered_map<std::string_view, std::string_view> map;
   return map;
@@ -448,7 +527,19 @@ inline std::string generate_update_sql(Args &&...args) {
     append(conflict, " and", args...);
   }
   else {
-    for (const auto &it : get_conflict_keys<T>()) {
+    auto keys = get_conflict_keys<T>();
+    if (!keys.empty() && keys.back().size() == 2) {
+      keys.pop_back();
+      auto pks = get_primary_keys<T>();
+      if (!pks.empty()) {
+        for (auto &pk : pks) {
+          std::string s;
+          s.append("`").append(pk).append("`");
+          keys.push_back(std::move(s));
+        }
+      }
+    }
+    for (const auto &it : keys) {
 #ifdef ORMPP_ENABLE_PG
       append(conflict, " and", it + "=$" + std::to_string(++index));
 #else

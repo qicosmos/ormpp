@@ -469,7 +469,7 @@ postgres.create_datatable<student>();
 sqlite.create_datatable<student>();
 
 //创建含主键和not null属性的表
-ormpp_key key1{"id"};
+ormpp_key key1{{"id"}};
 ormpp_not_null not_null{{"id", "age"}};
 
 person p = {1, "test1", 2};

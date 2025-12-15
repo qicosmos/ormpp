@@ -226,7 +226,7 @@ create_datatable example:
 	sqlite.create_datatable<student>();
 
 	//create a datatable with a primary key and not null attribute
-	ormpp_key key1{"id"};
+	ormpp_key key1{{"id"}};
 	ormpp_not_null not_null{{"id", "age"}};
 
     person p = {1, "test1", 2};
