@@ -933,6 +933,7 @@ class mysql {
       if (!auto_primary_key.empty() &&
           auto_primary_key.find(str_name) != auto_primary_key.end()) {
         sql.append(" AUTO_INCREMENT ");
+        auto_key = name;
         auto_primary_key.clear();
       }
       else if (!not_null.empty() && not_null.find(str_name) != not_null.end()) {

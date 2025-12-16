@@ -2080,7 +2080,6 @@ struct alias {
     return "t_alias";
   }
 };
-REGISTER_AUTO_KEY(alias, id)
 YLT_REFL(alias, id, name)
 
 TEST_CASE("alias") {
