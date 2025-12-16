@@ -293,17 +293,21 @@ inline std::vector<std::string> get_conflict_keys() {
   while (s.good()) {
     std::string str;
     getline(s, str, ',');
-    if (str.front() == ' ') {
-      str.erase(0);
+    if (!str.empty() && str.front() == ' ') {
+      str.erase(0, 1);
     }
-    if (str.back() == ' ') {
+    if (!str.empty() && str.back() == ' ') {
       str.pop_back();
     }
 #ifdef ORMPP_ENABLE_MYSQL
-    str.insert(0, "`");
-    str.append("`");
+    if (!str.empty()) {
+      str.insert(0, "`");
+      str.append("`");
+    }
 #endif
-    res.emplace_back(str);
+    if (!str.empty()) {
+      res.emplace_back(str);
+    }
   }
   return res;
 }
