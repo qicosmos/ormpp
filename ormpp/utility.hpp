@@ -334,7 +334,11 @@ inline std::vector<std::string> get_conflict_keys() {
   auto v = split(keys);
   for (auto sv : v) {
     std::string str;
+#ifdef ORMPP_ENABLE_MYSQL
     str.append("`").append(sv).append("`");
+#else
+    str.append(sv);
+#endif
     res.push_back(str);
   }
 
