@@ -294,33 +294,54 @@ inline std::string get_fields() {
   return fields;
 }
 
+inline std::vector<std::string_view> split(std::string_view str) {
+  if (str.empty()) {
+    return {};
+  }
+
+  std::vector<std::string_view> v;
+  size_t start = 0;
+  for (size_t i = 0; i < str.size(); i++) {
+    char c = str[i];
+    if (c == ' ') {
+      continue;
+    }
+
+    if (std::isalpha(c) || std::isdigit(c) || c == '_') {
+      start++;
+    }
+    else {
+      auto sv = str.substr(i - start, start);
+      start = 0;
+      v.push_back(sv);
+    }
+  }
+  if (start != 0) {
+    auto sv = str.substr(str.size() - start, start);
+    v.push_back(sv);
+  }
+  return v;
+}
+
 template <typename T, typename = std::enable_if_t<iguana::ylt_refletable_v<T>>>
 inline std::vector<std::string> get_conflict_keys() {
   static std::vector<std::string> res;
   if (!res.empty()) {
     return res;
   }
-  std::stringstream s;
-  s << get_conflict_key<T>();
-  while (s.good()) {
+
+  std::string_view keys = get_conflict_key<T>();
+  auto v = split(keys);
+  for (auto sv : v) {
     std::string str;
-    getline(s, str, ',');
-    if (!str.empty() && str.front() == ' ') {
-      str.erase(0, 1);
-    }
-    if (!str.empty() && str.back() == ' ') {
-      str.pop_back();
-    }
 #ifdef ORMPP_ENABLE_MYSQL
-    if (!str.empty()) {
-      str.insert(0, "`");
-      str.append("`");
-    }
+    str.append("`").append(sv).append("`");
+#else
+    str.append(sv);
 #endif
-    if (!str.empty()) {
-      res.emplace_back(str);
-    }
+    res.push_back(str);
   }
+
   return res;
 }
 
