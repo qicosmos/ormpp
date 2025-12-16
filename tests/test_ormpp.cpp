@@ -76,7 +76,7 @@ TEST_CASE("test update with multiple conflict keys") {
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists im_message_clear");
-    mysql.create_datatable<message_clear>(ormpp_unique{{"room_id", "user_id"}});
+    mysql.create_datatable<message_clear>();
     message_clear data = {1, 1, 0, 0, 0};
     mysql.insert(data);
     auto clear = mysql.query_s<message_clear>("room_id=? and user_id=?", 1, 1);
@@ -2080,7 +2080,6 @@ struct alias {
     return "t_alias";
   }
 };
-REGISTER_AUTO_KEY(alias, id)
 YLT_REFL(alias, id, name)
 
 TEST_CASE("alias") {
