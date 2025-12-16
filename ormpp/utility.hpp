@@ -452,7 +452,8 @@ inline std::string generate_update_sql(Args &&...args) {
     append(conflict, " and", args...);
   }
   else {
-    for (const auto &it : get_conflict_keys<T>()) {
+    const auto &pks = get_conflict_keys<T>();
+    for (const auto &it : pks) {
 #ifdef ORMPP_ENABLE_PG
       append(conflict, " and", it + "=$" + std::to_string(++index));
 #else

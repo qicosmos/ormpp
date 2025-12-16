@@ -872,7 +872,21 @@ class mysql {
     std::set<std::string> not_null;
     std::set<std::string> unique;
     std::set<std::string> auto_primary_key;
-    std::set<std::string> primary_key;
+    std::set<std::string> primary_keys;
+
+    std::string_view auto_key = get_auto_key<T>();
+    if (!auto_key.empty()) {
+      auto_primary_key.insert(std::string(auto_key));
+    }
+
+    // 宏定义的conflict keys作为联合主键，优先级比ormpp_key更高
+    auto pks = get_conflict_keys<T>();
+    if (!pks.empty()) {
+      for (auto &key : pks) {
+        primary_keys.insert(key);
+      }
+    }
+
     if constexpr (sizeof...(Args) > 0) {
       ylt::reflection::for_each(std::make_tuple(args...), [&](auto &item) {
         using U = std::decay_t<decltype(item)>;
@@ -880,7 +894,8 @@ class mysql {
           auto_primary_key.insert(item.fields);
         }
         else if constexpr (std::is_same_v<ormpp_key, U>) {
-          primary_key.insert(item.fields);
+          if (pks.empty())
+            primary_keys.insert(item.fields);
         }
         else if constexpr (std::is_same_v<ormpp_not_null, U>) {
           for (auto &name : item.fields) {
@@ -917,13 +932,8 @@ class mysql {
 
       if (!auto_primary_key.empty() &&
           auto_primary_key.find(str_name) != auto_primary_key.end()) {
-        sql.append(" AUTO_INCREMENT PRIMARY KEY");
+        sql.append(" AUTO_INCREMENT ");
         auto_primary_key.clear();
-      }
-      else if (!primary_key.empty() &&
-               primary_key.find(str_name) != primary_key.end()) {
-        sql.append(" PRIMARY KEY");
-        primary_key.clear();
       }
       else if (!not_null.empty() && not_null.find(str_name) != not_null.end()) {
         sql.append(" NOT NULL");
@@ -932,6 +942,18 @@ class mysql {
 
       sql.append(",");
     });
+
+    if (!auto_key.empty()) {
+      sql.append("PRIMARY KEY (").append(auto_key).append("),");
+    }
+    else if (!primary_keys.empty()) {
+      sql.append("PRIMARY KEY (");
+      for (auto key : primary_keys) {
+        sql.append(key).append(",");
+      }
+      sql.pop_back();
+      sql.append("),");
+    }
 
     for (auto &name : unique) {
       sql.append("UNIQUE (").append(name).append("),");
