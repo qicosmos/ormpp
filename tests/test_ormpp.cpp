@@ -58,6 +58,7 @@ struct simple {
 };
 YLT_REFL(simple, id, code, age, arr)
 
+namespace test_ns {
 struct message_clear {
   int64_t room_id;
   int64_t user_id;
@@ -70,9 +71,11 @@ struct message_clear {
 };
 REGISTER_CONFLICT_KEY(message_clear, room_id, user_id)
 YLT_REFL(message_clear, room_id, user_id, message_id, created_at, updated_at)
+}  // namespace test_ns
 
 TEST_CASE("test update with multiple conflict keys") {
 #ifdef ORMPP_ENABLE_MYSQL
+  using namespace test_ns;
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists im_message_clear");
