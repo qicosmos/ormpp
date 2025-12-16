@@ -49,14 +49,25 @@ inline int add_auto_key_field(std::string_view key, std::string_view value) {
 }
 
 template <typename T>
+inline std::string_view get_short_struct_name() {
+  auto struct_name = ylt::reflection::type_string<T>();
+  size_t pos = struct_name.rfind(":");
+  if (pos == std::string_view::npos) {
+    return struct_name;
+  }
+  // remove namespace
+  return struct_name.substr(struct_name.rfind(":") + 1);
+}
+
+template <typename T>
 inline auto get_auto_key() {
-  auto it = get_auto_key_map().find(ylt::reflection::type_string<T>());
+  auto it = get_auto_key_map().find(get_short_struct_name<T>());
   return it == get_auto_key_map().end() ? "" : it->second;
 }
 
 template <typename T>
 inline auto is_auto_key(std::string_view field_name) {
-  auto it = get_auto_key_map().find(ylt::reflection::type_string<T>());
+  auto it = get_auto_key_map().find(get_short_struct_name<T>());
   return it == get_auto_key_map().end() ? false : it->second == field_name;
 }
 
@@ -83,9 +94,10 @@ inline int add_conflict_key_field(std::string_view key,
 
 template <typename T>
 inline auto get_conflict_key() {
-  auto it = get_conflict_map().find(ylt::reflection::type_string<T>());
+  std::string_view struct_name = get_short_struct_name<T>();
+  auto it = get_conflict_map().find(struct_name);
   if (it == get_conflict_map().end()) {
-    auto auto_key = get_auto_key_map().find(ylt::reflection::type_string<T>());
+    auto auto_key = get_auto_key_map().find(struct_name);
     return auto_key == get_auto_key_map().end() ? "" : auto_key->second;
   }
   return it->second;
