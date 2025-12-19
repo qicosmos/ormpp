@@ -16,6 +16,7 @@
 #include "dbng.hpp"
 #include "doctest.h"
 #include "ormpp_cfg.hpp"
+#include "query.hpp"
 
 using namespace std::string_literals;
 
@@ -72,6 +73,17 @@ struct message_clear {
 REGISTER_CONFLICT_KEY(message_clear, room_id, user_id)
 YLT_REFL(message_clear, room_id, user_id, message_id, created_at, updated_at)
 }  // namespace test_ns
+
+TEST_CASE("experimental stream api") {
+  auto sql0 = from<person>()
+                  .inner_join(col(&person::id), col(&person::age))
+                  .inner_join(col(&person::id), col(&person::age));
+  auto sql = from<person>().where(col(&person::id) == 1 ||
+                                  col(&person::name).like("%test"));
+  auto q1 =
+      from<person>().where((col(&person::id) == 1 || col(&person::id) == 2) &&
+                           col(&person::id) != 3);
+}
 
 TEST_CASE("test update with multiple conflict keys") {
 #ifdef ORMPP_ENABLE_MYSQL
