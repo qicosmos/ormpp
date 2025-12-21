@@ -26,11 +26,13 @@ struct where_condition {
   }
 };
 
-template <typename T, typename M>
+template <typename M>
 struct col_ref {
-  M T::*ptr;
+  using value_type = M;
+
   std::string_view name;
-  using owner_type = T;
+  std::string_view class_name;
+
   where_condition like(std::string str) {
     std::string like_cond = "`";
     like_cond.append(str).append("`");
@@ -38,13 +40,16 @@ struct col_ref {
   }
 };
 
-#define col(c)                                               \
-  col_ref<typename ylt::reflection::internal::member_tratis< \
-              decltype(c)>::owner_type,                      \
-          typename ylt::reflection::internal::member_tratis< \
-              decltype(c)>::value_type> {                    \
-    c, ylt::reflection::field_string<c>()                    \
+#define col(c)                                                 \
+  col_ref<typename ylt::reflection::internal::member_tratis<   \
+      decltype(c)>::value_type> {                              \
+    ylt::reflection::field_string<c>(),                        \
+        ylt::reflection::get_struct_name<                      \
+            typename ylt::reflection::internal::member_tratis< \
+                decltype(c)>::owner_type>()                    \
   }
+
+#define name(c) std::string(col(c).name)
 
 template <typename T, typename M>
 struct where_expr {
@@ -67,33 +72,33 @@ where_condition operator&&(where_condition lhs, where_condition rhs) {
   return where_condition{lhs.to_sql(), " and ", rhs.to_sql()};
 }
 
-template <typename T, typename M>
-auto operator==(col_ref<T, M> field, M val) {
+template <typename M>
+auto operator==(col_ref<M> field, M val) {
   return where_condition{std::string(field.name), "=", std::to_string(val)};
 }
 
-template <typename T, typename M>
-auto operator>=(col_ref<T, M> field, M val) {
+template <typename M>
+auto operator>=(col_ref<M> field, M val) {
   return where_condition{std::string(field.name), ">=", std::to_string(val)};
 }
 
-template <typename T, typename M>
-auto operator<=(col_ref<T, M> field, M val) {
+template <typename M>
+auto operator<=(col_ref<M> field, M val) {
   return where_condition{std::string(field.name), "<=", std::to_string(val)};
 }
 
-template <typename T, typename M>
-auto operator!=(col_ref<T, M> field, M val) {
+template <typename M>
+auto operator!=(col_ref<M> field, M val) {
   return where_condition{std::string(field.name), "!=", std::to_string(val)};
 }
 
-template <typename T, typename M>
-auto operator>(col_ref<T, M> field, M val) {
+template <typename M>
+auto operator>(col_ref<M> field, M val) {
   return where_condition{std::string(field.name), ">", std::to_string(val)};
 }
 
-template <typename T, typename M>
-auto operator<(col_ref<T, M> field, M val) {
+template <typename M>
+auto operator<(col_ref<M> field, M val) {
   return where_condition{std::string(field.name), "<", std::to_string(val)};
 }
 
@@ -110,11 +115,11 @@ class query_builder {
     using L = decltype(left);
     using R = decltype(right);
     std::string sql = " inner join on ";
-    sql.append(ylt::reflection::get_struct_name<typename L::owner_type>())
+    sql.append(left.class_name)
         .append(".")
         .append(left.name)
         .append("=")
-        .append(ylt::reflection::get_struct_name<typename R::owner_type>())
+        .append(right.class_name)
         .append(".")
         .append(right.name)
         .append(" ");

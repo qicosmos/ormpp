@@ -74,6 +74,24 @@ REGISTER_CONFLICT_KEY(message_clear, room_id, user_id)
 YLT_REFL(message_clear, room_id, user_id, message_id, created_at, updated_at)
 }  // namespace test_ns
 
+struct person_t {
+  int id;
+  std::string name;
+  std::string email;
+  int age;
+};
+constexpr std::string_view get_alias_struct_name(person_t *) {
+  return "person_t";
+}
+
+TEST_CASE("experimental create safe api") {
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.create_datatable<person_t>(ormpp_auto_key{name(&person_t::id)},
+                                     ormpp_unique{{name(&person_t::name)}});
+  }
+}
+
 TEST_CASE("experimental stream api") {
   auto sql0 = from<person>()
                   .inner_join(col(&person::id), col(&person::age))
