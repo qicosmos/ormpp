@@ -546,12 +546,14 @@ class sqlite {
     size_t index = 0;
     bool bind_ok = true;
     if constexpr (sizeof...(members) > 0) {
-      ((bind_ok &&
-            (bind_ok = set_param_bind(
-                 ylt::reflection::get<ylt::reflection::index_of<members>()>(t),
-                 ++index)),
-        true),
-       ...);
+      [[maybe_unused]] auto r =
+          ((bind_ok &&
+                (bind_ok = set_param_bind(
+                     ylt::reflection::get<ylt::reflection::index_of<members>()>(
+                         t),
+                     ++index)),
+            true),
+           ...);
     }
     else {
       ylt::reflection::for_each(t, [&bind_ok, &index, type, this](
