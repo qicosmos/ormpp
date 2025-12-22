@@ -16,6 +16,7 @@
 #include "dbng.hpp"
 #include "doctest.h"
 #include "ormpp_cfg.hpp"
+#include "query.hpp"
 
 using namespace std::string_literals;
 
@@ -68,6 +69,35 @@ struct message_clear {
 };
 REGISTER_CONFLICT_KEY(message_clear, room_id, user_id)
 }  // namespace test_ns
+
+struct person_t {
+  int id;
+  std::string name;
+  std::string email;
+  int age;
+};
+constexpr std::string_view get_alias_struct_name(person_t *) {
+  return "person_t";
+}
+
+TEST_CASE("experimental create safe api") {
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.create_datatable<person_t>(ormpp_auto_key{name(&person_t::id)},
+                                     ormpp_unique{{name(&person_t::name)}});
+  }
+}
+
+TEST_CASE("experimental stream api") {
+  auto sql0 = from<person>()
+                  .inner_join(col(&person::id), col(&person::age))
+                  .inner_join(col(&person::id), col(&person::age));
+  auto sql = from<person>().where(col(&person::id) == 1 ||
+                                  col(&person::name).like("%test"));
+  auto q1 =
+      from<person>().where((col(&person::id) == 1 || col(&person::id) == 2) &&
+                           col(&person::id) != 3);
+}
 
 TEST_CASE("test update with multiple conflict keys") {
 #ifdef ORMPP_ENABLE_MYSQL
