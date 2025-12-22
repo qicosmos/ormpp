@@ -469,13 +469,18 @@ class postgresql {
     T t;
     ylt::reflection::for_each(t, [&](auto &field, auto name, size_t index) {
       using item_type = std::decay_t<decltype(field)>;
-      sql.append(name).append(" ").append(type_name_arr[index]);
+      std::string type_str = type_name_arr[index];
+      sql.append(name).append(" ").append(type_str);
 
       std::string str_name(name);
 
       if (!auto_primary_key.empty() &&
           auto_primary_key.find(str_name) != auto_primary_key.end()) {
-        if (type_name_arr[index] == "bigint") {
+        // remove additional type str for auto key
+        for (int i = 0; i < type_str.size(); i++) {
+          sql.pop_back();
+        }
+        if (type_str == "bigint") {
           sql.append(" bigserial ");
         }
         else {
