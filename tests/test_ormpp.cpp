@@ -25,7 +25,7 @@ const char *password = "123456";
 #elif defined(ORMPP_ENABLE_SQLITE3) && defined(SQLITE_HAS_CODEC)
 const char *password = "123456";
 #else
-const char *password = "";
+const char *password = "12345";
 #endif
 const char *ip = "127.0.0.1";
 const char *username = "root";
@@ -1668,8 +1668,8 @@ TEST_CASE("query tuple_optional_t") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists tuple_optional_t");
     mysql.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
-    mysql.insert<tuple_optional_t>({"purecpp", 6});
-    mysql.insert<tuple_optional_t>({std::nullopt});
+    mysql.insert<tuple_optional_t>({0, "purecpp", 6});
+    mysql.insert<tuple_optional_t>({0, std::nullopt});
     auto vec =
         mysql.query_s<std::tuple<tuple_optional_t, std::optional<std::string>,
                                  std::optional<int>>>(
@@ -1698,8 +1698,8 @@ TEST_CASE("query tuple_optional_t") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists tuple_optional_t");
     postgres.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
-    postgres.insert<tuple_optional_t>({"purecpp", 6});
-    postgres.insert<tuple_optional_t>({std::nullopt});
+    postgres.insert<tuple_optional_t>({0, "purecpp", 6});
+    postgres.insert<tuple_optional_t>({0, std::nullopt});
     auto vec = postgres.query_s<std::tuple<
         tuple_optional_t, std::optional<std::string>, std::optional<int>>>(
         "select id,name,age,name,age from tuple_optional_t;");
@@ -1878,9 +1878,9 @@ TEST_CASE("test enum") {
 }
 
 struct test_enum_with_name_t {
+  int id;
   Color color;
   Fruit fruit;
-  int id;
   static constexpr std::string_view get_alias_struct_name(
       test_enum_with_name_t *) {
     return "test_enum";
@@ -1894,7 +1894,7 @@ TEST_CASE("test enum with custom name") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists test_enum");
     mysql.create_datatable<test_enum_with_name_t>(ormpp_auto_key{"id"});
-    mysql.insert<test_enum_with_name_t>({Color::BLUE});
+    mysql.insert<test_enum_with_name_t>({0, Color::BLUE});
     auto vec = mysql.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
@@ -1906,7 +1906,7 @@ TEST_CASE("test enum with custom name") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    mysql.update<test_enum_with_name_t>({Color::BLUE, APPLE, 1}, "id=1");
+    mysql.update<test_enum_with_name_t>({1, Color::BLUE, APPLE});
     vec = mysql.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
@@ -1928,7 +1928,7 @@ TEST_CASE("test enum with custom name") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists test_enum");
     postgres.create_datatable<test_enum_with_name_t>(ormpp_auto_key{"id"});
-    postgres.insert<test_enum_with_name_t>({Color::BLUE});
+    postgres.insert<test_enum_with_name_t>({0, Color::BLUE});
     auto vec = postgres.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
@@ -1940,7 +1940,7 @@ TEST_CASE("test enum with custom name") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    postgres.update<test_enum_with_name_t>({Color::BLUE, APPLE, 1}, "id=1");
+    postgres.update<test_enum_with_name_t>({1, Color::BLUE, APPLE});
     vec = postgres.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
@@ -1966,7 +1966,7 @@ TEST_CASE("test enum with custom name") {
 #endif
     sqlite.execute("drop table if exists test_enum");
     sqlite.create_datatable<test_enum_with_name_t>(ormpp_auto_key{"id"});
-    sqlite.insert<test_enum_with_name_t>({Color::BLUE});
+    sqlite.insert<test_enum_with_name_t>({0, Color::BLUE});
     auto vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
@@ -1978,7 +1978,7 @@ TEST_CASE("test enum with custom name") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    sqlite.update<test_enum_with_name_t>({Color::BLUE, APPLE, 1}, "id=1");
+    sqlite.update<test_enum_with_name_t>({1, Color::BLUE, APPLE});
     vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
@@ -2076,7 +2076,7 @@ TEST_CASE("alias") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists t_alias;");
     mysql.create_datatable<alias>(ormpp_auto_key{"alias_id"});
-    mysql.insert<alias>({"purecpp"});
+    mysql.insert<alias>({0, "purecpp"});
     auto vec = mysql.query_s<alias>();
     CHECK(vec.front().name == "purecpp");
   }
@@ -2086,7 +2086,7 @@ TEST_CASE("alias") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists t_alias;");
     postgres.create_datatable<alias>(ormpp_auto_key{"alias_id"});
-    postgres.insert<alias>({"purecpp"});
+    postgres.insert<alias>({0, "purecpp"});
     auto vec = postgres.query_s<alias>();
     CHECK(vec.front().name == "purecpp");
   }

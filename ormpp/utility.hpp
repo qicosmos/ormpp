@@ -77,9 +77,9 @@ inline auto is_auto_key(std::string_view field_name) {
 #define ORMPP_UNIQUE_VARIABLE(str) YLT_CONCAT(str, __LINE__)
 #endif
 
-#define REGISTER_AUTO_KEY(STRUCT_NAME, KEY)        \
-  inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) = \
-      ormpp::add_auto_key_field(#STRUCT_NAME, #KEY);
+#define REGISTER_AUTO_KEY(STRUCT_NAME, KEY)                                   \
+  inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) = ormpp::add_auto_key_field( \
+      ylt::reflection::get_struct_name<STRUCT_NAME>(), #KEY);
 
 inline auto &get_conflict_map() {
   static std::unordered_map<std::string_view, std::string_view> map;
