@@ -11,7 +11,7 @@
 #include <string_view>
 #include <vector>
 
-#include "utility.hpp"
+#include "query.hpp"
 
 namespace ormpp {
 template <typename DB>
@@ -120,6 +120,11 @@ class dbng {
     auto sql = build_condition(pair, oper, std::forward<U>(val));
     using T = typename ormpp::field_attribute<decltype(pair.second)>::type;
     return query<T>(sql);
+  }
+
+  template <typename T>
+  auto from() {
+    return db_.template from<T>();
   }
 
   template <typename Pair, typename U>

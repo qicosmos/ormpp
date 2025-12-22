@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "utility.hpp"
+#include "query.hpp"
 
 #ifndef ORM_SQLITE_HPP
 #define ORM_SQLITE_HPP
@@ -291,6 +291,21 @@ class sqlite {
     }
 
     return v;
+  }
+
+  template <typename T>
+  auto from() {
+    return query_builder<T, decltype(this)>{this};
+  }
+
+  std::string where(const where_condition &condition) {
+    return condition.to_sql();
+  }
+
+  template <typename T>
+  auto collect(auto &q) {
+    auto t = query_s<T>(q.str());
+    return t;
   }
 
   // restriction, all the args are string, the first is the where condition,
