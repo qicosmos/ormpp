@@ -2523,7 +2523,7 @@ struct impl : private FloatTraits, private FloatTraits::format {
       int s = 0;
       while (true) {
         auto q = bits::rotr(n * mod_inv_25, 2);
-        if (q <= std::numeric_limits<std::uint32_t>::max() / 100) {
+        if (q <= (std::numeric_limits<std::uint32_t>::max)() / 100) {
           n = q;
           s += 2;
         }
