@@ -37,7 +37,6 @@ struct person {
   int id;
 };
 REGISTER_AUTO_KEY(person, id)
-YLT_REFL(person, id, name, age)
 
 struct student {
   int code;
@@ -48,7 +47,6 @@ struct student {
   std::string classroom;
 };
 REGISTER_CONFLICT_KEY(student, code)
-YLT_REFL(student, code, name, sex, age, dm, classroom)
 
 struct simple {
   int id;
@@ -56,7 +54,6 @@ struct simple {
   int age;
   std::array<char, 128> arr;
 };
-YLT_REFL(simple, id, code, age, arr)
 
 namespace test_ns {
 struct message_clear {
@@ -70,7 +67,6 @@ struct message_clear {
   }
 };
 REGISTER_CONFLICT_KEY(message_clear, room_id, user_id)
-YLT_REFL(message_clear, room_id, user_id, message_id, created_at, updated_at)
 }  // namespace test_ns
 
 TEST_CASE("test update with multiple conflict keys") {
@@ -142,7 +138,6 @@ struct test_optional {
   std::optional<int> empty_;
 };
 REGISTER_AUTO_KEY(test_optional, id)
-YLT_REFL(test_optional, id, name, age, empty_);
 
 TEST_CASE("test client pool") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -242,7 +237,6 @@ struct test_order {
   int id;
   std::string name;
 };
-YLT_REFL(test_order, name, id);
 
 TEST_CASE("random reflection order") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -270,7 +264,6 @@ struct custom_name {
     return "test_order";
   }
 };
-YLT_REFL(custom_name, id, name);
 
 TEST_CASE("custom name") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -288,7 +281,6 @@ struct dummy {
   int id;
   std::string name;
 };
-YLT_REFL(dummy, id, name);
 
 // TEST_CASE("mysql exist tb") {
 //   dbng<mysql> mysql;
@@ -574,7 +566,7 @@ TEST_CASE("insert query") {
 #else
   if (sqlite.connect(db)) {
 #endif
-    auto vec = sqlite.query(FID(person::id), "<", "5");
+    auto vec = sqlite.query_s<person>("id<5");
   }
 #endif
 
@@ -619,7 +611,7 @@ TEST_CASE("insert query") {
     CHECK(sqlite.insert(v) == 2);
     auto vec2 = sqlite.query_s<student>();
     CHECK(vec2.size() == 3);
-    auto vec3 = sqlite.query(FID(student::code), "<", "5");
+    auto vec3 = sqlite.query_s<student>("code<5");
     CHECK(vec3.size() == 3);
     auto vec4 = sqlite.query_s<student>("limit 2");
     CHECK(vec4.size() == 2);
@@ -1274,7 +1266,6 @@ struct image {
   int id;
   ormpp::blob bin;
 };
-YLT_REFL(image, id, bin);
 
 TEST_CASE("blob") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1334,7 +1325,6 @@ struct image_ex {
   ormpp::blob bin;
   std::string time;
 };
-YLT_REFL(image_ex, id, bin, time);
 
 TEST_CASE("blob tuple") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1666,12 +1656,11 @@ TEST_CASE("query_s delete_records_s") {
 }
 
 struct tuple_optional_t {
+  int id;
   std::optional<std::string> name;
   std::optional<int> age;
-  int id;
 };
 REGISTER_AUTO_KEY(tuple_optional_t, id)
-YLT_REFL(tuple_optional_t, id, name, age)
 
 TEST_CASE("query tuple_optional_t") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1679,8 +1668,8 @@ TEST_CASE("query tuple_optional_t") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists tuple_optional_t");
     mysql.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
-    mysql.insert<tuple_optional_t>({"purecpp", 6});
-    mysql.insert<tuple_optional_t>({std::nullopt});
+    mysql.insert<tuple_optional_t>({0, "purecpp", 6});
+    mysql.insert<tuple_optional_t>({0, std::nullopt});
     auto vec =
         mysql.query_s<std::tuple<tuple_optional_t, std::optional<std::string>,
                                  std::optional<int>>>(
@@ -1709,8 +1698,8 @@ TEST_CASE("query tuple_optional_t") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists tuple_optional_t");
     postgres.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
-    postgres.insert<tuple_optional_t>({"purecpp", 6});
-    postgres.insert<tuple_optional_t>({std::nullopt});
+    postgres.insert<tuple_optional_t>({0, "purecpp", 6});
+    postgres.insert<tuple_optional_t>({0, std::nullopt});
     auto vec = postgres.query_s<std::tuple<
         tuple_optional_t, std::optional<std::string>, std::optional<int>>>(
         "select id,name,age,name,age from tuple_optional_t;");
@@ -1742,8 +1731,8 @@ TEST_CASE("query tuple_optional_t") {
 #endif
     sqlite.execute("drop table if exists tuple_optional_t");
     sqlite.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
-    sqlite.insert<tuple_optional_t>({"purecpp", 6});
-    sqlite.insert<tuple_optional_t>({std::nullopt});
+    sqlite.insert(tuple_optional_t{0, "purecpp", 6});
+    sqlite.insert<tuple_optional_t>({0, std::nullopt});
     auto vec =
         sqlite.query_s<std::tuple<tuple_optional_t, std::optional<std::string>,
                                   std::optional<int>>>(
@@ -1778,7 +1767,6 @@ struct test_enum_t {
   int id;
 };
 REGISTER_AUTO_KEY(test_enum_t, id)
-YLT_REFL(test_enum_t, id, color, fruit)
 
 TEST_CASE("test enum") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1890,16 +1878,15 @@ TEST_CASE("test enum") {
 }
 
 struct test_enum_with_name_t {
+  int id;
   Color color;
   Fruit fruit;
-  int id;
   static constexpr std::string_view get_alias_struct_name(
       test_enum_with_name_t *) {
     return "test_enum";
   }
 };
 REGISTER_AUTO_KEY(test_enum_with_name_t, id)
-YLT_REFL(test_enum_with_name_t, id, color, fruit)
 
 TEST_CASE("test enum with custom name") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1907,7 +1894,7 @@ TEST_CASE("test enum with custom name") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists test_enum");
     mysql.create_datatable<test_enum_with_name_t>(ormpp_auto_key{"id"});
-    mysql.insert<test_enum_with_name_t>({Color::BLUE});
+    mysql.insert<test_enum_with_name_t>({0, Color::BLUE});
     auto vec = mysql.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
@@ -1919,7 +1906,7 @@ TEST_CASE("test enum with custom name") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    mysql.update<test_enum_with_name_t>({Color::BLUE, APPLE, 1}, "id=1");
+    mysql.update<test_enum_with_name_t>({1, Color::BLUE, APPLE});
     vec = mysql.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
@@ -1941,7 +1928,7 @@ TEST_CASE("test enum with custom name") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists test_enum");
     postgres.create_datatable<test_enum_with_name_t>(ormpp_auto_key{"id"});
-    postgres.insert<test_enum_with_name_t>({Color::BLUE});
+    postgres.insert<test_enum_with_name_t>({0, Color::BLUE});
     auto vec = postgres.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
@@ -1953,7 +1940,7 @@ TEST_CASE("test enum with custom name") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    postgres.update<test_enum_with_name_t>({Color::BLUE, APPLE, 1}, "id=1");
+    postgres.update<test_enum_with_name_t>({1, Color::BLUE, APPLE});
     vec = postgres.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
@@ -1979,7 +1966,7 @@ TEST_CASE("test enum with custom name") {
 #endif
     sqlite.execute("drop table if exists test_enum");
     sqlite.create_datatable<test_enum_with_name_t>(ormpp_auto_key{"id"});
-    sqlite.insert<test_enum_with_name_t>({Color::BLUE});
+    sqlite.insert<test_enum_with_name_t>({0, Color::BLUE});
     auto vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
@@ -1991,7 +1978,7 @@ TEST_CASE("test enum with custom name") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    sqlite.update<test_enum_with_name_t>({Color::BLUE, APPLE, 1}, "id=1");
+    sqlite.update<test_enum_with_name_t>({1, Color::BLUE, APPLE});
     vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
@@ -2015,7 +2002,6 @@ struct test_bool_t {
   int id;
 };
 REGISTER_AUTO_KEY(test_bool_t, id)
-YLT_REFL(test_bool_t, id, ok)
 
 TEST_CASE("test bool") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -2073,8 +2059,8 @@ TEST_CASE("test bool") {
 }
 
 struct alias {
-  std::string name;
   int id;
+  std::string name;
   static constexpr auto get_alias_field_names(alias *) {
     return std::array{ylt::reflection::field_alias_t{"alias_id", 0},
                       ylt::reflection::field_alias_t{"alias_name", 1}};
@@ -2083,7 +2069,6 @@ struct alias {
     return "t_alias";
   }
 };
-YLT_REFL(alias, id, name)
 
 TEST_CASE("alias") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -2091,7 +2076,7 @@ TEST_CASE("alias") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists t_alias;");
     mysql.create_datatable<alias>(ormpp_auto_key{"alias_id"});
-    mysql.insert<alias>({"purecpp"});
+    mysql.insert<alias>({0, "purecpp"});
     auto vec = mysql.query_s<alias>();
     CHECK(vec.front().name == "purecpp");
   }
@@ -2101,7 +2086,7 @@ TEST_CASE("alias") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists t_alias;");
     postgres.create_datatable<alias>(ormpp_auto_key{"alias_id"});
-    postgres.insert<alias>({"purecpp"});
+    postgres.insert<alias>({0, "purecpp"});
     auto vec = postgres.query_s<alias>();
     CHECK(vec.front().name == "purecpp");
   }
@@ -2115,7 +2100,9 @@ TEST_CASE("alias") {
 #endif
     sqlite.execute("drop table if exists t_alias;");
     sqlite.create_datatable<alias>(ormpp_auto_key{"alias_id"});
-    sqlite.insert<alias>({"purecpp"});
+    alias al{.name = "purecpp"};
+    sqlite.insert(al);
+    sqlite.insert(al);
     auto vec = sqlite.query_s<alias>();
     CHECK(vec.front().name == "purecpp");
   }
@@ -2316,7 +2303,6 @@ struct unsigned_type_t {
   int id;
 };
 REGISTER_AUTO_KEY(unsigned_type_t, id)
-YLT_REFL(unsigned_type_t, id, a, b, c, d, e, f, g, h, v)
 
 TEST_CASE("unsigned type") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -2406,7 +2392,6 @@ struct region_model {
 };
 // REGISTER_AUTO_KEY(region_model, id)
 REGISTER_CONFLICT_KEY(region_model, id)
-YLT_REFL(region_model, id, d_score, f_score, name)
 
 TEST_CASE("struct with function") {
   std::string region_type = "region_type";
