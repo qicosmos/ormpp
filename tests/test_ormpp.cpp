@@ -1656,9 +1656,9 @@ TEST_CASE("query_s delete_records_s") {
 }
 
 struct tuple_optional_t {
+  int id;
   std::optional<std::string> name;
   std::optional<int> age;
-  int id;
 };
 REGISTER_AUTO_KEY(tuple_optional_t, id)
 
@@ -1731,8 +1731,8 @@ TEST_CASE("query tuple_optional_t") {
 #endif
     sqlite.execute("drop table if exists tuple_optional_t");
     sqlite.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
-    sqlite.insert<tuple_optional_t>({"purecpp", 6});
-    sqlite.insert<tuple_optional_t>({std::nullopt});
+    sqlite.insert(tuple_optional_t{0, "purecpp", 6});
+    sqlite.insert<tuple_optional_t>({0, std::nullopt});
     auto vec =
         sqlite.query_s<std::tuple<tuple_optional_t, std::optional<std::string>,
                                   std::optional<int>>>(
@@ -2059,8 +2059,8 @@ TEST_CASE("test bool") {
 }
 
 struct alias {
-  std::string name;
   int id;
+  std::string name;
   static constexpr auto get_alias_field_names(alias *) {
     return std::array{ylt::reflection::field_alias_t{"alias_id", 0},
                       ylt::reflection::field_alias_t{"alias_name", 1}};
@@ -2100,7 +2100,9 @@ TEST_CASE("alias") {
 #endif
     sqlite.execute("drop table if exists t_alias;");
     sqlite.create_datatable<alias>(ormpp_auto_key{"alias_id"});
-    sqlite.insert<alias>({"purecpp"});
+    alias al{.name = "purecpp"};
+    sqlite.insert(al);
+    sqlite.insert(al);
     auto vec = sqlite.query_s<alias>();
     CHECK(vec.front().name == "purecpp");
   }

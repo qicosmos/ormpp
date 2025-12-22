@@ -50,7 +50,7 @@ inline int add_auto_key_field(std::string_view key, std::string_view value) {
 
 template <typename T>
 inline std::string_view get_short_struct_name() {
-  auto struct_name = ylt::reflection::type_string<T>();
+  auto struct_name = ylt::reflection::get_struct_name<T>();
   size_t pos = struct_name.rfind(":");
   if (pos == std::string_view::npos) {
     return struct_name;
@@ -105,9 +105,11 @@ inline auto get_conflict_key() {
 
 #define MAKE_NAMES(...) #__VA_ARGS__,
 
-#define REGISTER_CONFLICT_KEY(STRUCT_NAME, ...)    \
-  inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) = \
-      ormpp::add_conflict_key_field(#STRUCT_NAME, {MAKE_NAMES(__VA_ARGS__)});
+#define REGISTER_CONFLICT_KEY(STRUCT_NAME, ...)            \
+  inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) =         \
+      ormpp::add_conflict_key_field(                       \
+          ylt::reflection::get_struct_name<STRUCT_NAME>(), \
+          {MAKE_NAMES(__VA_ARGS__)});
 
 template <typename T>
 struct is_optional_v : std::false_type {};
