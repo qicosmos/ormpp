@@ -412,96 +412,103 @@ class postgresql {
 
   template <typename T, typename... Args>
   std::string generate_createtb_sql(Args &&...args) {
-    static const auto type_name_arr = get_type_names<T>(DBType::postgresql);
-    auto arr = ylt::reflection::get_member_names<T>();
-    constexpr auto SIZE = sizeof...(Args);
-    auto name = get_struct_name<T>();
-    std::string sql =
-        std::string("CREATE TABLE IF NOT EXISTS ") + name.data() + "(";
+    std::set<std::string> not_null;
+    std::set<std::string> unique;
+    std::set<std::string> auto_primary_key;
+    std::set<std::string> primary_keys;
 
-    // auto_increment_key and key can't exist at the same time
-    using U = std::tuple<std::decay_t<Args>...>;
-    if constexpr (SIZE > 0) {
-      // using U = std::tuple<std::decay_t <Args>...>; //the code can't compile
-      // in vs2017, why?maybe args... in if constexpr?
-      static_assert(!(iguana::has_type<ormpp_key, U>::value &&
-                      iguana::has_type<ormpp_auto_key, U>::value),
-                    "should only one key");
+    std::string_view auto_key = get_auto_key<T>();
+    if (!auto_key.empty()) {
+      auto_primary_key.insert(std::string(auto_key));
     }
 
-    // at first sort the args, make sure the key always in the head
-    auto tp = sort_tuple(std::make_tuple(std::forward<Args>(args)...));
-    const size_t arr_size = arr.size();
-    std::set<std::string> unique_fields;
-    for (size_t i = 0; i < arr_size; ++i) {
-      auto field_name = arr[i];
-      bool has_add_field = false;
-      for_each0(
-          tp,
-          [&sql, &i, &has_add_field, &unique_fields, field_name, name,
-           this](auto item) {
-            if constexpr (std::is_same_v<decltype(item), ormpp_not_null> ||
-                          std::is_same_v<decltype(item), ormpp_unique>) {
-              if (item.fields.find(field_name.data()) == item.fields.end())
-                return;
-            }
-            else {
-              if (item.fields != field_name.data())
-                return;
-            }
+    // 宏定义的conflict keys作为联合主键，优先级比ormpp_key更高
+    auto pks = get_conflict_keys<T>();
+    if (!pks.empty()) {
+      for (auto &key : pks) {
+        primary_keys.insert(key);
+      }
+    }
 
-            if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
-              if (!has_add_field) {
-                append(sql, field_name, " ", type_name_arr[i]);
-              }
-              append(sql, " NOT NULL");
-              has_add_field = true;
+    if constexpr (sizeof...(Args) > 0) {
+      ylt::reflection::for_each(std::make_tuple(args...), [&](auto &item) {
+        using U = std::decay_t<decltype(item)>;
+        if constexpr (std::is_same_v<ormpp_auto_key, U>) {
+          auto_primary_key.insert(item.fields);
+        }
+        else if constexpr (std::is_same_v<ormpp_key, U>) {
+          if (pks.empty())
+            primary_keys.insert(item.fields);
+        }
+        else if constexpr (std::is_same_v<ormpp_not_null, U>) {
+          for (auto &name : item.fields) {
+            not_null.insert(name);
+          }
+        }
+        else if constexpr (std::is_same_v<ormpp_unique, U>) {
+          if (item.fields.size() > 1) {
+            std::string str;
+            for (auto &name : item.fields) {
+              str.append(name).append(",");
             }
-            else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
-              if (!has_add_field) {
-                append(sql, field_name, " ", type_name_arr[i]);
-              }
-              append(sql, " PRIMARY KEY ");
-              has_add_field = true;
-            }
-            else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>) {
-              if (!has_add_field) {
-                if (type_name_arr[i] == "bigint") {
-                  append(sql, field_name, " ", "bigserial");
-                }
-                else {
-                  append(sql, field_name, " ", "serial");
-                }
-              }
-              append(sql, " primary key");
-              has_add_field = true;
-            }
-            else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
-              unique_fields.insert(field_name.data());
-            }
-            else {
-              append(sql, field_name, " ", type_name_arr[i]);
-            }
-          },
-          std::make_index_sequence<SIZE>{});
+            str.pop_back();
+            unique.insert(str);
+          }
+          else {
+            unique.insert(*item.fields.begin());
+          }
+        }
+      });
+    }
 
-      if (!has_add_field) {
-        append(sql, field_name, " ", type_name_arr[i]);
+    auto table_name = ylt::reflection::get_struct_name<T>();
+    const auto type_name_arr = get_type_names<T>(DBType::postgresql);
+
+    std::string sql;
+    sql.append("CREATE TABLE IF NOT EXISTS ").append(table_name).append("(");
+    T t;
+    ylt::reflection::for_each(t, [&](auto &field, auto name, size_t index) {
+      using item_type = std::decay_t<decltype(field)>;
+      sql.append(name).append(" ").append(type_name_arr[index]);
+
+      std::string str_name(name);
+
+      if (!auto_primary_key.empty() &&
+          auto_primary_key.find(str_name) != auto_primary_key.end()) {
+        if (type_name_arr[index] == "bigint") {
+          sql.append(" bigserial ");
+        }
+        else {
+          sql.append(" serial ");
+        }
+        auto_key = name;
+        auto_primary_key.clear();
+      }
+      else if (!not_null.empty() && not_null.find(str_name) != not_null.end()) {
+        sql.append(" NOT NULL");
+        not_null.erase(str_name);
       }
 
-      if (i < arr_size - 1)
-        sql += ", ";
-    }
+      sql.append(",");
+    });
 
-    if (!unique_fields.empty()) {
-      sql += ", UNIQUE(";
-      for (const auto &it : unique_fields) {
-        sql += it + ",";
+    if (!auto_key.empty()) {
+      sql.append("PRIMARY KEY (").append(auto_key).append("),");
+    }
+    else if (!primary_keys.empty()) {
+      sql.append("PRIMARY KEY (");
+      for (auto key : primary_keys) {
+        sql.append(key).append(",");
       }
-      sql.back() = ')';
+      sql.pop_back();
+      sql.append("),");
     }
 
-    sql += ")";
+    for (auto &name : unique) {
+      sql.append("UNIQUE (").append(name).append("),");
+    }
+    sql.pop_back();
+    sql.append(")");
 
     return sql;
   }
