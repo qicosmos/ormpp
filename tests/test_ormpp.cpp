@@ -217,7 +217,8 @@ TEST_CASE("optional") {
   if (sqlite.connect(db)) {
 #endif
     sqlite.execute("drop table if exists test_optional;");
-    sqlite.create_datatable<test_optional>(ormpp_auto_key{"id"});
+    sqlite.create_datatable<test_optional>(
+        ormpp_auto_key{col_name(&test_optional::id)});
     sqlite.insert<test_optional>({0, "purecpp", 200});
     auto vec1 = sqlite.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
@@ -536,9 +537,9 @@ TEST_CASE("create table") {
 }
 
 TEST_CASE("insert query") {
-  ormpp_key key{"code"};
-  ormpp_not_null not_null{{"code", "age"}};
-  ormpp_auto_key auto_key{"code"};
+  ormpp_key key{col_name(&student::code)};
+  ormpp_not_null not_null{{col_name(&student::code), col_name(&student::age)}};
+  ormpp_auto_key auto_key{col_name(&student::code)};
 
   student s = {1, "tom", 0, 19, 1.5, "room2"};
   student s1 = {2, "jack", 1, 20, 2.5, "room3"};
