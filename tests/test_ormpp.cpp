@@ -25,7 +25,7 @@ const char *password = "123456";
 #elif defined(ORMPP_ENABLE_SQLITE3) && defined(SQLITE_HAS_CODEC)
 const char *password = "123456";
 #else
-const char *password = "12345";
+const char *password = "";
 #endif
 const char *ip = "127.0.0.1";
 const char *username = "root";
