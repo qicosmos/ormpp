@@ -2532,7 +2532,7 @@ struct impl : private FloatTraits, private FloatTraits::format {
         }
       }
       auto q = bits::rotr(n * mod_inv_5, 1);
-      if (q <= std::numeric_limits<std::uint32_t>::max() / 10) {
+      if (q <= (std::numeric_limits<std::uint32_t>::max)() / 10) {
         n = q;
         s |= 1;
       }
@@ -2562,7 +2562,7 @@ struct impl : private FloatTraits, private FloatTraits::format {
         int s = 8;
         while (true) {
           auto q = bits::rotr(n32 * mod_inv_25, 2);
-          if (q <= std::numeric_limits<std::uint32_t>::max() / 100) {
+          if (q <= (std::numeric_limits<std::uint32_t>::max)() / 100) {
             n32 = q;
             s += 2;
           }
@@ -2571,7 +2571,7 @@ struct impl : private FloatTraits, private FloatTraits::format {
           }
         }
         auto q = bits::rotr(n32 * mod_inv_5, 1);
-        if (q <= std::numeric_limits<std::uint32_t>::max() / 10) {
+        if (q <= (std::numeric_limits<std::uint32_t>::max)() / 10) {
           n32 = q;
           s |= 1;
         }
@@ -2587,7 +2587,7 @@ struct impl : private FloatTraits, private FloatTraits::format {
       int s = 0;
       while (true) {
         auto q = bits::rotr(n * mod_inv_25, 2);
-        if (q <= std::numeric_limits<std::uint64_t>::max() / 100) {
+        if (q <= (std::numeric_limits<std::uint64_t>::max)() / 100) {
           n = q;
           s += 2;
         }
@@ -2596,7 +2596,7 @@ struct impl : private FloatTraits, private FloatTraits::format {
         }
       }
       auto q = bits::rotr(n * mod_inv_5, 1);
-      if (q <= std::numeric_limits<std::uint64_t>::max() / 10) {
+      if (q <= (std::numeric_limits<std::uint64_t>::max)() / 10) {
         n = q;
         s |= 1;
       }
