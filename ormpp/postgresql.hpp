@@ -12,7 +12,7 @@
 #include <type_traits>
 
 #include "iguana/detail/charconv.h"
-#include "utility.hpp"
+#include "query.hpp"
 
 using namespace std::string_literals;
 
@@ -268,6 +268,21 @@ class postgresql {
     }
 
     return v;
+  }
+
+  template <typename T>
+  auto from() {
+    return query_builder<T, decltype(this)>{this};
+  }
+
+  std::string where(const where_condition &condition) {
+    return condition.to_sql();
+  }
+
+  template <typename T>
+  auto collect(auto &q) {
+    auto t = query_s<T>(q.str());
+    return t;
   }
 
   template <typename T, typename... Args>

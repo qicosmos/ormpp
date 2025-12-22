@@ -11,8 +11,8 @@
 #include <utility>
 
 #include "entity.hpp"
+#include "query.hpp"
 #include "type_mapping.hpp"
-#include "utility.hpp"
 
 namespace ormpp {
 
@@ -578,6 +578,21 @@ class mysql {
     }
 
     return v;
+  }
+
+  template <typename T>
+  auto from() {
+    return query_builder<T, decltype(this)>{this};
+  }
+
+  std::string where(const where_condition &condition) {
+    return condition.to_sql();
+  }
+
+  template <typename T>
+  auto collect(auto &q) {
+    auto t = query_s<T>(q.str());
+    return t;
   }
 
   // if there is a sql error, how to tell the user? throw exception?

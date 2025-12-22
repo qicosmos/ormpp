@@ -220,6 +220,22 @@ TEST_CASE("optional") {
     sqlite.create_datatable<test_optional>(
         ormpp_auto_key{col_name(&test_optional::id)});
     sqlite.insert<test_optional>({0, "purecpp", 200});
+    sqlite.insert<test_optional>({0, "test", 300});
+    auto list =
+        sqlite.from<test_optional>()
+            .where(col(&test_optional::id) == 1 || col(&test_optional::id) == 2)
+            .collect();
+    REQUIRE(list.size() == 2);
+    auto list1 = sqlite.from<test_optional>().collect();
+    REQUIRE(list1.size() == 2);
+    auto list2 = sqlite.from<test_optional>()
+                     .where(col(&test_optional::id) == 2)
+                     .collect();
+    REQUIRE(list2.size() == 1);
+    auto list3 = sqlite.from<test_optional>()
+                     .where(col(&test_optional::name) == "test")
+                     .collect();
+    REQUIRE(list3.size() == 1);
     auto vec1 = sqlite.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
     CHECK(vec1.front().age.value() == 200);
@@ -549,14 +565,22 @@ TEST_CASE("insert query") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
+    mysql.insert(person{"tom", 18});
     auto vec = mysql.query_s<person>("id<5");
+    auto vec1 = mysql.from<person>().where(col(&person::id) < 5).collect();
+    CHECK(vec.size() == vec1.size());
+    CHECK(vec.front().name == vec1.front().name);
   }
 #endif
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
   if (postgres.connect(ip, username, password, db)) {
-    auto vec = postgres.query(FID(person::id), "<", "5");
+    postgres.insert(person{"tom", 18});
+    auto vec = postgres.query_s<person>("id<5");
+    auto vec1 = postgres.from<person>().where(col(&person::id) < 5).collect();
+    CHECK(vec.size() == vec1.size());
+    CHECK(vec.front().name == vec1.front().name);
   }
 #endif
 
@@ -567,7 +591,11 @@ TEST_CASE("insert query") {
 #else
   if (sqlite.connect(db)) {
 #endif
+    sqlite.insert(person{"tom", 18});
     auto vec = sqlite.query_s<person>("id<5");
+    auto vec1 = sqlite.from<person>().where(col(&person::id) < 5).collect();
+    CHECK(vec.size() == vec1.size());
+    CHECK(vec.front().name == vec1.front().name);
   }
 #endif
 
