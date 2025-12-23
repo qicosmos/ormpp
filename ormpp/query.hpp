@@ -25,6 +25,60 @@ struct where_condition {
   }
 };
 
+template <typename M>
+struct col_info {
+  using value_type = M;
+
+  std::string_view name;
+  std::string_view class_name;
+
+  template <typename... Args>
+  where_condition in(Args... args) {
+    std::string mid;
+    (mid.append(append_in(args)).append(","), ...);
+    mid.pop_back();
+
+    std::string left;
+    left.append(name).append(" in(");
+    return where_condition{left, mid, ")"};
+  }
+
+ private:
+  template <typename value_type>
+  std::string append_in(value_type val) {
+    static_assert(std::is_constructible_v<M, value_type>, "invalid type");
+    if constexpr (std::is_arithmetic_v<value_type>) {
+      return std::to_string(val);
+    }
+    else {
+      std::string str = "'";
+      str.append(val).append("'");
+      return str;
+    }
+  }
+};
+
+#define col(c)                                                 \
+  col_info<typename ylt::reflection::internal::member_tratis<  \
+      decltype(c)>::value_type> {                              \
+    ylt::reflection::field_string<c>(),                        \
+        ylt::reflection::get_struct_name<                      \
+            typename ylt::reflection::internal::member_tratis< \
+                decltype(c)>::owner_type>()                    \
+  }
+
+template <auto field>
+constexpr std::string_view name() {
+  return ylt::reflection::field_string<field>();
+}
+
+template <auto field>
+std::string str_name() {
+  return std::string(name<field>());
+}
+
+#define col_name(c) str_name<c>()
+
 where_condition operator||(where_condition lhs, where_condition rhs) {
   return where_condition{lhs.to_sql(), " OR ", rhs.to_sql()};
 }

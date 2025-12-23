@@ -606,35 +606,6 @@ constexpr std::string_view get_field_name(std::string_view full_name) {
       &field)
 #define SID(field) \
   get_field_name<decltype(&field)>(std::string_view(#field)).data()
-
-template <typename M>
-struct col_info {
-  using value_type = M;
-
-  std::string_view name;
-  std::string_view class_name;
-};
-
-#define col(c)                                                 \
-  col_info<typename ylt::reflection::internal::member_tratis<  \
-      decltype(c)>::value_type> {                              \
-    ylt::reflection::field_string<c>(),                        \
-        ylt::reflection::get_struct_name<                      \
-            typename ylt::reflection::internal::member_tratis< \
-                decltype(c)>::owner_type>()                    \
-  }
-
-template <auto field>
-constexpr std::string_view name() {
-  return ylt::reflection::field_string<field>();
-}
-
-template <auto field>
-std::string str_name() {
-  return std::string(name<field>());
-}
-
-#define col_name(c) str_name<c>()
 }  // namespace ormpp
 
 #endif  // ORM_UTILITY_HPP
