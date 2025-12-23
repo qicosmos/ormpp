@@ -229,6 +229,20 @@ TEST_CASE("optional") {
                   .collect();
     CHECK(l1.size() == 2);
     CHECK(l2.size() == 2);
+
+    auto l3 = sqlite.from<test_optional>()
+                  .where(col(&test_optional::id).between(1, 2))
+                  .collect();
+
+    auto l4 = sqlite.from<test_optional>()
+                  .where(col(&test_optional::name).between("purecpp", "test"))
+                  .collect();
+    auto l5 = sqlite.from<test_optional>()
+                  .where(col(&test_optional::name).like("pure%"))
+                  .collect();
+    CHECK(l3.size() == 2);
+    CHECK(l4.size() == 2);
+    CHECK(l5.size() == 1);
     auto list =
         sqlite.from<test_optional>()
             .where(col(&test_optional::id) == 1 || col(&test_optional::id) == 2)

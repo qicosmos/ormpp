@@ -35,7 +35,7 @@ struct col_info {
   template <typename... Args>
   where_condition in(Args... args) {
     std::string mid;
-    (mid.append(append_in(args)).append(","), ...);
+    (mid.append(to_string(args)).append(","), ...);
     mid.pop_back();
 
     std::string left;
@@ -43,9 +43,23 @@ struct col_info {
     return where_condition{left, mid, ")"};
   }
 
+  template <typename T>
+  where_condition between(T left, T right) {
+    std::string str_left;
+    str_left.append(name).append(" between ").append(to_string(left));
+
+    std::string str_right;
+    str_right.append(to_string(right));
+    return where_condition{str_left, " and ", str_right};
+  }
+
+  where_condition like(std::string str) {
+    return where_condition{std::string(name), " like ", to_string(str)};
+  }
+
  private:
   template <typename value_type>
-  std::string append_in(value_type val) {
+  std::string to_string(value_type val) {
     static_assert(std::is_constructible_v<M, value_type>, "invalid type");
     if constexpr (std::is_arithmetic_v<value_type>) {
       return std::to_string(val);
