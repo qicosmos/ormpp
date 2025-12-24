@@ -224,6 +224,19 @@ TEST_CASE("optional") {
     auto l1 = sqlite.from<test_optional>()
                   .where(col(&test_optional::id).in(1, 2))
                   .collect();
+    auto ll1 = sqlite.from<test_optional>()
+                   .where(col(&test_optional::id).not_in(1, 2))
+                   .collect();
+    auto ll2 = sqlite.from<test_optional>()
+                   .where(col(&test_optional::id).null())
+                   .collect();
+    auto ll3 = sqlite.from<test_optional>()
+                   .where(col(&test_optional::name).not_null())
+                   .collect();
+    CHECK(ll1.size() == 0);
+    CHECK(ll2.size() == 0);
+    CHECK(ll3.size() == 2);
+
     auto l2 = sqlite.from<test_optional>()
                   .where(col(&test_optional::name).in("test", "purecpp"))
                   .collect();

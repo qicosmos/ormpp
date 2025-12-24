@@ -34,13 +34,20 @@ struct col_info {
 
   template <typename... Args>
   where_condition in(Args... args) {
-    std::string mid;
-    (mid.append(to_string(args)).append(","), ...);
-    mid.pop_back();
+    return in_impl("", args...);
+  }
 
-    std::string left;
-    left.append(name).append(" in(");
-    return where_condition{left, mid, ")"};
+  template <typename... Args>
+  where_condition not_in(Args... args) {
+    return in_impl("not", args...);
+  }
+
+  where_condition null() {
+    return where_condition{std::string(name), " IS ", "NULL"};
+  }
+
+  where_condition not_null() {
+    return where_condition{std::string(name), " IS ", "NOT NULL"};
   }
 
   template <typename T>
@@ -69,6 +76,17 @@ struct col_info {
       str.append(val).append("'");
       return str;
     }
+  }
+
+  template <typename... Args>
+  where_condition in_impl(std::string s, Args... args) {
+    std::string mid;
+    (mid.append(to_string(args)).append(","), ...);
+    mid.pop_back();
+
+    std::string left;
+    left.append(name).append(" ").append(s).append(" in(");
+    return where_condition{left, mid, ")"};
   }
 };
 
