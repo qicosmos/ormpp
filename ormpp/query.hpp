@@ -165,20 +165,27 @@ class query_builder {
  public:
   query_builder(DB db) : db_(db) {}
 
+  template <typename U = T>
   auto collect() {
     sql_.append(where_clause_)
         .append(_order_by_clause_)
         .append(desc_clause_)
         .append(limit_clause_)
         .append(offset_clause_);
-    return db_->template collect<T>(*this);
+    return db_->template collect<U>(*this);
   }
 
   std::string_view sv() const { return sql_; }
 
   const std::string& str() const { return sql_; }
 
+  std::string_view struct_name() const {
+    return ylt::reflection::get_struct_name<T>();
+  }
+
   std::string_view where_sv() const { return where_clause_; }
+
+  std::string_view count_clause() const { return count_clause_; }
 
   query_builder& where(const where_condition& condition) {
     where_clause_ = db_->where(condition);
@@ -210,6 +217,25 @@ class query_builder {
     return *this;
   }
 
+  query_builder& count() {
+    count_clause_ = "COUNT(*)";  // include null
+    return *this;
+  }
+
+  query_builder& count(const auto& field) {
+    count_clause_.append(" COUNT(")
+        .append(field.name)
+        .append(") ");  // exclude null
+    return *this;
+  }
+
+  query_builder& count_distinct(const auto& field) {
+    count_clause_.append(" COUNT(DISTINCT ")
+        .append(field.name)
+        .append(") ");  // distinct count, exclude null
+    return *this;
+  }
+
  private:
   DB db_;
   std::string sql_;
@@ -218,5 +244,6 @@ class query_builder {
   std::string desc_clause_;
   std::string limit_clause_;
   std::string offset_clause_;
+  std::string count_clause_;
 };
 }  // namespace ormpp

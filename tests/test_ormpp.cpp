@@ -221,6 +221,18 @@ TEST_CASE("optional") {
         ormpp_auto_key{col_name(&test_optional::id)});
     sqlite.insert<test_optional>({0, "purecpp", 200});
     sqlite.insert<test_optional>({0, "test", 300});
+    {
+      auto l = sqlite.from<test_optional>().count().collect<uint64_t>();
+      auto l2 = sqlite.from<test_optional>()
+                    .count(col(&test_optional::id))
+                    .collect<uint64_t>();
+      auto l3 = sqlite.from<test_optional>()
+                    .count_distinct(col(&test_optional::id))
+                    .collect<uint64_t>();
+      CHECK(l == 2);
+      CHECK(l2 == 2);
+      CHECK(l3 == 2);
+    }
     auto l1 = sqlite.from<test_optional>()
                   .where(col(&test_optional::id).in(1, 2))
                   .order_by(col(&test_optional::id))
