@@ -298,30 +298,6 @@ class sqlite {
     return query_builder<T, decltype(this)>{this};
   }
 
-  std::string where(const where_condition &condition) {
-    return condition.to_sql();
-  }
-
-  template <typename T>
-  auto collect(auto &q) {
-    if constexpr (std::is_integral_v<T>) {
-      std::string sql = "select ";
-      sql.append(q.count_clause())
-          .append(" from ")
-          .append(q.struct_name())
-          .append(";");
-      auto t = query_s<std::tuple<T>>(sql);
-      if (t.empty()) {
-        return T(0);
-      }
-      return std::get<0>(t.front());
-    }
-    else {
-      auto t = query_s<T>(q.str());
-      return t;
-    }
-  }
-
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
   template <typename T, typename... Args>

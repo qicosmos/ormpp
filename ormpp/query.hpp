@@ -172,7 +172,23 @@ class query_builder {
         .append(desc_clause_)
         .append(limit_clause_)
         .append(offset_clause_);
-    return db_->template collect<U>(*this);
+
+    if constexpr (std::is_integral_v<U>) {
+      std::string sql = "select ";
+      sql.append(count_clause_)
+          .append(" from ")
+          .append(struct_name())
+          .append(";");
+      auto t = db_->template query_s<std::tuple<U>>(sql);
+      if (t.empty()) {
+        return U{};
+      }
+      return std::get<0>(t.front());
+    }
+    else {
+      auto t = db_->template query_s<T>(sql_);
+      return t;
+    }
   }
 
   std::string_view sv() const { return sql_; }
@@ -188,7 +204,7 @@ class query_builder {
   std::string_view count_clause() const { return count_clause_; }
 
   query_builder& where(const where_condition& condition) {
-    where_clause_ = db_->where(condition);
+    where_clause_ = condition.to_sql();
     return *this;
   }
 

@@ -168,6 +168,74 @@ TEST_CASE("optional") {
     mysql.execute("drop table if exists test_optional;");
     mysql.create_datatable<test_optional>(ormpp_auto_key{"id"});
     mysql.insert<test_optional>({0, "purecpp", 200});
+    mysql.insert<test_optional>({0, "test", 300});
+    {
+      auto l = mysql.from<test_optional>().count().collect<uint64_t>();
+      auto l2 = mysql.from<test_optional>()
+                    .count(col(&test_optional::id))
+                    .collect<uint64_t>();
+      auto l3 = mysql.from<test_optional>()
+                    .count_distinct(col(&test_optional::id))
+                    .collect<uint64_t>();
+      CHECK(l == 2);
+      CHECK(l2 == 2);
+      CHECK(l3 == 2);
+    }
+    auto l1 = mysql.from<test_optional>()
+                  .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id))
+                  .desc()
+                  .limit(5)
+                  .offset(0)
+                  .collect();
+    auto ll1 = mysql.from<test_optional>()
+                   .where(col(&test_optional::id).not_in(1, 2))
+                   .collect();
+    auto ll2 = mysql.from<test_optional>()
+                   .where(col(&test_optional::id).null())
+                   .collect();
+    auto ll3 = mysql.from<test_optional>()
+                   .where(col(&test_optional::name).not_null())
+                   .collect();
+    CHECK(ll1.size() == 0);
+    CHECK(ll2.size() == 0);
+    CHECK(ll3.size() == 2);
+
+    auto l2 = mysql.from<test_optional>()
+                  .where(col(&test_optional::name).in("test", "purecpp"))
+                  .collect();
+    CHECK(l1.size() == 2);
+    CHECK(l2.size() == 2);
+
+    auto l3 = mysql.from<test_optional>()
+                  .where(col(&test_optional::id).between(1, 2))
+                  .collect();
+
+    auto l4 = mysql.from<test_optional>()
+                  .where(col(&test_optional::name).between("purecpp", "test"))
+                  .collect();
+    auto l5 = mysql.from<test_optional>()
+                  .where(col(&test_optional::name).like("pure%"))
+                  .collect();
+    CHECK(l3.size() == 2);
+    CHECK(l4.size() == 2);
+    CHECK(l5.size() == 1);
+    auto list =
+        mysql.from<test_optional>()
+            .where(col(&test_optional::id) == 1 || col(&test_optional::id) == 2)
+            .collect();
+    REQUIRE(list.size() == 2);
+    auto list1 = mysql.from<test_optional>().collect();
+    REQUIRE(list1.size() == 2);
+    auto list2 = mysql.from<test_optional>()
+                     .where(col(&test_optional::id) == 2)
+                     .collect();
+    REQUIRE(list2.size() == 1);
+    auto list3 = mysql.from<test_optional>()
+                     .where(col(&test_optional::name) == "test")
+                     .collect();
+    REQUIRE(list3.size() == 1);
+
     auto vec1 = mysql.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
     CHECK(vec1.front().age.value() == 200);
@@ -197,6 +265,74 @@ TEST_CASE("optional") {
     postgres.execute("drop table if exists test_optional;");
     postgres.create_datatable<test_optional>(ormpp_auto_key{"id"});
     postgres.insert<test_optional>({0, "purecpp", 200});
+    postgres.insert<test_optional>({0, "test", 300});
+    {
+      auto l = postgres.from<test_optional>().count().collect<uint64_t>();
+      auto l2 = postgres.from<test_optional>()
+                    .count(col(&test_optional::id))
+                    .collect<uint64_t>();
+      auto l3 = postgres.from<test_optional>()
+                    .count_distinct(col(&test_optional::id))
+                    .collect<uint64_t>();
+      CHECK(l == 2);
+      CHECK(l2 == 2);
+      CHECK(l3 == 2);
+    }
+    auto l1 = postgres.from<test_optional>()
+                  .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id))
+                  .desc()
+                  .limit(5)
+                  .offset(0)
+                  .collect();
+    auto ll1 = postgres.from<test_optional>()
+                   .where(col(&test_optional::id).not_in(1, 2))
+                   .collect();
+    auto ll2 = postgres.from<test_optional>()
+                   .where(col(&test_optional::id).null())
+                   .collect();
+    auto ll3 = postgres.from<test_optional>()
+                   .where(col(&test_optional::name).not_null())
+                   .collect();
+    CHECK(ll1.size() == 0);
+    CHECK(ll2.size() == 0);
+    CHECK(ll3.size() == 2);
+
+    auto l2 = postgres.from<test_optional>()
+                  .where(col(&test_optional::name).in("test", "purecpp"))
+                  .collect();
+    CHECK(l1.size() == 2);
+    CHECK(l2.size() == 2);
+
+    auto l3 = postgres.from<test_optional>()
+                  .where(col(&test_optional::id).between(1, 2))
+                  .collect();
+
+    auto l4 = postgres.from<test_optional>()
+                  .where(col(&test_optional::name).between("purecpp", "test"))
+                  .collect();
+    auto l5 = postgres.from<test_optional>()
+                  .where(col(&test_optional::name).like("pure%"))
+                  .collect();
+    CHECK(l3.size() == 2);
+    CHECK(l4.size() == 2);
+    CHECK(l5.size() == 1);
+    auto list =
+        postgres.from<test_optional>()
+            .where(col(&test_optional::id) == 1 || col(&test_optional::id) == 2)
+            .collect();
+    REQUIRE(list.size() == 2);
+    auto list1 = postgres.from<test_optional>().collect();
+    REQUIRE(list1.size() == 2);
+    auto list2 = postgres.from<test_optional>()
+                     .where(col(&test_optional::id) == 2)
+                     .collect();
+    REQUIRE(list2.size() == 1);
+    auto list3 = postgres.from<test_optional>()
+                     .where(col(&test_optional::name) == "test")
+                     .collect();
+    REQUIRE(list3.size() == 1);
+
     auto vec1 = postgres.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
     CHECK(vec1.front().age.value() == 200);

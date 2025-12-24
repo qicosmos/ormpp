@@ -585,16 +585,6 @@ class mysql {
     return query_builder<T, decltype(this)>{this};
   }
 
-  std::string where(const where_condition &condition) {
-    return condition.to_sql();
-  }
-
-  template <typename T>
-  auto collect(auto &q) {
-    auto t = query_s<T>(q.str());
-    return t;
-  }
-
   // if there is a sql error, how to tell the user? throw exception?
   template <typename T, typename... Args>
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query(
