@@ -223,6 +223,10 @@ TEST_CASE("optional") {
     sqlite.insert<test_optional>({0, "test", 300});
     auto l1 = sqlite.from<test_optional>()
                   .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id))
+                  .desc()
+                  .limit(5)
+                  .offset(0)
                   .collect();
     auto ll1 = sqlite.from<test_optional>()
                    .where(col(&test_optional::id).not_in(1, 2))

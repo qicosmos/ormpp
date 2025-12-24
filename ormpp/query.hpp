@@ -164,19 +164,59 @@ template <typename T, typename DB>
 class query_builder {
  public:
   query_builder(DB db) : db_(db) {}
-  query_builder& where(const where_condition& condition) {
-    sql_.append(db_->where(condition));
-    return *this;
-  }
 
-  auto collect() { return db_->template collect<T>(*this); }
+  auto collect() {
+    sql_.append(where_clause_)
+        .append(_order_by_clause_)
+        .append(desc_clause_)
+        .append(limit_clause_)
+        .append(offset_clause_);
+    return db_->template collect<T>(*this);
+  }
 
   std::string_view sv() const { return sql_; }
 
   const std::string& str() const { return sql_; }
 
+  std::string_view where_sv() const { return where_clause_; }
+
+  query_builder& where(const where_condition& condition) {
+    where_clause_ = db_->where(condition);
+    return *this;
+  }
+
+  query_builder& order_by(const auto& field) {
+    _order_by_clause_.append(" ORDER BY ").append(field.name);
+    return *this;
+  }
+
+  query_builder& desc() {
+    desc_clause_ = " DESC ";
+    return *this;
+  }
+
+  query_builder& asc() {
+    desc_clause_ = " ASC ";
+    return *this;
+  }
+
+  query_builder& limit(uint64_t count) {
+    limit_clause_.append(" limit ").append(std::to_string(count));
+    return *this;
+  }
+
+  query_builder& offset(uint64_t row) {
+    offset_clause_.append(" offset ").append(std::to_string(row));
+    return *this;
+  }
+
  private:
   DB db_;
   std::string sql_;
+  std::string where_clause_;
+  std::string _order_by_clause_;
+  std::string desc_clause_;
+  std::string limit_clause_;
+  std::string offset_clause_;
 };
 }  // namespace ormpp

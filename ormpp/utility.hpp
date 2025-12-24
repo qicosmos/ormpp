@@ -528,13 +528,16 @@ inline void get_sql_conditions(std::string &sql, const std::string &arg,
     sql = arg;
   }
   else {
-    if (temp.find("order by") != std::string::npos) {
-      auto pos = sql.find("where");
-      sql = sql.substr(0, pos);
+    if (auto pos0 = temp.find("order by"); pos0 != std::string::npos) {
+      if (pos0 == 0) {
+        sql = sql.substr(0, sql.find("where"));
+      }
     }
-    if (temp.find("limit") != std::string::npos) {
-      auto pos = sql.find("where");
-      sql = sql.substr(0, pos);
+
+    if (auto pos0 = temp.find("limit"); pos0 != std::string::npos) {
+      if (pos0 == 0) {
+        sql = sql.substr(0, sql.find("where"));
+      }
     }
     append(sql, arg, std::forward<Args>(args)...);
   }
