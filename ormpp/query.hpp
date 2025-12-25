@@ -162,91 +162,146 @@ auto operator<(col_info<M> field, M val) {
 
 template <typename T, typename DB>
 class query_builder {
+  struct context {
+    DB db_;
+    std::string sql_;
+    std::string where_clause_;
+    std::string order_by_clause_;
+    std::string desc_clause_;
+    std::string limit_clause_;
+    std::string offset_clause_;
+    std::string count_clause_;
+
+    template <typename U = T>
+    auto collect() {
+      sql_.append(where_clause_)
+          .append(order_by_clause_)
+          .append(desc_clause_)
+          .append(limit_clause_)
+          .append(offset_clause_);
+
+      if constexpr (std::is_integral_v<U>) {
+        std::string sql = "select ";
+        sql.append(count_clause_)
+            .append(" from ")
+            .append(ylt::reflection::get_struct_name<T>())
+            .append(";");
+        auto t = db_->template query_s<std::tuple<U>>(sql);
+        if (t.empty()) {
+          return U{};
+        }
+        return std::get<0>(t.front());
+      }
+      else {
+        auto t = db_->template query_s<T>(sql_);
+        return t;
+      }
+    }
+  };
+
  public:
-  query_builder(DB db) : db_(db) {}
+  query_builder(DB db) : db_(db), ctx_(std::make_shared<context>()) {
+    ctx_->db_ = db;
+  }
 
   template <typename U = T>
   auto collect() {
-    sql_.append(where_clause_)
-        .append(_order_by_clause_)
-        .append(desc_clause_)
-        .append(limit_clause_)
-        .append(offset_clause_);
+    return ctx_->template collect<U>();
+  }
 
-    if constexpr (std::is_integral_v<U>) {
-      std::string sql = "select ";
-      sql.append(count_clause_)
-          .append(" from ")
-          .append(struct_name())
-          .append(";");
-      auto t = db_->template query_s<std::tuple<U>>(sql);
-      if (t.empty()) {
-        return U{};
-      }
-      return std::get<0>(t.front());
+  struct stage_offset {
+    std::shared_ptr<context> ctx;
+
+    template <typename U = T>
+    auto collect() {
+      return ctx->template collect<U>();
     }
-    else {
-      auto t = db_->template query_s<T>(sql_);
-      return t;
+  };
+
+  struct stage_limit {
+    std::shared_ptr<context> ctx;
+
+    stage_offset offset(uint64_t row) {
+      ctx->offset_clause_.append(" offset ").append(std::to_string(row));
+      return stage_offset{ctx};
     }
-  }
 
-  std::string_view sv() const { return sql_; }
+    template <typename U = T>
+    auto collect() {
+      return ctx->template collect<U>();
+    }
+  };
 
-  const std::string& str() const { return sql_; }
+  struct stage_desc {
+    std::shared_ptr<context> ctx;
 
-  std::string_view struct_name() const {
-    return ylt::reflection::get_struct_name<T>();
-  }
+    stage_limit limit(uint64_t count) {
+      ctx->limit_clause_.append(" limit ").append(std::to_string(count));
+      return stage_limit{ctx};
+    }
 
-  std::string_view where_sv() const { return where_clause_; }
+    template <typename U = T>
+    auto collect() {
+      return ctx->template collect<U>();
+    }
+  };
 
-  std::string_view count_clause() const { return count_clause_; }
+  struct stage_order {
+    std::shared_ptr<context> ctx;
 
-  query_builder& where(const where_condition& condition) {
-    where_clause_ = condition.to_sql();
-    return *this;
-  }
+    stage_desc desc() {
+      ctx->desc_clause_ = " DESC ";
+      return stage_desc{ctx};
+    }
 
-  query_builder& order_by(const auto& field) {
-    _order_by_clause_.append(" ORDER BY ").append(field.name);
-    return *this;
-  }
+    stage_limit limit(uint64_t n) {
+      ctx->limit_clause_ = " LIMIT " + std::to_string(n);
+      return stage_limit{ctx};
+    }
 
-  query_builder& desc() {
-    desc_clause_ = " DESC ";
-    return *this;
-  }
+    template <typename U = T>
+    auto collect() {
+      return ctx->template collect<U>();
+    }
+  };
 
-  query_builder& asc() {
-    desc_clause_ = " ASC ";
-    return *this;
-  }
+  struct stage_where {
+    std::shared_ptr<context> ctx;
+    stage_order order_by(const auto& field) {
+      ctx->order_by_clause_ = " ORDER BY " + std::string(field.name);
+      return stage_order{ctx};
+    }
 
-  query_builder& limit(uint64_t count) {
-    limit_clause_.append(" limit ").append(std::to_string(count));
-    return *this;
-  }
+    stage_limit limit(uint64_t n) {
+      ctx->limit_c = " LIMIT " + std::to_string(n);
+      return stage_limit{ctx};
+    }
 
-  query_builder& offset(uint64_t row) {
-    offset_clause_.append(" offset ").append(std::to_string(row));
-    return *this;
+    template <typename U = T>
+    auto collect() {
+      return ctx->template collect<U>();
+    }
+  };
+
+  stage_where where(const where_condition& condition) {
+    ctx_->where_clause_ = condition.to_sql();
+    return stage_where{ctx_};
   }
 
   query_builder& count() {
-    count_clause_ = "COUNT(*)";  // include null
+    ctx_->count_clause_ = "COUNT(*)";  // include null
     return *this;
   }
 
   query_builder& count(const auto& field) {
-    count_clause_.append(" COUNT(")
+    ctx_->count_clause_.append(" COUNT(")
         .append(field.name)
         .append(") ");  // exclude null
     return *this;
   }
 
   query_builder& count_distinct(const auto& field) {
-    count_clause_.append(" COUNT(DISTINCT ")
+    ctx_->count_clause_.append(" COUNT(DISTINCT ")
         .append(field.name)
         .append(") ");  // distinct count, exclude null
     return *this;
@@ -254,12 +309,6 @@ class query_builder {
 
  private:
   DB db_;
-  std::string sql_;
-  std::string where_clause_;
-  std::string _order_by_clause_;
-  std::string desc_clause_;
-  std::string limit_clause_;
-  std::string offset_clause_;
-  std::string count_clause_;
+  std::shared_ptr<context> ctx_;
 };
 }  // namespace ormpp
