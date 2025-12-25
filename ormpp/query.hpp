@@ -171,6 +171,33 @@ class query_builder {
     std::string limit_clause_;
     std::string offset_clause_;
     std::string count_clause_;
+    std::string sum_clause_;
+    std::string avg_clause_;
+    std::string min_clause_;
+    std::string max_clause_;
+
+    std::string aggregate_clause() {
+      if (!count_clause_.empty()) {
+        return count_clause_;
+      }
+
+      if (!sum_clause_.empty()) {
+        return sum_clause_;
+      }
+
+      if (!avg_clause_.empty()) {
+        return avg_clause_;
+      }
+
+      if (!min_clause_.empty()) {
+        return min_clause_;
+      }
+
+      if (!max_clause_.empty()) {
+        return max_clause_;
+      }
+      return "";
+    }
 
     template <typename U = T>
     auto collect() {
@@ -182,7 +209,7 @@ class query_builder {
 
       if constexpr (std::is_integral_v<U>) {
         std::string sql = "select ";
-        sql.append(count_clause_)
+        sql.append(aggregate_clause())
             .append(" from ")
             .append(ylt::reflection::get_struct_name<T>())
             .append(";");
@@ -288,23 +315,52 @@ class query_builder {
     return stage_where{ctx_};
   }
 
-  query_builder& count() {
+  struct stage_aggregate {
+    std::shared_ptr<context> ctx;
+
+    template <typename U = T>
+    auto collect() {
+      return ctx->template collect<U>();
+    }
+  };
+
+  stage_aggregate count() {
     ctx_->count_clause_ = "COUNT(*)";  // include null
-    return *this;
+    return stage_aggregate{ctx_};
   }
 
-  query_builder& count(const auto& field) {
+  stage_aggregate count(const auto& field) {
     ctx_->count_clause_.append(" COUNT(")
         .append(field.name)
         .append(") ");  // exclude null
-    return *this;
+    return stage_aggregate{ctx_};
   }
 
-  query_builder& count_distinct(const auto& field) {
+  stage_aggregate count_distinct(const auto& field) {
     ctx_->count_clause_.append(" COUNT(DISTINCT ")
         .append(field.name)
         .append(") ");  // distinct count, exclude null
-    return *this;
+    return stage_aggregate{ctx_};
+  }
+
+  stage_aggregate sum(const auto& field) {
+    ctx_->sum_clause_.append(" SUM(").append(field.name).append(") ");
+    return stage_aggregate{ctx_};
+  }
+
+  stage_aggregate avg(const auto& field) {
+    ctx_->avg_clause_.append(" AVG(").append(field.name).append(") ");
+    return stage_aggregate{ctx_};
+  }
+
+  stage_aggregate min(const auto& field) {
+    ctx_->min_clause_.append(" MIN(").append(field.name).append(") ");
+    return stage_aggregate{ctx_};
+  }
+
+  stage_aggregate max(const auto& field) {
+    ctx_->max_clause_.append(" MAX(").append(field.name).append(") ");
+    return stage_aggregate{ctx_};
   }
 
  private:

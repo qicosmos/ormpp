@@ -368,6 +368,23 @@ TEST_CASE("optional") {
       CHECK(l == 2);
       CHECK(l2 == 2);
       CHECK(l3 == 2);
+
+      auto l4 = sqlite.from<test_optional>()
+                    .sum(col(&test_optional::id))
+                    .collect<uint64_t>();
+      auto l5 = sqlite.from<test_optional>()
+                    .avg(col(&test_optional::id))
+                    .collect<uint64_t>();
+      auto l6 = sqlite.from<test_optional>()
+                    .min(col(&test_optional::id))
+                    .collect<uint64_t>();
+      auto l7 = sqlite.from<test_optional>()
+                    .max(col(&test_optional::id))
+                    .collect<uint64_t>();
+      CHECK(l4 == 3);
+      CHECK(l5 == 1);
+      CHECK(l6 == 1);
+      CHECK(l7 == 2);
     }
     auto l1 = sqlite.from<test_optional>()
                   .where(col(&test_optional::id).in(1, 2))
