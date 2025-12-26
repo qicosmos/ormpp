@@ -183,8 +183,7 @@ TEST_CASE("optional") {
     }
     auto l1 = mysql.from<test_optional>()
                   .where(col(&test_optional::id).in(1, 2))
-                  .order_by(col(&test_optional::id))
-                  .desc()
+                  .order_by(col(&test_optional::id).desc())
                   .limit(5)
                   .offset(0)
                   .collect();
@@ -280,8 +279,7 @@ TEST_CASE("optional") {
     }
     auto l1 = postgres.from<test_optional>()
                   .where(col(&test_optional::id).in(1, 2))
-                  .order_by(col(&test_optional::id))
-                  .desc()
+                  .order_by(col(&test_optional::id).desc())
                   .limit(5)
                   .offset(0)
                   .collect();
@@ -388,8 +386,8 @@ TEST_CASE("optional") {
     }
     auto l1 = sqlite.from<test_optional>()
                   .where(col(&test_optional::id).in(1, 2))
-                  .order_by(col(&test_optional::id))
-                  .desc()
+                  .order_by(col(&test_optional::id).desc(),
+                            col(&test_optional::name).desc())
                   .limit(5)
                   .offset(0)
                   .collect();

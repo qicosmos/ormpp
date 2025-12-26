@@ -31,6 +31,17 @@ struct col_info {
 
   std::string_view name;
   std::string_view class_name;
+  std::string sort_order;
+
+  col_info& desc() {
+    sort_order = " DESC ";
+    return *this;
+  }
+
+  col_info& asc() {
+    sort_order = " ASC ";
+    return *this;
+  }
 
   template <typename... Args>
   where_condition in(Args... args) {
@@ -259,27 +270,8 @@ class query_builder {
     }
   };
 
-  struct stage_desc {
-    std::shared_ptr<context> ctx;
-
-    stage_limit limit(uint64_t count) {
-      ctx->limit_clause_.append(" limit ").append(std::to_string(count));
-      return stage_limit{ctx};
-    }
-
-    template <typename U = T>
-    auto collect() {
-      return ctx->template collect<U>();
-    }
-  };
-
   struct stage_order {
     std::shared_ptr<context> ctx;
-
-    stage_desc desc() {
-      ctx->desc_clause_ = " DESC ";
-      return stage_desc{ctx};
-    }
 
     stage_limit limit(uint64_t n) {
       ctx->limit_clause_ = " LIMIT " + std::to_string(n);
@@ -294,8 +286,15 @@ class query_builder {
 
   struct stage_where {
     std::shared_ptr<context> ctx;
-    stage_order order_by(const auto& field) {
-      ctx->order_by_clause_ = " ORDER BY " + std::string(field.name);
+
+    template <typename... Args>
+    stage_order order_by(Args... fields) {
+      ctx->order_by_clause_ = " ORDER BY ";
+      (ctx->order_by_clause_.append(fields.name)
+           .append(fields.sort_order)
+           .append(","),
+       ...);
+      ctx->order_by_clause_.pop_back();
       return stage_order{ctx};
     }
 
