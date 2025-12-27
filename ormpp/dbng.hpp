@@ -122,10 +122,12 @@ class dbng {
     return query<T>(sql);
   }
 
-  template <typename T>
-  auto from() {
-    return db_.template from<T>();
+  template <typename... Args>
+  auto select(Args... args) {
+    return db_.template select(args...);
   }
+
+  auto select_all() { return db_.template select_all(); }
 
   template <typename Pair, typename U>
   [[deprecated]] bool delete_records(Pair pair, std::string_view oper,

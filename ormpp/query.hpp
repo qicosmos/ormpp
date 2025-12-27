@@ -171,11 +171,16 @@ auto operator<(col_info<M> field, M val) {
   return build_where(field, val, "<");
 }
 
-template <typename T, typename DB>
+template <typename DB, typename R>
+struct stage_select;
+
+template <typename T, typename DB, typename R>
 class query_builder {
   struct context {
     DB db_;
     std::string sql_;
+    std::string select_clause_;
+    std::string from_clause_;
     std::string where_clause_;
     std::string order_by_clause_;
     std::string desc_clause_;
@@ -212,6 +217,13 @@ class query_builder {
 
     template <typename U = T>
     auto collect() {
+      if (!select_clause_.empty()) {
+        sql_.append("select ").append(select_clause_).append(from_clause_);
+        if (!where_clause_.empty()) {
+          sql_.append(" where ");
+        }
+      }
+
       sql_.append(where_clause_)
           .append(order_by_clause_)
           .append(desc_clause_)
@@ -231,8 +243,13 @@ class query_builder {
         return std::get<0>(t.front());
       }
       else {
-        auto t = db_->template query_s<T>(sql_);
-        return t;
+        if constexpr (std::is_void_v<R>) {
+          return db_->template query_s<T>(sql_);
+        }
+        else {
+          auto t = db_->template query_s<R>(sql_);
+          return t;
+        }
       }
     }
   };
@@ -314,6 +331,20 @@ class query_builder {
     return stage_where{ctx_};
   }
 
+  struct stage_from {
+    std::shared_ptr<context> ctx;
+
+    stage_where where(const where_condition& condition) {
+      ctx->where_clause_ = condition.to_sql();
+      return stage_where{ctx};
+    }
+
+    template <typename U = T>
+    auto collect() {
+      return ctx->template collect<U>();
+    }
+  };
+
   struct stage_aggregate {
     std::shared_ptr<context> ctx;
 
@@ -363,7 +394,50 @@ class query_builder {
   }
 
  private:
+  friend struct stage_select<DB, R>;
   DB db_;
   std::shared_ptr<context> ctx_;
 };
+
+template <typename DB, typename R>
+struct stage_select {
+  DB db_;
+  std::string select_clause_;
+
+  template <typename T>
+  query_builder<T, DB, R> from() {
+    auto builder = query_builder<T, DB, R>{db_};
+    if (!select_clause_.empty()) {
+      builder.ctx_->select_clause_ = select_clause_;
+      builder.ctx_->from_clause_.append(" from ").append(
+          ylt::reflection::get_struct_name<T>());
+    }
+    return builder;
+  }
+};
+
+template <typename T>
+concept HasName = requires(T t) { t.name; };
+
+template <typename DB, typename... Args>
+stage_select<DB, std::tuple<typename Args::value_type...>> select(
+    DB db, Args... args) {
+  static_assert(sizeof...(Args) > 0, "must choose at least one field");
+  using Tuple = std::tuple<typename Args::value_type...>;
+  stage_select<DB, Tuple> sel{db};
+
+  (sel.select_clause_.append(args.class_name)
+       .append(".")
+       .append(args.name)
+       .append(","),
+   ...);
+  sel.select_clause_.pop_back();
+
+  return sel;
+}
+
+template <typename DB>
+stage_select<DB, void> select_all(DB db) {
+  return stage_select<DB, void>{db};
+}
 }  // namespace ormpp

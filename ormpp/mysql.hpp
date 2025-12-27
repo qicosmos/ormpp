@@ -580,10 +580,12 @@ class mysql {
     return v;
   }
 
-  template <typename T>
-  auto from() {
-    return query_builder<T, decltype(this)>{this};
+  template <typename... Args>
+  auto select(Args... args) {
+    return ormpp::select(this, args...);
   }
+
+  auto select_all() { return ormpp::select_all(this); }
 
   // if there is a sql error, how to tell the user? throw exception?
   template <typename T, typename... Args>

@@ -270,10 +270,12 @@ class postgresql {
     return v;
   }
 
-  template <typename T>
-  auto from() {
-    return query_builder<T, decltype(this)>{this};
+  template <typename... Args>
+  auto select(Args... args) {
+    return ormpp::select(this, args...);
   }
+
+  auto select_all() { return ormpp::select_all(this); }
 
   template <typename T, typename... Args>
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query(

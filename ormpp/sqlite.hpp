@@ -293,10 +293,12 @@ class sqlite {
     return v;
   }
 
-  template <typename T>
-  auto from() {
-    return query_builder<T, decltype(this)>{this};
+  template <typename... Args>
+  auto select(Args... args) {
+    return ormpp::select(this, args...);
   }
+
+  auto select_all() { return ormpp::select_all(this); }
 
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
