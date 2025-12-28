@@ -170,19 +170,33 @@ TEST_CASE("optional") {
     mysql.insert<test_optional>({0, "purecpp", 200});
     mysql.insert<test_optional>({0, "test", 300});
     {
-      auto l =
-          mysql.select_all().from<test_optional>().count().collect<uint64_t>();
-      auto l2 = mysql.select_all()
+      auto l = mysql.select_count().from<test_optional>().collect();
+      auto l2 = mysql.select_count(col(&test_optional::id))
                     .from<test_optional>()
-                    .count(col(&test_optional::id))
-                    .collect<uint64_t>();
-      auto l3 = mysql.select_all()
+                    .collect();
+      auto l3 = mysql.select_count_distinct(col(&test_optional::id))
                     .from<test_optional>()
-                    .count_distinct(col(&test_optional::id))
-                    .collect<uint64_t>();
+                    .collect();
       CHECK(l == 2);
       CHECK(l2 == 2);
       CHECK(l3 == 2);
+
+      auto l4 = mysql.select_sum(col(&test_optional::id))
+                    .from<test_optional>()
+                    .collect();
+      auto l5 = mysql.select_avg(col(&test_optional::id))
+                    .from<test_optional>()
+                    .collect();
+      auto l6 = mysql.select_min(col(&test_optional::id))
+                    .from<test_optional>()
+                    .collect();
+      auto l7 = mysql.select_max(col(&test_optional::id))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l4 == 3);
+      CHECK(l5 == 1);
+      CHECK(l6 == 1);
+      CHECK(l7 == 2);
     }
     auto l1 = mysql.select_all()
                   .from<test_optional>()
@@ -280,21 +294,33 @@ TEST_CASE("optional") {
     postgres.insert<test_optional>({0, "purecpp", 200});
     postgres.insert<test_optional>({0, "test", 300});
     {
-      auto l = postgres.select_all()
-                   .from<test_optional>()
-                   .count()
-                   .collect<uint64_t>();
-      auto l2 = postgres.select_all()
+      auto l = postgres.select_count().from<test_optional>().collect();
+      auto l2 = postgres.select_count(col(&test_optional::id))
                     .from<test_optional>()
-                    .count(col(&test_optional::id))
-                    .collect<uint64_t>();
-      auto l3 = postgres.select_all()
+                    .collect();
+      auto l3 = postgres.select_count_distinct(col(&test_optional::id))
                     .from<test_optional>()
-                    .count_distinct(col(&test_optional::id))
-                    .collect<uint64_t>();
+                    .collect();
       CHECK(l == 2);
       CHECK(l2 == 2);
       CHECK(l3 == 2);
+
+      auto l4 = postgres.select_sum(col(&test_optional::id))
+                    .from<test_optional>()
+                    .collect();
+      auto l5 = postgres.select_avg(col(&test_optional::id))
+                    .from<test_optional>()
+                    .collect();
+      auto l6 = postgres.select_min(col(&test_optional::id))
+                    .from<test_optional>()
+                    .collect();
+      auto l7 = postgres.select_max(col(&test_optional::id))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l4 == 3);
+      CHECK(l5 == 1);
+      CHECK(l6 == 1);
+      CHECK(l7 == 2);
     }
     auto l1 = postgres.select_all()
                   .from<test_optional>()
