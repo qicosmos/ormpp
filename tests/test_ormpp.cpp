@@ -395,36 +395,29 @@ TEST_CASE("optional") {
       CHECK(l1.size() == 2);
     }
     {
-      auto l =
-          sqlite.select_all().from<test_optional>().count().collect<uint64_t>();
-      auto l2 = sqlite.select_all()
+      auto l = sqlite.select_count().from<test_optional>().collect();
+      auto l2 = sqlite.select_count(col(&test_optional::id))
                     .from<test_optional>()
-                    .count(col(&test_optional::id))
-                    .collect<uint64_t>();
-      auto l3 = sqlite.select_all()
+                    .collect();
+      auto l3 = sqlite.select_count_distinct(col(&test_optional::id))
                     .from<test_optional>()
-                    .count_distinct(col(&test_optional::id))
-                    .collect<uint64_t>();
+                    .collect();
       CHECK(l == 2);
       CHECK(l2 == 2);
       CHECK(l3 == 2);
 
-      auto l4 = sqlite.select_all()
+      auto l4 = sqlite.select_sum(col(&test_optional::id))
                     .from<test_optional>()
-                    .sum(col(&test_optional::id))
-                    .collect<uint64_t>();
-      auto l5 = sqlite.select_all()
+                    .collect();
+      auto l5 = sqlite.select_avg(col(&test_optional::id))
                     .from<test_optional>()
-                    .avg(col(&test_optional::id))
-                    .collect<uint64_t>();
-      auto l6 = sqlite.select_all()
+                    .collect();
+      auto l6 = sqlite.select_min(col(&test_optional::id))
                     .from<test_optional>()
-                    .min(col(&test_optional::id))
-                    .collect<uint64_t>();
-      auto l7 = sqlite.select_all()
+                    .collect();
+      auto l7 = sqlite.select_max(col(&test_optional::id))
                     .from<test_optional>()
-                    .max(col(&test_optional::id))
-                    .collect<uint64_t>();
+                    .collect();
       CHECK(l4 == 3);
       CHECK(l5 == 1);
       CHECK(l6 == 1);

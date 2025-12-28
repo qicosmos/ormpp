@@ -174,6 +174,9 @@ auto operator<(col_info<M> field, M val) {
 template <typename DB, typename R>
 struct stage_select;
 
+template <typename DB>
+struct stage_aggregate_t;
+
 template <typename T, typename DB, typename R>
 class query_builder {
   struct context {
@@ -215,7 +218,6 @@ class query_builder {
       return "";
     }
 
-    template <typename U = T>
     auto collect() {
       if (!select_clause_.empty()) {
         sql_.append("select ").append(select_clause_).append(from_clause_);
@@ -230,15 +232,15 @@ class query_builder {
           .append(limit_clause_)
           .append(offset_clause_);
 
-      if constexpr (std::is_integral_v<U>) {
+      if constexpr (std::is_integral_v<R>) {
         std::string sql = "select ";
         sql.append(aggregate_clause())
             .append(" from ")
             .append(ylt::reflection::get_struct_name<T>())
             .append(";");
-        auto t = db_->template query_s<std::tuple<U>>(sql);
+        auto t = db_->template query_s<std::tuple<R>>(sql);
         if (t.empty()) {
-          return U{};
+          return R{};
         }
         return std::get<0>(t.front());
       }
@@ -261,7 +263,7 @@ class query_builder {
 
   template <typename U = T>
   auto collect() {
-    return ctx_->template collect<U>();
+    return ctx_->template collect();
   }
 
   struct stage_offset {
@@ -269,7 +271,7 @@ class query_builder {
 
     template <typename U = T>
     auto collect() {
-      return ctx->template collect<U>();
+      return ctx->template collect();
     }
   };
 
@@ -283,7 +285,7 @@ class query_builder {
 
     template <typename U = T>
     auto collect() {
-      return ctx->template collect<U>();
+      return ctx->template collect();
     }
   };
 
@@ -297,7 +299,7 @@ class query_builder {
 
     template <typename U = T>
     auto collect() {
-      return ctx->template collect<U>();
+      return ctx->template collect();
     }
   };
 
@@ -322,7 +324,7 @@ class query_builder {
 
     template <typename U = T>
     auto collect() {
-      return ctx->template collect<U>();
+      return ctx->template collect();
     }
   };
 
@@ -341,65 +343,18 @@ class query_builder {
 
     template <typename U = T>
     auto collect() {
-      return ctx->template collect<U>();
+      return ctx->template collect();
     }
   };
-
-  struct stage_aggregate {
-    std::shared_ptr<context> ctx;
-
-    template <typename U = T>
-    auto collect() {
-      return ctx->template collect<U>();
-    }
-  };
-
-  stage_aggregate count() {
-    ctx_->count_clause_ = "COUNT(*)";  // include null
-    return stage_aggregate{ctx_};
-  }
-
-  stage_aggregate count(const auto& field) {
-    ctx_->count_clause_.append(" COUNT(")
-        .append(field.name)
-        .append(") ");  // exclude null
-    return stage_aggregate{ctx_};
-  }
-
-  stage_aggregate count_distinct(const auto& field) {
-    ctx_->count_clause_.append(" COUNT(DISTINCT ")
-        .append(field.name)
-        .append(") ");  // distinct count, exclude null
-    return stage_aggregate{ctx_};
-  }
-
-  stage_aggregate sum(const auto& field) {
-    ctx_->sum_clause_.append(" SUM(").append(field.name).append(") ");
-    return stage_aggregate{ctx_};
-  }
-
-  stage_aggregate avg(const auto& field) {
-    ctx_->avg_clause_.append(" AVG(").append(field.name).append(") ");
-    return stage_aggregate{ctx_};
-  }
-
-  stage_aggregate min(const auto& field) {
-    ctx_->min_clause_.append(" MIN(").append(field.name).append(") ");
-    return stage_aggregate{ctx_};
-  }
-
-  stage_aggregate max(const auto& field) {
-    ctx_->max_clause_.append(" MAX(").append(field.name).append(") ");
-    return stage_aggregate{ctx_};
-  }
 
  private:
   friend struct stage_select<DB, R>;
+  friend struct stage_aggregate_t<DB>;
   DB db_;
   std::shared_ptr<context> ctx_;
 };
 
-template <typename DB, typename R>
+template <typename DB, typename R = void>
 struct stage_select {
   DB db_;
   std::string select_clause_;
@@ -438,6 +393,89 @@ stage_select<DB, std::tuple<typename Args::value_type...>> select(
 
 template <typename DB>
 stage_select<DB, void> select_all(DB db) {
-  return stage_select<DB, void>{db};
+  return stage_select<DB>{db};
+}
+
+enum class aggregate_type { COUNT, SUM, AVG, MIN, MAX };
+
+template <typename DB>
+struct stage_aggregate_t {
+  DB db_;
+  std::string aggregate_clause_;
+  aggregate_type type_;
+
+  template <typename T>
+  query_builder<T, DB, uint64_t> from() {
+    auto builder = query_builder<T, DB, uint64_t>{db_};
+    set_clause(builder);
+    return builder;
+  }
+
+ private:
+  void set_clause(auto& builder) {
+    switch (type_) {
+      case aggregate_type::COUNT:
+        builder.ctx_->count_clause_ = aggregate_clause_;
+        break;
+      case aggregate_type::SUM:
+        builder.ctx_->sum_clause_ = aggregate_clause_;
+        break;
+      case aggregate_type::AVG:
+        builder.ctx_->avg_clause_ = aggregate_clause_;
+        break;
+      case aggregate_type::MIN:
+        builder.ctx_->min_clause_ = aggregate_clause_;
+        break;
+      case aggregate_type::MAX:
+        builder.ctx_->max_clause_ = aggregate_clause_;
+        break;
+    }
+  }
+};
+
+template <typename DB>
+auto select_count(DB db) {
+  // include null
+  return stage_aggregate_t<DB>{db, "COUNT(*)", aggregate_type::COUNT};
+}
+
+template <typename DB>
+auto build_aggregate(DB db, std::string clause, const auto& field,
+                     aggregate_type type) {
+  std::string str;
+  str.append(clause).append(field.name).append(") ");
+  return stage_aggregate_t<DB>{db, str, aggregate_type::COUNT};
+}
+
+template <typename DB>
+auto select_count(DB db, const auto& field) {
+  // exclude null
+  return build_aggregate(db, " COUNT(", field, aggregate_type::COUNT);
+}
+
+template <typename DB>
+auto select_count_distinct(DB db, const auto& field) {
+  // distinct count, exclude null
+  return build_aggregate(db, " COUNT(DISTINCT ", field, aggregate_type::COUNT);
+}
+
+template <typename DB>
+auto select_sum(DB db, const auto& field) {
+  return build_aggregate(db, " SUM(", field, aggregate_type::SUM);
+}
+
+template <typename DB>
+auto select_avg(DB db, const auto& field) {
+  return build_aggregate(db, " AVG(", field, aggregate_type::AVG);
+}
+
+template <typename DB>
+auto select_min(DB db, const auto& field) {
+  return build_aggregate(db, " MIN(", field, aggregate_type::MIN);
+}
+
+template <typename DB>
+auto select_max(DB db, const auto& field) {
+  return build_aggregate(db, " MAX(", field, aggregate_type::MAX);
 }
 }  // namespace ormpp
