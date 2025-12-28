@@ -406,11 +406,15 @@ TEST_CASE("optional") {
 #else
   if (sqlite.connect(db)) {
 #endif
+    sqlite.execute("DROP TABLE IF EXISTS person");
+    REQUIRE(sqlite.create_datatable<person>(ormpp_auto_key{"id"}));
+    REQUIRE(sqlite.insert<person>({"encryption_test", 2}) == 1);
+
     sqlite.execute("drop table if exists test_optional;");
     sqlite.create_datatable<test_optional>(
         ormpp_auto_key{col_name(&test_optional::id)});
-    sqlite.insert<test_optional>({0, "purecpp", 200});
-    sqlite.insert<test_optional>({0, "test", 300});
+    sqlite.insert<test_optional>({0, "purecpp", 1});
+    sqlite.insert<test_optional>({0, "test", 2});
     {
       auto l = sqlite.select_all().from<test_optional>().collect();
       auto l1 =
@@ -448,6 +452,20 @@ TEST_CASE("optional") {
       CHECK(l5 == 1);
       CHECK(l6 == 1);
       CHECK(l7 == 2);
+    }
+    {
+      auto l =
+          sqlite.select(col(&test_optional::name), col(&test_optional::age))
+              .from<test_optional>()
+              .collect();
+      CHECK(l.size() == 2);
+      auto l2 = sqlite.select(col(&test_optional::name), col(&person::name))
+                    .from<test_optional>()
+                    .inner_join(col(&test_optional::id), col(&person::id))
+                    .where(col(&person::id) > 0 || col(&person::id) == 1)
+                    .collect();
+      CHECK(l2.size() == 1);
+      sqlite.execute("DROP TABLE IF EXISTS person");
     }
     auto l1 = sqlite.select_all()
                   .from<test_optional>()
@@ -516,12 +534,12 @@ TEST_CASE("optional") {
     REQUIRE(list3.size() == 1);
     auto vec1 = sqlite.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
-    CHECK(vec1.front().age.value() == 200);
+    CHECK(vec1.front().age.value() == 1);
     CHECK(vec1.front().name.value() == "purecpp");
     CHECK(vec1.front().empty_.has_value() == false);
     auto vec2 = sqlite.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
-    CHECK(vec2.front().age.value() == 200);
+    CHECK(vec2.front().age.value() == 1);
     CHECK(vec2.front().name.value() == "purecpp");
     CHECK(vec2.front().empty_.has_value() == false);
   }

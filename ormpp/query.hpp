@@ -133,11 +133,13 @@ where_condition operator&&(where_condition lhs, where_condition rhs) {
 template <typename M, typename value_type>
 where_condition build_where(col_info<M> field, value_type val, std::string op) {
   static_assert(std::is_constructible_v<M, value_type>, "invalid type");
+  std::string name(field.class_name);
+  name.append(".").append(field.name);
   if constexpr (std::is_arithmetic_v<value_type>) {
-    return where_condition{std::string(field.name), op, std::to_string(val)};
+    return where_condition{name, op, std::to_string(val)};
   }
   else {
-    return where_condition{std::string(field.name), op, val, true};
+    return where_condition{name, op, val, true};
   }
 }
 
@@ -171,6 +173,29 @@ auto operator<(col_info<M> field, M val) {
   return build_where(field, val, "<");
 }
 
+template <typename T>
+inline std::string join_impl(std::string prefix, auto field1, auto field2) {
+  std::string sql;
+  sql.append(prefix).append("join ");
+  if (ylt::reflection::get_struct_name<T>() == field1.class_name) {
+    sql.append(field2.class_name);
+  }
+  else {
+    sql.append(field1.class_name);
+  }
+
+  sql.append(" ON ")
+      .append(field1.class_name)
+      .append(".")
+      .append(field1.name)
+      .append("=")
+      .append(field2.class_name)
+      .append(".")
+      .append(field2.name)
+      .append(" ");
+  return sql;
+}
+
 template <typename DB, typename R>
 struct stage_select;
 
@@ -184,6 +209,7 @@ class query_builder {
     std::string sql_;
     std::string select_clause_;
     std::string from_clause_;
+    std::string join_clause_;
     std::string where_clause_;
     std::string order_by_clause_;
     std::string desc_clause_;
@@ -222,11 +248,12 @@ class query_builder {
       if (!select_clause_.empty()) {
         sql_.append("select ").append(select_clause_).append(from_clause_);
         if (!where_clause_.empty()) {
-          sql_.append(" where ");
+          where_clause_.insert(0, " where ");
         }
       }
 
-      sql_.append(where_clause_)
+      sql_.append(join_clause_)
+          .append(where_clause_)
           .append(order_by_clause_)
           .append(desc_clause_)
           .append(limit_clause_)
@@ -261,18 +288,12 @@ class query_builder {
     ctx_->db_ = db;
   }
 
-  template <typename U = T>
-  auto collect() {
-    return ctx_->template collect();
-  }
+  auto collect() { return ctx_->collect(); }
 
   struct stage_offset {
     std::shared_ptr<context> ctx;
 
-    template <typename U = T>
-    auto collect() {
-      return ctx->template collect();
-    }
+    auto collect() { return ctx->collect(); }
   };
 
   struct stage_limit {
@@ -283,10 +304,7 @@ class query_builder {
       return stage_offset{ctx};
     }
 
-    template <typename U = T>
-    auto collect() {
-      return ctx->template collect();
-    }
+    auto collect() { return ctx->collect(); }
   };
 
   struct stage_order {
@@ -297,10 +315,7 @@ class query_builder {
       return stage_limit{ctx};
     }
 
-    template <typename U = T>
-    auto collect() {
-      return ctx->template collect();
-    }
+    auto collect() { return ctx->collect(); }
   };
 
   struct stage_where {
@@ -322,15 +337,59 @@ class query_builder {
       return stage_limit{ctx};
     }
 
-    template <typename U = T>
-    auto collect() {
-      return ctx->template collect();
-    }
+    auto collect() { return ctx->collect(); }
   };
 
   stage_where where(const where_condition& condition) {
     ctx_->where_clause_ = condition.to_sql();
     return stage_where{ctx_};
+  }
+
+  struct stage_inner_join {
+    std::shared_ptr<context> ctx;
+
+    stage_inner_join& inner_join(auto field1, auto field2) {
+      std::string sql = join_impl<T>(" inner ", field1, field2);
+      ctx->join_clause_.append(sql);
+      return *this;
+    }
+
+    stage_where where(const where_condition& condition) {
+      ctx->where_clause_ = condition.to_sql();
+      return stage_where{ctx};
+    }
+
+    auto collect() { return ctx->collect(); }
+  };
+
+  auto inner_join(auto field1, auto field2) {
+    std::string sql = join_impl<T>(" inner ", field1, field2);
+    ctx_->join_clause_ = sql;
+    return stage_inner_join{ctx_};
+  }
+
+  auto left_join(auto field1, auto field2) {
+    std::string sql = join_impl<T>(" left ", field1, field2);
+    ctx_->join_clause_ = sql;
+    return stage_inner_join{ctx_};
+  }
+
+  auto right_join(auto field1, auto field2) {
+    std::string sql = join_impl<T>(" right ", field1, field2);
+    ctx_->join_clause_ = sql;
+    return stage_inner_join{ctx_};
+  }
+
+  auto full_join(auto field1, auto field2) {
+    std::string sql = join_impl<T>(" full ", field1, field2);
+    ctx_->join_clause_ = sql;
+    return stage_inner_join{ctx_};
+  }
+
+  auto full_outer_join(auto field1, auto field2) {
+    std::string sql = join_impl<T>(" full outer ", field1, field2);
+    ctx_->join_clause_ = sql;
+    return stage_inner_join{ctx_};
   }
 
   struct stage_from {
