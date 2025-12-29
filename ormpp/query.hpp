@@ -132,7 +132,14 @@ where_condition operator&&(where_condition lhs, where_condition rhs) {
 
 template <typename M, typename value_type>
 where_condition build_where(col_info<M> field, value_type val, std::string op) {
-  static_assert(std::is_constructible_v<M, value_type>, "invalid type");
+  if constexpr (iguana::array_v<M>) {
+    static_assert(
+        std::is_same_v<typename M::value_type, typename value_type::value_type>,
+        "invalid type");
+  }
+  else {
+    static_assert(std::is_constructible_v<M, value_type>, "invalid type");
+  }
   std::string name(field.class_name);
   name.append(".").append(field.name);
   if constexpr (std::is_arithmetic_v<value_type>) {
