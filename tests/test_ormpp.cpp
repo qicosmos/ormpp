@@ -467,9 +467,16 @@ TEST_CASE("optional") {
                     .from<test_optional>()
                     .group_by(col(&test_optional::id))
                     .collect();
+      auto l3 = sqlite.select_sum(col(&test_optional::id))
+                    .select(col(&test_optional::id))
+                    .from<test_optional>()
+                    .where(col(&test_optional::id) > 0)
+                    .group_by(col(&test_optional::id))
+                    .collect();
       CHECK(l.size() == 1);
       CHECK(l1.size() == 1);
       CHECK(l2.size() == 1);
+      CHECK(l3.size() == 1);
     }
     {
       auto l =

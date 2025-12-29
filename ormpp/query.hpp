@@ -371,6 +371,14 @@ class query_builder {
       return stage_limit{ctx};
     }
 
+    template <typename... Args>
+    stage_group_by group_by(Args... fields) {
+      ctx->group_by_clause_ = " GROUP BY ";
+      (ctx->group_by_clause_.append(fields.name).append(","), ...);
+      ctx->group_by_clause_.pop_back();
+      return stage_group_by{ctx};
+    }
+
     auto collect() { return ctx->collect(); }
   };
 
