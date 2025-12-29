@@ -167,8 +167,8 @@ TEST_CASE("optional") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists test_optional;");
     mysql.create_datatable<test_optional>(ormpp_auto_key{"id"});
-    mysql.insert<test_optional>({0, "purecpp", 200});
-    mysql.insert<test_optional>({0, "test", 300});
+    mysql.insert<test_optional>({0, "purecpp", 1});
+    mysql.insert<test_optional>({0, "test", 2});
     {
       auto l = mysql.select_count().from<test_optional>().collect();
       auto l2 = mysql.select_count(col(&test_optional::id))
@@ -197,6 +197,43 @@ TEST_CASE("optional") {
       CHECK(l5 == 1);
       CHECK(l6 == 1);
       CHECK(l7 == 2);
+    }
+    {
+      auto l = mysql.select_count(col(&test_optional::id))
+                   .select(col(&test_optional::id))
+                   .from<test_optional>()
+                   .group_by(col(&test_optional::id))
+                   .collect();
+      auto l1 = mysql.select_sum(col(&test_optional::id))
+                    .select(col(&test_optional::id))
+                    .from<test_optional>()
+                    .group_by(col(&test_optional::id))
+                    .collect();
+      auto l2 = mysql.select_sum(col(&test_optional::id))
+                    .select(col(&test_optional::id))
+                    .from<test_optional>()
+                    .group_by(col(&test_optional::id))
+                    .collect();
+      auto l3 = mysql.select_sum(col(&test_optional::id))
+                    .select(col(&test_optional::id))
+                    .from<test_optional>()
+                    .where(col(&test_optional::id) > 0)
+                    .group_by(col(&test_optional::id))
+                    .collect();
+      auto l4 = mysql.select_sum(col(&test_optional::id))
+                    .select(col(&test_optional::id))
+                    .from<test_optional>()
+                    .where(col(&test_optional::id) > 0)
+                    .group_by(col(&test_optional::id))
+                    .having("count(*)>0")
+                    .AND("sum(id)>0")
+                    .OR("sum(id)=2")
+                    .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+      CHECK(l2.size() == 2);
+      CHECK(l3.size() == 2);
+      CHECK(l4.size() == 2);
     }
     auto l1 = mysql.select_all()
                   .from<test_optional>()
@@ -265,23 +302,23 @@ TEST_CASE("optional") {
 
     auto vec1 = mysql.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
-    CHECK(vec1.front().age.value() == 200);
+    CHECK(vec1.front().age.value() == 1);
     CHECK(vec1.front().name.value() == "purecpp");
     CHECK(vec1.front().empty_.has_value() == false);
     auto vec2 = mysql.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
-    CHECK(vec2.front().age.value() == 200);
+    CHECK(vec2.front().age.value() == 1);
     CHECK(vec2.front().name.value() == "purecpp");
     CHECK(vec2.front().empty_.has_value() == false);
 
     auto vec3 = mysql.query_s<test_optional>();
     REQUIRE(vec3.size() > 0);
-    CHECK(vec3.front().age.value() == 200);
+    CHECK(vec3.front().age.value() == 1);
     CHECK(vec3.front().name.value() == "purecpp");
     CHECK(vec3.front().empty_.has_value() == false);
     auto vec4 = mysql.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec4.size() > 0);
-    CHECK(vec4.front().age.value() == 200);
+    CHECK(vec4.front().age.value() == 1);
     CHECK(vec4.front().name.value() == "purecpp");
     CHECK(vec4.front().empty_.has_value() == false);
   }
@@ -291,8 +328,8 @@ TEST_CASE("optional") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists test_optional;");
     postgres.create_datatable<test_optional>(ormpp_auto_key{"id"});
-    postgres.insert<test_optional>({0, "purecpp", 200});
-    postgres.insert<test_optional>({0, "test", 300});
+    postgres.insert<test_optional>({0, "purecpp", 1});
+    postgres.insert<test_optional>({0, "test", 2});
     {
       auto l = postgres.select_count().from<test_optional>().collect();
       auto l2 = postgres.select_count(col(&test_optional::id))
@@ -321,6 +358,43 @@ TEST_CASE("optional") {
       CHECK(l5 == 1);
       CHECK(l6 == 1);
       CHECK(l7 == 2);
+    }
+    {
+      auto l = postgres.select_count(col(&test_optional::id))
+                   .select(col(&test_optional::id))
+                   .from<test_optional>()
+                   .group_by(col(&test_optional::id))
+                   .collect();
+      auto l1 = postgres.select_sum(col(&test_optional::id))
+                    .select(col(&test_optional::id))
+                    .from<test_optional>()
+                    .group_by(col(&test_optional::id))
+                    .collect();
+      auto l2 = postgres.select_sum(col(&test_optional::id))
+                    .select(col(&test_optional::id))
+                    .from<test_optional>()
+                    .group_by(col(&test_optional::id))
+                    .collect();
+      auto l3 = postgres.select_sum(col(&test_optional::id))
+                    .select(col(&test_optional::id))
+                    .from<test_optional>()
+                    .where(col(&test_optional::id) > 0)
+                    .group_by(col(&test_optional::id))
+                    .collect();
+      auto l4 = postgres.select_sum(col(&test_optional::id))
+                    .select(col(&test_optional::id))
+                    .from<test_optional>()
+                    .where(col(&test_optional::id) > 0)
+                    .group_by(col(&test_optional::id))
+                    .having("count(*)>0")
+                    .AND("sum(id)>0")
+                    .OR("sum(id)=2")
+                    .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+      CHECK(l2.size() == 2);
+      CHECK(l3.size() == 2);
+      CHECK(l4.size() == 2);
     }
     auto l1 = postgres.select_all()
                   .from<test_optional>()
@@ -389,12 +463,12 @@ TEST_CASE("optional") {
 
     auto vec1 = postgres.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
-    CHECK(vec1.front().age.value() == 200);
+    CHECK(vec1.front().age.value() == 1);
     CHECK(vec1.front().name.value() == "purecpp");
     CHECK(vec1.front().empty_.has_value() == false);
     auto vec2 = postgres.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
-    CHECK(vec2.front().age.value() == 200);
+    CHECK(vec2.front().age.value() == 1);
     CHECK(vec2.front().name.value() == "purecpp");
     CHECK(vec2.front().empty_.has_value() == false);
   }
@@ -457,10 +531,12 @@ TEST_CASE("optional") {
       auto l = sqlite.select_count(col(&test_optional::id))
                    .select(col(&test_optional::id))
                    .from<test_optional>()
+                   .group_by(col(&test_optional::id))
                    .collect();
       auto l1 = sqlite.select_sum(col(&test_optional::id))
                     .select(col(&test_optional::id))
                     .from<test_optional>()
+                    .group_by(col(&test_optional::id))
                     .collect();
       auto l2 = sqlite.select_sum(col(&test_optional::id))
                     .select(col(&test_optional::id))
@@ -482,8 +558,8 @@ TEST_CASE("optional") {
                     .AND("sum(id)>0")
                     .OR("sum(id)=2")
                     .collect();
-      CHECK(l.size() == 1);
-      CHECK(l1.size() == 1);
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
       CHECK(l2.size() == 2);
       CHECK(l3.size() == 2);
       CHECK(l4.size() == 2);
