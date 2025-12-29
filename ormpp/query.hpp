@@ -43,6 +43,12 @@ struct col_info {
     return *this;
   }
 
+  where_condition param() {
+    std::string str(class_name);
+    str.append(".").append(name);
+    return where_condition{str, " = ", "?"};
+  }
+
   template <typename... Args>
   where_condition in(Args... args) {
     return in_impl("", args...);
@@ -146,6 +152,9 @@ where_condition build_where(col_info<M> field, value_type val, std::string op) {
     return where_condition{name, op, std::to_string(val)};
   }
   else {
+    if (val == "?") {
+      return where_condition{name, op, val};
+    }
     return where_condition{name, op, val, true};
   }
 }
@@ -261,7 +270,8 @@ class query_builder {
       return "";
     }
 
-    auto collect() {
+    template <typename... Args>
+    auto collect(Args... args) {
       if (!select_clause_.empty()) {
         sql_.append("select ").append(select_clause_).append(from_clause_);
         if (!where_clause_.empty()) {
@@ -284,7 +294,7 @@ class query_builder {
             .append(" from ")
             .append(ylt::reflection::get_struct_name<T>())
             .append(";");
-        auto t = db_->template query_s<std::tuple<R>>(sql);
+        auto t = db_->template query_s<std::tuple<R>>(sql, args...);
         if (t.empty()) {
           return R{};
         }
@@ -292,10 +302,10 @@ class query_builder {
       }
       else {
         if constexpr (std::is_void_v<R>) {
-          return db_->template query_s<T>(sql_);
+          return db_->template query_s<T>(sql_, args...);
         }
         else {
-          auto t = db_->template query_s<R>(sql_);
+          auto t = db_->template query_s<R>(sql_, args...);
           return t;
         }
       }
@@ -307,12 +317,18 @@ class query_builder {
     ctx_->db_ = db;
   }
 
-  auto collect() { return ctx_->collect(); }
+  template <typename... Args>
+  auto collect(Args... args) {
+    return ctx_->collect(args...);
+  }
 
   struct stage_offset {
     std::shared_ptr<context> ctx;
 
-    auto collect() { return ctx->collect(); }
+    template <typename... Args>
+    auto collect(Args... args) {
+      return ctx->collect(args...);
+    }
   };
 
   struct stage_limit {
@@ -323,7 +339,10 @@ class query_builder {
       return stage_offset{ctx};
     }
 
-    auto collect() { return ctx->collect(); }
+    template <typename... Args>
+    auto collect(Args... args) {
+      return ctx->collect(args...);
+    }
   };
 
   struct stage_order {
@@ -334,7 +353,10 @@ class query_builder {
       return stage_limit{ctx};
     }
 
-    auto collect() { return ctx->collect(); }
+    template <typename... Args>
+    auto collect(Args... args) {
+      return ctx->collect(args...);
+    }
   };
 
   struct stage_having {
@@ -358,7 +380,10 @@ class query_builder {
       return *this;
     }
 
-    auto collect() { return ctx->collect(); }
+    template <typename... Args>
+    auto collect(Args... args) {
+      return ctx->collect(args...);
+    }
   };
 
   struct stage_group_by {
@@ -378,7 +403,10 @@ class query_builder {
       return stage_having{ctx};
     }
 
-    auto collect() { return ctx->collect(); }
+    template <typename... Args>
+    auto collect(Args... args) {
+      return ctx->collect(args...);
+    }
   };
 
   template <typename... Args>
@@ -411,7 +439,10 @@ class query_builder {
       return stage_group_by{ctx};
     }
 
-    auto collect() { return ctx->collect(); }
+    template <typename... Args>
+    auto collect(Args... args) {
+      return ctx->collect(args...);
+    }
   };
 
   stage_where where(const where_condition& condition) {
@@ -433,7 +464,10 @@ class query_builder {
       return stage_where{ctx};
     }
 
-    auto collect() { return ctx->collect(); }
+    template <typename... Args>
+    auto collect(Args... args) {
+      return ctx->collect(args...);
+    }
   };
 
   auto inner_join(auto field1, auto field2) {
@@ -474,10 +508,7 @@ class query_builder {
       return stage_where{ctx};
     }
 
-    template <typename U = T>
-    auto collect() {
-      return ctx->template collect();
-    }
+    auto collect() { return ctx->template collect(); }
   };
 
  private:

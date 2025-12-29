@@ -490,6 +490,19 @@ TEST_CASE("optional") {
     sqlite.insert<test_optional>({0, "purecpp", 1});
     sqlite.insert<test_optional>({0, "test", 2});
     {
+      // param() means ?, collect(2) means bind parameters
+      auto l0 = sqlite.select_all()
+                    .from<test_optional>()
+                    .where(col(&test_optional::id).param())
+                    .collect(2);
+      auto l = sqlite.select_all()
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).param())
+                   .collect(std::string("test"));
+      CHECK(l0.size() == 1);
+      CHECK(l.size() == 1);
+    }
+    {
       auto l = sqlite.select_all().from<test_optional>().collect();
       auto l1 =
           sqlite.select(col(&test_optional::id), col(&test_optional::name))
@@ -657,6 +670,16 @@ TEST_CASE("optional") {
 #endif
 }
 
+/*
+support where ?
+sqlite.select(count(col(&test_optional::id)),
+sum(col(&test_optional::score))).from<test_optional>();
+sqlite.select_all().from<test_optional>().for_each([](const test_optional& row)
+{
+    // 流式处理，无需一次性分配巨大 vector
+});
+表别名, 聚合结果别名
+*/
 struct test_order {
   int id;
   std::string name;
