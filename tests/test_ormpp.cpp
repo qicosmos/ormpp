@@ -473,10 +473,20 @@ TEST_CASE("optional") {
                     .where(col(&test_optional::id) > 0)
                     .group_by(col(&test_optional::id))
                     .collect();
+      auto l4 = sqlite.select_sum(col(&test_optional::id))
+                    .select(col(&test_optional::id))
+                    .from<test_optional>()
+                    .where(col(&test_optional::id) > 0)
+                    .group_by(col(&test_optional::id))
+                    .having("count(*)>0")
+                    .AND("sum(id)>0")
+                    .OR("sum(id)=2")
+                    .collect();
       CHECK(l.size() == 1);
       CHECK(l1.size() == 1);
-      CHECK(l2.size() == 1);
-      CHECK(l3.size() == 1);
+      CHECK(l2.size() == 2);
+      CHECK(l3.size() == 2);
+      CHECK(l4.size() == 2);
     }
     {
       auto l =

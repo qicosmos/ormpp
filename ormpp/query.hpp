@@ -228,6 +228,7 @@ class query_builder {
     std::string join_clause_;
     std::string where_clause_;
     std::string order_by_clause_;
+    std::string having_clause_;
     std::string desc_clause_;
     std::string limit_clause_;
     std::string offset_clause_;
@@ -270,6 +271,8 @@ class query_builder {
 
       sql_.append(join_clause_)
           .append(where_clause_)
+          .append(group_by_clause_)
+          .append(having_clause_)
           .append(order_by_clause_)
           .append(desc_clause_)
           .append(limit_clause_)
@@ -334,6 +337,30 @@ class query_builder {
     auto collect() { return ctx->collect(); }
   };
 
+  struct stage_having {
+    std::shared_ptr<context> ctx;
+    std::string cond_;
+
+    // order by
+    template <typename... Args>
+    stage_order order_by(Args... fields) {
+      ctx->order_by_clause_ = order_by_sql(fields...);
+      return stage_order{ctx};
+    }
+
+    stage_having& AND(std::string cond) {
+      ctx->having_clause_.append(" AND ").append(cond).append(" ");
+      return *this;
+    }
+
+    stage_having& OR(std::string cond) {
+      ctx->having_clause_.append(" OR ").append(cond).append(" ");
+      return *this;
+    }
+
+    auto collect() { return ctx->collect(); }
+  };
+
   struct stage_group_by {
     std::shared_ptr<context> ctx;
 
@@ -345,6 +372,11 @@ class query_builder {
     }
 
     // having
+    stage_having having(std::string cond) {
+      ctx->having_clause_ = " HAVING ";
+      ctx->having_clause_.append(cond);
+      return stage_having{ctx};
+    }
 
     auto collect() { return ctx->collect(); }
   };
