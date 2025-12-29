@@ -539,6 +539,48 @@ struct stage_select {
 template <typename T>
 concept HasName = requires(T t) { t.name; };
 
+template <typename Arg>
+struct aggregate_field {
+  using value_type = Arg;
+  std::string name;
+  std::string_view class_name;
+};
+
+inline auto count() { return aggregate_field<uint64_t>{"COUNT(*)"}; }
+
+inline auto build_aggregate_field(std::string prefix, auto field) {
+  std::string str = std::move(prefix);
+  str.append(field.class_name).append(".").append(field.name).append(")");
+  return aggregate_field<uint64_t>{str};
+}
+
+inline auto count(auto field) { return build_aggregate_field("COUNT(", field); }
+
+inline auto count_distinct(auto field) {
+  return build_aggregate_field("COUNT(DISTINCT ", field);
+}
+
+inline auto sum(auto field) { return build_aggregate_field("SUM(", field); }
+
+inline auto avg(auto field) { return build_aggregate_field("AVG(", field); }
+
+inline auto min(auto field) { return build_aggregate_field("MIN(", field); }
+
+inline auto max(auto field) { return build_aggregate_field("MAX(", field); }
+
+template <typename Arg>
+auto append_select(auto& sel, Arg arg) {
+  if (arg.class_name.empty()) {
+    sel.select_clause_.append(arg.name).append(",");
+    return;
+  }
+
+  sel.select_clause_.append(arg.class_name)
+      .append(".")
+      .append(arg.name)
+      .append(",");
+}
+
 template <typename DB, typename... Args>
 stage_select<DB, std::tuple<typename Args::value_type...>> select(
     DB db, Args... args) {
@@ -546,11 +588,7 @@ stage_select<DB, std::tuple<typename Args::value_type...>> select(
   using Tuple = std::tuple<typename Args::value_type...>;
   stage_select<DB, Tuple> sel{db};
 
-  (sel.select_clause_.append(args.class_name)
-       .append(".")
-       .append(args.name)
-       .append(","),
-   ...);
+  (append_select(sel, args), ...);
   sel.select_clause_.pop_back();
 
   return sel;
@@ -561,99 +599,4 @@ stage_select<DB, void> select_all(DB db) {
   return stage_select<DB>{db};
 }
 
-enum class aggregate_type { COUNT, SUM, AVG, MIN, MAX };
-
-template <typename DB>
-struct stage_aggregate_t {
-  DB db_;
-  std::string aggregate_clause_;
-  aggregate_type type_;
-
-  template <typename T>
-  query_builder<T, DB, uint64_t> from() {
-    auto builder = query_builder<T, DB, uint64_t>{db_};
-    set_clause(builder);
-    return builder;
-  }
-
-  template <typename... Args>
-  auto select(Args... args) {
-    auto sel = ormpp::select(db_, args...);
-    using R = typename decltype(sel)::ResultType;
-    using U = decltype(std::tuple_cat(std::declval<std::tuple<uint64_t>>(),
-                                      std::declval<R>()));
-
-    std::string sel_sql = aggregate_clause_;
-    sel_sql.append(", ").append(sel.select_clause_).append(" ");
-
-    return stage_select<DB, U>{db_, sel_sql};
-  }
-
- private:
-  void set_clause(auto& builder) {
-    switch (type_) {
-      case aggregate_type::COUNT:
-        builder.ctx_->count_clause_ = aggregate_clause_;
-        break;
-      case aggregate_type::SUM:
-        builder.ctx_->sum_clause_ = aggregate_clause_;
-        break;
-      case aggregate_type::AVG:
-        builder.ctx_->avg_clause_ = aggregate_clause_;
-        break;
-      case aggregate_type::MIN:
-        builder.ctx_->min_clause_ = aggregate_clause_;
-        break;
-      case aggregate_type::MAX:
-        builder.ctx_->max_clause_ = aggregate_clause_;
-        break;
-    }
-  }
-};
-
-template <typename DB>
-auto select_count(DB db) {
-  // include null
-  return stage_aggregate_t<DB>{db, "COUNT(*)", aggregate_type::COUNT};
-}
-
-template <typename DB>
-auto build_aggregate(DB db, std::string clause, const auto& field,
-                     aggregate_type type) {
-  std::string str;
-  str.append(clause).append(field.name).append(") ");
-  return stage_aggregate_t<DB>{db, str, aggregate_type::COUNT};
-}
-
-template <typename DB>
-auto select_count(DB db, const auto& field) {
-  // exclude null
-  return build_aggregate(db, " COUNT(", field, aggregate_type::COUNT);
-}
-
-template <typename DB>
-auto select_count_distinct(DB db, const auto& field) {
-  // distinct count, exclude null
-  return build_aggregate(db, " COUNT(DISTINCT ", field, aggregate_type::COUNT);
-}
-
-template <typename DB>
-auto select_sum(DB db, const auto& field) {
-  return build_aggregate(db, " SUM(", field, aggregate_type::SUM);
-}
-
-template <typename DB>
-auto select_avg(DB db, const auto& field) {
-  return build_aggregate(db, " AVG(", field, aggregate_type::AVG);
-}
-
-template <typename DB>
-auto select_min(DB db, const auto& field) {
-  return build_aggregate(db, " MIN(", field, aggregate_type::MIN);
-}
-
-template <typename DB>
-auto select_max(DB db, const auto& field) {
-  return build_aggregate(db, " MAX(", field, aggregate_type::MAX);
-}
 }  // namespace ormpp

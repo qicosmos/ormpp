@@ -299,22 +299,6 @@ class sqlite {
   }
 
   auto select_all() { return ormpp::select_all(this); }
-  auto select_count(auto... fields) {
-    return ormpp::select_count(this, fields...);
-  }
-  auto select_count_distinct(auto field) {
-    return ormpp::select_count_distinct(this, field);
-  }
-  auto select_sum(auto field) { return ormpp::select_sum(this, field); }
-  auto select_avg(auto field) {
-    return ormpp::template select_avg(this, field);
-  }
-  auto select_min(auto field) {
-    return ormpp::template select_min(this, field);
-  }
-  auto select_max(auto field) {
-    return ormpp::template select_max(this, field);
-  }
 
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions

@@ -170,65 +170,101 @@ TEST_CASE("optional") {
     mysql.insert<test_optional>({0, "purecpp", 1});
     mysql.insert<test_optional>({0, "test", 2});
     {
-      auto l = mysql.select_count().from<test_optional>().collect();
-      auto l2 = mysql.select_count(col(&test_optional::id))
+      // param() means ?, collect(2) means bind parameters
+      auto l0 = mysql.select_all()
                     .from<test_optional>()
-                    .collect();
-      auto l3 = mysql.select_count_distinct(col(&test_optional::id))
-                    .from<test_optional>()
-                    .collect();
-      CHECK(l == 2);
-      CHECK(l2 == 2);
-      CHECK(l3 == 2);
-
-      auto l4 = mysql.select_sum(col(&test_optional::id))
-                    .from<test_optional>()
-                    .collect();
-      auto l5 = mysql.select_avg(col(&test_optional::id))
-                    .from<test_optional>()
-                    .collect();
-      auto l6 = mysql.select_min(col(&test_optional::id))
-                    .from<test_optional>()
-                    .collect();
-      auto l7 = mysql.select_max(col(&test_optional::id))
-                    .from<test_optional>()
-                    .collect();
-      CHECK(l4 == 3);
-      CHECK(l5 == 1);
-      CHECK(l6 == 1);
-      CHECK(l7 == 2);
+                    .where(col(&test_optional::id).param())
+                    .collect(2);
+      auto l = mysql.select_all()
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).param())
+                   .collect(std::string("test"));
+      CHECK(l0.size() == 1);
+      CHECK(l.size() == 1);
     }
     {
-      auto l = mysql.select_count(col(&test_optional::id))
-                   .select(col(&test_optional::id))
+      auto l0 =
+          mysql
+              .select(col(&test_optional::id), count(col(&test_optional::name)),
+                      col(&test_optional::name), sum(col(&test_optional::id)))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      CHECK(l0.size() == 2);
+      auto l = mysql.select(sum(col(&test_optional::id)), count())
                    .from<test_optional>()
                    .group_by(col(&test_optional::id))
                    .collect();
-      auto l1 = mysql.select_sum(col(&test_optional::id))
-                    .select(col(&test_optional::id))
+      CHECK(l.size() == 2);
+    }
+    {
+      auto l = mysql.select_all().from<test_optional>().collect();
+      auto l1 = mysql.select(col(&test_optional::id), col(&test_optional::name))
                     .from<test_optional>()
-                    .group_by(col(&test_optional::id))
                     .collect();
-      auto l2 = mysql.select_sum(col(&test_optional::id))
-                    .select(col(&test_optional::id))
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+    }
+    {
+      auto l = mysql.select(count()).from<test_optional>().collect();
+      auto l2 = mysql.select(count(col(&test_optional::id)))
                     .from<test_optional>()
-                    .group_by(col(&test_optional::id))
                     .collect();
-      auto l3 = mysql.select_sum(col(&test_optional::id))
-                    .select(col(&test_optional::id))
+      auto l3 = mysql.select(count_distinct(col(&test_optional::id)))
                     .from<test_optional>()
-                    .where(col(&test_optional::id) > 0)
-                    .group_by(col(&test_optional::id))
                     .collect();
-      auto l4 = mysql.select_sum(col(&test_optional::id))
-                    .select(col(&test_optional::id))
+      CHECK(std::get<0>(l.front()) == 2);
+      CHECK(std::get<0>(l2.front()) == 2);
+      CHECK(std::get<0>(l3.front()) == 2);
+
+      auto l4 = mysql.select(sum(col(&test_optional::id)))
                     .from<test_optional>()
-                    .where(col(&test_optional::id) > 0)
-                    .group_by(col(&test_optional::id))
-                    .having("count(*)>0")
-                    .AND("sum(id)>0")
-                    .OR("sum(id)=2")
                     .collect();
+      auto l5 = mysql.select(avg(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l6 = mysql.select(min(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l7 = mysql.select(max(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(std::get<0>(l4.front()) == 3);
+      CHECK(std::get<0>(l5.front()) == 1);
+      CHECK(std::get<0>(l6.front()) == 1);
+      CHECK(std::get<0>(l7.front()) == 2);
+    }
+    {
+      auto l =
+          mysql.select(count(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l1 =
+          mysql.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l2 =
+          mysql.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l3 =
+          mysql.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l4 =
+          mysql.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .having("count(*)>0")
+              .AND("sum(id)>0")
+              .OR("sum(id)=2")
+              .collect();
       CHECK(l.size() == 2);
       CHECK(l1.size() == 2);
       CHECK(l2.size() == 2);
@@ -331,65 +367,103 @@ TEST_CASE("optional") {
     postgres.insert<test_optional>({0, "purecpp", 1});
     postgres.insert<test_optional>({0, "test", 2});
     {
-      auto l = postgres.select_count().from<test_optional>().collect();
-      auto l2 = postgres.select_count(col(&test_optional::id))
+      // param() means ?, collect(2) means bind parameters
+      auto l0 = postgres.select_all()
                     .from<test_optional>()
-                    .collect();
-      auto l3 = postgres.select_count_distinct(col(&test_optional::id))
-                    .from<test_optional>()
-                    .collect();
-      CHECK(l == 2);
-      CHECK(l2 == 2);
-      CHECK(l3 == 2);
-
-      auto l4 = postgres.select_sum(col(&test_optional::id))
-                    .from<test_optional>()
-                    .collect();
-      auto l5 = postgres.select_avg(col(&test_optional::id))
-                    .from<test_optional>()
-                    .collect();
-      auto l6 = postgres.select_min(col(&test_optional::id))
-                    .from<test_optional>()
-                    .collect();
-      auto l7 = postgres.select_max(col(&test_optional::id))
-                    .from<test_optional>()
-                    .collect();
-      CHECK(l4 == 3);
-      CHECK(l5 == 1);
-      CHECK(l6 == 1);
-      CHECK(l7 == 2);
+                    .where(col(&test_optional::id).param())
+                    .collect(2);
+      auto l = postgres.select_all()
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).param())
+                   .collect(std::string("test"));
+      CHECK(l0.size() == 1);
+      CHECK(l.size() == 1);
     }
     {
-      auto l = postgres.select_count(col(&test_optional::id))
-                   .select(col(&test_optional::id))
+      auto l0 =
+          postgres
+              .select(col(&test_optional::id), count(col(&test_optional::name)),
+                      col(&test_optional::name), sum(col(&test_optional::id)))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      CHECK(l0.size() == 2);
+      auto l = postgres.select(sum(col(&test_optional::id)), count())
                    .from<test_optional>()
                    .group_by(col(&test_optional::id))
                    .collect();
-      auto l1 = postgres.select_sum(col(&test_optional::id))
-                    .select(col(&test_optional::id))
+      CHECK(l.size() == 2);
+    }
+    {
+      auto l = postgres.select_all().from<test_optional>().collect();
+      auto l1 =
+          postgres.select(col(&test_optional::id), col(&test_optional::name))
+              .from<test_optional>()
+              .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+    }
+    {
+      auto l = postgres.select(count()).from<test_optional>().collect();
+      auto l2 = postgres.select(count(col(&test_optional::id)))
                     .from<test_optional>()
-                    .group_by(col(&test_optional::id))
                     .collect();
-      auto l2 = postgres.select_sum(col(&test_optional::id))
-                    .select(col(&test_optional::id))
+      auto l3 = postgres.select(count_distinct(col(&test_optional::id)))
                     .from<test_optional>()
-                    .group_by(col(&test_optional::id))
                     .collect();
-      auto l3 = postgres.select_sum(col(&test_optional::id))
-                    .select(col(&test_optional::id))
+      CHECK(std::get<0>(l.front()) == 2);
+      CHECK(std::get<0>(l2.front()) == 2);
+      CHECK(std::get<0>(l3.front()) == 2);
+
+      auto l4 = postgres.select(sum(col(&test_optional::id)))
                     .from<test_optional>()
-                    .where(col(&test_optional::id) > 0)
-                    .group_by(col(&test_optional::id))
                     .collect();
-      auto l4 = postgres.select_sum(col(&test_optional::id))
-                    .select(col(&test_optional::id))
+      auto l5 = postgres.select(avg(col(&test_optional::id)))
                     .from<test_optional>()
-                    .where(col(&test_optional::id) > 0)
-                    .group_by(col(&test_optional::id))
-                    .having("count(*)>0")
-                    .AND("sum(id)>0")
-                    .OR("sum(id)=2")
                     .collect();
+      auto l6 = postgres.select(min(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l7 = postgres.select(max(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(std::get<0>(l4.front()) == 3);
+      CHECK(std::get<0>(l5.front()) == 1);
+      CHECK(std::get<0>(l6.front()) == 1);
+      CHECK(std::get<0>(l7.front()) == 2);
+    }
+    {
+      auto l =
+          postgres
+              .select(count(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l1 =
+          postgres.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l2 =
+          postgres.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l3 =
+          postgres.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l4 =
+          postgres.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .having("count(*)>0")
+              .AND("sum(id)>0")
+              .OR("sum(id)=2")
+              .collect();
       CHECK(l.size() == 2);
       CHECK(l1.size() == 2);
       CHECK(l2.size() == 2);
@@ -503,6 +577,21 @@ TEST_CASE("optional") {
       CHECK(l.size() == 1);
     }
     {
+      auto l0 =
+          sqlite
+              .select(col(&test_optional::id), count(col(&test_optional::name)),
+                      col(&test_optional::name), sum(col(&test_optional::id)))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      CHECK(l0.size() == 2);
+      auto l = sqlite.select(sum(col(&test_optional::id)), count())
+                   .from<test_optional>()
+                   .group_by(col(&test_optional::id))
+                   .collect();
+      CHECK(l.size() == 2);
+    }
+    {
       auto l = sqlite.select_all().from<test_optional>().collect();
       auto l1 =
           sqlite.select(col(&test_optional::id), col(&test_optional::name))
@@ -512,65 +601,65 @@ TEST_CASE("optional") {
       CHECK(l1.size() == 2);
     }
     {
-      auto l = sqlite.select_count().from<test_optional>().collect();
-      auto l2 = sqlite.select_count(col(&test_optional::id))
+      auto l = sqlite.select(count()).from<test_optional>().collect();
+      auto l2 = sqlite.select(count(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l3 = sqlite.select_count_distinct(col(&test_optional::id))
+      auto l3 = sqlite.select(count_distinct(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      CHECK(l == 2);
-      CHECK(l2 == 2);
-      CHECK(l3 == 2);
+      CHECK(std::get<0>(l.front()) == 2);
+      CHECK(std::get<0>(l2.front()) == 2);
+      CHECK(std::get<0>(l3.front()) == 2);
 
-      auto l4 = sqlite.select_sum(col(&test_optional::id))
+      auto l4 = sqlite.select(sum(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l5 = sqlite.select_avg(col(&test_optional::id))
+      auto l5 = sqlite.select(avg(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l6 = sqlite.select_min(col(&test_optional::id))
+      auto l6 = sqlite.select(min(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l7 = sqlite.select_max(col(&test_optional::id))
+      auto l7 = sqlite.select(max(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      CHECK(l4 == 3);
-      CHECK(l5 == 1);
-      CHECK(l6 == 1);
-      CHECK(l7 == 2);
+      CHECK(std::get<0>(l4.front()) == 3);
+      CHECK(std::get<0>(l5.front()) == 1);
+      CHECK(std::get<0>(l6.front()) == 1);
+      CHECK(std::get<0>(l7.front()) == 2);
     }
     {
-      auto l = sqlite.select_count(col(&test_optional::id))
-                   .select(col(&test_optional::id))
-                   .from<test_optional>()
-                   .group_by(col(&test_optional::id))
-                   .collect();
-      auto l1 = sqlite.select_sum(col(&test_optional::id))
-                    .select(col(&test_optional::id))
-                    .from<test_optional>()
-                    .group_by(col(&test_optional::id))
-                    .collect();
-      auto l2 = sqlite.select_sum(col(&test_optional::id))
-                    .select(col(&test_optional::id))
-                    .from<test_optional>()
-                    .group_by(col(&test_optional::id))
-                    .collect();
-      auto l3 = sqlite.select_sum(col(&test_optional::id))
-                    .select(col(&test_optional::id))
-                    .from<test_optional>()
-                    .where(col(&test_optional::id) > 0)
-                    .group_by(col(&test_optional::id))
-                    .collect();
-      auto l4 = sqlite.select_sum(col(&test_optional::id))
-                    .select(col(&test_optional::id))
-                    .from<test_optional>()
-                    .where(col(&test_optional::id) > 0)
-                    .group_by(col(&test_optional::id))
-                    .having("count(*)>0")
-                    .AND("sum(id)>0")
-                    .OR("sum(id)=2")
-                    .collect();
+      auto l =
+          sqlite.select(count(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l1 =
+          sqlite.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l2 =
+          sqlite.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l3 =
+          sqlite.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l4 =
+          sqlite.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .having("count(*)>0")
+              .AND("sum(id)>0")
+              .OR("sum(id)=2")
+              .collect();
       CHECK(l.size() == 2);
       CHECK(l1.size() == 2);
       CHECK(l2.size() == 2);

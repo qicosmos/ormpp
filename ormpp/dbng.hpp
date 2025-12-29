@@ -128,17 +128,6 @@ class dbng {
   }
 
   auto select_all() { return db_.template select_all(); }
-  auto select_count(auto... fields) {
-    return db_.template select_count(fields...);
-  }
-
-  auto select_count_distinct(auto field) {
-    return db_.template select_count_distinct(field);
-  }
-  auto select_sum(auto field) { return db_.template select_sum(field); }
-  auto select_avg(auto field) { return db_.template select_avg(field); }
-  auto select_min(auto field) { return db_.template select_min(field); }
-  auto select_max(auto field) { return db_.template select_max(field); }
 
   template <typename Pair, typename U>
   [[deprecated]] bool delete_records(Pair pair, std::string_view oper,
