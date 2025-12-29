@@ -454,6 +454,24 @@ TEST_CASE("optional") {
       CHECK(l7 == 2);
     }
     {
+      auto l = sqlite.select_count(col(&test_optional::id))
+                   .select(col(&test_optional::id))
+                   .from<test_optional>()
+                   .collect();
+      auto l1 = sqlite.select_sum(col(&test_optional::id))
+                    .select(col(&test_optional::id))
+                    .from<test_optional>()
+                    .collect();
+      auto l2 = sqlite.select_sum(col(&test_optional::id))
+                    .select(col(&test_optional::id))
+                    .from<test_optional>()
+                    .group_by(col(&test_optional::id))
+                    .collect();
+      CHECK(l.size() == 1);
+      CHECK(l1.size() == 1);
+      CHECK(l2.size() == 1);
+    }
+    {
       auto l =
           sqlite.select(col(&test_optional::name), col(&test_optional::age))
               .from<test_optional>()

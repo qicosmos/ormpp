@@ -203,6 +203,14 @@ inline std::string join_impl(std::string prefix, auto field1, auto field2) {
   return sql;
 }
 
+template <typename... Args>
+std::string order_by_sql(Args... fields) {
+  std::string sql = " ORDER BY ";
+  (sql.append(fields.name).append(fields.sort_order).append(","), ...);
+  sql.pop_back();
+  return sql;
+}
+
 template <typename DB, typename R>
 struct stage_select;
 
@@ -216,6 +224,7 @@ class query_builder {
     std::string sql_;
     std::string select_clause_;
     std::string from_clause_;
+    std::string group_by_clause_;
     std::string join_clause_;
     std::string where_clause_;
     std::string order_by_clause_;
@@ -325,17 +334,35 @@ class query_builder {
     auto collect() { return ctx->collect(); }
   };
 
+  struct stage_group_by {
+    std::shared_ptr<context> ctx;
+
+    // order by
+    template <typename... Args>
+    stage_order order_by(Args... fields) {
+      ctx->order_by_clause_ = order_by_sql(fields...);
+      return stage_order{ctx};
+    }
+
+    // having
+
+    auto collect() { return ctx->collect(); }
+  };
+
+  template <typename... Args>
+  stage_group_by group_by(Args... fields) {
+    ctx_->group_by_clause_ = " GROUP BY ";
+    (ctx_->group_by_clause_.append(fields.name).append(","), ...);
+    ctx_->group_by_clause_.pop_back();
+    return stage_group_by{ctx_};
+  }
+
   struct stage_where {
     std::shared_ptr<context> ctx;
 
     template <typename... Args>
     stage_order order_by(Args... fields) {
-      ctx->order_by_clause_ = " ORDER BY ";
-      (ctx->order_by_clause_.append(fields.name)
-           .append(fields.sort_order)
-           .append(","),
-       ...);
-      ctx->order_by_clause_.pop_back();
+      ctx->order_by_clause_ = order_by_sql(fields...);
       return stage_order{ctx};
     }
 
@@ -422,6 +449,7 @@ class query_builder {
 
 template <typename DB, typename R = void>
 struct stage_select {
+  using ResultType = R;
   DB db_;
   std::string select_clause_;
 
@@ -475,6 +503,19 @@ struct stage_aggregate_t {
     auto builder = query_builder<T, DB, uint64_t>{db_};
     set_clause(builder);
     return builder;
+  }
+
+  template <typename... Args>
+  auto select(Args... args) {
+    auto sel = ormpp::select(db_, args...);
+    using R = typename decltype(sel)::ResultType;
+    using U = decltype(std::tuple_cat(std::declval<std::tuple<uint64_t>>(),
+                                      std::declval<R>()));
+
+    std::string sel_sql = aggregate_clause_;
+    sel_sql.append(", ").append(sel.select_clause_).append(" ");
+
+    return stage_select<DB, U>{db_, sel_sql};
   }
 
  private:
