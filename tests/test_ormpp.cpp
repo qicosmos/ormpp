@@ -261,9 +261,7 @@ TEST_CASE("optional") {
               .from<test_optional>()
               .where(col(&test_optional::id) > 0)
               .group_by(col(&test_optional::id))
-              .having("count(*)>0")
-              .AND("sum(id)>0")
-              .OR("sum(id)=2")
+              .having(sum(col(&test_optional::age)) > 0 && count() > 0)
               .collect();
       CHECK(l.size() == 2);
       CHECK(l1.size() == 2);
@@ -460,9 +458,7 @@ TEST_CASE("optional") {
               .from<test_optional>()
               .where(col(&test_optional::id) > 0)
               .group_by(col(&test_optional::id))
-              .having("count(*)>0")
-              .AND("sum(id)>0")
-              .OR("sum(id)=2")
+              .having(sum(col(&test_optional::age)) > 0 && count() > 0)
               .collect();
       CHECK(l.size() == 2);
       CHECK(l1.size() == 2);
@@ -652,13 +648,11 @@ TEST_CASE("optional") {
               .group_by(col(&test_optional::id))
               .collect();
       auto l4 =
-          sqlite.select(sum(col(&test_optional::id)), col(&test_optional::id))
+          sqlite.select(sum(col(&test_optional::age)), col(&test_optional::id))
               .from<test_optional>()
               .where(col(&test_optional::id) > 0)
               .group_by(col(&test_optional::id))
-              .having("count(*)>0")
-              .AND("sum(id)>0")
-              .OR("sum(id)=2")
+              .having(sum(col(&test_optional::age)) > 0 && count() > 0)
               .collect();
       CHECK(l.size() == 2);
       CHECK(l1.size() == 2);

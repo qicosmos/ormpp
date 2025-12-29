@@ -136,8 +136,9 @@ where_condition operator&&(where_condition lhs, where_condition rhs) {
   return where_condition{lhs.to_sql(), " AND ", rhs.to_sql()};
 }
 
-template <typename M, typename value_type>
-where_condition build_where(col_info<M> field, value_type val, std::string op) {
+where_condition build_where(auto field, auto val, std::string op) {
+  using M = typename decltype(field)::value_type;
+  using value_type = decltype(val);
   if constexpr (iguana::array_v<M>) {
     static_assert(
         std::is_same_v<typename M::value_type, typename value_type::value_type>,
@@ -147,7 +148,13 @@ where_condition build_where(col_info<M> field, value_type val, std::string op) {
     static_assert(std::is_constructible_v<M, value_type>, "invalid type");
   }
   std::string name(field.class_name);
-  name.append(".").append(field.name);
+  if (name.empty()) {
+    name.append(field.name);
+  }
+  else {
+    name.append(".").append(field.name);
+  }
+
   if constexpr (std::is_arithmetic_v<value_type>) {
     return where_condition{name, op, std::to_string(val)};
   }
@@ -188,6 +195,65 @@ template <typename M>
 auto operator<(col_info<M> field, M val) {
   return build_where(field, val, "<");
 }
+
+template <typename Arg>
+struct aggregate_field {
+  using value_type = Arg;
+  std::string name;
+  std::string_view class_name;
+};
+
+template <typename M>
+auto operator==(aggregate_field<M> field, auto val) {
+  return build_where(field, val, "=");
+}
+
+template <typename M>
+auto operator!=(aggregate_field<M> field, auto val) {
+  return build_where(field, val, "!=");
+}
+
+template <typename M>
+auto operator>(aggregate_field<M> field, auto val) {
+  return build_where(field, val, ">");
+}
+
+template <typename M>
+auto operator>=(aggregate_field<M> field, auto val) {
+  return build_where(field, val, ">=");
+}
+
+template <typename M>
+auto operator<(aggregate_field<M> field, auto val) {
+  return build_where(field, val, "<");
+}
+
+template <typename M>
+auto operator<=(aggregate_field<M> field, auto val) {
+  return build_where(field, val, "<=");
+}
+
+inline auto count() { return aggregate_field<uint64_t>{"COUNT(*)"}; }
+
+inline auto build_aggregate_field(std::string prefix, auto field) {
+  std::string str = std::move(prefix);
+  str.append(field.class_name).append(".").append(field.name).append(")");
+  return aggregate_field<uint64_t>{str};
+}
+
+inline auto count(auto field) { return build_aggregate_field("COUNT(", field); }
+
+inline auto count_distinct(auto field) {
+  return build_aggregate_field("COUNT(DISTINCT ", field);
+}
+
+inline auto sum(auto field) { return build_aggregate_field("SUM(", field); }
+
+inline auto avg(auto field) { return build_aggregate_field("AVG(", field); }
+
+inline auto min(auto field) { return build_aggregate_field("MIN(", field); }
+
+inline auto max(auto field) { return build_aggregate_field("MAX(", field); }
 
 template <typename T>
 inline std::string join_impl(std::string prefix, auto field1, auto field2) {
@@ -397,9 +463,9 @@ class query_builder {
     }
 
     // having
-    stage_having having(std::string cond) {
+    stage_having having(auto cond) {
       ctx->having_clause_ = " HAVING ";
-      ctx->having_clause_.append(cond);
+      ctx->having_clause_.append(cond.to_sql());
       return stage_having{ctx};
     }
 
@@ -434,7 +500,11 @@ class query_builder {
     template <typename... Args>
     stage_group_by group_by(Args... fields) {
       ctx->group_by_clause_ = " GROUP BY ";
-      (ctx->group_by_clause_.append(fields.name).append(","), ...);
+      (ctx->group_by_clause_.append(fields.class_name)
+           .append(".")
+           .append(fields.name)
+           .append(","),
+       ...);
       ctx->group_by_clause_.pop_back();
       return stage_group_by{ctx};
     }
@@ -538,35 +608,6 @@ struct stage_select {
 
 template <typename T>
 concept HasName = requires(T t) { t.name; };
-
-template <typename Arg>
-struct aggregate_field {
-  using value_type = Arg;
-  std::string name;
-  std::string_view class_name;
-};
-
-inline auto count() { return aggregate_field<uint64_t>{"COUNT(*)"}; }
-
-inline auto build_aggregate_field(std::string prefix, auto field) {
-  std::string str = std::move(prefix);
-  str.append(field.class_name).append(".").append(field.name).append(")");
-  return aggregate_field<uint64_t>{str};
-}
-
-inline auto count(auto field) { return build_aggregate_field("COUNT(", field); }
-
-inline auto count_distinct(auto field) {
-  return build_aggregate_field("COUNT(DISTINCT ", field);
-}
-
-inline auto sum(auto field) { return build_aggregate_field("SUM(", field); }
-
-inline auto avg(auto field) { return build_aggregate_field("AVG(", field); }
-
-inline auto min(auto field) { return build_aggregate_field("MIN(", field); }
-
-inline auto max(auto field) { return build_aggregate_field("MAX(", field); }
 
 template <typename Arg>
 auto append_select(auto& sel, Arg arg) {
