@@ -171,11 +171,11 @@ TEST_CASE("optional") {
     mysql.insert<test_optional>({0, "test", 2});
     {
       // param() means ?, collect(2) means bind parameters
-      auto l0 = mysql.select_all()
+      auto l0 = mysql.select(all)
                     .from<test_optional>()
                     .where(col(&test_optional::id).param())
                     .collect(2);
-      auto l = mysql.select_all()
+      auto l = mysql.select(all)
                    .from<test_optional>()
                    .where(col(&test_optional::name).param())
                    .collect(std::string("test"));
@@ -198,7 +198,7 @@ TEST_CASE("optional") {
       CHECK(l.size() == 2);
     }
     {
-      auto l = mysql.select_all().from<test_optional>().collect();
+      auto l = mysql.select(all).from<test_optional>().collect();
       auto l1 = mysql.select(col(&test_optional::id), col(&test_optional::name))
                     .from<test_optional>()
                     .collect();
@@ -269,22 +269,22 @@ TEST_CASE("optional") {
       CHECK(l3.size() == 2);
       CHECK(l4.size() == 2);
     }
-    auto l1 = mysql.select_all()
+    auto l1 = mysql.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::id).in(1, 2))
                   .order_by(col(&test_optional::id).desc())
                   .limit(5)
                   .offset(0)
                   .collect();
-    auto ll1 = mysql.select_all()
+    auto ll1 = mysql.select(all)
                    .from<test_optional>()
                    .where(col(&test_optional::id).not_in(1, 2))
                    .collect();
-    auto ll2 = mysql.select_all()
+    auto ll2 = mysql.select(all)
                    .from<test_optional>()
                    .where(col(&test_optional::id).null())
                    .collect();
-    auto ll3 = mysql.select_all()
+    auto ll3 = mysql.select(all)
                    .from<test_optional>()
                    .where(col(&test_optional::name).not_null())
                    .collect();
@@ -292,23 +292,23 @@ TEST_CASE("optional") {
     CHECK(ll2.size() == 0);
     CHECK(ll3.size() == 2);
 
-    auto l2 = mysql.select_all()
+    auto l2 = mysql.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::name).in("test", "purecpp"))
                   .collect();
     CHECK(l1.size() == 2);
     CHECK(l2.size() == 2);
 
-    auto l3 = mysql.select_all()
+    auto l3 = mysql.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::id).between(1, 2))
                   .collect();
 
-    auto l4 = mysql.select_all()
+    auto l4 = mysql.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::name).between("purecpp", "test"))
                   .collect();
-    auto l5 = mysql.select_all()
+    auto l5 = mysql.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::name).like("pure%"))
                   .collect();
@@ -316,19 +316,19 @@ TEST_CASE("optional") {
     CHECK(l4.size() == 2);
     CHECK(l5.size() == 1);
     auto list =
-        mysql.select_all()
+        mysql.select(all)
             .from<test_optional>()
             .where(col(&test_optional::id) == 1 || col(&test_optional::id) == 2)
             .collect();
     REQUIRE(list.size() == 2);
-    auto list1 = mysql.select_all().from<test_optional>().collect();
+    auto list1 = mysql.select(all).from<test_optional>().collect();
     REQUIRE(list1.size() == 2);
-    auto list2 = mysql.select_all()
+    auto list2 = mysql.select(all)
                      .from<test_optional>()
                      .where(col(&test_optional::id) == 2)
                      .collect();
     REQUIRE(list2.size() == 1);
-    auto list3 = mysql.select_all()
+    auto list3 = mysql.select(all)
                      .from<test_optional>()
                      .where(col(&test_optional::name) == "test")
                      .collect();
@@ -366,11 +366,11 @@ TEST_CASE("optional") {
     postgres.insert<test_optional>({0, "test", 2});
     {
       // param() means ?, collect(2) means bind parameters
-      auto l0 = postgres.select_all()
+      auto l0 = postgres.select(all)
                     .from<test_optional>()
                     .where(col(&test_optional::id).param())
                     .collect(2);
-      auto l = postgres.select_all()
+      auto l = postgres.select(all)
                    .from<test_optional>()
                    .where(col(&test_optional::name).param())
                    .collect(std::string("test"));
@@ -393,7 +393,7 @@ TEST_CASE("optional") {
       CHECK(l.size() == 2);
     }
     {
-      auto l = postgres.select_all().from<test_optional>().collect();
+      auto l = postgres.select(all).from<test_optional>().collect();
       auto l1 =
           postgres.select(col(&test_optional::id), col(&test_optional::name))
               .from<test_optional>()
@@ -466,22 +466,22 @@ TEST_CASE("optional") {
       CHECK(l3.size() == 2);
       CHECK(l4.size() == 2);
     }
-    auto l1 = postgres.select_all()
+    auto l1 = postgres.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::id).in(1, 2))
                   .order_by(col(&test_optional::id).desc())
                   .limit(5)
                   .offset(0)
                   .collect();
-    auto ll1 = postgres.select_all()
+    auto ll1 = postgres.select(all)
                    .from<test_optional>()
                    .where(col(&test_optional::id).not_in(1, 2))
                    .collect();
-    auto ll2 = postgres.select_all()
+    auto ll2 = postgres.select(all)
                    .from<test_optional>()
                    .where(col(&test_optional::id).null())
                    .collect();
-    auto ll3 = postgres.select_all()
+    auto ll3 = postgres.select(all)
                    .from<test_optional>()
                    .where(col(&test_optional::name).not_null())
                    .collect();
@@ -489,23 +489,23 @@ TEST_CASE("optional") {
     CHECK(ll2.size() == 0);
     CHECK(ll3.size() == 2);
 
-    auto l2 = postgres.select_all()
+    auto l2 = postgres.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::name).in("test", "purecpp"))
                   .collect();
     CHECK(l1.size() == 2);
     CHECK(l2.size() == 2);
 
-    auto l3 = postgres.select_all()
+    auto l3 = postgres.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::id).between(1, 2))
                   .collect();
 
-    auto l4 = postgres.select_all()
+    auto l4 = postgres.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::name).between("purecpp", "test"))
                   .collect();
-    auto l5 = postgres.select_all()
+    auto l5 = postgres.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::name).like("pure%"))
                   .collect();
@@ -513,19 +513,19 @@ TEST_CASE("optional") {
     CHECK(l4.size() == 2);
     CHECK(l5.size() == 1);
     auto list =
-        postgres.select_all()
+        postgres.select(all)
             .from<test_optional>()
             .where(col(&test_optional::id) == 1 || col(&test_optional::id) == 2)
             .collect();
     REQUIRE(list.size() == 2);
-    auto list1 = postgres.select_all().from<test_optional>().collect();
+    auto list1 = postgres.select(all).from<test_optional>().collect();
     REQUIRE(list1.size() == 2);
-    auto list2 = postgres.select_all()
+    auto list2 = postgres.select(all)
                      .from<test_optional>()
                      .where(col(&test_optional::id) == 2)
                      .collect();
     REQUIRE(list2.size() == 1);
-    auto list3 = postgres.select_all()
+    auto list3 = postgres.select(all)
                      .from<test_optional>()
                      .where(col(&test_optional::name) == "test")
                      .collect();
@@ -561,11 +561,11 @@ TEST_CASE("optional") {
     sqlite.insert<test_optional>({0, "test", 2});
     {
       // param() means ?, collect(2) means bind parameters
-      auto l0 = sqlite.select_all()
+      auto l0 = sqlite.select(all)
                     .from<test_optional>()
                     .where(col(&test_optional::id).param())
                     .collect(2);
-      auto l = sqlite.select_all()
+      auto l = sqlite.select(all)
                    .from<test_optional>()
                    .where(col(&test_optional::name).param())
                    .collect(std::string("test"));
@@ -588,7 +588,7 @@ TEST_CASE("optional") {
       CHECK(l.size() == 2);
     }
     {
-      auto l = sqlite.select_all().from<test_optional>().collect();
+      auto l = sqlite.select(all).from<test_optional>().collect();
       auto l1 =
           sqlite.select(col(&test_optional::id), col(&test_optional::name))
               .from<test_optional>()
@@ -674,7 +674,7 @@ TEST_CASE("optional") {
       CHECK(l2.size() == 1);
       sqlite.execute("DROP TABLE IF EXISTS person");
     }
-    auto l1 = sqlite.select_all()
+    auto l1 = sqlite.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::id).in(1, 2))
                   .order_by(col(&test_optional::id).desc(),
@@ -682,15 +682,15 @@ TEST_CASE("optional") {
                   .limit(5)
                   .offset(0)
                   .collect();
-    auto ll1 = sqlite.select_all()
+    auto ll1 = sqlite.select(all)
                    .from<test_optional>()
                    .where(col(&test_optional::id).not_in(1, 2))
                    .collect();
-    auto ll2 = sqlite.select_all()
+    auto ll2 = sqlite.select(all)
                    .from<test_optional>()
                    .where(col(&test_optional::id).null())
                    .collect();
-    auto ll3 = sqlite.select_all()
+    auto ll3 = sqlite.select(all)
                    .from<test_optional>()
                    .where(col(&test_optional::name).not_null())
                    .collect();
@@ -698,23 +698,23 @@ TEST_CASE("optional") {
     CHECK(ll2.size() == 0);
     CHECK(ll3.size() == 2);
 
-    auto l2 = sqlite.select_all()
+    auto l2 = sqlite.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::name).in("test", "purecpp"))
                   .collect();
     CHECK(l1.size() == 2);
     CHECK(l2.size() == 2);
 
-    auto l3 = sqlite.select_all()
+    auto l3 = sqlite.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::id).between(1, 2))
                   .collect();
 
-    auto l4 = sqlite.select_all()
+    auto l4 = sqlite.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::name).between("purecpp", "test"))
                   .collect();
-    auto l5 = sqlite.select_all()
+    auto l5 = sqlite.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::name).like("pure%"))
                   .collect();
@@ -722,19 +722,19 @@ TEST_CASE("optional") {
     CHECK(l4.size() == 2);
     CHECK(l5.size() == 1);
     auto list =
-        sqlite.select_all()
+        sqlite.select(all)
             .from<test_optional>()
             .where(col(&test_optional::id) == 1 || col(&test_optional::id) == 2)
             .collect();
     REQUIRE(list.size() == 2);
-    auto list1 = sqlite.select_all().from<test_optional>().collect();
+    auto list1 = sqlite.select(all).from<test_optional>().collect();
     REQUIRE(list1.size() == 2);
-    auto list2 = sqlite.select_all()
+    auto list2 = sqlite.select(all)
                      .from<test_optional>()
                      .where(col(&test_optional::id) == 2)
                      .collect();
     REQUIRE(list2.size() == 1);
-    auto list3 = sqlite.select_all()
+    auto list3 = sqlite.select(all)
                      .from<test_optional>()
                      .where(col(&test_optional::name) == "test")
                      .collect();
@@ -754,13 +754,6 @@ TEST_CASE("optional") {
 }
 
 /*
-support where ?
-sqlite.select(count(col(&test_optional::id)),
-sum(col(&test_optional::score))).from<test_optional>();
-sqlite.select_all().from<test_optional>().for_each([](const test_optional& row)
-{
-    // 流式处理，无需一次性分配巨大 vector
-});
 表别名, 聚合结果别名
 */
 struct test_order {
@@ -1081,7 +1074,7 @@ TEST_CASE("insert query") {
     mysql.insert(person{"tom", 18});
     auto vec = mysql.query_s<person>("id<5");
     auto vec1 =
-        mysql.select_all().from<person>().where(col(&person::id) < 5).collect();
+        mysql.select(all).from<person>().where(col(&person::id) < 5).collect();
     CHECK(vec.size() == vec1.size());
     CHECK(vec.front().name == vec1.front().name);
   }
@@ -1092,7 +1085,7 @@ TEST_CASE("insert query") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.insert(person{"tom", 18});
     auto vec = postgres.query_s<person>("id<5");
-    auto vec1 = postgres.select_all()
+    auto vec1 = postgres.select(all)
                     .from<person>()
                     .where(col(&person::id) < 5)
                     .collect();
@@ -1110,10 +1103,8 @@ TEST_CASE("insert query") {
 #endif
     sqlite.insert(person{"tom", 18});
     auto vec = sqlite.query_s<person>("id<5");
-    auto vec1 = sqlite.select_all()
-                    .from<person>()
-                    .where(col(&person::id) < 5)
-                    .collect();
+    auto vec1 =
+        sqlite.select(all).from<person>().where(col(&person::id) < 5).collect();
     CHECK(vec.size() == vec1.size());
     CHECK(vec.front().name == vec1.front().name);
   }

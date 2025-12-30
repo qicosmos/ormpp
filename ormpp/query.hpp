@@ -648,6 +648,10 @@ stage_select<DB, std::tuple<typename Args::value_type...>> select(
   return sel;
 }
 
+struct all_t {};
+
+inline constexpr auto all = all_t{};
+
 template <typename DB>
 stage_select<DB, void> select_all(DB db) {
   return stage_select<DB>{db};
