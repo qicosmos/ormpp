@@ -445,16 +445,6 @@ class query_builder {
       return stage_order{ctx};
     }
 
-    stage_having& AND(std::string cond) {
-      ctx->having_clause_.append(" AND ").append(cond).append(" ");
-      return *this;
-    }
-
-    stage_having& OR(std::string cond) {
-      ctx->having_clause_.append(" OR ").append(cond).append(" ");
-      return *this;
-    }
-
     template <typename... Args>
     auto collect(Args... args) {
       return ctx->collect(args...);
