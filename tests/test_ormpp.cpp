@@ -213,9 +213,9 @@ TEST_CASE("optional") {
       auto l3 = mysql.select(count_distinct(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      CHECK(std::get<0>(l.front()) == 2);
-      CHECK(std::get<0>(l2.front()) == 2);
-      CHECK(std::get<0>(l3.front()) == 2);
+      CHECK(l == 2);
+      CHECK(l2 == 2);
+      CHECK(l3 == 2);
 
       auto l4 = mysql.select(sum(col(&test_optional::id)))
                     .from<test_optional>()
@@ -229,10 +229,18 @@ TEST_CASE("optional") {
       auto l7 = mysql.select(max(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      CHECK(std::get<0>(l4.front()) == 3);
-      CHECK(std::get<0>(l5.front()) == 1.5);
-      CHECK(std::get<0>(l6.front()) == 1);
-      CHECK(std::get<0>(l7.front()) == 2);
+      auto l8 = sqlite.select(min(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      auto l9 = sqlite.select(max(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l4 == 3);
+      CHECK(l5 == 1.5);
+      CHECK(l6 == 1);
+      CHECK(l7 == 2);
+      CHECK(l8 == "purecpp");
+      CHECK(l9 == "test");
     }
     {
       auto l =
@@ -409,9 +417,9 @@ TEST_CASE("optional") {
       auto l3 = postgres.select(count_distinct(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      CHECK(std::get<0>(l.front()) == 2);
-      CHECK(std::get<0>(l2.front()) == 2);
-      CHECK(std::get<0>(l3.front()) == 2);
+      CHECK(l == 2);
+      CHECK(l2 == 2);
+      CHECK(l3 == 2);
 
       auto l4 = postgres.select(sum(col(&test_optional::id)))
                     .from<test_optional>()
@@ -425,10 +433,18 @@ TEST_CASE("optional") {
       auto l7 = postgres.select(max(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      CHECK(std::get<0>(l4.front()) == 3);
-      CHECK(std::get<0>(l5.front()) == 1.5);
-      CHECK(std::get<0>(l6.front()) == 1);
-      CHECK(std::get<0>(l7.front()) == 2);
+      auto l8 = sqlite.select(min(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      auto l9 = sqlite.select(max(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l4 == 3);
+      CHECK(l5 == 1.5);
+      CHECK(l6 == 1);
+      CHECK(l7 == 2);
+      CHECK(l8 == "purecpp");
+      CHECK(l9 == "test");
     }
     {
       auto l =
@@ -604,9 +620,9 @@ TEST_CASE("optional") {
       auto l3 = sqlite.select(count_distinct(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      CHECK(std::get<0>(l.front()) == 2);
-      CHECK(std::get<0>(l2.front()) == 2);
-      CHECK(std::get<0>(l3.front()) == 2);
+      CHECK(l == 2);
+      CHECK(l2 == 2);
+      CHECK(l3 == 2);
 
       auto l4 = sqlite.select(sum(col(&test_optional::id)))
                     .from<test_optional>()
@@ -620,10 +636,18 @@ TEST_CASE("optional") {
       auto l7 = sqlite.select(max(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      CHECK(std::get<0>(l4.front()) == 3);
-      CHECK(std::get<0>(l5.front()) == 1.5);
-      CHECK(std::get<0>(l6.front()) == 1);
-      CHECK(std::get<0>(l7.front()) == 2);
+      auto l8 = sqlite.select(min(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      auto l9 = sqlite.select(max(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l4 == 3);
+      CHECK(l5 == 1.5);
+      CHECK(l6 == 1);
+      CHECK(l7 == 2);
+      CHECK(l8 == "purecpp");
+      CHECK(l9 == "test");
     }
     {
       auto l =

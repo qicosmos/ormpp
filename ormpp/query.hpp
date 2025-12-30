@@ -367,13 +367,9 @@ class query_builder {
           .append(limit_clause_)
           .append(offset_clause_);
 
-      if constexpr (std::is_integral_v<R>) {
-        std::string sql = "select ";
-        sql.append(aggregate_clause())
-            .append(" from ")
-            .append(ylt::reflection::get_struct_name<T>())
-            .append(";");
-        auto t = db_->template query_s<std::tuple<R>>(sql, args...);
+      if constexpr (!ylt::reflection::is_ylt_refl_v<R> && !std::is_void_v<R> &&
+                    !iguana::tuple_v<R>) {
+        auto t = db_->template query_s<std::tuple<R>>(sql_, args...);
         if (t.empty()) {
           return R{};
         }
@@ -583,17 +579,6 @@ class query_builder {
     return stage_inner_join{ctx_};
   }
 
-  struct stage_from {
-    std::shared_ptr<context> ctx;
-
-    stage_where where(const where_condition& condition) {
-      ctx->where_clause_ = condition.to_sql();
-      return stage_where{ctx};
-    }
-
-    auto collect() { return ctx->template collect(); }
-  };
-
  private:
   friend struct stage_select<DB, R>;
   friend struct stage_aggregate_t<DB>;
@@ -635,17 +620,28 @@ auto append_select(auto& sel, Arg arg) {
       .append(",");
 }
 
-template <typename DB, typename... Args>
-stage_select<DB, std::tuple<typename Args::value_type...>> select(
-    DB db, Args... args) {
-  static_assert(sizeof...(Args) > 0, "must choose at least one field");
-  using Tuple = std::tuple<typename Args::value_type...>;
-  stage_select<DB, Tuple> sel{db};
-
+template <typename R, typename DB, typename... Args>
+auto create_stage_select(DB db, Args... args) {
+  stage_select<DB, R> sel{db};
   (append_select(sel, args), ...);
   sel.select_clause_.pop_back();
 
   return sel;
+}
+
+template <typename DB, typename... Args>
+auto select(DB db, Args... args) {
+  static_assert(sizeof...(Args) > 0, "must choose at least one field");
+  using Tuple = std::tuple<typename Args::value_type...>;
+  using First = std::tuple_element_t<0, Tuple>;
+  using ArgType = std::tuple_element_t<0, std::tuple<Args...>>;
+  if constexpr (std::tuple_size_v<Tuple> == 1 &&
+                std::is_same_v<ArgType, aggregate_field<First>>) {
+    return create_stage_select<First>(db, args...);
+  }
+  else {
+    return create_stage_select<Tuple>(db, args...);
+  }
 }
 
 struct all_t {};
