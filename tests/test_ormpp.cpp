@@ -230,7 +230,7 @@ TEST_CASE("optional") {
                     .from<test_optional>()
                     .collect();
       CHECK(std::get<0>(l4.front()) == 3);
-      CHECK(std::get<0>(l5.front()) == 1);
+      CHECK(std::get<0>(l5.front()) == 1.5);
       CHECK(std::get<0>(l6.front()) == 1);
       CHECK(std::get<0>(l7.front()) == 2);
     }
@@ -426,7 +426,7 @@ TEST_CASE("optional") {
                     .from<test_optional>()
                     .collect();
       CHECK(std::get<0>(l4.front()) == 3);
-      CHECK(std::get<0>(l5.front()) == 1);
+      CHECK(std::get<0>(l5.front()) == 1.5);
       CHECK(std::get<0>(l6.front()) == 1);
       CHECK(std::get<0>(l7.front()) == 2);
     }
@@ -621,7 +621,7 @@ TEST_CASE("optional") {
                     .from<test_optional>()
                     .collect();
       CHECK(std::get<0>(l4.front()) == 3);
-      CHECK(std::get<0>(l5.front()) == 1);
+      CHECK(std::get<0>(l5.front()) == 1.5);
       CHECK(std::get<0>(l6.front()) == 1);
       CHECK(std::get<0>(l7.front()) == 2);
     }

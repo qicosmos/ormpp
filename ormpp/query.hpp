@@ -235,25 +235,38 @@ auto operator<=(aggregate_field<M> field, auto val) {
 
 inline auto count() { return aggregate_field<uint64_t>{"COUNT(*)"}; }
 
+template <typename T>
 inline auto build_aggregate_field(std::string prefix, auto field) {
   std::string str = std::move(prefix);
   str.append(field.class_name).append(".").append(field.name).append(")");
-  return aggregate_field<uint64_t>{str};
+  return aggregate_field<T>{str};
 }
 
-inline auto count(auto field) { return build_aggregate_field("COUNT(", field); }
+inline auto count(auto field) {
+  return build_aggregate_field<uint64_t>("COUNT(", field);
+}
 
 inline auto count_distinct(auto field) {
-  return build_aggregate_field("COUNT(DISTINCT ", field);
+  return build_aggregate_field<uint64_t>("COUNT(DISTINCT ", field);
 }
 
-inline auto sum(auto field) { return build_aggregate_field("SUM(", field); }
+inline auto sum(auto field) {
+  return build_aggregate_field<uint64_t>("SUM(", field);
+}
 
-inline auto avg(auto field) { return build_aggregate_field("AVG(", field); }
+inline auto avg(auto field) {
+  return build_aggregate_field<double>("AVG(", field);
+}
 
-inline auto min(auto field) { return build_aggregate_field("MIN(", field); }
+inline auto min(auto field) {
+  return build_aggregate_field<typename decltype(field)::value_type>("MIN(",
+                                                                     field);
+}
 
-inline auto max(auto field) { return build_aggregate_field("MAX(", field); }
+inline auto max(auto field) {
+  return build_aggregate_field<typename decltype(field)::value_type>("MAX(",
+                                                                     field);
+}
 
 template <typename T>
 inline std::string join_impl(std::string prefix, auto field1, auto field2) {
