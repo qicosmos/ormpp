@@ -259,12 +259,12 @@ inline auto avg(auto field) {
 }
 
 template <typename Field>
-inline auto min(Field field) {
+inline auto(min)(Field field) {
   return build_aggregate_field<typename Field::value_type>("MIN(", field);
 }
 
 template <typename Field>
-inline auto max(Field field) {
+inline auto(max)(Field field) {
   return build_aggregate_field<typename Field::value_type>("MAX(", field);
 }
 
