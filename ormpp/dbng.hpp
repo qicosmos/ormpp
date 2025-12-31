@@ -127,7 +127,7 @@ class dbng {
     return db_.template select(args...);
   }
 
-  auto select(all_t a) { return db_.template select_all(); }
+  auto select(all_t a) { return db_.select_all(); }
 
   template <typename Pair, typename U>
   [[deprecated]] bool delete_records(Pair pair, std::string_view oper,
