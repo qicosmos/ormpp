@@ -187,7 +187,7 @@ TEST_CASE("optional") {
       CHECK(l0.size() == 1);
       CHECK(l.size() == 1);
       auto l1 =
-          sqlite.select(col(&test_optional::name), col(&test_optional::age))
+          mysql.select(col(&test_optional::name), col(&test_optional::age))
               .from<test_optional>()
               .where(col(&test_optional::id).param())
               .collect<sub_optinal>(2);
@@ -397,7 +397,7 @@ TEST_CASE("optional") {
       CHECK(l0.size() == 1);
       CHECK(l.size() == 1);
       auto l1 =
-          sqlite.select(col(&test_optional::name), col(&test_optional::age))
+          postgres.select(col(&test_optional::name), col(&test_optional::age))
               .from<test_optional>()
               .where(col(&test_optional::id).param())
               .collect<sub_optinal>(2);
