@@ -46,7 +46,7 @@ struct col_info {
   where_condition param() {
     std::string str(class_name);
     str.append(".").append(name);
-    return where_condition{str, " = ", "?"};
+    return where_condition{str, " = ", "?  "};
   }
 
   template <typename... Args>
@@ -159,7 +159,7 @@ where_condition build_where(auto field, auto val, std::string op) {
     return where_condition{name, op, std::to_string(val)};
   }
   else {
-    if (val == "?") {
+    if (val == "?  ") {
       return where_condition{name, op, val};
     }
     return where_condition{name, op, val, true};
@@ -357,6 +357,19 @@ class query_builder {
           where_clause_.insert(0, " where ");
         }
       }
+#ifdef ORMPP_ENABLE_PG
+      if (!where_clause_.empty()) {
+        int index = 1;
+        for (size_t i = 0; i < where_clause_.size(); i++) {
+          if (where_clause_[i] == '?') {
+            where_clause_[i] = '$';
+            std::string index_str = std::to_string(index++);
+            std::memcpy(&where_clause_[i + 1], index_str.data(),
+                        (std::min)(index_str.size(), size_t(2)));
+          }
+        }
+      }
+#endif
 
       sql_.append(join_clause_)
           .append(where_clause_)

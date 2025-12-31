@@ -609,8 +609,9 @@ TEST_CASE("optional") {
       auto l1 =
           sqlite.select(col(&test_optional::name), col(&test_optional::age))
               .from<test_optional>()
-              .where(col(&test_optional::id).param())
-              .collect<sub_optinal>(2);
+              .where(col(&test_optional::id).param() &&
+                     col(&test_optional::name).param())
+              .collect<sub_optinal>(2, std::string("test"));
       sub_optinal t = l1.front();
       CHECK(l1.size() == 1);
     }
