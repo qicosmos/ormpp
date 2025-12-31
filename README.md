@@ -47,6 +47,7 @@ ormpp是modern c++(c++11/14/17)开发的ORM库，目前支持了三种数据库�
 1. unified interface
 1. easy to use
 1. easy to change database
+2. 支持安全的链式调用
 
 你通过ormpp可以很容易地实现数据库的各种操作了，大部情况下甚至都不需要写sql语句。ormpp是基于编译期反射的，会帮你实现自动化的实体映射，你再也不用写对象到数据表相互赋值的繁琐易出错的代码了，更酷的是你可以很方便地切换数据库，如果需要从mysql切换到postgresql或sqlite只需要修改一下数据库类型就可以了，无需修改其他代码。
 
@@ -61,7 +62,6 @@ struct person {
   int id;
 };
 REGISTER_AUTO_KEY(person, id)
-YLT_REFL(person, id, name, age)
 ```
 
 ## 冲突主键
@@ -78,10 +78,132 @@ struct student {
   std::string classroom;
 };
 REGISTER_CONFLICT_KEY(student, code)
-YLT_REFL(student, code, name, sex, age, dm, classroom)
 ```
 
 ## 快速示例
+
+### 链式调用
+#### 简单查询
+```cpp
+auto l = sqlite.select(all).from<test_optional>().collect();
+
+auto l1 =
+    sqlite.select(col(&test_optional::id), col(&test_optional::name))
+        .from<test_optional>()
+        .collect();
+
+auto l2 = sqlite.select(all)
+              .from<test_optional>()
+              .where(col(&test_optional::id).in(1, 2))
+              .order_by(col(&test_optional::id).desc(),
+                        col(&test_optional::name).desc())
+              .limit(5)
+              .offset(0)
+              .collect();
+```
+
+#### 绑定参数
+```cpp
+// 调用param() 意味着它是一个占位符'?', 调用collect(2) 意味着绑定对应的参数
+auto l0 = sqlite.select(all)
+              .from<test_optional>()
+              .where(col(&test_optional::id).param())
+              .collect(2);
+auto l = sqlite.select(all)
+             .from<test_optional>()
+             .where(col(&test_optional::name).param())
+             .collect(std::string("test"));
+CHECK(l0.size() == 1);
+CHECK(l.size() == 1);
+```
+
+#### 简单聚合查询
+```cpp
+auto l = sqlite.select(count()).from<test_optional>().collect();
+auto l2 = sqlite.select(count(col(&test_optional::id)))
+              .from<test_optional>()
+              .collect();
+auto l3 = sqlite.select(count_distinct(col(&test_optional::id)))
+              .from<test_optional>()
+              .collect();
+CHECK(l == 2);
+CHECK(l2 == 2);
+CHECK(l3 == 2);
+
+auto l4 = sqlite.select(sum(col(&test_optional::id)))
+              .from<test_optional>()
+              .collect();
+auto l5 = sqlite.select(avg(col(&test_optional::id)))
+              .from<test_optional>()
+              .collect();
+auto l6 = sqlite.select(min(col(&test_optional::id)))
+              .from<test_optional>()
+              .collect();
+auto l7 = sqlite.select(max(col(&test_optional::id)))
+              .from<test_optional>()
+              .collect();
+```
+
+#### 聚合加group by查询
+```cpp
+auto l =
+    sqlite.select(count(col(&test_optional::id)), col(&test_optional::id))
+        .from<test_optional>()
+        .group_by(col(&test_optional::id))
+        .collect();
+auto l1 =
+    sqlite.select(sum(col(&test_optional::id)), col(&test_optional::id))
+        .from<test_optional>()
+        .group_by(col(&test_optional::id))
+        .collect();
+auto l2 =
+    sqlite.select(sum(col(&test_optional::id)), col(&test_optional::id))
+        .from<test_optional>()
+        .group_by(col(&test_optional::id))
+        .collect();
+auto l3 =
+    sqlite.select(sum(col(&test_optional::id)), col(&test_optional::id))
+        .from<test_optional>()
+        .where(col(&test_optional::id) > 0)
+        .group_by(col(&test_optional::id))
+        .collect();
+auto l4 =
+    sqlite.select(sum(col(&test_optional::age)), col(&test_optional::id))
+        .from<test_optional>()
+        .where(col(&test_optional::id) > 0)
+        .group_by(col(&test_optional::id))
+        .having(sum(col(&test_optional::age)) > 0 && count() > 0)
+        .collect();
+```
+
+#### join 查询
+```cpp
+auto l2 = sqlite.select(col(&test_optional::name), col(&person::name))
+              .from<test_optional>()
+              .inner_join(col(&test_optional::id), col(&person::id))
+              .where(col(&person::id) > 0 || col(&person::id) == 1)
+              .collect();
+
+/*
+    std::string sql =
+        "select a.title, a.content, u.user_name as author_name, t.name as "
+        "tag_name, a.created_at, a.updated_at, a.views_count, a.comments_count "
+        "from articles a INNER JOIN users u ON a.author_id = u.id INNER JOIN "
+        "tags t ON a.tag_id = t.tag_id WHERE a.slug = ? and a.is_deleted=0;";
+*/
+
+auto results =
+    conn->select(col(&articles_t::title), col(&articles_t::content),
+                 col(&users_t::user_name), col(&tags_t::name),
+                 col(&articles_t::created_at), col(&articles_t::updated_at),
+                 col(&articles_t::views_count),
+                 col(&articles_t::comments_count))
+        .from<articles_t>()
+        .inner_join(col(&articles_t::author_id), col(&users_t::id))
+        .inner_join(col(&articles_t::tag_id), col(&tags_t::tag_id))
+        .where(col(&articles_t::slug) == slug &&
+               col(&articles_t::is_deleted) == 0).collect();
+```
 
 这个例子展示如何使用ormpp实现数据库的增删改查之类的操作，无需写sql语句。
 
@@ -107,7 +229,6 @@ struct person {
 REGISTER_AUTO_KEY(person, id)
 REGISTER_CONFLICT_KEY(person, name)
 // REGISTER_CONFLICT_KEY(person, name, age) // 如果是多个
-YLT_REFL(person, id, name, age)
 
 int main() {
   person p = {"test1", 2};
@@ -175,7 +296,6 @@ struct test_enum_t {
   int id;
 };
 REGISTER_AUTO_KEY(test_enum_t, id)
-YLT_REFL(test_enum_t, id, color, fruit)
 
 int main() {
   dbng<sqlite> sqlite;
@@ -398,7 +518,6 @@ struct person {
   }
 };
 REGISTER_AUTO_KEY(person, id)
-YLT_REFL(person, id, name, age)
 
 int main(){
 	dbng<mysql> mysql;
