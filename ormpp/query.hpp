@@ -349,7 +349,7 @@ class query_builder {
       return "";
     }
 
-    template <typename... Args>
+    template <typename To, typename... Args>
     auto collect(Args... args) {
       if (!select_clause_.empty()) {
         sql_.append("select ").append(select_clause_).append(from_clause_);
@@ -380,16 +380,32 @@ class query_builder {
           return db_->template query_s<T>(sql_, args...);
         }
         else {
-          auto t = db_->template query_s<R>(sql_, args...);
-          return t;
+          if constexpr (std::is_void_v<To>) {
+            auto t = db_->template query_s<R>(sql_, args...);
+            return t;
+          }
+          else {
+            auto t = db_->template query_s<To>(sql_, args...);
+            return t;
+          }
         }
       }
+    }
+
+    template <typename... Args>
+    auto collect(Args... args) {
+      return collect<void>(args...);
     }
   };
 
  public:
   query_builder(DB db) : db_(db), ctx_(std::make_shared<context>()) {
     ctx_->db_ = db;
+  }
+
+  template <typename To, typename... Args>
+  auto collect(Args... args) {
+    return ctx_->template collect<To>(args...);
   }
 
   template <typename... Args>
@@ -399,6 +415,11 @@ class query_builder {
 
   struct stage_offset {
     std::shared_ptr<context> ctx;
+
+    template <typename To, typename... Args>
+    auto collect(Args... args) {
+      return ctx->template collect<To>(args...);
+    }
 
     template <typename... Args>
     auto collect(Args... args) {
@@ -414,6 +435,11 @@ class query_builder {
       return stage_offset{ctx};
     }
 
+    template <typename To, typename... Args>
+    auto collect(Args... args) {
+      return ctx->template collect<To>(args...);
+    }
+
     template <typename... Args>
     auto collect(Args... args) {
       return ctx->collect(args...);
@@ -426,6 +452,11 @@ class query_builder {
     stage_limit limit(uint64_t n) {
       ctx->limit_clause_ = " LIMIT " + std::to_string(n);
       return stage_limit{ctx};
+    }
+
+    template <typename To, typename... Args>
+    auto collect(Args... args) {
+      return ctx->template collect<To>(args...);
     }
 
     template <typename... Args>
@@ -443,6 +474,11 @@ class query_builder {
     stage_order order_by(Args... fields) {
       ctx->order_by_clause_ = order_by_sql(fields...);
       return stage_order{ctx};
+    }
+
+    template <typename To, typename... Args>
+    auto collect(Args... args) {
+      return ctx->template collect<To>(args...);
     }
 
     template <typename... Args>
@@ -466,6 +502,11 @@ class query_builder {
       ctx->having_clause_ = " HAVING ";
       ctx->having_clause_.append(cond.to_sql());
       return stage_having{ctx};
+    }
+
+    template <typename To, typename... Args>
+    auto collect(Args... args) {
+      return ctx->template collect<To>(args...);
     }
 
     template <typename... Args>
@@ -508,6 +549,11 @@ class query_builder {
       return stage_group_by{ctx};
     }
 
+    template <typename To, typename... Args>
+    auto collect(Args... args) {
+      return ctx->template collect<To>(args...);
+    }
+
     template <typename... Args>
     auto collect(Args... args) {
       return ctx->collect(args...);
@@ -531,6 +577,11 @@ class query_builder {
     stage_where where(const where_condition& condition) {
       ctx->where_clause_ = condition.to_sql();
       return stage_where{ctx};
+    }
+
+    template <typename To, typename... Args>
+    auto collect(Args... args) {
+      return ctx->template collect<To>(args...);
     }
 
     template <typename... Args>

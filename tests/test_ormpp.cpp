@@ -139,6 +139,11 @@ struct test_optional {
 };
 REGISTER_AUTO_KEY(test_optional, id)
 
+struct sub_optinal {
+  std::optional<std::string> name;
+  std::optional<int> age;
+};
+
 TEST_CASE("test client pool") {
 #ifdef ORMPP_ENABLE_MYSQL
   auto &pool = connection_pool<dbng<mysql>>::instance();
@@ -181,6 +186,13 @@ TEST_CASE("optional") {
                    .collect(std::string("test"));
       CHECK(l0.size() == 1);
       CHECK(l.size() == 1);
+      auto l1 =
+          sqlite.select(col(&test_optional::name), col(&test_optional::age))
+              .from<test_optional>()
+              .where(col(&test_optional::id).param())
+              .collect<sub_optinal>(2);
+      sub_optinal t = l1.front();
+      CHECK(l1.size() == 1);
     }
     {
       auto l0 =
@@ -229,10 +241,10 @@ TEST_CASE("optional") {
       auto l7 = mysql.select(max(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l8 = sqlite.select(min(col(&test_optional::name)))
+      auto l8 = mysql.select(min(col(&test_optional::name)))
                     .from<test_optional>()
                     .collect();
-      auto l9 = sqlite.select(max(col(&test_optional::name)))
+      auto l9 = mysql.select(max(col(&test_optional::name)))
                     .from<test_optional>()
                     .collect();
       CHECK(l4 == 3);
@@ -384,6 +396,13 @@ TEST_CASE("optional") {
                    .collect(std::string("test"));
       CHECK(l0.size() == 1);
       CHECK(l.size() == 1);
+      auto l1 =
+          sqlite.select(col(&test_optional::name), col(&test_optional::age))
+              .from<test_optional>()
+              .where(col(&test_optional::id).param())
+              .collect<sub_optinal>(2);
+      sub_optinal t = l1.front();
+      CHECK(l1.size() == 1);
     }
     {
       auto l0 =
@@ -433,10 +452,10 @@ TEST_CASE("optional") {
       auto l7 = postgres.select(max(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l8 = sqlite.select(min(col(&test_optional::name)))
+      auto l8 = postgres.select(min(col(&test_optional::name)))
                     .from<test_optional>()
                     .collect();
-      auto l9 = sqlite.select(max(col(&test_optional::name)))
+      auto l9 = postgres.select(max(col(&test_optional::name)))
                     .from<test_optional>()
                     .collect();
       CHECK(l4 == 3);
@@ -587,6 +606,13 @@ TEST_CASE("optional") {
                    .collect(std::string("test"));
       CHECK(l0.size() == 1);
       CHECK(l.size() == 1);
+      auto l1 =
+          sqlite.select(col(&test_optional::name), col(&test_optional::age))
+              .from<test_optional>()
+              .where(col(&test_optional::id).param())
+              .collect<sub_optinal>(2);
+      sub_optinal t = l1.front();
+      CHECK(l1.size() == 1);
     }
     {
       auto l0 =
