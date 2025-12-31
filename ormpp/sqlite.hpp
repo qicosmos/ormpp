@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "utility.hpp"
+#include "query.hpp"
 
 #ifndef ORM_SQLITE_HPP
 #define ORM_SQLITE_HPP
@@ -292,6 +292,13 @@ class sqlite {
 
     return v;
   }
+
+  template <typename... Args>
+  auto select(Args... args) {
+    return ormpp::select(this, args...);
+  }
+
+  auto select_all() { return ormpp::select_all(this); }
 
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions

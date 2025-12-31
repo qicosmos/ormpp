@@ -11,8 +11,8 @@
 #include <utility>
 
 #include "entity.hpp"
+#include "query.hpp"
 #include "type_mapping.hpp"
-#include "utility.hpp"
 
 namespace ormpp {
 
@@ -579,6 +579,13 @@ class mysql {
 
     return v;
   }
+
+  template <typename... Args>
+  auto select(Args... args) {
+    return ormpp::select(this, args...);
+  }
+
+  auto select_all() { return ormpp::select_all(this); }
 
   // if there is a sql error, how to tell the user? throw exception?
   template <typename T, typename... Args>

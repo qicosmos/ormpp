@@ -11,7 +11,7 @@
 #include <string_view>
 #include <vector>
 
-#include "utility.hpp"
+#include "query.hpp"
 
 namespace ormpp {
 template <typename DB>
@@ -121,6 +121,13 @@ class dbng {
     using T = typename ormpp::field_attribute<decltype(pair.second)>::type;
     return query<T>(sql);
   }
+
+  template <typename... Args>
+  auto select(Args... args) {
+    return db_.select(args...);
+  }
+
+  auto select(all_t a) { return db_.select_all(); }
 
   template <typename Pair, typename U>
   [[deprecated]] bool delete_records(Pair pair, std::string_view oper,

@@ -528,13 +528,16 @@ inline void get_sql_conditions(std::string &sql, const std::string &arg,
     sql = arg;
   }
   else {
-    if (temp.find("order by") != std::string::npos) {
-      auto pos = sql.find("where");
-      sql = sql.substr(0, pos);
+    if (auto pos0 = temp.find("order by"); pos0 != std::string::npos) {
+      if (pos0 == 0) {
+        sql = sql.substr(0, sql.find("where"));
+      }
     }
-    if (temp.find("limit") != std::string::npos) {
-      auto pos = sql.find("where");
-      sql = sql.substr(0, pos);
+
+    if (auto pos0 = temp.find("limit"); pos0 != std::string::npos) {
+      if (pos0 == 0) {
+        sql = sql.substr(0, sql.find("where"));
+      }
     }
     append(sql, arg, std::forward<Args>(args)...);
   }
@@ -606,35 +609,6 @@ constexpr std::string_view get_field_name(std::string_view full_name) {
       &field)
 #define SID(field) \
   get_field_name<decltype(&field)>(std::string_view(#field)).data()
-
-template <typename M>
-struct col_info {
-  using value_type = M;
-
-  std::string_view name;
-  std::string_view class_name;
-};
-
-#define col(c)                                                 \
-  col_info<typename ylt::reflection::internal::member_tratis<  \
-      decltype(c)>::value_type> {                              \
-    ylt::reflection::field_string<c>(),                        \
-        ylt::reflection::get_struct_name<                      \
-            typename ylt::reflection::internal::member_tratis< \
-                decltype(c)>::owner_type>()                    \
-  }
-
-template <auto field>
-constexpr std::string_view name() {
-  return ylt::reflection::field_string<field>();
-}
-
-template <auto field>
-std::string str_name() {
-  return std::string(name<field>());
-}
-
-#define col_name(c) str_name<c>()
 }  // namespace ormpp
 
 #endif  // ORM_UTILITY_HPP

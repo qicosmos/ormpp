@@ -139,6 +139,11 @@ struct test_optional {
 };
 REGISTER_AUTO_KEY(test_optional, id)
 
+struct sub_optinal {
+  std::optional<std::string> name;
+  std::optional<int> age;
+};
+
 TEST_CASE("test client pool") {
 #ifdef ORMPP_ENABLE_MYSQL
   auto &pool = connection_pool<dbng<mysql>>::instance();
@@ -167,26 +172,207 @@ TEST_CASE("optional") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists test_optional;");
     mysql.create_datatable<test_optional>(ormpp_auto_key{"id"});
-    mysql.insert<test_optional>({0, "purecpp", 200});
+    mysql.insert<test_optional>({0, "purecpp", 1});
+    mysql.insert<test_optional>({0, "test", 2});
+    {
+      // param() means ?, collect(2) means bind parameters
+      auto l0 = mysql.select(all)
+                    .from<test_optional>()
+                    .where(col(&test_optional::id).param())
+                    .collect(2);
+      auto l = mysql.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).param())
+                   .collect(std::string("test"));
+      CHECK(l0.size() == 1);
+      CHECK(l.size() == 1);
+      auto l1 =
+          mysql.select(col(&test_optional::name), col(&test_optional::age))
+              .from<test_optional>()
+              .where(col(&test_optional::id).param())
+              .collect<sub_optinal>(2);
+      sub_optinal t = l1.front();
+      CHECK(l1.size() == 1);
+    }
+    {
+      auto l0 =
+          mysql
+              .select(col(&test_optional::id), count(col(&test_optional::name)),
+                      col(&test_optional::name), sum(col(&test_optional::id)))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      CHECK(l0.size() == 2);
+      auto l = mysql.select(sum(col(&test_optional::id)), count())
+                   .from<test_optional>()
+                   .group_by(col(&test_optional::id))
+                   .collect();
+      CHECK(l.size() == 2);
+    }
+    {
+      auto l = mysql.select(all).from<test_optional>().collect();
+      auto l1 = mysql.select(col(&test_optional::id), col(&test_optional::name))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+    }
+    {
+      auto l = mysql.select(count()).from<test_optional>().collect();
+      auto l2 = mysql.select(count(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l3 = mysql.select(count_distinct(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l == 2);
+      CHECK(l2 == 2);
+      CHECK(l3 == 2);
+
+      auto l4 = mysql.select(sum(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l5 = mysql.select(avg(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l6 = mysql.select((min)(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l7 = mysql.select((max)(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l8 = mysql.select((min)(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      auto l9 = mysql.select((max)(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l4 == 3);
+      CHECK(l5 == 1.5);
+      CHECK(l6 == 1);
+      CHECK(l7 == 2);
+      CHECK(l8 == "purecpp");
+      CHECK(l9 == "test");
+    }
+    {
+      auto l =
+          mysql.select(count(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l1 =
+          mysql.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l2 =
+          mysql.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l3 =
+          mysql.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l4 =
+          mysql.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .having(sum(col(&test_optional::age)) > 0 && count() > 0)
+              .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+      CHECK(l2.size() == 2);
+      CHECK(l3.size() == 2);
+      CHECK(l4.size() == 2);
+    }
+    auto l1 = mysql.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id).desc())
+                  .limit(5)
+                  .offset(0)
+                  .collect();
+    auto ll1 = mysql.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::id).not_in(1, 2))
+                   .collect();
+    auto ll2 = mysql.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::id).null())
+                   .collect();
+    auto ll3 = mysql.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).not_null())
+                   .collect();
+    CHECK(ll1.size() == 0);
+    CHECK(ll2.size() == 0);
+    CHECK(ll3.size() == 2);
+
+    auto l2 = mysql.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).in("test", "purecpp"))
+                  .collect();
+    CHECK(l1.size() == 2);
+    CHECK(l2.size() == 2);
+
+    auto l3 = mysql.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).between(1, 2))
+                  .collect();
+
+    auto l4 = mysql.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).between("purecpp", "test"))
+                  .collect();
+    auto l5 = mysql.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).like("pure%"))
+                  .collect();
+    CHECK(l3.size() == 2);
+    CHECK(l4.size() == 2);
+    CHECK(l5.size() == 1);
+    auto list =
+        mysql.select(all)
+            .from<test_optional>()
+            .where(col(&test_optional::id) == 1 || col(&test_optional::id) == 2)
+            .collect();
+    REQUIRE(list.size() == 2);
+    auto list1 = mysql.select(all).from<test_optional>().collect();
+    REQUIRE(list1.size() == 2);
+    auto list2 = mysql.select(all)
+                     .from<test_optional>()
+                     .where(col(&test_optional::id) == 2)
+                     .collect();
+    REQUIRE(list2.size() == 1);
+    auto list3 = mysql.select(all)
+                     .from<test_optional>()
+                     .where(col(&test_optional::name) == "test")
+                     .collect();
+    REQUIRE(list3.size() == 1);
+
     auto vec1 = mysql.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
-    CHECK(vec1.front().age.value() == 200);
+    CHECK(vec1.front().age.value() == 1);
     CHECK(vec1.front().name.value() == "purecpp");
     CHECK(vec1.front().empty_.has_value() == false);
     auto vec2 = mysql.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
-    CHECK(vec2.front().age.value() == 200);
+    CHECK(vec2.front().age.value() == 1);
     CHECK(vec2.front().name.value() == "purecpp");
     CHECK(vec2.front().empty_.has_value() == false);
 
     auto vec3 = mysql.query_s<test_optional>();
     REQUIRE(vec3.size() > 0);
-    CHECK(vec3.front().age.value() == 200);
+    CHECK(vec3.front().age.value() == 1);
     CHECK(vec3.front().name.value() == "purecpp");
     CHECK(vec3.front().empty_.has_value() == false);
     auto vec4 = mysql.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec4.size() > 0);
-    CHECK(vec4.front().age.value() == 200);
+    CHECK(vec4.front().age.value() == 1);
     CHECK(vec4.front().name.value() == "purecpp");
     CHECK(vec4.front().empty_.has_value() == false);
   }
@@ -196,15 +382,198 @@ TEST_CASE("optional") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists test_optional;");
     postgres.create_datatable<test_optional>(ormpp_auto_key{"id"});
-    postgres.insert<test_optional>({0, "purecpp", 200});
+    postgres.insert<test_optional>({0, "purecpp", 1});
+    postgres.insert<test_optional>({0, "test", 2});
+    {
+      // param() means ?, collect(2) means bind parameters
+      auto l0 = postgres.select(all)
+                    .from<test_optional>()
+                    .where(col(&test_optional::id).param())
+                    .collect(2);
+      auto l = postgres.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).param())
+                   .collect(std::string("test"));
+      CHECK(l0.size() == 1);
+      CHECK(l.size() == 1);
+      auto l1 =
+          postgres.select(col(&test_optional::name), col(&test_optional::age))
+              .from<test_optional>()
+              .where(col(&test_optional::id).param())
+              .collect<sub_optinal>(2);
+      sub_optinal t = l1.front();
+      CHECK(l1.size() == 1);
+    }
+    {
+      auto l0 =
+          postgres
+              .select(col(&test_optional::id), count(col(&test_optional::name)),
+                      col(&test_optional::name), sum(col(&test_optional::id)))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      CHECK(l0.size() == 2);
+      auto l = postgres.select(sum(col(&test_optional::id)), count())
+                   .from<test_optional>()
+                   .group_by(col(&test_optional::id))
+                   .collect();
+      CHECK(l.size() == 2);
+    }
+    {
+      auto l = postgres.select(all).from<test_optional>().collect();
+      auto l1 =
+          postgres.select(col(&test_optional::id), col(&test_optional::name))
+              .from<test_optional>()
+              .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+    }
+    {
+      auto l = postgres.select(count()).from<test_optional>().collect();
+      auto l2 = postgres.select(count(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l3 = postgres.select(count_distinct(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l == 2);
+      CHECK(l2 == 2);
+      CHECK(l3 == 2);
+
+      auto l4 = postgres.select(sum(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l5 = postgres.select(avg(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l6 = postgres.select((min)(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l7 = postgres.select((max)(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l8 = postgres.select((min)(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      auto l9 = postgres.select((max)(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l4 == 3);
+      CHECK(l5 == 1.5);
+      CHECK(l6 == 1);
+      CHECK(l7 == 2);
+      CHECK(l8 == "purecpp");
+      CHECK(l9 == "test");
+    }
+    {
+      auto l =
+          postgres
+              .select(count(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l1 =
+          postgres.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l2 =
+          postgres.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l3 =
+          postgres.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l4 =
+          postgres.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .having(sum(col(&test_optional::age)) > 0 && count() > 0)
+              .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+      CHECK(l2.size() == 2);
+      CHECK(l3.size() == 2);
+      CHECK(l4.size() == 2);
+    }
+    auto l1 = postgres.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id).desc())
+                  .limit(5)
+                  .offset(0)
+                  .collect();
+    auto ll1 = postgres.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::id).not_in(1, 2))
+                   .collect();
+    auto ll2 = postgres.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::id).null())
+                   .collect();
+    auto ll3 = postgres.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).not_null())
+                   .collect();
+    CHECK(ll1.size() == 0);
+    CHECK(ll2.size() == 0);
+    CHECK(ll3.size() == 2);
+
+    auto l2 = postgres.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).in("test", "purecpp"))
+                  .collect();
+    CHECK(l1.size() == 2);
+    CHECK(l2.size() == 2);
+
+    auto l3 = postgres.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).between(1, 2))
+                  .collect();
+
+    auto l4 = postgres.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).between("purecpp", "test"))
+                  .collect();
+    auto l5 = postgres.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).like("pure%"))
+                  .collect();
+    CHECK(l3.size() == 2);
+    CHECK(l4.size() == 2);
+    CHECK(l5.size() == 1);
+    auto list =
+        postgres.select(all)
+            .from<test_optional>()
+            .where(col(&test_optional::id) == 1 || col(&test_optional::id) == 2)
+            .collect();
+    REQUIRE(list.size() == 2);
+    auto list1 = postgres.select(all).from<test_optional>().collect();
+    REQUIRE(list1.size() == 2);
+    auto list2 = postgres.select(all)
+                     .from<test_optional>()
+                     .where(col(&test_optional::id) == 2)
+                     .collect();
+    REQUIRE(list2.size() == 1);
+    auto list3 = postgres.select(all)
+                     .from<test_optional>()
+                     .where(col(&test_optional::name) == "test")
+                     .collect();
+    REQUIRE(list3.size() == 1);
+
     auto vec1 = postgres.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
-    CHECK(vec1.front().age.value() == 200);
+    CHECK(vec1.front().age.value() == 1);
     CHECK(vec1.front().name.value() == "purecpp");
     CHECK(vec1.front().empty_.has_value() == false);
     auto vec2 = postgres.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
-    CHECK(vec2.front().age.value() == 200);
+    CHECK(vec2.front().age.value() == 1);
     CHECK(vec2.front().name.value() == "purecpp");
     CHECK(vec2.front().empty_.has_value() == false);
   }
@@ -216,24 +585,228 @@ TEST_CASE("optional") {
 #else
   if (sqlite.connect(db)) {
 #endif
+    sqlite.execute("DROP TABLE IF EXISTS person");
+    REQUIRE(sqlite.create_datatable<person>(ormpp_auto_key{"id"}));
+    REQUIRE(sqlite.insert<person>({"encryption_test", 2}) == 1);
+
     sqlite.execute("drop table if exists test_optional;");
     sqlite.create_datatable<test_optional>(
         ormpp_auto_key{col_name(&test_optional::id)});
-    sqlite.insert<test_optional>({0, "purecpp", 200});
+    sqlite.insert<test_optional>({0, "purecpp", 1});
+    sqlite.insert<test_optional>({0, "test", 2});
+    {
+      // param() means ?, collect(2) means bind parameters
+      auto l0 = sqlite.select(all)
+                    .from<test_optional>()
+                    .where(col(&test_optional::id).param())
+                    .collect(2);
+      auto l = sqlite.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).param())
+                   .collect(std::string("test"));
+      CHECK(l0.size() == 1);
+      CHECK(l.size() == 1);
+      auto l1 =
+          sqlite.select(col(&test_optional::name), col(&test_optional::age))
+              .from<test_optional>()
+              .where(col(&test_optional::id).param() &&
+                     col(&test_optional::name).param())
+              .collect<sub_optinal>(2, std::string("test"));
+      sub_optinal t = l1.front();
+      CHECK(l1.size() == 1);
+    }
+    {
+      auto l0 =
+          sqlite
+              .select(col(&test_optional::id), count(col(&test_optional::name)),
+                      col(&test_optional::name), sum(col(&test_optional::id)))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      CHECK(l0.size() == 2);
+      auto l = sqlite.select(sum(col(&test_optional::id)), count())
+                   .from<test_optional>()
+                   .group_by(col(&test_optional::id))
+                   .collect();
+      CHECK(l.size() == 2);
+    }
+    {
+      auto l = sqlite.select(all).from<test_optional>().collect();
+      auto l1 =
+          sqlite.select(col(&test_optional::id), col(&test_optional::name))
+              .from<test_optional>()
+              .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+    }
+    {
+      auto l = sqlite.select(count()).from<test_optional>().collect();
+      auto l2 = sqlite.select(count(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l3 = sqlite.select(count_distinct(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l == 2);
+      CHECK(l2 == 2);
+      CHECK(l3 == 2);
+
+      auto l4 = sqlite.select(sum(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l5 = sqlite.select(avg(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l6 = sqlite.select((min)(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l7 = sqlite.select((max)(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l8 = sqlite.select((min)(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      auto l9 = sqlite.select((max)(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l4 == 3);
+      CHECK(l5 == 1.5);
+      CHECK(l6 == 1);
+      CHECK(l7 == 2);
+      CHECK(l8 == "purecpp");
+      CHECK(l9 == "test");
+    }
+    {
+      auto l =
+          sqlite.select(count(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l1 =
+          sqlite.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l2 =
+          sqlite.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l3 =
+          sqlite.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l4 =
+          sqlite.select(sum(col(&test_optional::age)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .having(sum(col(&test_optional::age)) > 0 && count() > 0)
+              .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+      CHECK(l2.size() == 2);
+      CHECK(l3.size() == 2);
+      CHECK(l4.size() == 2);
+    }
+    {
+      auto l =
+          sqlite.select(col(&test_optional::name), col(&test_optional::age))
+              .from<test_optional>()
+              .collect();
+      CHECK(l.size() == 2);
+      auto l2 = sqlite.select(col(&test_optional::name), col(&person::name))
+                    .from<test_optional>()
+                    .inner_join(col(&test_optional::id), col(&person::id))
+                    .where(col(&person::id) > 0 || col(&person::id) == 1)
+                    .collect();
+      CHECK(l2.size() == 1);
+      sqlite.execute("DROP TABLE IF EXISTS person");
+    }
+    auto l1 = sqlite.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id).desc(),
+                            col(&test_optional::name).desc())
+                  .limit(5)
+                  .offset(0)
+                  .collect();
+    auto ll1 = sqlite.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::id).not_in(1, 2))
+                   .collect();
+    auto ll2 = sqlite.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::id).null())
+                   .collect();
+    auto ll3 = sqlite.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).not_null())
+                   .collect();
+    CHECK(ll1.size() == 0);
+    CHECK(ll2.size() == 0);
+    CHECK(ll3.size() == 2);
+
+    auto l2 = sqlite.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).in("test", "purecpp"))
+                  .collect();
+    CHECK(l1.size() == 2);
+    CHECK(l2.size() == 2);
+
+    auto l3 = sqlite.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).between(1, 2))
+                  .collect();
+
+    auto l4 = sqlite.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).between("purecpp", "test"))
+                  .collect();
+    auto l5 = sqlite.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).like("pure%"))
+                  .collect();
+    CHECK(l3.size() == 2);
+    CHECK(l4.size() == 2);
+    CHECK(l5.size() == 1);
+    auto list =
+        sqlite.select(all)
+            .from<test_optional>()
+            .where(col(&test_optional::id) == 1 || col(&test_optional::id) == 2)
+            .collect();
+    REQUIRE(list.size() == 2);
+    auto list1 = sqlite.select(all).from<test_optional>().collect();
+    REQUIRE(list1.size() == 2);
+    auto list2 = sqlite.select(all)
+                     .from<test_optional>()
+                     .where(col(&test_optional::id) == 2)
+                     .collect();
+    REQUIRE(list2.size() == 1);
+    auto list3 = sqlite.select(all)
+                     .from<test_optional>()
+                     .where(col(&test_optional::name) == "test")
+                     .collect();
+    REQUIRE(list3.size() == 1);
     auto vec1 = sqlite.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
-    CHECK(vec1.front().age.value() == 200);
+    CHECK(vec1.front().age.value() == 1);
     CHECK(vec1.front().name.value() == "purecpp");
     CHECK(vec1.front().empty_.has_value() == false);
     auto vec2 = sqlite.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
-    CHECK(vec2.front().age.value() == 200);
+    CHECK(vec2.front().age.value() == 1);
     CHECK(vec2.front().name.value() == "purecpp");
     CHECK(vec2.front().empty_.has_value() == false);
   }
 #endif
 }
 
+/*
+表别名, 聚合结果别名
+*/
 struct test_order {
   int id;
   std::string name;
@@ -549,14 +1122,26 @@ TEST_CASE("insert query") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
+    mysql.insert(person{"tom", 18});
     auto vec = mysql.query_s<person>("id<5");
+    auto vec1 =
+        mysql.select(all).from<person>().where(col(&person::id) < 5).collect();
+    CHECK(vec.size() == vec1.size());
+    CHECK(vec.front().name == vec1.front().name);
   }
 #endif
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
   if (postgres.connect(ip, username, password, db)) {
-    auto vec = postgres.query(FID(person::id), "<", "5");
+    postgres.insert(person{"tom", 18});
+    auto vec = postgres.query_s<person>("id<5");
+    auto vec1 = postgres.select(all)
+                    .from<person>()
+                    .where(col(&person::id) < 5)
+                    .collect();
+    CHECK(vec.size() == vec1.size());
+    CHECK(vec.front().name == vec1.front().name);
   }
 #endif
 
@@ -567,7 +1152,12 @@ TEST_CASE("insert query") {
 #else
   if (sqlite.connect(db)) {
 #endif
+    sqlite.insert(person{"tom", 18});
     auto vec = sqlite.query_s<person>("id<5");
+    auto vec1 =
+        sqlite.select(all).from<person>().where(col(&person::id) < 5).collect();
+    CHECK(vec.size() == vec1.size());
+    CHECK(vec.front().name == vec1.front().name);
   }
 #endif
 

@@ -12,7 +12,7 @@
 #include <type_traits>
 
 #include "iguana/detail/charconv.h"
-#include "utility.hpp"
+#include "query.hpp"
 
 using namespace std::string_literals;
 
@@ -269,6 +269,13 @@ class postgresql {
 
     return v;
   }
+
+  template <typename... Args>
+  auto select(Args... args) {
+    return ormpp::select(this, args...);
+  }
+
+  auto select_all() { return ormpp::select_all(this); }
 
   template <typename T, typename... Args>
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query(
