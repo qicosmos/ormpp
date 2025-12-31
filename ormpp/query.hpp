@@ -258,12 +258,14 @@ inline auto avg(auto field) {
   return build_aggregate_field<double>("AVG(", field);
 }
 
-inline auto min(auto field) {
+template <typename Field>
+inline auto min(Field field) {
   return build_aggregate_field<typename decltype(field)::value_type>("MIN(",
                                                                      field);
 }
 
-inline auto max(auto field) {
+template <typename Field>
+inline auto max(Field field) {
   return build_aggregate_field<typename decltype(field)::value_type>("MAX(",
                                                                      field);
 }

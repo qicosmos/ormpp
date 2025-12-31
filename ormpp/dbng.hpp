@@ -124,7 +124,7 @@ class dbng {
 
   template <typename... Args>
   auto select(Args... args) {
-    return db_.template select(args...);
+    return db_.select(args...);
   }
 
   auto select(all_t a) { return db_.select_all(); }
