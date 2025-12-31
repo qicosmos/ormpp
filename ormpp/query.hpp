@@ -260,14 +260,12 @@ inline auto avg(auto field) {
 
 template <typename Field>
 inline auto min(Field field) {
-  return build_aggregate_field<typename decltype(field)::value_type>("MIN(",
-                                                                     field);
+  return build_aggregate_field<typename Field::value_type>("MIN(", field);
 }
 
 template <typename Field>
 inline auto max(Field field) {
-  return build_aggregate_field<typename decltype(field)::value_type>("MAX(",
-                                                                     field);
+  return build_aggregate_field<typename Field::value_type>("MAX(", field);
 }
 
 template <typename T>
