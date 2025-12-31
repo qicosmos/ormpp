@@ -235,16 +235,16 @@ TEST_CASE("optional") {
       auto l5 = mysql.select(avg(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l6 = mysql.select(min(col(&test_optional::id)))
+      auto l6 = mysql.select((min)(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l7 = mysql.select(max(col(&test_optional::id)))
+      auto l7 = mysql.select((max)(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l8 = mysql.select(min(col(&test_optional::name)))
+      auto l8 = mysql.select((min)(col(&test_optional::name)))
                     .from<test_optional>()
                     .collect();
-      auto l9 = mysql.select(max(col(&test_optional::name)))
+      auto l9 = mysql.select((max)(col(&test_optional::name)))
                     .from<test_optional>()
                     .collect();
       CHECK(l4 == 3);
@@ -446,16 +446,16 @@ TEST_CASE("optional") {
       auto l5 = postgres.select(avg(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l6 = postgres.select(min(col(&test_optional::id)))
+      auto l6 = postgres.select((min)(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l7 = postgres.select(max(col(&test_optional::id)))
+      auto l7 = postgres.select((max)(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l8 = postgres.select(min(col(&test_optional::name)))
+      auto l8 = postgres.select((min)(col(&test_optional::name)))
                     .from<test_optional>()
                     .collect();
-      auto l9 = postgres.select(max(col(&test_optional::name)))
+      auto l9 = postgres.select((max)(col(&test_optional::name)))
                     .from<test_optional>()
                     .collect();
       CHECK(l4 == 3);
@@ -657,16 +657,16 @@ TEST_CASE("optional") {
       auto l5 = sqlite.select(avg(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l6 = sqlite.select(min(col(&test_optional::id)))
+      auto l6 = sqlite.select((min)(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l7 = sqlite.select(max(col(&test_optional::id)))
+      auto l7 = sqlite.select((max)(col(&test_optional::id)))
                     .from<test_optional>()
                     .collect();
-      auto l8 = sqlite.select(min(col(&test_optional::name)))
+      auto l8 = sqlite.select((min)(col(&test_optional::name)))
                     .from<test_optional>()
                     .collect();
-      auto l9 = sqlite.select(max(col(&test_optional::name)))
+      auto l9 = sqlite.select((max)(col(&test_optional::name)))
                     .from<test_optional>()
                     .collect();
       CHECK(l4 == 3);
