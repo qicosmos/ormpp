@@ -289,6 +289,14 @@ TEST_CASE("optional") {
       CHECK(l3.size() == 2);
       CHECK(l4.size() == 2);
     }
+    auto l0 = mysql.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id).desc(),
+                            col(&test_optional::name).desc())
+                  .limit(token)
+                  .offset(token)
+                  .collect(5, 0);
     auto l1 = mysql.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::id).in(1, 2))
@@ -316,6 +324,7 @@ TEST_CASE("optional") {
                   .from<test_optional>()
                   .where(col(&test_optional::name).in("test", "purecpp"))
                   .collect();
+    CHECK(l0.size() == 2);
     CHECK(l1.size() == 2);
     CHECK(l2.size() == 2);
 
@@ -501,6 +510,14 @@ TEST_CASE("optional") {
       CHECK(l3.size() == 2);
       CHECK(l4.size() == 2);
     }
+    auto l0 = postgres.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id).desc(),
+                            col(&test_optional::name).desc())
+                  .limit(token)
+                  .offset(token)
+                  .collect(5, 0);
     auto l1 = postgres.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::id).in(1, 2))
@@ -528,6 +545,7 @@ TEST_CASE("optional") {
                   .from<test_optional>()
                   .where(col(&test_optional::name).in("test", "purecpp"))
                   .collect();
+    CHECK(l0.size() == 2);
     CHECK(l1.size() == 2);
     CHECK(l2.size() == 2);
 
@@ -725,6 +743,14 @@ TEST_CASE("optional") {
       CHECK(l2.size() == 1);
       sqlite.execute("DROP TABLE IF EXISTS person");
     }
+    auto l0 = sqlite.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id).desc(),
+                            col(&test_optional::name).desc())
+                  .limit(token)
+                  .offset(token)
+                  .collect(5, 0);
     auto l1 = sqlite.select(all)
                   .from<test_optional>()
                   .where(col(&test_optional::id).in(1, 2))
@@ -753,6 +779,7 @@ TEST_CASE("optional") {
                   .from<test_optional>()
                   .where(col(&test_optional::name).in("test", "purecpp"))
                   .collect();
+    CHECK(l0.size() == 2);
     CHECK(l1.size() == 2);
     CHECK(l2.size() == 2);
 

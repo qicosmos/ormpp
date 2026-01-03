@@ -233,6 +233,9 @@ auto operator<=(aggregate_field<M> field, auto val) {
   return build_where(field, val, "<=");
 }
 
+struct token_t {};
+inline constexpr auto token = token_t{};
+
 inline auto count() { return aggregate_field<uint64_t>{"COUNT(*)"}; }
 
 template <typename T>
@@ -357,19 +360,6 @@ class query_builder {
           where_clause_.insert(0, " where ");
         }
       }
-#ifdef ORMPP_ENABLE_PG
-      if (!where_clause_.empty()) {
-        int index = 1;
-        for (size_t i = 0; i < where_clause_.size(); i++) {
-          if (where_clause_[i] == '?') {
-            where_clause_[i] = '$';
-            std::string index_str = std::to_string(index++);
-            std::memcpy(&where_clause_[i + 1], index_str.data(),
-                        (std::min)(index_str.size(), size_t(2)));
-          }
-        }
-      }
-#endif
 
       sql_.append(join_clause_)
           .append(where_clause_)
@@ -379,6 +369,20 @@ class query_builder {
           .append(desc_clause_)
           .append(limit_clause_)
           .append(offset_clause_);
+
+#ifdef ORMPP_ENABLE_PG
+      if (sql_.find('?') != std::string::npos) {
+        int index = 1;
+        for (size_t i = 0; i < sql_.size(); i++) {
+          if (sql_[i] == '?') {
+            sql_[i] = '$';
+            std::string index_str = std::to_string(index++);
+            std::memcpy(&sql_[i + 1], index_str.data(),
+                        (std::min)(index_str.size(), size_t(2)));
+          }
+        }
+      }
+#endif
 
       if constexpr (!ylt::reflection::is_ylt_refl_v<R> && !std::is_void_v<R> &&
                     !iguana::tuple_v<R>) {
@@ -448,6 +452,11 @@ class query_builder {
       return stage_offset{ctx};
     }
 
+    stage_offset offset(token_t) {
+      ctx->offset_clause_.append(" offset ?  ");
+      return stage_offset{ctx};
+    }
+
     template <typename To, typename... Args>
     auto collect(Args... args) {
       return ctx->template collect<To>(args...);
@@ -464,6 +473,11 @@ class query_builder {
 
     stage_limit limit(uint64_t n) {
       ctx->limit_clause_ = " LIMIT " + std::to_string(n);
+      return stage_limit{ctx};
+    }
+
+    stage_limit limit(token_t) {
+      ctx->limit_clause_ = " LIMIT ?  ";
       return stage_limit{ctx};
     }
 
@@ -547,6 +561,11 @@ class query_builder {
 
     stage_limit limit(uint64_t n) {
       ctx->limit_c = " LIMIT " + std::to_string(n);
+      return stage_limit{ctx};
+    }
+
+    stage_limit limit(token_t) {
+      ctx->limit_c = " LIMIT ?  ";
       return stage_limit{ctx};
     }
 
