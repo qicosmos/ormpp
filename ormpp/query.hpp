@@ -233,6 +233,9 @@ auto operator<=(aggregate_field<M> field, auto val) {
   return build_where(field, val, "<=");
 }
 
+struct token_t {};
+inline constexpr auto token = token_t{};
+
 inline auto count() { return aggregate_field<uint64_t>{"COUNT(*)"}; }
 
 template <typename T>
@@ -448,6 +451,11 @@ class query_builder {
       return stage_offset{ctx};
     }
 
+    stage_offset offset(token_t) {
+      ctx->offset_clause_.append(" offset ?  ");
+      return stage_offset{ctx};
+    }
+
     template <typename To, typename... Args>
     auto collect(Args... args) {
       return ctx->template collect<To>(args...);
@@ -464,6 +472,11 @@ class query_builder {
 
     stage_limit limit(uint64_t n) {
       ctx->limit_clause_ = " LIMIT " + std::to_string(n);
+      return stage_limit{ctx};
+    }
+
+    stage_limit limit(token_t) {
+      ctx->limit_clause_ = " LIMIT ?  ";
       return stage_limit{ctx};
     }
 
@@ -547,6 +560,11 @@ class query_builder {
 
     stage_limit limit(uint64_t n) {
       ctx->limit_c = " LIMIT " + std::to_string(n);
+      return stage_limit{ctx};
+    }
+
+    stage_limit limit(token_t) {
+      ctx->limit_c = " LIMIT ?  ";
       return stage_limit{ctx};
     }
 
