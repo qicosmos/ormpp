@@ -352,6 +352,12 @@ class query_builder {
       return "";
     }
 
+    template <typename... Args>
+    auto scalar(Args... args) {
+      using first = std::tuple_element_t<0, R>;
+      return collect<first>(args...);
+    }
+
     template <typename To, typename... Args>
     auto collect(Args... args) {
       if (!select_clause_.empty()) {
@@ -402,8 +408,19 @@ class query_builder {
             return t;
           }
           else {
-            auto t = db_->template query_s<To>(sql_, args...);
-            return t;
+            // To: maybe a tuple mapping struct or a first row first col type.
+            if constexpr (iguana::optional_v<To> || std::is_arithmetic_v<To> ||
+                          iguana::string_container_v<To>) {
+              auto t = db_->template query_s<R>(sql_, args...);
+              if (t.empty()) {
+                return To{};
+              }
+              return std::get<0>(t.front());
+            }
+            else {
+              auto t = db_->template query_s<To>(sql_, args...);
+              return t;
+            }
           }
         }
       }
@@ -430,6 +447,12 @@ class query_builder {
     return ctx_->collect(args...);
   }
 
+  // first row and first col
+  template <typename... Args>
+  auto scalar(Args... args) {
+    return ctx_->scalar(args...);
+  }
+
   struct stage_offset {
     std::shared_ptr<context> ctx;
 
@@ -441,6 +464,11 @@ class query_builder {
     template <typename... Args>
     auto collect(Args... args) {
       return ctx->collect(args...);
+    }
+
+    template <typename... Args>
+    auto scalar(Args... args) {
+      return ctx->scalar(args...);
     }
   };
 
@@ -466,6 +494,11 @@ class query_builder {
     auto collect(Args... args) {
       return ctx->collect(args...);
     }
+
+    template <typename... Args>
+    auto scalar(Args... args) {
+      return ctx->scalar(args...);
+    }
   };
 
   struct stage_order {
@@ -490,6 +523,11 @@ class query_builder {
     auto collect(Args... args) {
       return ctx->collect(args...);
     }
+
+    template <typename... Args>
+    auto scalar(Args... args) {
+      return ctx->scalar(args...);
+    }
   };
 
   struct stage_having {
@@ -511,6 +549,11 @@ class query_builder {
     template <typename... Args>
     auto collect(Args... args) {
       return ctx->collect(args...);
+    }
+
+    template <typename... Args>
+    auto scalar(Args... args) {
+      return ctx->scalar(args...);
     }
   };
 
@@ -539,6 +582,11 @@ class query_builder {
     template <typename... Args>
     auto collect(Args... args) {
       return ctx->collect(args...);
+    }
+
+    template <typename... Args>
+    auto scalar(Args... args) {
+      return ctx->scalar(args...);
     }
   };
 
@@ -590,6 +638,11 @@ class query_builder {
     auto collect(Args... args) {
       return ctx->collect(args...);
     }
+
+    template <typename... Args>
+    auto scalar(Args... args) {
+      return ctx->scalar(args...);
+    }
   };
 
   stage_where where(const where_condition& condition) {
@@ -619,6 +672,11 @@ class query_builder {
     template <typename... Args>
     auto collect(Args... args) {
       return ctx->collect(args...);
+    }
+
+    template <typename... Args>
+    auto scalar(Args... args) {
+      return ctx->scalar(args...);
     }
   };
 
