@@ -218,6 +218,16 @@ TEST_CASE("optional") {
       CHECK(l1.size() == 2);
     }
     {
+      auto l = mysql.select(col(&test_optional::id), col(&test_optional::name))
+                   .from<test_optional>()
+                   .scalar();
+      auto l1 = mysql.select(col(&test_optional::name), col(&test_optional::id))
+                    .from<test_optional>()
+                    .scalar();
+      CHECK(l == 1);
+      CHECK(l1 == "purecpp");
+    }
+    {
       auto l = mysql.select(count()).from<test_optional>().collect();
       auto l2 = mysql.select(count(col(&test_optional::id)))
                     .from<test_optional>()
@@ -438,6 +448,18 @@ TEST_CASE("optional") {
       CHECK(l1.size() == 2);
     }
     {
+      auto l =
+          postgres.select(col(&test_optional::id), col(&test_optional::name))
+              .from<test_optional>()
+              .scalar();
+      auto l1 =
+          postgres.select(col(&test_optional::name), col(&test_optional::id))
+              .from<test_optional>()
+              .scalar();
+      CHECK(l == 1);
+      CHECK(l1 == "purecpp");
+    }
+    {
       auto l = postgres.select(count()).from<test_optional>().collect();
       auto l2 = postgres.select(count(col(&test_optional::id)))
                     .from<test_optional>()
@@ -656,6 +678,17 @@ TEST_CASE("optional") {
               .collect();
       CHECK(l.size() == 2);
       CHECK(l1.size() == 2);
+    }
+    {
+      auto l = sqlite.select(col(&test_optional::id), col(&test_optional::name))
+                   .from<test_optional>()
+                   .scalar();
+      auto l1 =
+          sqlite.select(col(&test_optional::name), col(&test_optional::id))
+              .from<test_optional>()
+              .scalar();
+      CHECK(l == 1);
+      CHECK(l1 == "purecpp");
     }
     {
       auto l = sqlite.select(count()).from<test_optional>().collect();
