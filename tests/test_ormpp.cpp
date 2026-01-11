@@ -12,6 +12,10 @@
 #include "postgresql.hpp"
 #endif
 
+#include <cstdint>
+#include <limits>
+#include <string>
+
 #include "connection_pool.hpp"
 #include "dbng.hpp"
 #include "doctest.h"
@@ -2991,16 +2995,22 @@ TEST_CASE("unsigned type") {
     CHECK(vec.front().h == 8);
     CHECK(vec.front().v == "purecpp");
 
-    // 校验最大值
-    unsigned_type_t max_item = {std::numeric_limits<uint8_t>::max(),
-                                std::numeric_limits<uint16_t>::max(),
-                                std::numeric_limits<uint32_t>::max(),
-                                std::numeric_limits<uint64_t>::max(),
-                                std::numeric_limits<int8_t>::max(),
-                                std::numeric_limits<int16_t>::max(),
-                                std::numeric_limits<int32_t>::max(),
-                                std::numeric_limits<int64_t>::max(),
-                                "purecpp_max"};
+#ifdef WIN32
+#undef max
+#undef min
+#endif
+
+    unsigned_type_t max_item {
+      std::numeric_limits<uint8_t>::max(),
+      std::numeric_limits<uint16_t>::max(),
+      std::numeric_limits<uint32_t>::max(),
+      std::numeric_limits<uint64_t>::max(),
+      std::numeric_limits<int8_t>::max(),
+      std::numeric_limits<int16_t>::max(),
+      std::numeric_limits<int32_t>::max(),
+      std::numeric_limits<int64_t>::max(),
+      "purecpp_max"
+    };
     std::string max_item_json;
     iguana::to_json(max_item, max_item_json);
     std::cout << max_item_json << std::endl;
@@ -3024,15 +3034,15 @@ TEST_CASE("unsigned type") {
     }
 
     // 校验最小值
-    unsigned_type_t min_item = {std::numeric_limits<uint8_t>::min(),
-                                std::numeric_limits<uint16_t>::min(),
-                                std::numeric_limits<uint32_t>::min(),
-                                std::numeric_limits<uint64_t>::min(),
-                                std::numeric_limits<int8_t>::min(),
-                                std::numeric_limits<int16_t>::min(),
-                                std::numeric_limits<int32_t>::min(),
-                                std::numeric_limits<int64_t>::min(),
-                                "purecpp_min"};
+    unsigned_type_t min_item{std::numeric_limits<uint8_t>::min(),
+                             std::numeric_limits<uint16_t>::min(),
+                             std::numeric_limits<uint32_t>::min(),
+                             std::numeric_limits<uint64_t>::min(),
+                             std::numeric_limits<int8_t>::min(),
+                             std::numeric_limits<int16_t>::min(),
+                             std::numeric_limits<int32_t>::min(),
+                             std::numeric_limits<int64_t>::min(),
+                             "purecpp_min"};
     std::string min_item_json;
     iguana::to_json(min_item, min_item_json);
     std::cout << min_item_json << std::endl;
