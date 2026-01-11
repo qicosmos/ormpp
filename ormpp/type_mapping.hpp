@@ -36,11 +36,9 @@ inline int type_to_id(identity<int8_t>) noexcept { return MYSQL_TYPE_TINY; }
 inline int type_to_id(identity<int64_t>) noexcept {
   return MYSQL_TYPE_LONGLONG;
 }
-inline int type_to_id(identity<uint8_t>) noexcept { return MYSQL_TYPE_SHORT; }
-inline int type_to_id(identity<uint16_t>) noexcept { return MYSQL_TYPE_LONG; }
-inline int type_to_id(identity<uint32_t>) noexcept {
-  return MYSQL_TYPE_LONGLONG;
-}
+inline int type_to_id(identity<uint8_t>) noexcept { return MYSQL_TYPE_TINY; }
+inline int type_to_id(identity<uint16_t>) noexcept { return MYSQL_TYPE_SHORT; }
+inline int type_to_id(identity<uint32_t>) noexcept { return MYSQL_TYPE_LONG; }
 inline int type_to_id(identity<uint64_t>) noexcept {
   return MYSQL_TYPE_LONGLONG;
 }
@@ -50,6 +48,15 @@ inline int type_to_id(identity<std::string>) noexcept {
 inline int type_to_id(identity<std::string_view>) noexcept {
   return MYSQL_TYPE_VAR_STRING;
 }
+
+template <typename T>
+inline bool is_unsigned(identity<T>) noexcept {
+  return false;
+}
+inline bool is_unsigned(identity<uint8_t>) noexcept { return true; }
+inline bool is_unsigned(identity<uint16_t>) noexcept { return true; }
+inline bool is_unsigned(identity<uint32_t>) noexcept { return true; }
+inline bool is_unsigned(identity<uint64_t>) noexcept { return true; }
 
 inline constexpr auto type_to_name(identity<bool>) noexcept {
   return "BOOLEAN"sv;
@@ -85,7 +92,7 @@ inline constexpr auto type_to_name(identity<uint32_t>) noexcept {
   return "BIGINT"sv;
 }
 inline constexpr auto type_to_name(identity<uint64_t>) noexcept {
-  return "BIGINT"sv;
+  return "BIGINT UNSIGNED"sv;
 }
 inline constexpr auto type_to_name(identity<blob>) noexcept { return "BLOB"sv; }
 inline auto type_to_name(identity<std::string>) noexcept { return "TEXT"sv; }

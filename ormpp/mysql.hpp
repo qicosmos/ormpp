@@ -175,6 +175,7 @@ class mysql {
         param.buffer_type = MYSQL_TYPE_TINY;
       }
       else {
+        param.is_unsigned = ormpp_mysql::is_unsigned(identity<U>{});
         param.buffer_type =
             (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
       }
@@ -236,6 +237,7 @@ class mysql {
         param_bind.buffer_type = MYSQL_TYPE_TINY;
       }
       else {
+        param_bind.is_unsigned = ormpp_mysql::is_unsigned(identity<U>{});
         param_bind.buffer_type =
             (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
       }

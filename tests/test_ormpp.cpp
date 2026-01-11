@@ -2955,6 +2955,21 @@ struct unsigned_type_t {
 };
 REGISTER_AUTO_KEY(unsigned_type_t, id)
 
+TEST_CASE("is_unsigned") {
+#ifdef ORMPP_ENABLE_MYSQL
+  // 校验有符号、无符号的类型是否一致
+  CHECK(ormpp::ormpp_mysql::is_unsigned(identity<uint8_t>{}));
+  CHECK(ormpp::ormpp_mysql::is_unsigned(identity<uint16_t>{}));
+  CHECK(ormpp::ormpp_mysql::is_unsigned(identity<uint32_t>{}));
+  CHECK(ormpp::ormpp_mysql::is_unsigned(identity<uint64_t>{}));
+  CHECK(!ormpp::ormpp_mysql::is_unsigned(identity<int8_t>{}));
+  CHECK(!ormpp::ormpp_mysql::is_unsigned(identity<int16_t>{}));
+  CHECK(!ormpp::ormpp_mysql::is_unsigned(identity<int32_t>{}));
+  CHECK(!ormpp::ormpp_mysql::is_unsigned(identity<int64_t>{}));
+  CHECK(!ormpp::ormpp_mysql::is_unsigned(identity<short>{}));
+#endif
+}
+
 TEST_CASE("unsigned type") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
@@ -2963,6 +2978,7 @@ TEST_CASE("unsigned type") {
     mysql.create_datatable<unsigned_type_t>();
     auto id = mysql.get_insert_id_after_insert(
         unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8, "purecpp"});
+    CHECK(id > 0);
     auto vec = mysql.query_s<unsigned_type_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().a == 1);
@@ -2974,6 +2990,70 @@ TEST_CASE("unsigned type") {
     CHECK(vec.front().g == 7);
     CHECK(vec.front().h == 8);
     CHECK(vec.front().v == "purecpp");
+
+    // 校验最大值
+    unsigned_type_t max_item = {std::numeric_limits<uint8_t>::max(),
+                                std::numeric_limits<uint16_t>::max(),
+                                std::numeric_limits<uint32_t>::max(),
+                                std::numeric_limits<uint64_t>::max(),
+                                std::numeric_limits<int8_t>::max(),
+                                std::numeric_limits<int16_t>::max(),
+                                std::numeric_limits<int32_t>::max(),
+                                std::numeric_limits<int64_t>::max(),
+                                "purecpp_max"};
+    std::string max_item_json;
+    iguana::to_json(max_item, max_item_json);
+    std::cout << max_item_json << std::endl;
+    id = mysql.get_insert_id_after_insert(max_item);
+    CHECK(id > 0);
+    vec = mysql.query_s<unsigned_type_t>();
+    CHECK(vec.size() == 2);
+    for (auto &item : vec) {
+      if (item.id == id) {
+        CHECK(item.a == std::numeric_limits<uint8_t>::max());
+        CHECK(item.b == std::numeric_limits<uint16_t>::max());
+        CHECK(item.c == std::numeric_limits<uint32_t>::max());
+        CHECK(item.d == std::numeric_limits<uint64_t>::max());
+        CHECK(item.e == std::numeric_limits<int8_t>::max());
+        CHECK(item.f == std::numeric_limits<int16_t>::max());
+        CHECK(item.g == std::numeric_limits<int32_t>::max());
+        CHECK(item.h == std::numeric_limits<int64_t>::max());
+        CHECK(item.v == "purecpp_max");
+        break;
+      }
+    }
+
+    // 校验最小值
+    unsigned_type_t min_item = {std::numeric_limits<uint8_t>::min(),
+                                std::numeric_limits<uint16_t>::min(),
+                                std::numeric_limits<uint32_t>::min(),
+                                std::numeric_limits<uint64_t>::min(),
+                                std::numeric_limits<int8_t>::min(),
+                                std::numeric_limits<int16_t>::min(),
+                                std::numeric_limits<int32_t>::min(),
+                                std::numeric_limits<int64_t>::min(),
+                                "purecpp_min"};
+    std::string min_item_json;
+    iguana::to_json(min_item, min_item_json);
+    std::cout << min_item_json << std::endl;
+    id = mysql.get_insert_id_after_insert(min_item);
+    CHECK(id > 0);
+    vec = mysql.query_s<unsigned_type_t>();
+    CHECK(vec.size() == 3);
+    for (auto &item : vec) {
+      if (item.id == id) {
+        CHECK(item.a == std::numeric_limits<uint8_t>::min());
+        CHECK(item.b == std::numeric_limits<uint16_t>::min());
+        CHECK(item.c == std::numeric_limits<uint32_t>::min());
+        CHECK(item.d == std::numeric_limits<uint64_t>::min());
+        CHECK(item.e == std::numeric_limits<int8_t>::min());
+        CHECK(item.f == std::numeric_limits<int16_t>::min());
+        CHECK(item.g == std::numeric_limits<int32_t>::min());
+        CHECK(item.h == std::numeric_limits<int64_t>::min());
+        CHECK(item.v == "purecpp_min");
+        break;
+      }
+    }
   }
 #endif
 #ifdef ORMPP_ENABLE_PG
