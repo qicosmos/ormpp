@@ -3000,17 +3000,15 @@ TEST_CASE("unsigned type") {
 #undef min
 #endif
 
-    unsigned_type_t max_item {
-      std::numeric_limits<uint8_t>::max(),
-      std::numeric_limits<uint16_t>::max(),
-      std::numeric_limits<uint32_t>::max(),
-      std::numeric_limits<uint64_t>::max(),
-      std::numeric_limits<int8_t>::max(),
-      std::numeric_limits<int16_t>::max(),
-      std::numeric_limits<int32_t>::max(),
-      std::numeric_limits<int64_t>::max(),
-      "purecpp_max"
-    };
+    unsigned_type_t max_item{std::numeric_limits<uint8_t>::max(),
+                             std::numeric_limits<uint16_t>::max(),
+                             std::numeric_limits<uint32_t>::max(),
+                             std::numeric_limits<uint64_t>::max(),
+                             std::numeric_limits<int8_t>::max(),
+                             std::numeric_limits<int16_t>::max(),
+                             std::numeric_limits<int32_t>::max(),
+                             std::numeric_limits<int64_t>::max(),
+                             "purecpp_max"};
     std::string max_item_json;
     iguana::to_json(max_item, max_item_json);
     std::cout << max_item_json << std::endl;
