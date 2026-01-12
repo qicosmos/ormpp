@@ -49,15 +49,6 @@ inline int type_to_id(identity<std::string_view>) noexcept {
   return MYSQL_TYPE_VAR_STRING;
 }
 
-template <typename T>
-inline bool is_unsigned(identity<T>) noexcept {
-  return false;
-}
-inline bool is_unsigned(identity<uint8_t>) noexcept { return true; }
-inline bool is_unsigned(identity<uint16_t>) noexcept { return true; }
-inline bool is_unsigned(identity<uint32_t>) noexcept { return true; }
-inline bool is_unsigned(identity<uint64_t>) noexcept { return true; }
-
 inline constexpr auto type_to_name(identity<bool>) noexcept {
   return "BOOLEAN"sv;
 }
