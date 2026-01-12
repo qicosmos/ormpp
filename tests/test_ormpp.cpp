@@ -12,6 +12,10 @@
 #include "postgresql.hpp"
 #endif
 
+#include <cstdint>
+#include <limits>
+#include <string>
+
 #include "connection_pool.hpp"
 #include "dbng.hpp"
 #include "doctest.h"
@@ -2963,6 +2967,7 @@ TEST_CASE("unsigned type") {
     mysql.create_datatable<unsigned_type_t>();
     auto id = mysql.get_insert_id_after_insert(
         unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8, "purecpp"});
+    CHECK(id > 0);
     auto vec = mysql.query_s<unsigned_type_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().a == 1);
@@ -2974,6 +2979,73 @@ TEST_CASE("unsigned type") {
     CHECK(vec.front().g == 7);
     CHECK(vec.front().h == 8);
     CHECK(vec.front().v == "purecpp");
+
+#if defined(WIN32) && defined(_MSC_VER)
+#undef max
+#undef min
+#endif
+
+    // check max
+    unsigned_type_t max_item{std::numeric_limits<uint8_t>::max(),
+                             std::numeric_limits<uint16_t>::max(),
+                             std::numeric_limits<uint32_t>::max(),
+                             std::numeric_limits<uint64_t>::max(),
+                             std::numeric_limits<int8_t>::max(),
+                             std::numeric_limits<int16_t>::max(),
+                             std::numeric_limits<int32_t>::max(),
+                             std::numeric_limits<int64_t>::max(),
+                             "purecpp_max"};
+    std::string max_item_json;
+    iguana::to_json(max_item, max_item_json);
+    std::cout << max_item_json << std::endl;
+    id = mysql.get_insert_id_after_insert(max_item);
+    CHECK(id > 0);
+    vec = mysql.select(ormpp::all)
+              .from<unsigned_type_t>()
+              .where(col(&unsigned_type_t::id).param())
+              .collect(id);
+    CHECK(vec.size() == 1);
+    auto item = vec.front();
+    CHECK(item.a == std::numeric_limits<uint8_t>::max());
+    CHECK(item.b == std::numeric_limits<uint16_t>::max());
+    CHECK(item.c == std::numeric_limits<uint32_t>::max());
+    CHECK(item.d == std::numeric_limits<uint64_t>::max());
+    CHECK(item.e == std::numeric_limits<int8_t>::max());
+    CHECK(item.f == std::numeric_limits<int16_t>::max());
+    CHECK(item.g == std::numeric_limits<int32_t>::max());
+    CHECK(item.h == std::numeric_limits<int64_t>::max());
+    CHECK(item.v == "purecpp_max");
+
+    // check min
+    unsigned_type_t min_item{std::numeric_limits<uint8_t>::min(),
+                             std::numeric_limits<uint16_t>::min(),
+                             std::numeric_limits<uint32_t>::min(),
+                             std::numeric_limits<uint64_t>::min(),
+                             std::numeric_limits<int8_t>::min(),
+                             std::numeric_limits<int16_t>::min(),
+                             std::numeric_limits<int32_t>::min(),
+                             std::numeric_limits<int64_t>::min(),
+                             "purecpp_min"};
+    std::string min_item_json;
+    iguana::to_json(min_item, min_item_json);
+    std::cout << min_item_json << std::endl;
+    id = mysql.get_insert_id_after_insert(min_item);
+    CHECK(id > 0);
+    vec = mysql.select(ormpp::all)
+              .from<unsigned_type_t>()
+              .where(col(&unsigned_type_t::id).param())
+              .collect(id);
+    CHECK(vec.size() == 1);
+    item = vec.front();
+    CHECK(item.a == std::numeric_limits<uint8_t>::min());
+    CHECK(item.b == std::numeric_limits<uint16_t>::min());
+    CHECK(item.c == std::numeric_limits<uint32_t>::min());
+    CHECK(item.d == std::numeric_limits<uint64_t>::min());
+    CHECK(item.e == std::numeric_limits<int8_t>::min());
+    CHECK(item.f == std::numeric_limits<int16_t>::min());
+    CHECK(item.g == std::numeric_limits<int32_t>::min());
+    CHECK(item.h == std::numeric_limits<int64_t>::min());
+    CHECK(item.v == "purecpp_min");
   }
 #endif
 #ifdef ORMPP_ENABLE_PG
