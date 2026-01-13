@@ -100,6 +100,12 @@ class dbng {
   std::vector<T> query_s(const std::string &str = "", Args &&...args) {
     return db_.template query_s<T>(str, std::forward<Args>(args)...);
   }
+#ifdef ENABLE_MYSQL
+  template <typename T, typename... Args>
+  std::vector<T> execute_s(const std::string &str = "", Args &&...args) {
+    return db_.template query_s<T>(str, std::forward<Args>(args)...);
+  }
+#endif
 
   template <typename T, typename... Args>
   [[deprecated]] bool delete_records(Args &&...where_condition) {
