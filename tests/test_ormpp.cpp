@@ -59,6 +59,18 @@ struct simple {
   std::array<char, 128> arr;
 };
 
+TEST_CASE("test mysql long string") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    auto vec = mysql.query_s<std::tuple<std::string>>(
+        "SELECT REPEAT('A', 65537) AS long_string");
+    CHECK(vec.size() == 1);
+    CHECK(std::get<0>(vec[0]).length() == 65537);
+  }
+#endif
+}
+
 namespace test_ns {
 struct message_clear {
   int64_t room_id;
