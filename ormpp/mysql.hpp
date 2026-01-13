@@ -220,9 +220,9 @@ class mysql {
   }
 
   template <typename T, typename B>
-  void set_param_bind(MYSQL_RES* meta_, MYSQL_BIND& param_bind, T&& value,
-                      int i, std::map<size_t, std::vector<char>>& mp,
-                      B& is_null) {
+  void set_param_bind(MYSQL_RES *meta_, MYSQL_BIND &param_bind, T &&value,
+                      int i, std::map<size_t, std::vector<char>> &mp,
+                      B &is_null) {
     using U = ylt::reflection::remove_cvref_t<T>;
 
     if constexpr (is_optional_v<U>::value) {
@@ -234,7 +234,7 @@ class mysql {
     }
     else if constexpr (std::is_enum_v<U>) {
       param_bind.buffer_type = MYSQL_TYPE_LONG;
-      param_bind.buffer = const_cast<void*>(static_cast<const void*>(&value));
+      param_bind.buffer = const_cast<void *>(static_cast<const void *>(&value));
     }
     else if constexpr (std::is_arithmetic_v<U>) {
       if constexpr (std::is_same_v<bool, U>) {
@@ -245,19 +245,17 @@ class mysql {
         param_bind.buffer_type =
             (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
       }
-      param_bind.buffer = const_cast<void*>(static_cast<const void*>(&value));
+      param_bind.buffer = const_cast<void *>(static_cast<const void *>(&value));
     }
     else if constexpr (std::is_same_v<std::string, U> ||
                        std::is_same_v<std::string_view, U>) {
       unsigned long buffer_size = 256;
       enum_field_types buffer_type = MYSQL_TYPE_STRING;
 
-      if (meta_) {
-        MYSQL_FIELD* field = mysql_fetch_field_direct(meta_, i);
-        if (field) {
-          buffer_type = field->type;
-          buffer_size = field->length + 1;
-        }
+      MYSQL_FIELD *field = mysql_fetch_field_direct(meta_, i);
+      if (field) {
+        buffer_type = field->type;
+        buffer_size = field->length + 1;
       }
 
       param_bind.buffer_type = buffer_type;
@@ -277,12 +275,10 @@ class mysql {
       unsigned long buffer_size = 65536;
       enum_field_types buffer_type = MYSQL_TYPE_BLOB;
 
-      if (meta_) {
-        MYSQL_FIELD* field = mysql_fetch_field_direct(meta_, i);
-        if (field) {
-          buffer_type = field->type;
-          buffer_size = field->length;
-        }
+      MYSQL_FIELD *field = mysql_fetch_field_direct(meta_, i);
+      if (field) {
+        buffer_type = field->type;
+        buffer_size = field->length;
       }
 
       param_bind.buffer_type = buffer_type;
@@ -296,12 +292,10 @@ class mysql {
       unsigned long buffer_size = 256;
       enum_field_types buffer_type = MYSQL_TYPE_STRING;
 
-      if (meta_) {
-        MYSQL_FIELD* field = mysql_fetch_field_direct(meta_, i);
-        if (field) {
-          buffer_type = field->type;
-          buffer_size = field->length + 1;
-        }
+      MYSQL_FIELD *field = mysql_fetch_field_direct(meta_, i);
+      if (field) {
+        buffer_type = field->type;
+        buffer_size = field->length + 1;
       }
 
       param_bind.buffer_type = buffer_type;
@@ -447,7 +441,7 @@ class mysql {
     size_t index = 0;
     std::vector<T> v;
     ylt::reflection::for_each(
-        t, [&param_binds, &index, &nulls, &mp, this](auto& field, auto /*name*/,
+        t, [&param_binds, &index, &nulls, &mp, this](auto &field, auto /*name*/,
                                                      auto /*index*/) {
           set_param_bind(this->meta_, param_binds[index], field, index, mp,
                          nulls[index]);
@@ -544,12 +538,12 @@ class mysql {
     std::vector<T> v;
     ormpp::for_each(
         tp,
-        [&param_binds, &index, &nulls, &mp, this](auto& item, auto /*index*/) {
+        [&param_binds, &index, &nulls, &mp, this](auto &item, auto /*index*/) {
           using U = ylt::reflection::remove_cvref_t<decltype(item)>;
           if constexpr (iguana::ylt_refletable_v<U>) {
             ylt::reflection::for_each(
                 item, [&param_binds, &index, &nulls, &mp, this](
-                          auto& field, auto /*name*/, auto /*index*/) {
+                          auto &field, auto /*name*/, auto /*index*/) {
                   set_param_bind(this->meta_, param_binds[index], field, index,
                                  mp, nulls[index]);
                   index++;
@@ -683,7 +677,7 @@ class mysql {
     size_t index = 0;
     std::vector<T> v;
     ylt::reflection::for_each(
-        t, [&param_binds, &index, &nulls, &mp, this](auto& field, auto /*name*/,
+        t, [&param_binds, &index, &nulls, &mp, this](auto &field, auto /*name*/,
                                                      auto /*index*/) {
           set_param_bind(this->meta_, param_binds[index], field, index, mp,
                          nulls[index]);
@@ -783,12 +777,12 @@ class mysql {
     std::vector<T> v;
     ormpp::for_each(
         tp,
-        [&param_binds, &index, &nulls, &mp, this](auto& item, auto /*index*/) {
+        [&param_binds, &index, &nulls, &mp, this](auto &item, auto /*index*/) {
           using U = ylt::reflection::remove_cvref_t<decltype(item)>;
           if constexpr (iguana::ylt_refletable_v<U>) {
             ylt::reflection::for_each(
                 item, [&param_binds, &index, &nulls, &mp, this](
-                          auto& field, auto /*name*/, auto /*index*/) {
+                          auto &field, auto /*name*/, auto /*index*/) {
                   set_param_bind(this->meta_, param_binds[index], field, index,
                                  mp, nulls[index]);
                   index++;
@@ -1228,7 +1222,7 @@ class mysql {
   };
 
   struct guard_result {
-    guard_result(MYSQL_RES* res) : res_(res) {}
+    guard_result(MYSQL_RES *res) : res_(res) {}
     ~guard_result() {
       if (res_) {
         mysql_free_result(res_);
@@ -1236,13 +1230,13 @@ class mysql {
     }
 
    private:
-    MYSQL_RES* res_ = nullptr;
+    MYSQL_RES *res_ = nullptr;
   };
 
  private:
   MYSQL *con_ = nullptr;
   MYSQL_STMT *stmt_ = nullptr;
-  MYSQL_RES* meta_ = nullptr;
+  MYSQL_RES *meta_ = nullptr;
   inline static std::string sv_;
   inline static std::string last_error_;
   inline static bool has_error_ = false;
