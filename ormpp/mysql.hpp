@@ -241,7 +241,9 @@ class mysql {
         param_bind.buffer_type = MYSQL_TYPE_TINY;
       }
       else {
-        param_bind.is_unsigned = std::is_unsigned_v<U>;
+        if constexpr (std::is_integral_v<U>) {
+          param_bind.is_unsigned = std::is_unsigned_v<U>;
+        }
         param_bind.buffer_type =
             (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
       }
