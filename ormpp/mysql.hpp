@@ -60,7 +60,7 @@ class mysql {
 
     char value = 1;
     mysql_options(con_, MYSQL_OPT_RECONNECT, &value);
-    mysql_options(con_, MYSQL_SET_CHARSET_NAME, "utf8");
+    mysql_options(con_, MYSQL_SET_CHARSET_NAME, "utf8mb4");
 
     if (mysql_real_connect(
             con_, std::get<0>(tp).c_str(), std::get<1>(tp).c_str(),
@@ -96,7 +96,7 @@ class mysql {
   bool create_datatable(Args &&...args) {
     reset_error();
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
-    sql += " DEFAULT CHARSET=utf8";
+    sql += " DEFAULT CHARSET=utf8mb4";
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
