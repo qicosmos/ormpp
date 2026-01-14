@@ -256,7 +256,10 @@ class mysql {
 
       MYSQL_FIELD *field = mysql_fetch_field_direct(meta_, i);
       if (field) {
-        buffer_type = field->type;
+        if (field->type == MYSQL_TYPE_MEDIUM_BLOB ||
+            field->type == MYSQL_TYPE_LONG_BLOB) {
+          buffer_type = field->type;
+        }
         buffer_size = field->length + 1;
       }
 
@@ -296,7 +299,10 @@ class mysql {
 
       MYSQL_FIELD *field = mysql_fetch_field_direct(meta_, i);
       if (field) {
-        buffer_type = field->type;
+        if (field->type == MYSQL_TYPE_MEDIUM_BLOB ||
+            field->type == MYSQL_TYPE_LONG_BLOB) {
+          buffer_type = field->type;
+        }
         buffer_size = field->length + 1;
       }
 
