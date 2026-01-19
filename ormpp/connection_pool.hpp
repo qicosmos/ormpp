@@ -68,7 +68,11 @@ class connection_pool {
 
     conn->update_operate_time();
     std::unique_ptr<DB, DeleterType> ptr(conn.release(), [this](DB *t) {
-      pool_.push_back(std::unique_ptr<DB>(t));
+      {
+        std::scoped_lock<std::mutex> lock(mutex_);
+        pool_.push_back(std::unique_ptr<DB>(t));
+      }
+      condition_.notify_one();
     });
 
     return ptr;
@@ -96,7 +100,11 @@ class connection_pool {
     auto conn = std::make_unique<DB>();
     if (conn->connect(args_)) {
       std::unique_ptr<DB, DeleterType> ptr(conn.release(), [this](DB *t) {
-        pool_.push_back(std::unique_ptr<DB>(t));
+        {
+          std::scoped_lock<std::mutex> lock(mutex_);
+          pool_.push_back(std::unique_ptr<DB>(t));
+        }
+        condition_.notify_one();
       });
 
       return ptr;
