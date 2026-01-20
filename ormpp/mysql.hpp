@@ -58,8 +58,6 @@ class mysql {
       }
     }
 
-    char value = 1;
-    mysql_options(con_, MYSQL_OPT_RECONNECT, &value);
     mysql_options(con_, MYSQL_SET_CHARSET_NAME, "utf8mb4");
 
     if (mysql_real_connect(
