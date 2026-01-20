@@ -33,13 +33,13 @@ class connection_pool {
                    user, passwd, db, timeout, port);
   }
 
-  size_t size() {
-    std::unique_lock<std::mutex> lock(mutex_);
+  size_t size() const {
+    std::scoped_lock lock(mutex_);
     return pool_.size();
   }
 
   std::unique_ptr<DB, DeleterType> get() {
-    std::unique_lock<std::mutex> lock(mutex_);
+    std::unique_lock lock(mutex_);
 
     while (pool_.empty()) {
       if (condition_.wait_for(lock, std::chrono::seconds(3)) ==
@@ -69,7 +69,7 @@ class connection_pool {
     conn->update_operate_time();
     std::unique_ptr<DB, DeleterType> ptr(conn.release(), [this](DB *t) {
       {
-        std::scoped_lock<std::mutex> lock(mutex_);
+        std::scoped_lock lock(mutex_);
         pool_.push_back(std::unique_ptr<DB>(t));
       }
       condition_.notify_one();
@@ -101,7 +101,7 @@ class connection_pool {
     if (conn->connect(args_)) {
       std::unique_ptr<DB, DeleterType> ptr(conn.release(), [this](DB *t) {
         {
-          std::scoped_lock<std::mutex> lock(mutex_);
+          std::scoped_lock lock(mutex_);
           pool_.push_back(std::unique_ptr<DB>(t));
         }
         condition_.notify_one();
@@ -118,7 +118,7 @@ class connection_pool {
   connection_pool(const connection_pool &) = delete;
   connection_pool &operator=(const connection_pool &) = delete;
 
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::once_flag flag_;
   std::condition_variable condition_;
   std::deque<std::unique_ptr<DB>> pool_;
