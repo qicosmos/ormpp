@@ -876,6 +876,148 @@ class mysql {
     return v;
   }
 
+  // 允许执行带参数的预处理语句，并处理存储过程的调用。
+  template <typename T, typename... Args>
+  std::enable_if_t<iguana::non_ylt_refletable_v<T>, std::vector<T>> execute_s(
+      const std::string &sql, Args &&...args) {
+      static_assert(iguana::is_tuple<T>::value);
+      constexpr auto SIZE = std::tuple_size_v<T>;
+  #ifdef ORMPP_ENABLE_LOG
+      std::cout << sql << std::endl;
+  #endif
+      stmt_ = mysql_stmt_init(con_);
+      if (!stmt_) {
+          set_last_error(mysql_error(con_));
+          return {};
+      }
+  
+      auto guard = guard_statment(stmt_);
+  
+      if (mysql_stmt_prepare(stmt_, sql.c_str(), (int)sql.size())) {
+          set_last_error(mysql_stmt_error(stmt_));
+          return {};
+      }
+  
+      if constexpr (sizeof...(Args) > 0) {
+          std::vector<MYSQL_BIND> param_binds;
+          (set_param_bind(param_binds, args), ...);
+          if (mysql_stmt_bind_param(stmt_, param_binds.data())) {
+              set_last_error(mysql_stmt_error(stmt_));
+              return {};
+          }
+      }
+  
+      if (mysql_stmt_execute(stmt_)) {
+          set_last_error(mysql_stmt_error(stmt_));
+          return {};
+      }
+  
+      std::vector<T> v;
+      do {  // 新增循环处理多结果集
+          // Handle result sets if any
+          std::array<decltype(std::declval<MYSQL_BIND>().is_null),
+                    result_size<T>::value>
+              nulls = {};
+          std::array<MYSQL_BIND, result_size<T>::value> param_binds = {};
+          std::map<size_t, std::vector<char>> mp;
+  
+          T tp{};
+          size_t index = 0;
+          
+          if (mysql_stmt_field_count(stmt_) > 0) {
+              ormpp::for_each(
+                  tp,
+                  [&param_binds, &index, &nulls, &mp, this](auto &item, auto) {
+                      using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+                      if constexpr (iguana::ylt_refletable_v<U>) {
+                          ylt::reflection::for_each(
+                              item, [&](auto &field, auto, auto) {
+                                  set_param_bind(param_binds[index], field, index, mp,
+                                              nulls[index]);
+                                  index++;
+                              });
+                      }
+                      else {
+                          set_param_bind(param_binds[index], item, index, mp, nulls[index]);
+                          index++;
+                      }
+                  },
+                  std::make_index_sequence<SIZE>{});
+  
+              if (index == 0)
+                  continue;
+  
+              if (mysql_stmt_bind_result(stmt_, param_binds.data())) {
+                  set_last_error(mysql_stmt_error(stmt_));
+                  continue;
+              }
+  
+              if (mysql_stmt_store_result(stmt_)) {
+                  set_last_error(mysql_stmt_error(stmt_));
+                  continue;
+              }
+  
+              while (mysql_stmt_fetch(stmt_) == 0) {
+                  index = 0;
+                  ormpp::for_each(
+                      tp,
+                      [&](auto &item, auto) {
+                          using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+                          if constexpr (iguana::ylt_refletable_v<U>) {
+                              ylt::reflection::for_each(
+                                  item, [&](auto &field, auto, auto) {
+                                      set_value(param_binds[index], field, index, mp);
+                                      index++;
+                                  });
+                          }
+                          else {
+                              set_value(param_binds[index], item, index, mp);
+                              index++;
+                          }
+                      },
+                      std::make_index_sequence<SIZE>{});
+  
+                  for (auto &p : mp)
+                      p.second.assign(p.second.size(), 0);
+  
+                  index = 0;
+                  ormpp::for_each(
+                      tp,
+                      [&](auto &item, auto) {
+                          using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+                          if constexpr (iguana::ylt_refletable_v<U>) {
+                              ylt::reflection::for_each(
+                                  item,
+                                  [&](auto &field, auto, auto) {
+                                      if (nulls.at(index++)) {
+                                          using W = std::remove_reference_t<decltype(field)>;
+                                          if constexpr (is_optional_v<W>::value ||
+                                                      std::is_arithmetic_v<W>) {
+                                              field = {};
+                                          }
+                                      }
+                                  });
+                          }
+                          else {
+                              if (nulls.at(index++)) {
+                                  if constexpr (is_optional_v<U>::value ||
+                                              std::is_arithmetic_v<U>) {
+                                      item = {};
+                                  }
+                              }
+                          }
+                      },
+                      std::make_index_sequence<SIZE>{});
+  
+                  v.push_back(tp);
+              }
+              mysql_stmt_free_result(stmt_); // 显式释放结果集
+          }
+      } while (mysql_stmt_next_result(stmt_) == 0); // 新增循环处理多个结果集
+  
+      return v;
+  }
+
   int get_blob_len(int column) {
     reset_error();
     unsigned long data_len = 0;
