@@ -8,6 +8,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -17,6 +18,7 @@ namespace ormpp {
 template <typename DB>
 class connection_pool {
  public:
+  using DeleterType = std::function<void(DB *)>;
   static connection_pool<DB> &instance() {
     static connection_pool<DB> instance;
     return instance;
@@ -31,8 +33,13 @@ class connection_pool {
                    user, passwd, db, timeout, port);
   }
 
-  std::shared_ptr<DB> get() {
-    std::unique_lock<std::mutex> lock(mutex_);
+  size_t size() const {
+    std::scoped_lock lock(mutex_);
+    return pool_.size();
+  }
+
+  std::unique_ptr<DB, DeleterType> get() {
+    std::unique_lock lock(mutex_);
 
     while (pool_.empty()) {
       if (condition_.wait_for(lock, std::chrono::seconds(3)) ==
@@ -42,7 +49,7 @@ class connection_pool {
       }
     }
 
-    auto conn = pool_.front();
+    auto conn = std::move(pool_.front());
     pool_.pop_front();
     lock.unlock();
 
@@ -60,17 +67,15 @@ class connection_pool {
     }
 
     conn->update_operate_time();
-    return conn;
-  }
+    std::unique_ptr<DB, DeleterType> ptr(conn.release(), [this](DB *t) {
+      {
+        std::scoped_lock lock(mutex_);
+        pool_.push_back(std::unique_ptr<DB>(t));
+      }
+      condition_.notify_one();
+    });
 
-  void return_back(std::shared_ptr<DB> conn) {
-    if (conn == nullptr || conn->has_error()) {
-      conn = create_connection();
-    }
-    std::unique_lock<std::mutex> lock(mutex_);
-    pool_.push_back(conn);
-    lock.unlock();
-    condition_.notify_one();
+    return ptr;
   }
 
  private:
@@ -81,9 +86,9 @@ class connection_pool {
     args_ = std::make_tuple(host, user, passwd, db, timeout, port);
 
     for (int i = 0; i < maxsize; ++i) {
-      auto conn = std::make_shared<DB>();
+      auto conn = std::make_unique<DB>();
       if (conn->connect(args_)) {
-        pool_.push_back(conn);
+        pool_.push_back(std::move(conn));
       }
       else {
         throw std::invalid_argument("init failed");
@@ -91,9 +96,21 @@ class connection_pool {
     }
   }
 
-  auto create_connection() {
-    auto conn = std::make_shared<DB>();
-    return conn->connect(args_) ? conn : nullptr;
+  std::unique_ptr<DB, DeleterType> create_connection() {
+    auto conn = std::make_unique<DB>();
+    if (conn->connect(args_)) {
+      std::unique_ptr<DB, DeleterType> ptr(conn.release(), [this](DB *t) {
+        {
+          std::scoped_lock lock(mutex_);
+          pool_.push_back(std::unique_ptr<DB>(t));
+        }
+        condition_.notify_one();
+      });
+
+      return ptr;
+    }
+
+    return nullptr;
   }
 
   connection_pool() = default;
@@ -101,10 +118,10 @@ class connection_pool {
   connection_pool(const connection_pool &) = delete;
   connection_pool &operator=(const connection_pool &) = delete;
 
-  std::mutex mutex_;
+  mutable std::mutex mutex_;
   std::once_flag flag_;
   std::condition_variable condition_;
-  std::deque<std::shared_ptr<DB>> pool_;
+  std::deque<std::unique_ptr<DB>> pool_;
   std::tuple<std::string, std::string, std::string, std::string,
              std::optional<int>, std::optional<int>>
       args_;

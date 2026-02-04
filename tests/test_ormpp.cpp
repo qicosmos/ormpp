@@ -12,6 +12,10 @@
 #include "postgresql.hpp"
 #endif
 
+#include <cstdint>
+#include <limits>
+#include <string>
+
 #include "connection_pool.hpp"
 #include "dbng.hpp"
 #include "doctest.h"
@@ -37,7 +41,6 @@ struct person {
   int id;
 };
 REGISTER_AUTO_KEY(person, id)
-YLT_REFL(person, id, name, age)
 
 struct student {
   int code;
@@ -48,7 +51,6 @@ struct student {
   std::string classroom;
 };
 REGISTER_CONFLICT_KEY(student, code)
-YLT_REFL(student, code, name, sex, age, dm, classroom)
 
 struct simple {
   int id;
@@ -56,7 +58,55 @@ struct simple {
   int age;
   std::array<char, 128> arr;
 };
-YLT_REFL(simple, id, code, age, arr)
+
+TEST_CASE("test mysql long string") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    auto vec = mysql.query_s<std::tuple<std::string>>(
+        "SELECT REPEAT('A', 65537) AS long_string");
+    CHECK(vec.size() == 1);
+    CHECK(std::get<0>(vec[0]).length() == 65537);
+  }
+#endif
+}
+
+namespace test_ns {
+struct message_clear {
+  int64_t room_id;
+  int64_t user_id;
+  int64_t message_id;
+  int64_t created_at;
+  int64_t updated_at;
+  static constexpr std::string_view get_alias_struct_name(message_clear *) {
+    return "im_message_clear";
+  }
+};
+REGISTER_CONFLICT_KEY(message_clear, room_id, user_id)
+}  // namespace test_ns
+
+TEST_CASE("test update with multiple conflict keys") {
+#ifdef ORMPP_ENABLE_MYSQL
+  using namespace test_ns;
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists im_message_clear");
+    mysql.create_datatable<message_clear>();
+    message_clear data = {1, 1, 0, 0, 0};
+    mysql.insert(data);
+    auto clear = mysql.query_s<message_clear>("room_id=? and user_id=?", 1, 1);
+    if (clear.size() == 1) {
+      clear.front().message_id = 2;
+      clear.front().updated_at = 0;
+      mysql.update(clear.front());
+
+      clear = mysql.query_s<message_clear>("room_id=? and user_id=?", 1, 1);
+      auto &t = clear.front();
+      CHECK(t.message_id == 2);
+    }
+  }
+#endif
+}
 
 // TEST_CASE(mysql performance){
 //    dbng<mysql> mysql;
@@ -86,7 +136,7 @@ YLT_REFL(simple, id, code, age, arr)
 //
 //    m_begin = high_resolution_clock::now();
 //    for (int j = 0; j < 100; ++j) {
-//        REQUIRE(!mysql.query<student>("limit 1000").empty());
+//        REQUIRE(!mysql.query_s<student>("limit 1000").empty());
 //    }
 //    s = duration_cast<duration<double>>(high_resolution_clock::now() -
 //    m_begin).count(); std::cout<<s<<'\n';
@@ -104,7 +154,33 @@ struct test_optional {
   std::optional<int> empty_;
 };
 REGISTER_AUTO_KEY(test_optional, id)
-YLT_REFL(test_optional, id, name, age, empty_);
+
+struct sub_optinal {
+  std::optional<std::string> name;
+  std::optional<int> age;
+};
+
+TEST_CASE("test client pool") {
+#ifdef ORMPP_ENABLE_MYSQL
+  auto &pool = connection_pool<dbng<mysql>>::instance();
+  pool.init(4, ip, username, password, db, 5, 3306);
+  size_t init_size = pool.size();
+  CHECK(init_size == 4);
+  {
+    auto conn = pool.get();
+    init_size = pool.size();
+    CHECK(init_size == 3);
+    auto conn2 = pool.get();
+    init_size = pool.size();
+    CHECK(init_size == 2);
+    conn = nullptr;
+    init_size = pool.size();
+    CHECK(init_size == 3);
+  }
+  init_size = pool.size();
+  CHECK(init_size == 4);
+#endif
+}
 
 TEST_CASE("optional") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -112,26 +188,226 @@ TEST_CASE("optional") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists test_optional;");
     mysql.create_datatable<test_optional>(ormpp_auto_key{"id"});
-    mysql.insert<test_optional>({0, "purecpp", 200});
-    auto vec1 = mysql.query<test_optional>();
+    mysql.insert<test_optional>({0, "purecpp", 1});
+    mysql.insert<test_optional>({0, "test", 2});
+    {
+      // param() means ?, collect(2) means bind parameters
+      auto l0 = mysql.select(all)
+                    .from<test_optional>()
+                    .where(col(&test_optional::id).param())
+                    .collect(2);
+      auto l = mysql.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).param())
+                   .collect(std::string("test"));
+      CHECK(l0.size() == 1);
+      CHECK(l.size() == 1);
+      auto l1 =
+          mysql.select(col(&test_optional::name), col(&test_optional::age))
+              .from<test_optional>()
+              .where(col(&test_optional::id).param())
+              .collect<sub_optinal>(2);
+      sub_optinal t = l1.front();
+      CHECK(l1.size() == 1);
+    }
+    {
+      auto l0 =
+          mysql
+              .select(col(&test_optional::id), count(col(&test_optional::name)),
+                      col(&test_optional::name), sum(col(&test_optional::id)))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      CHECK(l0.size() == 2);
+      auto l = mysql.select(sum(col(&test_optional::id)), count())
+                   .from<test_optional>()
+                   .group_by(col(&test_optional::id))
+                   .collect();
+      CHECK(l.size() == 2);
+    }
+    {
+      auto l = mysql.select(all).from<test_optional>().collect();
+      auto l1 = mysql.select(col(&test_optional::id), col(&test_optional::name))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+    }
+    {
+      auto l = mysql.select(col(&test_optional::id), col(&test_optional::name))
+                   .from<test_optional>()
+                   .scalar();
+      auto l1 = mysql.select(col(&test_optional::name), col(&test_optional::id))
+                    .from<test_optional>()
+                    .scalar();
+      CHECK(l == 1);
+      CHECK(l1 == "purecpp");
+    }
+    {
+      auto l = mysql.select(count()).from<test_optional>().collect();
+      auto l2 = mysql.select(count(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l3 = mysql.select(count_distinct(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l == 2);
+      CHECK(l2 == 2);
+      CHECK(l3 == 2);
+
+      auto l4 = mysql.select(sum(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l5 = mysql.select(avg(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l6 = mysql.select((min)(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l7 = mysql.select((max)(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l8 = mysql.select((min)(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      auto l9 = mysql.select((max)(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l4 == 3);
+      CHECK(l5 == 1.5);
+      CHECK(l6 == 1);
+      CHECK(l7 == 2);
+      CHECK(l8 == "purecpp");
+      CHECK(l9 == "test");
+    }
+    {
+      auto l =
+          mysql.select(count(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l1 =
+          mysql.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l2 =
+          mysql.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l3 =
+          mysql.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l4 =
+          mysql.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .having(sum(col(&test_optional::age)) > 0 && count() > 0)
+              .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+      CHECK(l2.size() == 2);
+      CHECK(l3.size() == 2);
+      CHECK(l4.size() == 2);
+    }
+    auto l0 = mysql.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id).desc(),
+                            col(&test_optional::name).desc())
+                  .limit(token)
+                  .offset(token)
+                  .collect(5, 0);
+    auto l1 = mysql.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id).desc())
+                  .limit(5)
+                  .offset(0)
+                  .collect();
+    auto ll1 = mysql.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::id).not_in(1, 2))
+                   .collect();
+    auto ll2 = mysql.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::id).null())
+                   .collect();
+    auto ll3 = mysql.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).not_null())
+                   .collect();
+    CHECK(ll1.size() == 0);
+    CHECK(ll2.size() == 0);
+    CHECK(ll3.size() == 2);
+
+    auto l2 = mysql.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).in("test", "purecpp"))
+                  .collect();
+    CHECK(l0.size() == 2);
+    CHECK(l1.size() == 2);
+    CHECK(l2.size() == 2);
+
+    auto l3 = mysql.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).between(1, 2))
+                  .collect();
+
+    auto l4 = mysql.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).between("purecpp", "test"))
+                  .collect();
+    auto l5 = mysql.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).like("pure%"))
+                  .collect();
+    CHECK(l3.size() == 2);
+    CHECK(l4.size() == 2);
+    CHECK(l5.size() == 1);
+    auto list =
+        mysql.select(all)
+            .from<test_optional>()
+            .where(col(&test_optional::id) == 1 || col(&test_optional::id) == 2)
+            .collect();
+    REQUIRE(list.size() == 2);
+    auto list1 = mysql.select(all).from<test_optional>().collect();
+    REQUIRE(list1.size() == 2);
+    auto list2 = mysql.select(all)
+                     .from<test_optional>()
+                     .where(col(&test_optional::id) == 2)
+                     .collect();
+    REQUIRE(list2.size() == 1);
+    auto list3 = mysql.select(all)
+                     .from<test_optional>()
+                     .where(col(&test_optional::name) == "test")
+                     .collect();
+    REQUIRE(list3.size() == 1);
+
+    auto vec1 = mysql.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
-    CHECK(vec1.front().age.value() == 200);
+    CHECK(vec1.front().age.value() == 1);
     CHECK(vec1.front().name.value() == "purecpp");
     CHECK(vec1.front().empty_.has_value() == false);
-    auto vec2 = mysql.query<test_optional>("select * from test_optional;");
+    auto vec2 = mysql.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
-    CHECK(vec2.front().age.value() == 200);
+    CHECK(vec2.front().age.value() == 1);
     CHECK(vec2.front().name.value() == "purecpp");
     CHECK(vec2.front().empty_.has_value() == false);
 
     auto vec3 = mysql.query_s<test_optional>();
     REQUIRE(vec3.size() > 0);
-    CHECK(vec3.front().age.value() == 200);
+    CHECK(vec3.front().age.value() == 1);
     CHECK(vec3.front().name.value() == "purecpp");
     CHECK(vec3.front().empty_.has_value() == false);
     auto vec4 = mysql.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec4.size() > 0);
-    CHECK(vec4.front().age.value() == 200);
+    CHECK(vec4.front().age.value() == 1);
     CHECK(vec4.front().name.value() == "purecpp");
     CHECK(vec4.front().empty_.has_value() == false);
   }
@@ -141,15 +417,219 @@ TEST_CASE("optional") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists test_optional;");
     postgres.create_datatable<test_optional>(ormpp_auto_key{"id"});
-    postgres.insert<test_optional>({0, "purecpp", 200});
-    auto vec1 = postgres.query<test_optional>();
+    postgres.insert<test_optional>({0, "purecpp", 1});
+    postgres.insert<test_optional>({0, "test", 2});
+    {
+      // param() means ?, collect(2) means bind parameters
+      auto l0 = postgres.select(all)
+                    .from<test_optional>()
+                    .where(col(&test_optional::id).param())
+                    .collect(2);
+      auto l = postgres.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).param())
+                   .collect(std::string("test"));
+      CHECK(l0.size() == 1);
+      CHECK(l.size() == 1);
+      auto l1 =
+          postgres.select(col(&test_optional::name), col(&test_optional::age))
+              .from<test_optional>()
+              .where(col(&test_optional::id).param())
+              .collect<sub_optinal>(2);
+      sub_optinal t = l1.front();
+      CHECK(l1.size() == 1);
+    }
+    {
+      auto l0 =
+          postgres
+              .select(col(&test_optional::id), count(col(&test_optional::name)),
+                      col(&test_optional::name), sum(col(&test_optional::id)))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      CHECK(l0.size() == 2);
+      auto l = postgres.select(sum(col(&test_optional::id)), count())
+                   .from<test_optional>()
+                   .group_by(col(&test_optional::id))
+                   .collect();
+      CHECK(l.size() == 2);
+    }
+    {
+      auto l = postgres.select(all).from<test_optional>().collect();
+      auto l1 =
+          postgres.select(col(&test_optional::id), col(&test_optional::name))
+              .from<test_optional>()
+              .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+    }
+    {
+      auto l =
+          postgres.select(col(&test_optional::id), col(&test_optional::name))
+              .from<test_optional>()
+              .scalar();
+      auto l1 =
+          postgres.select(col(&test_optional::name), col(&test_optional::id))
+              .from<test_optional>()
+              .scalar();
+      CHECK(l == 1);
+      CHECK(l1 == "purecpp");
+    }
+    {
+      auto l = postgres.select(count()).from<test_optional>().collect();
+      auto l2 = postgres.select(count(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l3 = postgres.select(count_distinct(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l == 2);
+      CHECK(l2 == 2);
+      CHECK(l3 == 2);
+
+      auto l4 = postgres.select(sum(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l5 = postgres.select(avg(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l6 = postgres.select((min)(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l7 = postgres.select((max)(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l8 = postgres.select((min)(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      auto l9 = postgres.select((max)(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l4 == 3);
+      CHECK(l5 == 1.5);
+      CHECK(l6 == 1);
+      CHECK(l7 == 2);
+      CHECK(l8 == "purecpp");
+      CHECK(l9 == "test");
+    }
+    {
+      auto l =
+          postgres
+              .select(count(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l1 =
+          postgres.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l2 =
+          postgres.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l3 =
+          postgres.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l4 =
+          postgres.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .having(sum(col(&test_optional::age)) > 0 && count() > 0)
+              .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+      CHECK(l2.size() == 2);
+      CHECK(l3.size() == 2);
+      CHECK(l4.size() == 2);
+    }
+    auto l0 = postgres.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id).desc(),
+                            col(&test_optional::name).desc())
+                  .limit(token)
+                  .offset(token)
+                  .collect(5, 0);
+    auto l1 = postgres.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id).desc())
+                  .limit(5)
+                  .offset(0)
+                  .collect();
+    auto ll1 = postgres.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::id).not_in(1, 2))
+                   .collect();
+    auto ll2 = postgres.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::id).null())
+                   .collect();
+    auto ll3 = postgres.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).not_null())
+                   .collect();
+    CHECK(ll1.size() == 0);
+    CHECK(ll2.size() == 0);
+    CHECK(ll3.size() == 2);
+
+    auto l2 = postgres.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).in("test", "purecpp"))
+                  .collect();
+    CHECK(l0.size() == 2);
+    CHECK(l1.size() == 2);
+    CHECK(l2.size() == 2);
+
+    auto l3 = postgres.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).between(1, 2))
+                  .collect();
+
+    auto l4 = postgres.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).between("purecpp", "test"))
+                  .collect();
+    auto l5 = postgres.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).like("pure%"))
+                  .collect();
+    CHECK(l3.size() == 2);
+    CHECK(l4.size() == 2);
+    CHECK(l5.size() == 1);
+    auto list =
+        postgres.select(all)
+            .from<test_optional>()
+            .where(col(&test_optional::id) == 1 || col(&test_optional::id) == 2)
+            .collect();
+    REQUIRE(list.size() == 2);
+    auto list1 = postgres.select(all).from<test_optional>().collect();
+    REQUIRE(list1.size() == 2);
+    auto list2 = postgres.select(all)
+                     .from<test_optional>()
+                     .where(col(&test_optional::id) == 2)
+                     .collect();
+    REQUIRE(list2.size() == 1);
+    auto list3 = postgres.select(all)
+                     .from<test_optional>()
+                     .where(col(&test_optional::name) == "test")
+                     .collect();
+    REQUIRE(list3.size() == 1);
+
+    auto vec1 = postgres.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
-    CHECK(vec1.front().age.value() == 200);
+    CHECK(vec1.front().age.value() == 1);
     CHECK(vec1.front().name.value() == "purecpp");
     CHECK(vec1.front().empty_.has_value() == false);
-    auto vec2 = postgres.query<test_optional>("select * from test_optional;");
+    auto vec2 = postgres.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
-    CHECK(vec2.front().age.value() == 200);
+    CHECK(vec2.front().age.value() == 1);
     CHECK(vec2.front().name.value() == "purecpp");
     CHECK(vec2.front().empty_.has_value() == false);
   }
@@ -161,28 +641,252 @@ TEST_CASE("optional") {
 #else
   if (sqlite.connect(db)) {
 #endif
+    sqlite.execute("DROP TABLE IF EXISTS person");
+    REQUIRE(sqlite.create_datatable<person>(ormpp_auto_key{"id"}));
+    REQUIRE(sqlite.insert<person>({"encryption_test", 2}) == 1);
+
     sqlite.execute("drop table if exists test_optional;");
-    sqlite.create_datatable<test_optional>(ormpp_auto_key{"id"});
-    sqlite.insert<test_optional>({0, "purecpp", 200});
-    auto vec1 = sqlite.query<test_optional>();
+    sqlite.create_datatable<test_optional>(
+        ormpp_auto_key{col_name(&test_optional::id)});
+    sqlite.insert<test_optional>({0, "purecpp", 1});
+    sqlite.insert<test_optional>({0, "test", 2});
+    {
+      // param() means ?, collect(2) means bind parameters
+      auto l0 = sqlite.select(all)
+                    .from<test_optional>()
+                    .where(col(&test_optional::id).param())
+                    .collect(2);
+      auto l = sqlite.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).param())
+                   .collect(std::string("test"));
+      CHECK(l0.size() == 1);
+      CHECK(l.size() == 1);
+      auto l1 =
+          sqlite.select(col(&test_optional::name), col(&test_optional::age))
+              .from<test_optional>()
+              .where(col(&test_optional::id).param() &&
+                     col(&test_optional::name).param())
+              .collect<sub_optinal>(2, std::string("test"));
+      sub_optinal t = l1.front();
+      CHECK(l1.size() == 1);
+    }
+    {
+      auto l0 =
+          sqlite
+              .select(col(&test_optional::id), count(col(&test_optional::name)),
+                      col(&test_optional::name), sum(col(&test_optional::id)))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      CHECK(l0.size() == 2);
+      auto l = sqlite.select(sum(col(&test_optional::id)), count())
+                   .from<test_optional>()
+                   .group_by(col(&test_optional::id))
+                   .collect();
+      CHECK(l.size() == 2);
+    }
+    {
+      auto l = sqlite.select(all).from<test_optional>().collect();
+      auto l1 =
+          sqlite.select(col(&test_optional::id), col(&test_optional::name))
+              .from<test_optional>()
+              .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+    }
+    {
+      auto l = sqlite.select(col(&test_optional::id), col(&test_optional::name))
+                   .from<test_optional>()
+                   .scalar();
+      auto l1 =
+          sqlite.select(col(&test_optional::name), col(&test_optional::id))
+              .from<test_optional>()
+              .scalar();
+      CHECK(l == 1);
+      CHECK(l1 == "purecpp");
+    }
+    {
+      auto l = sqlite.select(count()).from<test_optional>().collect();
+      auto l2 = sqlite.select(count(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l3 = sqlite.select(count_distinct(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l == 2);
+      CHECK(l2 == 2);
+      CHECK(l3 == 2);
+
+      auto l4 = sqlite.select(sum(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l5 = sqlite.select(avg(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l6 = sqlite.select((min)(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l7 = sqlite.select((max)(col(&test_optional::id)))
+                    .from<test_optional>()
+                    .collect();
+      auto l8 = sqlite.select((min)(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      auto l9 = sqlite.select((max)(col(&test_optional::name)))
+                    .from<test_optional>()
+                    .collect();
+      CHECK(l4 == 3);
+      CHECK(l5 == 1.5);
+      CHECK(l6 == 1);
+      CHECK(l7 == 2);
+      CHECK(l8 == "purecpp");
+      CHECK(l9 == "test");
+    }
+    {
+      auto l =
+          sqlite.select(count(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l1 =
+          sqlite.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l2 =
+          sqlite.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l3 =
+          sqlite.select(sum(col(&test_optional::id)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .collect();
+      auto l4 =
+          sqlite.select(sum(col(&test_optional::age)), col(&test_optional::id))
+              .from<test_optional>()
+              .where(col(&test_optional::id) > 0)
+              .group_by(col(&test_optional::id))
+              .having(sum(col(&test_optional::age)) > 0 && count() > 0)
+              .collect();
+      CHECK(l.size() == 2);
+      CHECK(l1.size() == 2);
+      CHECK(l2.size() == 2);
+      CHECK(l3.size() == 2);
+      CHECK(l4.size() == 2);
+    }
+    {
+      auto l =
+          sqlite.select(col(&test_optional::name), col(&test_optional::age))
+              .from<test_optional>()
+              .collect();
+      CHECK(l.size() == 2);
+      auto l2 = sqlite.select(col(&test_optional::name), col(&person::name))
+                    .from<test_optional>()
+                    .inner_join(col(&test_optional::id), col(&person::id))
+                    .where(col(&person::id) > 0 || col(&person::id) == 1)
+                    .collect();
+      CHECK(l2.size() == 1);
+      sqlite.execute("DROP TABLE IF EXISTS person");
+    }
+    auto l0 = sqlite.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id).desc(),
+                            col(&test_optional::name).desc())
+                  .limit(token)
+                  .offset(token)
+                  .collect(5, 0);
+    auto l1 = sqlite.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).in(1, 2))
+                  .order_by(col(&test_optional::id).desc(),
+                            col(&test_optional::name).desc())
+                  .limit(5)
+                  .offset(0)
+                  .collect();
+    auto ll1 = sqlite.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::id).not_in(1, 2))
+                   .collect();
+    auto ll2 = sqlite.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::id).null())
+                   .collect();
+    auto ll3 = sqlite.select(all)
+                   .from<test_optional>()
+                   .where(col(&test_optional::name).not_null())
+                   .collect();
+    CHECK(ll1.size() == 0);
+    CHECK(ll2.size() == 0);
+    CHECK(ll3.size() == 2);
+
+    auto l2 = sqlite.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).in("test", "purecpp"))
+                  .collect();
+    CHECK(l0.size() == 2);
+    CHECK(l1.size() == 2);
+    CHECK(l2.size() == 2);
+
+    auto l3 = sqlite.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).between(1, 2))
+                  .collect();
+
+    auto l4 = sqlite.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).between("purecpp", "test"))
+                  .collect();
+    auto l5 = sqlite.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::name).like("pure%"))
+                  .collect();
+    CHECK(l3.size() == 2);
+    CHECK(l4.size() == 2);
+    CHECK(l5.size() == 1);
+    auto list =
+        sqlite.select(all)
+            .from<test_optional>()
+            .where(col(&test_optional::id) == 1 || col(&test_optional::id) == 2)
+            .collect();
+    REQUIRE(list.size() == 2);
+    auto list1 = sqlite.select(all).from<test_optional>().collect();
+    REQUIRE(list1.size() == 2);
+    auto list2 = sqlite.select(all)
+                     .from<test_optional>()
+                     .where(col(&test_optional::id) == 2)
+                     .collect();
+    REQUIRE(list2.size() == 1);
+    auto list3 = sqlite.select(all)
+                     .from<test_optional>()
+                     .where(col(&test_optional::name) == "test")
+                     .collect();
+    REQUIRE(list3.size() == 1);
+    auto vec1 = sqlite.query_s<test_optional>();
     REQUIRE(vec1.size() > 0);
-    CHECK(vec1.front().age.value() == 200);
+    CHECK(vec1.front().age.value() == 1);
     CHECK(vec1.front().name.value() == "purecpp");
     CHECK(vec1.front().empty_.has_value() == false);
-    auto vec2 = sqlite.query<test_optional>("select * from test_optional;");
+    auto vec2 = sqlite.query_s<test_optional>("select * from test_optional;");
     REQUIRE(vec2.size() > 0);
-    CHECK(vec2.front().age.value() == 200);
+    CHECK(vec2.front().age.value() == 1);
     CHECK(vec2.front().name.value() == "purecpp");
     CHECK(vec2.front().empty_.has_value() == false);
   }
 #endif
 }
 
+/*
+表别名, 聚合结果别名
+*/
 struct test_order {
   int id;
   std::string name;
 };
-YLT_REFL(test_order, name, id);
 
 TEST_CASE("random reflection order") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -195,7 +899,7 @@ TEST_CASE("random reflection order") {
     int id = 666;
     std::string name = "hello";
     mysql.insert(test_order{id, name});
-    auto vec = mysql.query<test_order>();
+    auto vec = mysql.query_s<test_order>();
     REQUIRE(vec.size() > 0);
     CHECK(vec.front().id == id);
     CHECK(vec.front().name == name);
@@ -210,15 +914,14 @@ struct custom_name {
     return "test_order";
   }
 };
-YLT_REFL(custom_name, id, name);
 
 TEST_CASE("custom name") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
-    auto vec1 = mysql.query<custom_name>();
+    auto vec1 = mysql.query_s<custom_name>();
     CHECK(vec1.size() > 0);
-    auto vec2 = mysql.query(FID(custom_name::name), "=", "hello");
+    auto vec2 = mysql.query_s<custom_name>("name='hello'");
     CHECK(vec2.size() > 0);
   }
 #endif
@@ -228,7 +931,6 @@ struct dummy {
   int id;
   std::string name;
 };
-YLT_REFL(dummy, id, name);
 
 // TEST_CASE("mysql exist tb") {
 //   dbng<mysql> mysql;
@@ -238,7 +940,7 @@ YLT_REFL(dummy, id, name);
 //   dummy d1{0, "jerry"};
 //   mysql.insert(d);
 //   mysql.insert(d1);
-//   auto v = mysql.query<dummy>("limit 1, 1");
+//   auto v = mysql.query_s<dummy>("limit 1, 1");
 //   std::cout << v.size() << "\n";
 // }
 
@@ -249,8 +951,8 @@ YLT_REFL(dummy, id, name);
 //	sqlite.create_datatable<test_tb>(ormpp_unique{{"name"}});
 //	test_tb tb{ 1, "aa" };
 //	sqlite.insert(tb);
-//	auto vt = sqlite.query<test_tb>();
-//	auto vt1 = sqlite.query<std::tuple<test_tb>>("select * from test_tb");
+//	auto vt = sqlite.query_s<test_tb>();
+//	auto vt1 = sqlite.query_s<std::tuple<test_tb>>("select * from test_tb");
 //    auto& pool = connection_pool<dbng<mysql>>::instance();
 //    try {
 //        pool.init(1, ip, username, password, db, 2);
@@ -259,7 +961,7 @@ YLT_REFL(dummy, id, name);
 //        return;
 //    }
 //	auto con = pool.get();
-//	auto v = con->query<std::tuple<test_tb>>("select * from test_tb");
+//	auto v = con->query_s<std::tuple<test_tb>>("select * from test_tb");
 //	con->create_datatable<test_tb>(ormpp_unique{{"name"}});
 //    for (int i = 0; i < 10; ++i) {
 //        auto conn = pool.get();
@@ -333,7 +1035,7 @@ TEST_CASE("ormpp cfg") {
   }
 
   auto conn1 = pool.get();
-  auto vec = conn1->query<student>();
+  auto vec = conn1->query_s<student>();
   std::cout << vec.size() << std::endl;
 #endif
 }
@@ -383,7 +1085,7 @@ TEST_CASE("sqlcipher false password connection") {
   REQUIRE(sqlite.insert<person>({"encryption_test", 100}) == 1);
 
   // Verify data was inserted correctly
-  auto results = sqlite.query<person>();
+  auto results = sqlite.query_s<person>();
   REQUIRE(results.size() == 1);
   CHECK(results[0].name == "encryption_test");
 
@@ -396,7 +1098,7 @@ TEST_CASE("sqlcipher false password connection") {
 
   // Connect again with correct password to verify database is still intact
   REQUIRE(sqlite.connect(db, password));
-  results = sqlite.query<person>();
+  results = sqlite.query_s<person>();
   REQUIRE(results.size() == 1);
   CHECK(results[0].name == "encryption_test");
 #endif
@@ -415,7 +1117,7 @@ TEST_CASE("sqlcipehr with username and password connection") {
   REQUIRE(sqlite.insert<person>({"encryption_test", 100}) == 1);
 
   // Verify data was inserted correctly
-  auto results = sqlite.query<person>();
+  auto results = sqlite.query_s<person>();
   REQUIRE(results.size() == 1);
   CHECK(results[0].name == "encryption_test");
 
@@ -428,7 +1130,7 @@ TEST_CASE("sqlcipehr with username and password connection") {
 
   // Connect again with correct password to verify database is still intact
   REQUIRE(sqlite.connect(db, username, password));
-  results = sqlite.query<person>();
+  results = sqlite.query_s<person>();
   REQUIRE(results.size() == 1);
   CHECK(results[0].name == "encryption_test");
 #endif
@@ -484,9 +1186,9 @@ TEST_CASE("create table") {
 }
 
 TEST_CASE("insert query") {
-  ormpp_key key{"code"};
-  ormpp_not_null not_null{{"code", "age"}};
-  ormpp_auto_key auto_key{"code"};
+  ormpp_key key{col_name(&student::code)};
+  ormpp_not_null not_null{{col_name(&student::code), col_name(&student::age)}};
+  ormpp_auto_key auto_key{col_name(&student::code)};
 
   student s = {1, "tom", 0, 19, 1.5, "room2"};
   student s1 = {2, "jack", 1, 20, 2.5, "room3"};
@@ -496,14 +1198,26 @@ TEST_CASE("insert query") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
-    auto vec = mysql.query(FID(person::id), "<", "5");
+    mysql.insert(person{"tom", 18});
+    auto vec = mysql.query_s<person>("id<5");
+    auto vec1 =
+        mysql.select(all).from<person>().where(col(&person::id) < 5).collect();
+    CHECK(vec.size() == vec1.size());
+    CHECK(vec.front().name == vec1.front().name);
   }
 #endif
 
 #ifdef ORMPP_ENABLE_PG
   dbng<postgresql> postgres;
   if (postgres.connect(ip, username, password, db)) {
-    auto vec = postgres.query(FID(person::id), "<", "5");
+    postgres.insert(person{"tom", 18});
+    auto vec = postgres.query_s<person>("id<5");
+    auto vec1 = postgres.select(all)
+                    .from<person>()
+                    .where(col(&person::id) < 5)
+                    .collect();
+    CHECK(vec.size() == vec1.size());
+    CHECK(vec.front().name == vec1.front().name);
   }
 #endif
 
@@ -514,7 +1228,12 @@ TEST_CASE("insert query") {
 #else
   if (sqlite.connect(db)) {
 #endif
-    auto vec = sqlite.query(FID(person::id), "<", "5");
+    sqlite.insert(person{"tom", 18});
+    auto vec = sqlite.query_s<person>("id<5");
+    auto vec1 =
+        sqlite.select(all).from<person>().where(col(&person::id) < 5).collect();
+    CHECK(vec.size() == vec1.size());
+    CHECK(vec.front().name == vec1.front().name);
   }
 #endif
 
@@ -524,14 +1243,14 @@ TEST_CASE("insert query") {
     mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(auto_key, not_null);
     CHECK(mysql.insert(s) == 1);
-    auto vec1 = mysql.query<student>();
+    auto vec1 = mysql.query_s<student>();
     CHECK(vec1.size() == 1);
     CHECK(mysql.insert(v) == 2);
-    auto vec2 = mysql.query<student>();
+    auto vec2 = mysql.query_s<student>();
     CHECK(vec2.size() == 3);
-    auto vec3 = mysql.query(FID(student::code), "<", "5");
+    auto vec3 = mysql.query_s<student>("code<5");
     CHECK(vec3.size() == 3);
-    auto vec4 = mysql.query<student>("limit 2");
+    auto vec4 = mysql.query_s<student>("limit 2");
     CHECK(vec4.size() == 2);
 #endif
 
@@ -539,14 +1258,14 @@ TEST_CASE("insert query") {
     postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(auto_key, not_null);
     CHECK(postgres.insert(s) == 1);
-    auto vec1 = postgres.query<student>();
+    auto vec1 = postgres.query_s<student>();
     CHECK(vec1.size() == 1);
     CHECK(postgres.insert(v) == 2);
-    auto vec2 = postgres.query<student>();
+    auto vec2 = postgres.query_s<student>();
     CHECK(vec2.size() == 3);
     auto vec3 = postgres.query(FID(student::code), "<", "5");
     CHECK(vec3.size() == 3);
-    auto vec4 = postgres.query<student>("limit 2");
+    auto vec4 = postgres.query_s<student>("limit 2");
     CHECK(vec4.size() == 2);
 #endif
 
@@ -554,14 +1273,14 @@ TEST_CASE("insert query") {
     sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(auto_key, not_null);
     CHECK(sqlite.insert(s) == 1);
-    auto vec1 = sqlite.query<student>();
+    auto vec1 = sqlite.query_s<student>();
     CHECK(vec1.size() == 1);
     CHECK(sqlite.insert(v) == 2);
-    auto vec2 = sqlite.query<student>();
+    auto vec2 = sqlite.query_s<student>();
     CHECK(vec2.size() == 3);
-    auto vec3 = sqlite.query(FID(student::code), "<", "5");
+    auto vec3 = sqlite.query_s<student>("code<5");
     CHECK(vec3.size() == 3);
-    auto vec4 = sqlite.query<student>("limit 2");
+    auto vec4 = sqlite.query_s<student>("limit 2");
     CHECK(vec4.size() == 2);
 #endif
   }
@@ -572,7 +1291,7 @@ TEST_CASE("insert query") {
     mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(key, not_null);
     CHECK(mysql.insert(s) == 1);
-    auto vec = mysql.query<student>();
+    auto vec = mysql.query_s<student>();
     CHECK(vec.size() == 1);
 #endif
 
@@ -580,7 +1299,7 @@ TEST_CASE("insert query") {
     postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(key, not_null);
     CHECK(postgres.insert(s) == 1);
-    auto vec = postgres.query<student>();
+    auto vec = postgres.query_s<student>();
     CHECK(vec.size() == 1);
 #endif
 
@@ -588,7 +1307,7 @@ TEST_CASE("insert query") {
     sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key, not_null);
     CHECK(sqlite.insert(s) == 1);
-    auto vec = sqlite.query<student>();
+    auto vec = sqlite.query_s<student>();
     CHECK(vec.size() == 1);
 #endif
   }
@@ -601,24 +1320,24 @@ TEST_CASE("update replace") {
     mysql.execute("drop table if exists person");
     mysql.create_datatable<person>(ormpp_auto_key{"id"});
     mysql.insert<person>({"purecpp", 100});
-    auto vec = mysql.query<person>();
+    auto vec = mysql.query_s<person>();
     CHECK(vec.size() == 1);
     vec.front().name = "update";
     vec.front().age = 200;
     mysql.update(vec.front());
-    vec = mysql.query<person>();
+    vec = mysql.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
     mysql.update<person>({"purecpp", 100, 1}, "id=1");
-    vec = mysql.query<person>();
+    vec = mysql.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
     CHECK(vec.front().age == 100);
     vec.front().name = "update";
     vec.front().age = 200;
     mysql.replace(vec.front());
-    vec = mysql.query<person>();
+    vec = mysql.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
@@ -630,29 +1349,29 @@ TEST_CASE("update replace") {
     postgres.execute("drop table if exists person");
     postgres.create_datatable<person>(ormpp_auto_key{"id"});
     postgres.insert<person>({"purecpp", 100});
-    auto vec = postgres.query<person>();
+    auto vec = postgres.query_s<person>();
     CHECK(vec.size() == 1);
     vec.front().name = "update";
     vec.front().age = 200;
     postgres.update(vec.front());
-    vec = postgres.query<person>();
+    vec = postgres.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
     postgres.update<person>({"purecpp", 100, 1}, "id=1");
-    vec = postgres.query<person>();
+    vec = postgres.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
     CHECK(vec.front().age == 100);
     vec.front().name = "update";
     vec.front().age = 200;
     postgres.replace(vec.front());
-    vec = postgres.query<person>();
+    vec = postgres.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
     postgres.replace<person>({"purecpp", 100, 1}, "id");
-    vec = postgres.query<person>();
+    vec = postgres.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
     CHECK(vec.front().age == 100);
@@ -668,24 +1387,24 @@ TEST_CASE("update replace") {
     sqlite.execute("drop table if exists person");
     sqlite.create_datatable<person>(ormpp_auto_key{"id"});
     sqlite.insert<person>({"purecpp", 100});
-    auto vec = sqlite.query<person>();
+    auto vec = sqlite.query_s<person>();
     CHECK(vec.size() == 1);
     vec.front().name = "update";
     vec.front().age = 200;
     sqlite.update(vec.front());
-    vec = sqlite.query<person>();
+    vec = sqlite.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
     sqlite.update<person>({"purecpp", 100, 1}, "id=1");
-    vec = sqlite.query<person>();
+    vec = sqlite.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "purecpp");
     CHECK(vec.front().age == 100);
     vec.front().name = "update";
     vec.front().age = 200;
     sqlite.replace(vec.front());
-    vec = sqlite.query<person>();
+    vec = sqlite.query_s<person>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
@@ -712,9 +1431,9 @@ TEST_CASE("update") {
     v[0].name = "test1";
     v[1].name = "test2";
     CHECK(mysql.update(v[0]) == 1);
-    auto vec1 = mysql.query<student>();
+    auto vec1 = mysql.query_s<student>();
     CHECK(mysql.update(v[1]) == 1);
-    auto vec2 = mysql.query<student>();
+    auto vec2 = mysql.query_s<student>();
   }
 #endif
 
@@ -727,9 +1446,9 @@ TEST_CASE("update") {
     v[0].name = "test1";
     v[1].name = "test2";
     CHECK(postgres.update(v[0]) == 1);
-    auto vec1 = postgres.query<student>();
+    auto vec1 = postgres.query_s<student>();
     CHECK(postgres.update(v[1]) == 1);
-    auto vec2 = postgres.query<student>();
+    auto vec2 = postgres.query_s<student>();
   }
 #endif
 
@@ -746,9 +1465,9 @@ TEST_CASE("update") {
     v[0].name = "test1";
     v[1].name = "test2";
     CHECK(sqlite.update(v[0]) == 1);
-    auto vec1 = sqlite.query<student>();
+    auto vec1 = sqlite.query_s<student>();
     CHECK(sqlite.update(v[1]) == 1);
-    auto vec2 = sqlite.query<student>();
+    auto vec2 = sqlite.query_s<student>();
   }
 #endif
 }
@@ -773,7 +1492,7 @@ TEST_CASE("multi update") {
     v[1].name = "test2";
     v[2].name = "test3";
     CHECK(mysql.update(v) == 3);
-    auto vec = mysql.query<student>();
+    auto vec = mysql.query_s<student>();
     CHECK(vec.size() == 3);
   }
 #endif
@@ -788,7 +1507,7 @@ TEST_CASE("multi update") {
     v[1].name = "test2";
     v[2].name = "test3";
     CHECK(postgres.update(v) == 3);
-    auto vec = postgres.query<student>();
+    auto vec = postgres.query_s<student>();
     CHECK(vec.size() == 3);
   }
 #endif
@@ -807,7 +1526,7 @@ TEST_CASE("multi update") {
     v[1].name = "test2";
     v[2].name = "test3";
     CHECK(sqlite.update(v) == 3);
-    auto vec = sqlite.query<student>();
+    auto vec = sqlite.query_s<student>();
     CHECK(vec.size() == 3);
   }
 #endif
@@ -829,11 +1548,11 @@ TEST_CASE("delete") {
     mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(key, not_null);
     CHECK(mysql.insert(v) == 3);
-    mysql.delete_records<student>("code=1");
-    auto vec1 = mysql.query<student>();
+    mysql.delete_records_s<student>("code=1");
+    auto vec1 = mysql.query_s<student>();
     CHECK(vec1.size() == 2);
-    mysql.delete_records<student>("");
-    auto vec2 = mysql.query<student>();
+    mysql.delete_records_s<student>("");
+    auto vec2 = mysql.query_s<student>();
     CHECK(vec2.size() == 0);
   }
 #endif
@@ -844,11 +1563,11 @@ TEST_CASE("delete") {
     postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(key, not_null);
     CHECK(postgres.insert(v) == 3);
-    postgres.delete_records<student>("code=1");
-    auto vec1 = postgres.query<student>();
+    postgres.delete_records_s<student>("code=1");
+    auto vec1 = postgres.query_s<student>();
     CHECK(vec1.size() == 2);
-    postgres.delete_records<student>("");
-    auto vec2 = postgres.query<student>();
+    postgres.delete_records_s<student>("");
+    auto vec2 = postgres.query_s<student>();
     CHECK(vec2.size() == 0);
   }
 #endif
@@ -863,11 +1582,11 @@ TEST_CASE("delete") {
     sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key);
     CHECK(sqlite.insert(v) == 3);
-    REQUIRE(sqlite.delete_records<student>("code=1"));
-    auto vec1 = sqlite.query<student>();
+    REQUIRE(sqlite.delete_records_s<student>("code=1"));
+    auto vec1 = sqlite.query_s<student>();
     CHECK(vec1.size() == 2);
-    REQUIRE(sqlite.delete_records<student>(""));
-    auto vec2 = sqlite.query<student>();
+    REQUIRE(sqlite.delete_records_s<student>(""));
+    auto vec2 = sqlite.query_s<student>();
     CHECK(vec2.size() == 0);
   }
 #endif
@@ -886,9 +1605,9 @@ TEST_CASE("query") {
     mysql.execute("drop table if exists simple");
     mysql.create_datatable<simple>(key);
     CHECK(mysql.insert(v) == 3);
-    auto vec1 = mysql.query<simple>();
+    auto vec1 = mysql.query_s<simple>();
     CHECK(vec1.size() == 3);
-    auto vec2 = mysql.query<simple>("id=1");
+    auto vec2 = mysql.query_s<simple>("id=1");
     CHECK(vec2.size() == 1);
   }
 #endif
@@ -899,9 +1618,9 @@ TEST_CASE("query") {
     postgres.execute("drop table if exists simple");
     postgres.create_datatable<simple>(key);
     CHECK(postgres.insert(v) == 3);
-    auto vec1 = postgres.query<simple>();
+    auto vec1 = postgres.query_s<simple>();
     CHECK(vec1.size() == 3);
-    auto vec2 = postgres.query<simple>("id=2");
+    auto vec2 = postgres.query_s<simple>("id=2");
     CHECK(vec2.size() == 1);
   }
 #endif
@@ -916,9 +1635,9 @@ TEST_CASE("query") {
     sqlite.execute("drop table if exists simple");
     sqlite.create_datatable<simple>(key);
     CHECK(sqlite.insert(v) == 3);
-    auto vec1 = sqlite.query<simple>();
+    auto vec1 = sqlite.query_s<simple>();
     CHECK(vec1.size() == 3);
-    auto vec2 = sqlite.query<simple>("id=3");
+    auto vec2 = sqlite.query_s<simple>("id=3");
     CHECK(vec2.size() == 1);
   }
 #endif
@@ -940,10 +1659,10 @@ TEST_CASE("query some") {
     mysql.execute("drop table if exists student;");
     mysql.create_datatable<student>(key, not_null);
     CHECK(mysql.insert(v) == 3);
-    auto vec1 = mysql.query<std::tuple<int>>("select count(1) from student");
+    auto vec1 = mysql.query_s<std::tuple<int>>("select count(1) from student");
     CHECK(vec1.size() == 1);
     CHECK(std::get<0>(vec1[0]) == 3);
-    auto vec2 = mysql.query<std::tuple<int, std::string, double>>(
+    auto vec2 = mysql.query_s<std::tuple<int, std::string, double>>(
         "select code, name, dm from student");
     CHECK(vec2.size() == 3);
   }
@@ -955,10 +1674,11 @@ TEST_CASE("query some") {
     postgres.execute("drop table if exists student;");
     postgres.create_datatable<student>(key, not_null);
     CHECK(postgres.insert(v) == 3);
-    auto vec1 = postgres.query<std::tuple<int>>("select count(1) from student");
+    auto vec1 =
+        postgres.query_s<std::tuple<int>>("select count(1) from student");
     CHECK(vec1.size() == 1);
     CHECK(std::get<0>(vec1[0]) == 3);
-    auto vec2 = postgres.query<std::tuple<int, std::string, double>>(
+    auto vec2 = postgres.query_s<std::tuple<int, std::string, double>>(
         "select code, name, dm from student");
     CHECK(vec2.size() == 3);
   }
@@ -974,10 +1694,10 @@ TEST_CASE("query some") {
     sqlite.execute("drop table if exists student;");
     sqlite.create_datatable<student>(key);
     CHECK(sqlite.insert(v) == 3);
-    auto vec1 = sqlite.query<std::tuple<int>>("select count(1) from student");
+    auto vec1 = sqlite.query_s<std::tuple<int>>("select count(1) from student");
     CHECK(vec1.size() == 1);
     CHECK(std::get<0>(vec1[0]) == 3);
-    auto vec2 = sqlite.query<std::tuple<int, std::string, double>>(
+    auto vec2 = sqlite.query_s<std::tuple<int, std::string, double>>(
         "select code, name, dm from student");
     CHECK(vec2.size() == 3);
   }
@@ -1010,10 +1730,10 @@ TEST_CASE("query multi table") {
     mysql.create_datatable<person>(key1, not_null1);
     CHECK(mysql.insert(v) == 3);
     CHECK(mysql.insert(v1) == 3);
-    auto vec1 = mysql.query<std::tuple<person, std::string, int>>(
+    auto vec1 = mysql.query_s<std::tuple<person, std::string, int>>(
         "select person.*, student.name, student.age from person, student"s);
     CHECK(vec1.size() == 9);
-    auto vec2 = mysql.query<std::tuple<person, student>>(
+    auto vec2 = mysql.query_s<std::tuple<person, student>>(
         "select * from person, student"s);
     CHECK(vec2.size() == 9);
   }
@@ -1028,10 +1748,10 @@ TEST_CASE("query multi table") {
     postgres.create_datatable<person>(key1, not_null1);
     CHECK(postgres.insert(v) == 3);
     CHECK(postgres.insert(v1) == 3);
-    auto vec1 = postgres.query<std::tuple<int, std::string, double>>(
+    auto vec1 = postgres.query_s<std::tuple<int, std::string, double>>(
         "select person.*, student.name, student.age from person, student"s);
     CHECK(vec1.size() == 9);
-    auto vec2 = postgres.query<std::tuple<person, student>>(
+    auto vec2 = postgres.query_s<std::tuple<person, student>>(
         "select * from person, student"s);
     CHECK(vec2.size() == 9);
   }
@@ -1050,10 +1770,10 @@ TEST_CASE("query multi table") {
     sqlite.create_datatable<person>(key1, not_null1);
     CHECK(sqlite.insert(v) == 3);
     CHECK(sqlite.insert(v1) == 3);
-    auto vec1 = sqlite.query<std::tuple<int, std::string, double>>(
+    auto vec1 = sqlite.query_s<std::tuple<int, std::string, double>>(
         "select person.*, student.name, student.age from person, student"s);
     CHECK(vec1.size() == 9);
-    auto vec2 = sqlite.query<std::tuple<person, student>>(
+    auto vec2 = sqlite.query_s<std::tuple<person, student>>(
         "select * from person, student"s);
     CHECK(vec2.size() == 9);
   }
@@ -1083,7 +1803,7 @@ TEST_CASE("transaction") {
       }
     }
     mysql.commit();
-    auto vec = mysql.query<student>();
+    auto vec = mysql.query_s<student>();
     CHECK(vec.size() == 10);
     CHECK(mysql.delete_records_s<student>() == 10);
     mysql.set_enable_transaction(false);
@@ -1093,7 +1813,7 @@ TEST_CASE("transaction") {
       mysql.rollback();
     }
     mysql.commit();
-    vec = mysql.query<student>();
+    vec = mysql.query_s<student>();
     CHECK(vec.size() == 2);
   }
 #endif
@@ -1112,7 +1832,7 @@ TEST_CASE("transaction") {
       }
     }
     postgres.commit();
-    auto vec = postgres.query<student>();
+    auto vec = postgres.query_s<student>();
     CHECK(vec.size() == 10);
     CHECK(postgres.delete_records_s<student>() == 10);
     postgres.set_enable_transaction(false);
@@ -1123,7 +1843,7 @@ TEST_CASE("transaction") {
       postgres.rollback();
     }
     postgres.commit();
-    vec = postgres.query<student>();
+    vec = postgres.query_s<student>();
     CHECK(vec.size() == 2);
   }
 #endif
@@ -1146,7 +1866,7 @@ TEST_CASE("transaction") {
       }
     }
     sqlite.commit();
-    auto vec = sqlite.query<student>();
+    auto vec = sqlite.query_s<student>();
     CHECK(vec.size() == 10);
     CHECK(sqlite.delete_records_s<student>() == 10);
     sqlite.set_enable_transaction(false);
@@ -1157,7 +1877,7 @@ TEST_CASE("transaction") {
       sqlite.rollback();
     }
     sqlite.commit();
-    vec = sqlite.query<student>();
+    vec = sqlite.query_s<student>();
     CHECK(vec.size() == 2);
   }
 #endif
@@ -1213,7 +1933,6 @@ struct image {
   int id;
   ormpp::blob bin;
 };
-YLT_REFL(image, id, bin);
 
 TEST_CASE("blob") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1273,7 +1992,6 @@ struct image_ex {
   ormpp::blob bin;
   std::string time;
 };
-YLT_REFL(image_ex, id, bin, time);
 
 TEST_CASE("blob tuple") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1365,15 +2083,14 @@ TEST_CASE("create table with unique") {
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists person");
-    mysql.create_datatable<person>(ormpp_auto_key{"id"},
-                                   ormpp_unique{{"name", "age"}});
+    mysql.create_datatable<person>(ormpp_auto_key{"id"}, ormpp_unique{{"age"}});
     mysql.insert<person>({"purecpp"});
-    auto vec1 = mysql.query<person>("order by id");
-    auto vec2 = mysql.query<person>("limit 1");
+    auto vec1 = mysql.query_s<person>("order by id");
+    auto vec2 = mysql.query_s<person>("limit 1");
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
     mysql.insert<person>({"purecpp"});
-    auto vec3 = mysql.query<person>();
+    auto vec3 = mysql.query_s<person>();
     CHECK(vec3.size() == 1);
   }
 #endif
@@ -1384,12 +2101,12 @@ TEST_CASE("create table with unique") {
     postgres.create_datatable<person>(ormpp_auto_key{"id"},
                                       ormpp_unique{{"name", "age"}});
     postgres.insert<person>({"purecpp"});
-    auto vec1 = postgres.query<person>("order by id");
-    auto vec2 = postgres.query<person>("limit 1");
+    auto vec1 = postgres.query_s<person>("order by id");
+    auto vec2 = postgres.query_s<person>("limit 1");
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
     postgres.insert<person>({"purecpp"});
-    auto vec3 = postgres.query<person>();
+    auto vec3 = postgres.query_s<person>();
     CHECK(vec3.size() == 1);
   }
 #endif
@@ -1404,12 +2121,12 @@ TEST_CASE("create table with unique") {
     sqlite.create_datatable<person>(ormpp_auto_key{"id"},
                                     ormpp_unique{{"name", "age"}});
     sqlite.insert<person>({"purecpp"});
-    auto vec1 = sqlite.query<person>("order by id");
-    auto vec2 = sqlite.query<person>("limit 1");
+    auto vec1 = sqlite.query_s<person>("order by id");
+    auto vec2 = sqlite.query_s<person>("limit 1");
     CHECK(vec1.size() == 1);
     CHECK(vec2.size() == 1);
     sqlite.insert<person>({"purecpp"});
-    auto vec3 = sqlite.query<person>();
+    auto vec3 = sqlite.query_s<person>();
     CHECK(vec3.size() == 1);
   }
 #endif
@@ -1606,12 +2323,11 @@ TEST_CASE("query_s delete_records_s") {
 }
 
 struct tuple_optional_t {
+  int id;
   std::optional<std::string> name;
   std::optional<int> age;
-  int id;
 };
 REGISTER_AUTO_KEY(tuple_optional_t, id)
-YLT_REFL(tuple_optional_t, id, name, age)
 
 TEST_CASE("query tuple_optional_t") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1619,11 +2335,11 @@ TEST_CASE("query tuple_optional_t") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists tuple_optional_t");
     mysql.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
-    mysql.insert<tuple_optional_t>({"purecpp", 6});
-    mysql.insert<tuple_optional_t>({std::nullopt});
+    mysql.insert<tuple_optional_t>({0, "purecpp", 6});
+    mysql.insert<tuple_optional_t>({0, std::nullopt});
     auto vec =
-        mysql.query<std::tuple<tuple_optional_t, std::optional<std::string>,
-                               std::optional<int>>>(
+        mysql.query_s<std::tuple<tuple_optional_t, std::optional<std::string>,
+                                 std::optional<int>>>(
             "select id,name,age,name,age from tuple_optional_t;");
     CHECK(vec.size() == 2);
     auto tp1 = vec.front();
@@ -1649,12 +2365,11 @@ TEST_CASE("query tuple_optional_t") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists tuple_optional_t");
     postgres.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
-    postgres.insert<tuple_optional_t>({"purecpp", 6});
-    postgres.insert<tuple_optional_t>({std::nullopt});
-    auto vec =
-        postgres.query<std::tuple<tuple_optional_t, std::optional<std::string>,
-                                  std::optional<int>>>(
-            "select id,name,age,name,age from tuple_optional_t;");
+    postgres.insert<tuple_optional_t>({0, "purecpp", 6});
+    postgres.insert<tuple_optional_t>({0, std::nullopt});
+    auto vec = postgres.query_s<std::tuple<
+        tuple_optional_t, std::optional<std::string>, std::optional<int>>>(
+        "select id,name,age,name,age from tuple_optional_t;");
     CHECK(vec.size() == 2);
     auto tp1 = vec.front();
     auto tp2 = vec.back();
@@ -1683,11 +2398,11 @@ TEST_CASE("query tuple_optional_t") {
 #endif
     sqlite.execute("drop table if exists tuple_optional_t");
     sqlite.create_datatable<tuple_optional_t>(ormpp_auto_key{"id"});
-    sqlite.insert<tuple_optional_t>({"purecpp", 6});
-    sqlite.insert<tuple_optional_t>({std::nullopt});
+    sqlite.insert(tuple_optional_t{0, "purecpp", 6});
+    sqlite.insert<tuple_optional_t>({0, std::nullopt});
     auto vec =
-        sqlite.query<std::tuple<tuple_optional_t, std::optional<std::string>,
-                                std::optional<int>>>(
+        sqlite.query_s<std::tuple<tuple_optional_t, std::optional<std::string>,
+                                  std::optional<int>>>(
             "select id,name,age,name,age from tuple_optional_t;");
     CHECK(vec.size() == 2);
     auto tp1 = vec.front();
@@ -1719,7 +2434,6 @@ struct test_enum_t {
   int id;
 };
 REGISTER_AUTO_KEY(test_enum_t, id)
-YLT_REFL(test_enum_t, id, color, fruit)
 
 TEST_CASE("test enum") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1728,31 +2442,31 @@ TEST_CASE("test enum") {
     mysql.execute("drop table if exists test_enum_t");
     mysql.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
     mysql.insert<test_enum_t>({Color::BLUE});
-    auto vec = mysql.query<test_enum_t>();
+    auto vec = mysql.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     mysql.update(vec.front());
-    vec = mysql.query<test_enum_t>();
+    vec = mysql.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
     mysql.update<test_enum_t>({Color::BLUE, APPLE, 1}, "id=1");
-    vec = mysql.query<test_enum_t>();
+    vec = mysql.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     mysql.replace(vec.front());
-    vec = mysql.query<test_enum_t>();
+    vec = mysql.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    mysql.delete_records<test_enum_t>();
-    vec = mysql.query<test_enum_t>();
+    mysql.delete_records_s<test_enum_t>();
+    vec = mysql.query_s<test_enum_t>();
     CHECK(vec.size() == 0);
   }
 #endif
@@ -1762,31 +2476,31 @@ TEST_CASE("test enum") {
     postgres.execute("drop table if exists test_enum_t");
     postgres.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
     postgres.insert<test_enum_t>({Color::BLUE});
-    auto vec = postgres.query<test_enum_t>();
+    auto vec = postgres.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     postgres.update(vec.front());
-    vec = postgres.query<test_enum_t>();
+    vec = postgres.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
     postgres.update<test_enum_t>({Color::BLUE, APPLE, 1}, "id=1");
-    vec = postgres.query<test_enum_t>();
+    vec = postgres.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     postgres.replace(vec.front());
-    vec = postgres.query<test_enum_t>();
+    vec = postgres.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    postgres.delete_records<test_enum_t>();
-    vec = postgres.query<test_enum_t>();
+    postgres.delete_records_s<test_enum_t>();
+    vec = postgres.query_s<test_enum_t>();
     CHECK(vec.size() == 0);
   }
 #endif
@@ -1800,47 +2514,46 @@ TEST_CASE("test enum") {
     sqlite.execute("drop table if exists test_enum_t");
     sqlite.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
     sqlite.insert<test_enum_t>({Color::BLUE});
-    auto vec = sqlite.query<test_enum_t>();
+    auto vec = sqlite.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     sqlite.update(vec.front());
-    vec = sqlite.query<test_enum_t>();
+    vec = sqlite.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
     sqlite.update<test_enum_t>({Color::BLUE, APPLE, 1}, "id=1");
-    vec = sqlite.query<test_enum_t>();
+    vec = sqlite.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     sqlite.replace(vec.front());
-    vec = sqlite.query<test_enum_t>();
+    vec = sqlite.query_s<test_enum_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    sqlite.delete_records<test_enum_t>();
-    vec = sqlite.query<test_enum_t>();
+    sqlite.delete_records_s<test_enum_t>();
+    vec = sqlite.query_s<test_enum_t>();
     CHECK(vec.size() == 0);
   }
 #endif
 }
 
 struct test_enum_with_name_t {
+  int id;
   Color color;
   Fruit fruit;
-  int id;
   static constexpr std::string_view get_alias_struct_name(
       test_enum_with_name_t *) {
     return "test_enum";
   }
 };
 REGISTER_AUTO_KEY(test_enum_with_name_t, id)
-YLT_REFL(test_enum_with_name_t, id, color, fruit)
 
 TEST_CASE("test enum with custom name") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1848,32 +2561,32 @@ TEST_CASE("test enum with custom name") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists test_enum");
     mysql.create_datatable<test_enum_with_name_t>(ormpp_auto_key{"id"});
-    mysql.insert<test_enum_with_name_t>({Color::BLUE});
-    auto vec = mysql.query<test_enum_with_name_t>();
+    mysql.insert<test_enum_with_name_t>({0, Color::BLUE});
+    auto vec = mysql.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     mysql.update(vec.front());
-    vec = mysql.query<test_enum_with_name_t>();
+    vec = mysql.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    mysql.update<test_enum_with_name_t>({Color::BLUE, APPLE, 1}, "id=1");
-    vec = mysql.query<test_enum_with_name_t>();
+    mysql.update<test_enum_with_name_t>({1, Color::BLUE, APPLE});
+    vec = mysql.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     mysql.replace(vec.front());
-    vec = mysql.query<test_enum_with_name_t>();
+    vec = mysql.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    mysql.delete_records<test_enum_with_name_t>();
-    vec = mysql.query<test_enum_with_name_t>();
+    mysql.delete_records_s<test_enum_with_name_t>();
+    vec = mysql.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 0);
   }
 #endif
@@ -1882,32 +2595,32 @@ TEST_CASE("test enum with custom name") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists test_enum");
     postgres.create_datatable<test_enum_with_name_t>(ormpp_auto_key{"id"});
-    postgres.insert<test_enum_with_name_t>({Color::BLUE});
-    auto vec = postgres.query<test_enum_with_name_t>();
+    postgres.insert<test_enum_with_name_t>({0, Color::BLUE});
+    auto vec = postgres.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     postgres.update(vec.front());
-    vec = postgres.query<test_enum_with_name_t>();
+    vec = postgres.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    postgres.update<test_enum_with_name_t>({Color::BLUE, APPLE, 1}, "id=1");
-    vec = postgres.query<test_enum_with_name_t>();
+    postgres.update<test_enum_with_name_t>({1, Color::BLUE, APPLE});
+    vec = postgres.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     postgres.replace(vec.front());
-    vec = postgres.query<test_enum_with_name_t>();
+    vec = postgres.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    postgres.delete_records<test_enum_with_name_t>();
-    vec = postgres.query<test_enum_with_name_t>();
+    postgres.delete_records_s<test_enum_with_name_t>();
+    vec = postgres.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 0);
   }
 #endif
@@ -1920,32 +2633,32 @@ TEST_CASE("test enum with custom name") {
 #endif
     sqlite.execute("drop table if exists test_enum");
     sqlite.create_datatable<test_enum_with_name_t>(ormpp_auto_key{"id"});
-    sqlite.insert<test_enum_with_name_t>({Color::BLUE});
-    auto vec = sqlite.query<test_enum_with_name_t>();
+    sqlite.insert<test_enum_with_name_t>({0, Color::BLUE});
+    auto vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     sqlite.update(vec.front());
-    vec = sqlite.query<test_enum_with_name_t>();
+    vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    sqlite.update<test_enum_with_name_t>({Color::BLUE, APPLE, 1}, "id=1");
-    vec = sqlite.query<test_enum_with_name_t>();
+    sqlite.update<test_enum_with_name_t>({1, Color::BLUE, APPLE});
+    vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::BLUE);
     CHECK(vec.front().fruit == APPLE);
     vec.front().color = Color::RED;
     vec.front().fruit = BANANA;
     sqlite.replace(vec.front());
-    vec = sqlite.query<test_enum_with_name_t>();
+    vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().color == Color::RED);
     CHECK(vec.front().fruit == BANANA);
-    sqlite.delete_records<test_enum_with_name_t>();
-    vec = sqlite.query<test_enum_with_name_t>();
+    sqlite.delete_records_s<test_enum_with_name_t>();
+    vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 0);
   }
 #endif
@@ -1956,7 +2669,6 @@ struct test_bool_t {
   int id;
 };
 REGISTER_AUTO_KEY(test_bool_t, id)
-YLT_REFL(test_bool_t, id, ok)
 
 TEST_CASE("test bool") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -1968,7 +2680,7 @@ TEST_CASE("test bool") {
     auto vec = mysql.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().ok == true);
-    mysql.delete_records<test_bool_t>();
+    mysql.delete_records_s<test_bool_t>();
     mysql.insert(test_bool_t{false});
     vec = mysql.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
@@ -1984,7 +2696,7 @@ TEST_CASE("test bool") {
     auto vec = postgres.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().ok == true);
-    postgres.delete_records<test_bool_t>();
+    postgres.delete_records_s<test_bool_t>();
     postgres.insert(test_bool_t{false});
     vec = postgres.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
@@ -2004,7 +2716,7 @@ TEST_CASE("test bool") {
     auto vec = sqlite.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().ok == true);
-    sqlite.delete_records<test_bool_t>();
+    sqlite.delete_records_s<test_bool_t>();
     sqlite.insert(test_bool_t{false});
     vec = sqlite.query_s<test_bool_t>();
     CHECK(vec.size() == 1);
@@ -2014,8 +2726,8 @@ TEST_CASE("test bool") {
 }
 
 struct alias {
-  std::string name;
   int id;
+  std::string name;
   static constexpr auto get_alias_field_names(alias *) {
     return std::array{ylt::reflection::field_alias_t{"alias_id", 0},
                       ylt::reflection::field_alias_t{"alias_name", 1}};
@@ -2024,8 +2736,6 @@ struct alias {
     return "t_alias";
   }
 };
-REGISTER_AUTO_KEY(alias, id)
-YLT_REFL(alias, id, name)
 
 TEST_CASE("alias") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -2033,7 +2743,7 @@ TEST_CASE("alias") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists t_alias;");
     mysql.create_datatable<alias>(ormpp_auto_key{"alias_id"});
-    mysql.insert<alias>({"purecpp"});
+    mysql.insert<alias>({0, "purecpp"});
     auto vec = mysql.query_s<alias>();
     CHECK(vec.front().name == "purecpp");
   }
@@ -2043,7 +2753,7 @@ TEST_CASE("alias") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists t_alias;");
     postgres.create_datatable<alias>(ormpp_auto_key{"alias_id"});
-    postgres.insert<alias>({"purecpp"});
+    postgres.insert<alias>({0, "purecpp"});
     auto vec = postgres.query_s<alias>();
     CHECK(vec.front().name == "purecpp");
   }
@@ -2057,7 +2767,9 @@ TEST_CASE("alias") {
 #endif
     sqlite.execute("drop table if exists t_alias;");
     sqlite.create_datatable<alias>(ormpp_auto_key{"alias_id"});
-    sqlite.insert<alias>({"purecpp"});
+    alias al{.name = "purecpp"};
+    sqlite.insert(al);
+    sqlite.insert(al);
     auto vec = sqlite.query_s<alias>();
     CHECK(vec.front().name == "purecpp");
   }
@@ -2254,8 +2966,10 @@ struct unsigned_type_t {
   int16_t f;
   int32_t g;
   int64_t h;
+  std::string_view v;
+  int id;
 };
-YLT_REFL(unsigned_type_t, a, b, c, d, e, f, g, h)
+REGISTER_AUTO_KEY(unsigned_type_t, id)
 
 TEST_CASE("unsigned type") {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -2263,7 +2977,9 @@ TEST_CASE("unsigned type") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists unsigned_type_t");
     mysql.create_datatable<unsigned_type_t>();
-    mysql.insert(unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8});
+    auto id = mysql.get_insert_id_after_insert(
+        unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8, "purecpp"});
+    CHECK(id > 0);
     auto vec = mysql.query_s<unsigned_type_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().a == 1);
@@ -2274,6 +2990,74 @@ TEST_CASE("unsigned type") {
     CHECK(vec.front().f == 6);
     CHECK(vec.front().g == 7);
     CHECK(vec.front().h == 8);
+    CHECK(vec.front().v == "purecpp");
+
+#if defined(WIN32) && defined(_MSC_VER)
+#undef max
+#undef min
+#endif
+
+    // check max
+    unsigned_type_t max_item{std::numeric_limits<uint8_t>::max(),
+                             std::numeric_limits<uint16_t>::max(),
+                             std::numeric_limits<uint32_t>::max(),
+                             std::numeric_limits<uint64_t>::max(),
+                             std::numeric_limits<int8_t>::max(),
+                             std::numeric_limits<int16_t>::max(),
+                             std::numeric_limits<int32_t>::max(),
+                             std::numeric_limits<int64_t>::max(),
+                             "purecpp_max"};
+    std::string max_item_json;
+    iguana::to_json(max_item, max_item_json);
+    std::cout << max_item_json << std::endl;
+    id = mysql.get_insert_id_after_insert(max_item);
+    CHECK(id > 0);
+    vec = mysql.select(ormpp::all)
+              .from<unsigned_type_t>()
+              .where(col(&unsigned_type_t::id).param())
+              .collect(id);
+    CHECK(vec.size() == 1);
+    auto item = vec.front();
+    CHECK(item.a == std::numeric_limits<uint8_t>::max());
+    CHECK(item.b == std::numeric_limits<uint16_t>::max());
+    CHECK(item.c == std::numeric_limits<uint32_t>::max());
+    CHECK(item.d == std::numeric_limits<uint64_t>::max());
+    CHECK(item.e == std::numeric_limits<int8_t>::max());
+    CHECK(item.f == std::numeric_limits<int16_t>::max());
+    CHECK(item.g == std::numeric_limits<int32_t>::max());
+    CHECK(item.h == std::numeric_limits<int64_t>::max());
+    CHECK(item.v == "purecpp_max");
+
+    // check min
+    unsigned_type_t min_item{std::numeric_limits<uint8_t>::min(),
+                             std::numeric_limits<uint16_t>::min(),
+                             std::numeric_limits<uint32_t>::min(),
+                             std::numeric_limits<uint64_t>::min(),
+                             std::numeric_limits<int8_t>::min(),
+                             std::numeric_limits<int16_t>::min(),
+                             std::numeric_limits<int32_t>::min(),
+                             std::numeric_limits<int64_t>::min(),
+                             "purecpp_min"};
+    std::string min_item_json;
+    iguana::to_json(min_item, min_item_json);
+    std::cout << min_item_json << std::endl;
+    id = mysql.get_insert_id_after_insert(min_item);
+    CHECK(id > 0);
+    vec = mysql.select(ormpp::all)
+              .from<unsigned_type_t>()
+              .where(col(&unsigned_type_t::id).param())
+              .collect(id);
+    CHECK(vec.size() == 1);
+    item = vec.front();
+    CHECK(item.a == std::numeric_limits<uint8_t>::min());
+    CHECK(item.b == std::numeric_limits<uint16_t>::min());
+    CHECK(item.c == std::numeric_limits<uint32_t>::min());
+    CHECK(item.d == std::numeric_limits<uint64_t>::min());
+    CHECK(item.e == std::numeric_limits<int8_t>::min());
+    CHECK(item.f == std::numeric_limits<int16_t>::min());
+    CHECK(item.g == std::numeric_limits<int32_t>::min());
+    CHECK(item.h == std::numeric_limits<int64_t>::min());
+    CHECK(item.v == "purecpp_min");
   }
 #endif
 #ifdef ORMPP_ENABLE_PG
@@ -2281,7 +3065,8 @@ TEST_CASE("unsigned type") {
   if (postgres.connect(ip, username, password, db)) {
     postgres.execute("drop table if exists unsigned_type_t");
     postgres.create_datatable<unsigned_type_t>();
-    postgres.insert(unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8});
+    auto id = postgres.get_insert_id_after_insert(
+        unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8, "purecpp"});
     auto vec = postgres.query_s<unsigned_type_t>();
     CHECK(vec.size() == 1);
     CHECK(vec.front().a == 1);
@@ -2292,6 +3077,7 @@ TEST_CASE("unsigned type") {
     CHECK(vec.front().f == 6);
     CHECK(vec.front().g == 7);
     CHECK(vec.front().h == 8);
+    CHECK(vec.front().v == "purecpp");
   }
 #endif
 #ifdef ORMPP_ENABLE_SQLITE3
@@ -2303,8 +3089,10 @@ TEST_CASE("unsigned type") {
 #endif
     sqlite.execute("drop table if exists unsigned_type_t");
     sqlite.create_datatable<unsigned_type_t>();
-    sqlite.insert(unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8});
+    auto id = sqlite.get_insert_id_after_insert(
+        unsigned_type_t{1, 2, 3, 4, 5, 6, 7, 8, "purecpp"});
     auto vec = sqlite.query_s<unsigned_type_t>();
+    CHECK(id == 1);
     CHECK(vec.size() == 1);
     CHECK(vec.front().a == 1);
     CHECK(vec.front().b == 2);
@@ -2314,6 +3102,7 @@ TEST_CASE("unsigned type") {
     CHECK(vec.front().f == 6);
     CHECK(vec.front().g == 7);
     CHECK(vec.front().h == 8);
+    CHECK(vec.front().v == "purecpp");
   }
 #endif
 }
@@ -2338,7 +3127,6 @@ struct region_model {
 };
 // REGISTER_AUTO_KEY(region_model, id)
 REGISTER_CONFLICT_KEY(region_model, id)
-YLT_REFL(region_model, id, d_score, f_score, name)
 
 TEST_CASE("struct with function") {
   std::string region_type = "region_type";

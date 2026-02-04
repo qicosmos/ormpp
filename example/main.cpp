@@ -56,12 +56,17 @@ int main() {
   }
 
   {
-    connection_pool<dbng<mysql>>::instance().init(4, ip, username, password, db,
-                                                  5, 3306);
-    auto conn = connection_pool<dbng<mysql>>::instance().get();
-    conn_guard guard(conn);
-    conn->create_datatable<student>(ormpp_auto_key{"id"});
-    auto vec = conn->query<student>();
+    auto &pool = connection_pool<dbng<mysql>>::instance();
+    pool.init(4, ip, username, password, db, 5, 3306);
+    size_t init_size = pool.size();
+    assert(init_size == 4);
+    {
+      auto conn = pool.get();
+      init_size = pool.size();
+      assert(init_size == 3);
+    }
+    init_size = pool.size();
+    assert(init_size == 4);
   }
 #endif
 

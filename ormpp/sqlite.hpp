@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "utility.hpp"
+#include "query.hpp"
 
 #ifndef ORM_SQLITE_HPP
 #define ORM_SQLITE_HPP
@@ -293,6 +293,13 @@ class sqlite {
     return v;
   }
 
+  template <typename... Args>
+  auto select(Args... args) {
+    return ormpp::select(this, args...);
+  }
+
+  auto select_all() { return ormpp::select_all(this); }
+
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
   template <typename T, typename... Args>
@@ -452,91 +459,98 @@ class sqlite {
  private:
   template <typename T, typename... Args>
   std::string generate_createtb_sql(Args &&...args) {
-    static const auto type_name_arr = get_type_names<T>(DBType::sqlite);
-    auto arr = ylt::reflection::get_member_names<T>();
-    constexpr auto SIZE = sizeof...(Args);
-    auto name = get_struct_name<T>();
-    std::string sql =
-        std::string("CREATE TABLE IF NOT EXISTS ") + name.data() + "(";
+    std::set<std::string> not_null;
+    std::set<std::string> unique;
+    std::set<std::string> auto_primary_key;
+    std::set<std::string> primary_keys;
 
-    // auto_increment_key and key can't exist at the same time
-    using U = std::tuple<std::decay_t<Args>...>;
-    if constexpr (SIZE > 0) {
-      // using U = std::tuple<std::decay_t <Args>...>; //the code can't
-      // compile in vs2017, why?maybe args... in if constexpr?
-      static_assert(!(iguana::has_type<ormpp_key, U>::value &&
-                      iguana::has_type<ormpp_auto_key, U>::value),
-                    "should only one key");
+    std::string_view auto_key = get_auto_key<T>();
+    if (!auto_key.empty()) {
+      auto_primary_key.insert(std::string(auto_key));
     }
 
-    auto tp = sort_tuple(std::make_tuple(std::forward<Args>(args)...));
-    const size_t arr_size = arr.size();
-    std::set<std::string> unique_fields;
-    for (size_t i = 0; i < arr_size; ++i) {
-      auto field_name = arr[i];
-      bool has_add_field = false;
-      for_each0(
-          tp,
-          [&sql, &i, &has_add_field, &unique_fields, field_name, name,
-           this](auto item) {
-            if constexpr (std::is_same_v<decltype(item), ormpp_not_null> ||
-                          std::is_same_v<decltype(item), ormpp_unique>) {
-              if (item.fields.find(std::string(field_name)) ==
-                  item.fields.end())
-                return;
-            }
-            else {
-              if (item.fields != field_name)
-                return;
-            }
+    // 宏定义的conflict keys作为联合主键，优先级比ormpp_key更高
+    auto pks = get_conflict_keys<T>();
+    if (!pks.empty()) {
+      for (auto &key : pks) {
+        primary_keys.insert(key);
+      }
+    }
 
-            if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
-              if (!has_add_field) {
-                append(sql, field_name, " ", type_name_arr[i]);
-              }
-              append(sql, " NOT NULL");
-              has_add_field = true;
+    if constexpr (sizeof...(Args) > 0) {
+      ylt::reflection::for_each(std::make_tuple(args...), [&](auto &item) {
+        using U = std::decay_t<decltype(item)>;
+        if constexpr (std::is_same_v<ormpp_auto_key, U>) {
+          auto_primary_key.insert(item.fields);
+        }
+        else if constexpr (std::is_same_v<ormpp_key, U>) {
+          if (pks.empty())
+            primary_keys.insert(item.fields);
+        }
+        else if constexpr (std::is_same_v<ormpp_not_null, U>) {
+          for (auto &name : item.fields) {
+            not_null.insert(name);
+          }
+        }
+        else if constexpr (std::is_same_v<ormpp_unique, U>) {
+          if (item.fields.size() > 1) {
+            std::string str;
+            for (auto &name : item.fields) {
+              str.append(name).append(",");
             }
-            else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
-              if (!has_add_field) {
-                append(sql, field_name, " ", type_name_arr[i]);
-              }
-              append(sql, " PRIMARY KEY ");
-              has_add_field = true;
-            }
-            else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>) {
-              if (!has_add_field) {
-                append(sql, field_name, " ", type_name_arr[i]);
-              }
-              append(sql, " PRIMARY KEY AUTOINCREMENT");
-              has_add_field = true;
-            }
-            else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
-              unique_fields.insert(std::string(field_name));
-            }
-            else {
-              append(sql, field_name, " ", type_name_arr[i]);
-            }
-          },
-          std::make_index_sequence<SIZE>{});
+            str.pop_back();
+            unique.insert(str);
+          }
+          else {
+            unique.insert(*item.fields.begin());
+          }
+        }
+      });
+    }
 
-      if (!has_add_field) {
-        append(sql, field_name, " ", type_name_arr[i]);
+    auto table_name = ylt::reflection::get_struct_name<T>();
+    const auto type_name_arr = get_type_names<T>(DBType::sqlite);
+
+    std::string sql;
+    sql.append("CREATE TABLE IF NOT EXISTS ").append(table_name).append("(");
+    T t;
+    ylt::reflection::for_each(t, [&](auto &field, auto name, size_t index) {
+      using item_type = std::decay_t<decltype(field)>;
+      sql.append(name).append(" ").append(type_name_arr[index]);
+
+      std::string str_name(name);
+
+      if (!auto_primary_key.empty() &&
+          auto_primary_key.find(str_name) != auto_primary_key.end()) {
+        sql.append(" PRIMARY KEY AUTOINCREMENT ");
+        if (auto_key.empty()) {
+          add_auto_key_field(table_name, name);
+        }
+        auto_key = name;
+        auto_primary_key.clear();
+      }
+      else if (!not_null.empty() && not_null.find(str_name) != not_null.end()) {
+        sql.append(" NOT NULL");
+        not_null.erase(str_name);
       }
 
-      if (i < arr_size - 1)
-        sql += ", ";
-    }
+      sql.append(",");
+    });
 
-    if (!unique_fields.empty()) {
-      sql += ", UNIQUE(";
-      for (const auto &it : unique_fields) {
-        sql += it + ",";
+    if (auto_key.empty() && !primary_keys.empty()) {
+      sql.append("PRIMARY KEY (");
+      for (auto key : primary_keys) {
+        sql.append(key).append(",");
       }
-      sql.back() = ')';
+      sql.pop_back();
+      sql.append("),");
     }
 
-    sql += ")";
+    for (auto &name : unique) {
+      sql.append("UNIQUE (").append(name).append("),");
+    }
+    sql.pop_back();
+    sql.append(")");
 
     return sql;
   }
@@ -546,12 +560,14 @@ class sqlite {
     size_t index = 0;
     bool bind_ok = true;
     if constexpr (sizeof...(members) > 0) {
-      ((bind_ok &&
-            (bind_ok = set_param_bind(
-                 ylt::reflection::get<ylt::reflection::index_of<members>()>(t),
-                 ++index)),
-        true),
-       ...);
+      [[maybe_unused]] auto r =
+          ((bind_ok &&
+                (bind_ok = set_param_bind(
+                     ylt::reflection::get<ylt::reflection::index_of<members>()>(
+                         t),
+                     ++index)),
+            true),
+           ...);
     }
     else {
       ylt::reflection::for_each(t, [&bind_ok, &index, type, this](
@@ -617,9 +633,11 @@ class sqlite {
     else if constexpr (std::is_floating_point_v<U>) {
       return SQLITE_OK == sqlite3_bind_double(stmt_, i, value);
     }
-    else if constexpr (iguana::array_v<U> || std::is_same_v<std::string, U>) {
+    else if constexpr (iguana::array_v<U> || std::is_same_v<std::string, U> ||
+                       std::is_same_v<std::string_view, U>) {
+      size_t len = (std::min)(std::strlen(value.data()), (size_t)value.size());
       return SQLITE_OK ==
-             sqlite3_bind_text(stmt_, i, value.data(), value.size(), nullptr);
+             sqlite3_bind_text(stmt_, i, value.data(), len, nullptr);
     }
     else if constexpr (iguana::c_array_v<U> ||
                        std::is_same_v<char,
@@ -678,6 +696,12 @@ class sqlite {
       value.reserve(sqlite3_column_bytes(stmt_, i));
       value.assign((const char *)sqlite3_column_text(stmt_, i),
                    (size_t)sqlite3_column_bytes(stmt_, i));
+    }
+    else if constexpr (std::is_same_v<std::string_view, U>) {
+      sv_.reserve(sqlite3_column_bytes(stmt_, i));
+      sv_.assign((const char *)sqlite3_column_text(stmt_, i),
+                 (size_t)sqlite3_column_bytes(stmt_, i));
+      value = sv_;
     }
     else if constexpr (iguana::array_v<U>) {
       memcpy(value.data(), sqlite3_column_text(stmt_, i), sizeof(U));
@@ -807,7 +831,7 @@ class sqlite {
       if (stmt_ != nullptr) {
         auto status = sqlite3_finalize(stmt_);
         if (status) {
-          set_last_error("close statment error code " + status);
+          set_last_error("close statment error code " + std::to_string(status));
         }
       }
     }
@@ -819,6 +843,7 @@ class sqlite {
  private:
   sqlite3 *handle_ = nullptr;
   sqlite3_stmt *stmt_ = nullptr;
+  inline static std::string sv_;
   inline static std::string last_error_;
   inline static bool has_error_ = false;
   inline static bool transaction_ = true;

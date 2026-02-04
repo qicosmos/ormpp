@@ -11,8 +11,8 @@
 #include <utility>
 
 #include "entity.hpp"
+#include "query.hpp"
 #include "type_mapping.hpp"
-#include "utility.hpp"
 
 namespace ormpp {
 
@@ -58,9 +58,7 @@ class mysql {
       }
     }
 
-    char value = 1;
-    mysql_options(con_, MYSQL_OPT_RECONNECT, &value);
-    mysql_options(con_, MYSQL_SET_CHARSET_NAME, "utf8");
+    mysql_options(con_, MYSQL_SET_CHARSET_NAME, "utf8mb4");
 
     if (mysql_real_connect(
             con_, std::get<0>(tp).c_str(), std::get<1>(tp).c_str(),
@@ -96,7 +94,7 @@ class mysql {
   bool create_datatable(Args &&...args) {
     reset_error();
     std::string sql = generate_createtb_sql<T>(std::forward<Args>(args)...);
-    sql += " DEFAULT CHARSET=utf8";
+    sql += " DEFAULT CHARSET=utf8mb4";
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -175,20 +173,25 @@ class mysql {
         param.buffer_type = MYSQL_TYPE_TINY;
       }
       else {
+        if constexpr (std::is_integral_v<U>) {
+          param.is_unsigned = std::is_unsigned_v<U>;
+        }
         param.buffer_type =
             (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
       }
       param.buffer = const_cast<void *>(static_cast<const void *>(&value));
     }
-    else if constexpr (std::is_same_v<std::string, U>) {
+    else if constexpr (std::is_same_v<std::string, U> ||
+                       std::is_same_v<std::string_view, U>) {
       param.buffer_type = MYSQL_TYPE_STRING;
-      param.buffer = (void *)(value.c_str());
+      param.buffer = (void *)(value.data());
       param.buffer_length = (unsigned long)value.size();
     }
     else if constexpr (iguana::array_v<U>) {
       param.buffer_type = MYSQL_TYPE_STRING;
       param.buffer = (void *)(value.data());
-      param.buffer_length = (unsigned long)value.size();
+      param.buffer_length =
+          (std::min)(std::strlen(value.data()), (size_t)value.size());
     }
     else if constexpr (iguana::c_array_v<U> ||
                        std::is_same_v<const char *, U>) {
@@ -215,15 +218,17 @@ class mysql {
   }
 
   template <typename T, typename B>
-  void set_param_bind(MYSQL_BIND &param_bind, T &&value, int i,
-                      std::map<size_t, std::vector<char>> &mp, B &is_null) {
+  void set_param_bind(MYSQL_RES *meta_, MYSQL_BIND &param_bind, T &&value,
+                      int i, std::map<size_t, std::vector<char>> &mp,
+                      B &is_null) {
     using U = ylt::reflection::remove_cvref_t<T>;
+
     if constexpr (is_optional_v<U>::value) {
       using value_type = typename U::value_type;
       if (!value.has_value()) {
         value = value_type{};
       }
-      return set_param_bind(param_bind, *value, i, mp, is_null);
+      return set_param_bind(meta_, param_bind, *value, i, mp, is_null);
     }
     else if constexpr (std::is_enum_v<U>) {
       param_bind.buffer_type = MYSQL_TYPE_LONG;
@@ -234,17 +239,33 @@ class mysql {
         param_bind.buffer_type = MYSQL_TYPE_TINY;
       }
       else {
+        if constexpr (std::is_integral_v<U>) {
+          param_bind.is_unsigned = std::is_unsigned_v<U>;
+        }
         param_bind.buffer_type =
             (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
       }
       param_bind.buffer = const_cast<void *>(static_cast<const void *>(&value));
     }
-    else if constexpr (std::is_same_v<std::string, U>) {
-      param_bind.buffer_type = MYSQL_TYPE_STRING;
-      std::vector<char> tmp(65536, 0);
+    else if constexpr (std::is_same_v<std::string, U> ||
+                       std::is_same_v<std::string_view, U>) {
+      unsigned long buffer_size = 256;
+      enum_field_types buffer_type = MYSQL_TYPE_STRING;
+
+      MYSQL_FIELD *field = mysql_fetch_field_direct(meta_, i);
+      if (field) {
+        if (field->type == MYSQL_TYPE_MEDIUM_BLOB ||
+            field->type == MYSQL_TYPE_LONG_BLOB) {
+          buffer_type = field->type;
+        }
+        buffer_size = field->length + 1;
+      }
+
+      param_bind.buffer_type = buffer_type;
+      std::vector<char> tmp(buffer_size, 0);
       mp.emplace(i, std::move(tmp));
       param_bind.buffer = &(mp.rbegin()->second[0]);
-      param_bind.buffer_length = 65536;
+      param_bind.buffer_length = buffer_size;
     }
     else if constexpr (iguana::array_v<U>) {
       param_bind.buffer_type = MYSQL_TYPE_VAR_STRING;
@@ -254,19 +275,40 @@ class mysql {
       param_bind.buffer_length = (unsigned long)sizeof(U);
     }
     else if constexpr (std::is_same_v<blob, U>) {
-      param_bind.buffer_type = MYSQL_TYPE_BLOB;
-      std::vector<char> tmp(65536, 0);
+      unsigned long buffer_size = 65536;
+      enum_field_types buffer_type = MYSQL_TYPE_BLOB;
+
+      MYSQL_FIELD *field = mysql_fetch_field_direct(meta_, i);
+      if (field) {
+        buffer_type = field->type;
+        buffer_size = field->length;
+      }
+
+      param_bind.buffer_type = buffer_type;
+      std::vector<char> tmp(buffer_size, 0);
       mp.emplace(i, std::move(tmp));
       param_bind.buffer = &(mp.rbegin()->second[0]);
-      param_bind.buffer_length = 65536;
+      param_bind.buffer_length = buffer_size;
     }
 #ifdef ORMPP_WITH_CSTRING
     else if constexpr (std::is_same_v<CString, U>) {
-      param_bind.buffer_type = MYSQL_TYPE_STRING;
-      std::vector<char> tmp(65536, 0);
+      unsigned long buffer_size = 256;
+      enum_field_types buffer_type = MYSQL_TYPE_STRING;
+
+      MYSQL_FIELD *field = mysql_fetch_field_direct(meta_, i);
+      if (field) {
+        if (field->type == MYSQL_TYPE_MEDIUM_BLOB ||
+            field->type == MYSQL_TYPE_LONG_BLOB) {
+          buffer_type = field->type;
+        }
+        buffer_size = field->length + 1;
+      }
+
+      param_bind.buffer_type = buffer_type;
+      std::vector<char> tmp(buffer_size, 0);
       mp.emplace(i, std::move(tmp));
       param_bind.buffer = &(mp.rbegin()->second[0]);
-      param_bind.buffer_length = 65536;
+      param_bind.buffer_length = buffer_size;
     }
 #endif
     else {
@@ -295,6 +337,11 @@ class mysql {
     else if constexpr (std::is_same_v<std::string, U>) {
       auto &vec = mp[i];
       value = std::string(&vec[0], strlen(vec.data()));
+    }
+    else if constexpr (std::is_same_v<std::string_view, U>) {
+      auto &vec = mp[i];
+      sv_ = std::string(&vec[0], strlen(vec.data()));
+      value = sv_;
     }
     else if constexpr (iguana::array_v<U>) {
       auto &vec = mp[i];
@@ -375,6 +422,14 @@ class mysql {
       return {};
     }
 
+    meta_ = mysql_stmt_result_metadata(stmt_);
+    if (!meta_) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return {};
+    }
+
+    auto meta_guard = guard_result(meta_);
+
     if constexpr (sizeof...(Args) > 0) {
       std::vector<MYSQL_BIND> param_binds;
       (set_param_bind(param_binds, args), ...);
@@ -394,7 +449,8 @@ class mysql {
     ylt::reflection::for_each(
         t, [&param_binds, &index, &nulls, &mp, this](auto &field, auto /*name*/,
                                                      auto /*index*/) {
-          set_param_bind(param_binds[index], field, index, mp, nulls[index]);
+          set_param_bind(this->meta_, param_binds[index], field, index, mp,
+                         nulls[index]);
           index++;
         });
 
@@ -459,6 +515,14 @@ class mysql {
       return {};
     }
 
+    meta_ = mysql_stmt_result_metadata(stmt_);
+    if (!meta_) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return {};
+    }
+
+    auto meta_guard = guard_result(meta_);
+
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
       std::vector<MYSQL_BIND> param_binds;
@@ -486,13 +550,14 @@ class mysql {
             ylt::reflection::for_each(
                 item, [&param_binds, &index, &nulls, &mp, this](
                           auto &field, auto /*name*/, auto /*index*/) {
-                  set_param_bind(param_binds[index], field, index, mp,
-                                 nulls[index]);
+                  set_param_bind(this->meta_, param_binds[index], field, index,
+                                 mp, nulls[index]);
                   index++;
                 });
           }
           else {
-            set_param_bind(param_binds[index], item, index, mp, nulls[index]);
+            set_param_bind(this->meta_, param_binds[index], item, index, mp,
+                           nulls[index]);
             index++;
           }
         },
@@ -572,6 +637,13 @@ class mysql {
     return v;
   }
 
+  template <typename... Args>
+  auto select(Args... args) {
+    return ormpp::select(this, args...);
+  }
+
+  auto select_all() { return ormpp::select_all(this); }
+
   // if there is a sql error, how to tell the user? throw exception?
   template <typename T, typename... Args>
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query(
@@ -595,6 +667,14 @@ class mysql {
       return {};
     }
 
+    meta_ = mysql_stmt_result_metadata(stmt_);
+    if (!meta_) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return {};
+    }
+
+    auto meta_guard = guard_result(meta_);
+
     std::array<decltype(std::declval<MYSQL_BIND>().is_null), SIZE> nulls = {};
     std::array<MYSQL_BIND, SIZE> param_binds = {};
     std::map<size_t, std::vector<char>> mp;
@@ -605,7 +685,8 @@ class mysql {
     ylt::reflection::for_each(
         t, [&param_binds, &index, &nulls, &mp, this](auto &field, auto /*name*/,
                                                      auto /*index*/) {
-          set_param_bind(param_binds[index], field, index, mp, nulls[index]);
+          set_param_bind(this->meta_, param_binds[index], field, index, mp,
+                         nulls[index]);
           index++;
         });
 
@@ -683,6 +764,14 @@ class mysql {
       return {};
     }
 
+    meta_ = mysql_stmt_result_metadata(stmt_);
+    if (!meta_) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return {};
+    }
+
+    auto meta_guard = guard_result(meta_);
+
     std::array<decltype(std::declval<MYSQL_BIND>().is_null),
                result_size<T>::value>
         nulls = {};
@@ -700,13 +789,14 @@ class mysql {
             ylt::reflection::for_each(
                 item, [&param_binds, &index, &nulls, &mp, this](
                           auto &field, auto /*name*/, auto /*index*/) {
-                  set_param_bind(param_binds[index], field, index, mp,
-                                 nulls[index]);
+                  set_param_bind(this->meta_, param_binds[index], field, index,
+                                 mp, nulls[index]);
                   index++;
                 });
           }
           else {
-            set_param_bind(param_binds[index], item, index, mp, nulls[index]);
+            set_param_bind(this->meta_, param_binds[index], item, index, mp,
+                           nulls[index]);
             index++;
           }
         },
@@ -1003,98 +1093,98 @@ class mysql {
  private:
   template <typename T, typename... Args>
   std::string generate_createtb_sql(Args &&...args) {
-    static const auto type_name_arr = get_type_names<T>(DBType::mysql);
-    auto arr = ylt::reflection::get_member_names<T>();
-    constexpr auto SIZE = sizeof...(Args);
-    auto name = get_struct_name<T>();
-    std::string sql = std::string("CREATE TABLE IF NOT EXISTS ") + name + "(";
+    std::set<std::string> not_null;
+    std::set<std::string> unique;
+    std::set<std::string> auto_primary_key;
+    std::set<std::string> primary_keys;
 
-    // auto_increment_key and key can't exist at the same time
-    using U = std::tuple<std::decay_t<Args>...>;
-    if constexpr (SIZE > 0) {
-      // using U = std::tuple<std::decay_t <Args>...>;//the code can't compile
-      // in vs
-      static_assert(!(iguana::has_type<ormpp_key, U>::value &&
-                      iguana::has_type<ormpp_auto_key, U>::value),
-                    "should only one key");
+    std::string_view auto_key = get_auto_key<T>();
+    if (!auto_key.empty()) {
+      auto_primary_key.insert(std::string(auto_key));
     }
-    auto tp = sort_tuple(std::make_tuple(std::forward<Args>(args)...));
-    const size_t arr_size = arr.size();
-    std::set<std::string> unique_fields;
-    for (size_t i = 0; i < arr_size; ++i) {
-      auto field_name = arr[i];
-      bool has_add_field = false;
-      for_each0(
-          tp,
-          [&sql, &i, &has_add_field, &unique_fields, field_name, name,
-           this](auto item) {
-            if constexpr (std::is_same_v<decltype(item), ormpp_not_null> ||
-                          std::is_same_v<decltype(item), ormpp_unique>) {
-              if (item.fields.find(field_name.data()) == item.fields.end())
-                return;
-            }
-            else {
-              if (item.fields != field_name)
-                return;
-            }
 
-            if constexpr (std::is_same_v<decltype(item), ormpp_not_null>) {
-              if (!has_add_field) {
-                append(sql, field_name, " ", type_name_arr[i]);
-              }
-              append(sql, " NOT NULL");
-              has_add_field = true;
-            }
-            else if constexpr (std::is_same_v<decltype(item), ormpp_key>) {
-              if (!has_add_field) {
-                append(sql, field_name, " ", type_name_arr[i]);
-              }
-              append(sql, " PRIMARY KEY");
-              has_add_field = true;
-            }
-            else if constexpr (std::is_same_v<decltype(item), ormpp_auto_key>) {
-              if (!has_add_field) {
-                append(sql, field_name, " ", type_name_arr[i]);
-              }
-              append(sql, " AUTO_INCREMENT");
-              append(sql, " PRIMARY KEY");
-              has_add_field = true;
-            }
-            else if constexpr (std::is_same_v<decltype(item), ormpp_unique>) {
-              if (!has_add_field) {
-                if (type_name_arr[i] == "TEXT") {
-                  append(sql, field_name, " ", "varchar(512)");
-                }
-                else {
-                  append(sql, field_name, " ", type_name_arr[i]);
-                }
-              }
-              unique_fields.insert(std::string(field_name));
-              has_add_field = true;
-            }
-            else {
-              append(sql, field_name, " ", type_name_arr[i]);
-            }
-          },
-          std::make_index_sequence<SIZE>{});
+    // 宏定义的conflict keys作为联合主键，优先级比ormpp_key更高
+    auto pks = get_conflict_keys<T>();
+    if (!pks.empty()) {
+      for (auto &key : pks) {
+        primary_keys.insert(key);
+      }
+    }
 
-      if (!has_add_field) {
-        append(sql, field_name, " ", type_name_arr[i]);
+    if constexpr (sizeof...(Args) > 0) {
+      ylt::reflection::for_each(std::make_tuple(args...), [&](auto &item) {
+        using U = std::decay_t<decltype(item)>;
+        if constexpr (std::is_same_v<ormpp_auto_key, U>) {
+          auto_primary_key.insert(item.fields);
+        }
+        else if constexpr (std::is_same_v<ormpp_key, U>) {
+          if (pks.empty())
+            primary_keys.insert(item.fields);
+        }
+        else if constexpr (std::is_same_v<ormpp_not_null, U>) {
+          for (auto &name : item.fields) {
+            not_null.insert(name);
+          }
+        }
+        else if constexpr (std::is_same_v<ormpp_unique, U>) {
+          if (item.fields.size() > 1) {
+            std::string str;
+            for (auto &name : item.fields) {
+              str.append(name).append(",");
+            }
+            str.pop_back();
+            unique.insert(str);
+          }
+          else {
+            unique.insert(*item.fields.begin());
+          }
+        }
+      });
+    }
+
+    auto table_name = ylt::reflection::get_struct_name<T>();
+    const auto type_name_arr = get_type_names<T>(DBType::mysql);
+
+    std::string sql;
+    sql.append("CREATE TABLE IF NOT EXISTS ").append(table_name).append("(");
+    T t;
+    ylt::reflection::for_each(t, [&](auto &field, auto name, size_t index) {
+      using item_type = std::decay_t<decltype(field)>;
+      sql.append(name).append(" ").append(type_name_arr[index]);
+
+      std::string str_name(name);
+
+      if (!auto_primary_key.empty() &&
+          auto_primary_key.find(str_name) != auto_primary_key.end()) {
+        sql.append(" AUTO_INCREMENT ");
+        auto_key = name;
+        auto_primary_key.clear();
+      }
+      else if (!not_null.empty() && not_null.find(str_name) != not_null.end()) {
+        sql.append(" NOT NULL");
+        not_null.erase(str_name);
       }
 
-      if (i < arr_size - 1)
-        sql += ", ";
-    }
+      sql.append(",");
+    });
 
-    if (!unique_fields.empty()) {
-      sql += ", UNIQUE(";
-      for (const auto &it : unique_fields) {
-        sql += it + ",";
+    if (!auto_key.empty()) {
+      sql.append("PRIMARY KEY (").append(auto_key).append("),");
+    }
+    else if (!primary_keys.empty()) {
+      sql.append("PRIMARY KEY (");
+      for (auto key : primary_keys) {
+        sql.append(key).append(",");
       }
-      sql.back() = ')';
+      sql.pop_back();
+      sql.append("),");
     }
 
-    sql += ")";
+    for (auto &name : unique) {
+      sql.append("UNIQUE (").append(name).append("),");
+    }
+    sql.pop_back();
+    sql.append(")");
 
     return sql;
   }
@@ -1270,7 +1360,7 @@ class mysql {
       if (stmt_ != nullptr) {
         auto status = mysql_stmt_close(stmt_);
         if (status) {
-          set_last_error("close statment error code " + status);
+          set_last_error("close statment error code " + std::to_string(status));
         }
       }
     }
@@ -1279,9 +1369,23 @@ class mysql {
     MYSQL_STMT *stmt_ = nullptr;
   };
 
+  struct guard_result {
+    guard_result(MYSQL_RES *res) : res_(res) {}
+    ~guard_result() {
+      if (res_) {
+        mysql_free_result(res_);
+      }
+    }
+
+   private:
+    MYSQL_RES *res_ = nullptr;
+  };
+
  private:
   MYSQL *con_ = nullptr;
   MYSQL_STMT *stmt_ = nullptr;
+  MYSQL_RES *meta_ = nullptr;
+  inline static std::string sv_;
   inline static std::string last_error_;
   inline static bool has_error_ = false;
   inline static bool transaction_ = true;

@@ -49,14 +49,25 @@ inline int add_auto_key_field(std::string_view key, std::string_view value) {
 }
 
 template <typename T>
+inline std::string_view get_short_struct_name() {
+  auto struct_name = ylt::reflection::get_struct_name<T>();
+  size_t pos = struct_name.rfind(":");
+  if (pos == std::string_view::npos) {
+    return struct_name;
+  }
+  // remove namespace
+  return struct_name.substr(struct_name.rfind(":") + 1);
+}
+
+template <typename T>
 inline auto get_auto_key() {
-  auto it = get_auto_key_map().find(ylt::reflection::type_string<T>());
+  auto it = get_auto_key_map().find(get_short_struct_name<T>());
   return it == get_auto_key_map().end() ? "" : it->second;
 }
 
 template <typename T>
 inline auto is_auto_key(std::string_view field_name) {
-  auto it = get_auto_key_map().find(ylt::reflection::type_string<T>());
+  auto it = get_auto_key_map().find(get_short_struct_name<T>());
   return it == get_auto_key_map().end() ? false : it->second == field_name;
 }
 
@@ -66,9 +77,9 @@ inline auto is_auto_key(std::string_view field_name) {
 #define ORMPP_UNIQUE_VARIABLE(str) YLT_CONCAT(str, __LINE__)
 #endif
 
-#define REGISTER_AUTO_KEY(STRUCT_NAME, KEY)        \
-  inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) = \
-      ormpp::add_auto_key_field(#STRUCT_NAME, #KEY);
+#define REGISTER_AUTO_KEY(STRUCT_NAME, KEY)                                   \
+  inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) = ormpp::add_auto_key_field( \
+      ylt::reflection::get_struct_name<STRUCT_NAME>(), #KEY);
 
 inline auto &get_conflict_map() {
   static std::unordered_map<std::string_view, std::string_view> map;
@@ -83,9 +94,10 @@ inline int add_conflict_key_field(std::string_view key,
 
 template <typename T>
 inline auto get_conflict_key() {
-  auto it = get_conflict_map().find(ylt::reflection::type_string<T>());
+  std::string_view struct_name = get_short_struct_name<T>();
+  auto it = get_conflict_map().find(struct_name);
   if (it == get_conflict_map().end()) {
-    auto auto_key = get_auto_key_map().find(ylt::reflection::type_string<T>());
+    auto auto_key = get_auto_key_map().find(struct_name);
     return auto_key == get_auto_key_map().end() ? "" : auto_key->second;
   }
   return it->second;
@@ -93,9 +105,11 @@ inline auto get_conflict_key() {
 
 #define MAKE_NAMES(...) #__VA_ARGS__,
 
-#define REGISTER_CONFLICT_KEY(STRUCT_NAME, ...)    \
-  inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) = \
-      ormpp::add_conflict_key_field(#STRUCT_NAME, {MAKE_NAMES(__VA_ARGS__)});
+#define REGISTER_CONFLICT_KEY(STRUCT_NAME, ...)            \
+  inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) =         \
+      ormpp::add_conflict_key_field(                       \
+          ylt::reflection::get_struct_name<STRUCT_NAME>(), \
+          {MAKE_NAMES(__VA_ARGS__)});
 
 template <typename T>
 struct is_optional_v : std::false_type {};
@@ -282,29 +296,54 @@ inline std::string get_fields() {
   return fields;
 }
 
+inline std::vector<std::string_view> split(std::string_view str) {
+  if (str.empty()) {
+    return {};
+  }
+
+  std::vector<std::string_view> v;
+  size_t start = 0;
+  for (size_t i = 0; i < str.size(); i++) {
+    char c = str[i];
+    if (c == ' ') {
+      continue;
+    }
+
+    if (std::isalpha(c) || std::isdigit(c) || c == '_') {
+      start++;
+    }
+    else {
+      auto sv = str.substr(i - start, start);
+      start = 0;
+      v.push_back(sv);
+    }
+  }
+  if (start != 0) {
+    auto sv = str.substr(str.size() - start, start);
+    v.push_back(sv);
+  }
+  return v;
+}
+
 template <typename T, typename = std::enable_if_t<iguana::ylt_refletable_v<T>>>
 inline std::vector<std::string> get_conflict_keys() {
   static std::vector<std::string> res;
   if (!res.empty()) {
     return res;
   }
-  std::stringstream s;
-  s << get_conflict_key<T>();
-  while (s.good()) {
+
+  std::string_view keys = get_conflict_key<T>();
+  auto v = split(keys);
+  for (auto sv : v) {
     std::string str;
-    getline(s, str, ',');
-    if (str.front() == ' ') {
-      str.erase(0);
-    }
-    if (str.back() == ' ') {
-      str.pop_back();
-    }
 #ifdef ORMPP_ENABLE_MYSQL
-    str.insert(0, "`");
-    str.append("`");
+    str.append("`").append(sv).append("`");
+#else
+    str.append(sv);
 #endif
-    res.emplace_back(str);
+    res.push_back(str);
   }
+
   return res;
 }
 
@@ -448,7 +487,8 @@ inline std::string generate_update_sql(Args &&...args) {
     append(conflict, " and", args...);
   }
   else {
-    for (const auto &it : get_conflict_keys<T>()) {
+    const auto &pks = get_conflict_keys<T>();
+    for (const auto &it : pks) {
 #ifdef ORMPP_ENABLE_PG
       append(conflict, " and", it + "=$" + std::to_string(++index));
 #else
@@ -488,13 +528,16 @@ inline void get_sql_conditions(std::string &sql, const std::string &arg,
     sql = arg;
   }
   else {
-    if (temp.find("order by") != std::string::npos) {
-      auto pos = sql.find("where");
-      sql = sql.substr(0, pos);
+    if (auto pos0 = temp.find("order by"); pos0 != std::string::npos) {
+      if (pos0 == 0) {
+        sql = sql.substr(0, sql.find("where"));
+      }
     }
-    if (temp.find("limit") != std::string::npos) {
-      auto pos = sql.find("where");
-      sql = sql.substr(0, pos);
+
+    if (auto pos0 = temp.find("limit"); pos0 != std::string::npos) {
+      if (pos0 == 0) {
+        sql = sql.substr(0, sql.find("where"));
+      }
     }
     append(sql, arg, std::forward<Args>(args)...);
   }
@@ -509,7 +552,8 @@ inline std::string generate_query_sql(Args &&...args) {
   append(sql, fields, "from", name);
   if constexpr (sizeof...(Args) > 0) {
     using expander = int[];
-    expander{0, (where = where ? where : !is_empty(args), 0)...};
+    [[maybe_unused]] expander i{
+        0, (where = where ? where : !is_empty(args), 0)...};
   }
   if (where) {
     append(sql, "where 1=1 and ");
