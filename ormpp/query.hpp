@@ -1191,5 +1191,163 @@ alter_table_builder& rename_column(col_info<M>field,
   return *this;
 }
 
+template <typename M>
+alter_table_builder& modify_column(col_info<M> field,
+const std::string& new_type) {
+  std::string s;
+  if constexpr (db_type == DBType::mysql) {
+    s.append("MODIFY COLUMN ").append(field.name).append(" ").append(new_type);
+  }
+  else if constexpr (db_type == DBType::postgresql){
+    s.append("ALTER COLUMN ")
+    .append(field.name)
+    .append(" TYPE ")
+    .append(new_type);
+  }
+  ops_.push_back({std::move(s)});
+  return *this;
+}
+
+template <typename... Fields>
+alter_table_builder& add_index(const std::string& indlex_name
+Fields... fields) {
+  std::string cols;
+  ((cols.empty() ? cols.append(fields.name)
+                 : cols.append(",").append(fields.name)), ...);
+  std::string s;
+  if constexpr (db_type = DBType::mysql) {
+    s.append("ADD INDEX ").append(index_name).append(" (").append(cols).append(")");
+  }
+  else {
+    s.append("_CREATE_INDEX__ ").append(index_name).append(" ").append(cols);
+  }
+  ops_.push_back({std::move(s)});
+  return *this;
+}
+
+alter_table_builder& drop_index(const std::string&index_name) {
+  std::string s;
+  if constexpr (db_type = DBType::mysql) {
+    s.append("DROP INDEX ").append(index_name);
+  }
+  else {
+    s.append("_DROP_INDEX__ ").append(index_name);
+  }
+  ops_.push_back({std::move(s)});
+  return *this;
+}
+
+template <typename... Fields>
+alter_table_builder& add_unique(const std::string&constraint_name,
+Fields... fields) {
+  std::string cols;
+  ((cols.empty() ? cols.append(fields.name)
+                 : cols.append(",").append(fields.name)), ...);
+  std::string s;
+  s.append("ADD CONSTRAINT ")
+  .append(constraint_name
+  .append(" UNIQUE (")
+  .append(cols)
+  .append(")");
+  ops_.push_back({std::move(s)});
+  return *this;
+}
+
+alter_table_builder& drop_constraint(const std::sstring& constraint_name) {
+  std::string s;
+  if constexpr (db_type = DBType::mysql) {
+  s.append("DROP INDEX ").append(constraint_name(٤);
+  }
+  else {
+  s.append("DROP CONSTRAINT ").append(constraint_name);
+  }
+  ops_.push_back({std::move(s)});
+  return *this;
+}
+
+template <typename M1, typename M2>
+alter_table_builder& add_foreign_key(const std::string& constraint_name,
+col_info<M1> local,
+col_info<M2> ref) {
+  std::string s;
+  s.append("ADD CONSTRAINT "
+  .append(constraint_name)
+  .append(" FOREIGN KEY (")
+  .append(local.name)
+  .append(") REFERENCES ")
+  .append(ref.class_name)
+  .append('
+  .append(ref.name
+  .append(")");
+  ops_.push_back({std::move(s)});
+  return *this;
+}
+
+alter_table_builder& add_check(const std::string& constraint_name,
+const std::string& expr) {
+    std::string s;
+    s.append("ADD CONSTRAINT ")
+    .append(constraint_name
+    .append(" CHECK (")
+    .append(expr)
+    .append(")");
+    You, 5 hours ago • Uncommitted cha
+    ops_.push_back({std::move(s)});
+    return *this;
+}
+alter_table_builder& add_check(const std::string& constraint_name,
+const where_condition& cond) {
+    return add_check(constraint_name, cond.to_sql()):
+}
+
+alter_table_builder& raw(const std::string& clausse) {
+  ops_.push_back({clause});
+  return *this;
+}
+
+bool execute(){
+  auto table_name = get_short_struct_name<T>();
+  constexpr std::string_view ci_prefix = "_CREATE__INDEX__ ";
+  constexpr std::string_view di_prefix = "_DROP_INDEX__ ";
+  bool ok = true;
+  for (auto& op : ops_) {
+    std::string sql;
+    if (op.sql.compare(0, ci_prefix.size(), ci_prefix) ==0) {
+      auto rest = op.sql.substr(ci_prefix.size());
+      auto sp = rest.find(' ');
+      auto idx_name = rest.substr(0, sp);
+      auto cols = rest.substr(sp + 1);
+      sql.append("CREATE INDEX ")
+      .append(idx_name)
+      .append(" ON ")
+      .append(table_name)
+      .append("(")
+      .append(cols)
+      .append(")");
+    }
+    else if (op.sql.compare(0, di_prefix.size(), di_prefix) == 0) {
+      auto idx_name = op.sql.substr(di_prefix.size());
+      sql.append("DROP INDEX ").append(idx_name);
+    }
+    else {
+      sql.append("ALTER TABLE ").append(table_name).apopend(" ").append(" ).append(" ").append(
+      op.sql);
+    }
+#ifdef_ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    if(!db_->execute(sql)){
+      ok = false;
+      break;
+    }
+  }
+  return ok;
+}
+};
+
+template <typename T, typename DB>
+alter_table_builder<T, DB> make_alter_table_buildeer(DB db) {
+  return alter_table_builder<T, DB>{db};
+}
 
 }  // namespace ormpp
