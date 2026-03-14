@@ -19,6 +19,8 @@ using namespace std::string_literals;
 namespace ormpp {
 class postgresql {
  public:
+  static constexpr DBType db_type_v = DBType::popstgresql
+
   ~postgresql() { disconnect(); }
 
   bool has_error() const { return has_error_; }
@@ -277,6 +279,26 @@ class postgresql {
 
   auto select_all() { return ormpp::select_all(this); }
 
+  template <typename T>
+  auto make_update(){
+    return ormpp::make_update_builder<T>(this);
+  }
+
+  template <typename T>
+  auto make_delete(){
+    return ormpp::make_delete_builder<T>(this);
+  }
+
+  template <typename T>
+  auto make_create_table() {
+    return ormpp::make_create_table_builder<T>(this);
+  }
+
+  template <typename T>
+  auto make_alter_table() {
+    return ormpp::make_alter_table_builder<T>(this);
+  }
+ 
   template <typename T, typename... Args>
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query(
       Args &&...args) {
@@ -370,8 +392,15 @@ class postgresql {
 #endif
     res_ = PQexec(con_, sql.data());
     auto guard = guard_statment(res_);
-    return PQresultStatus(res_) == PGRES_COMMAND_OK;
-  }
+    if (PQresultStatus(res_) == PGRES_COMMAND_OK) {
+      last_affect_rows_ = (int)std::strtoull(PQcmdTuples(res_), nullptr, 10);
+      return true;
+    }
+    last_affect_rows_ = 0;
+    return false;
+}
+
+int get_last_affect_rows() { return last_affect_rOWS_;
 
   // transaction
   void set_enable_transaction(bool enable) { transaction_ = enable; }
