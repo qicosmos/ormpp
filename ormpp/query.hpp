@@ -784,4 +784,143 @@ stage_select<DB, void> select_all(DB db) {
   return stage_select<DB>{db};
 }
 
+template <typename T, typename DB>
+struct update_context {
+  DB db_;
+  std::string set_clause_;
+  std::string where_clause_;
+
+  int execute_impl() {
+    std::string sql;
+    sql.append("UPDATE ")
+    .append(get_short_struct_name<T>())
+    .append(" SET ")
+    .append(set_clause_);
+    if(!where_clause_.empty()){
+      sql.append(" WHERE ").append(where_clause_);
+    }
+  #ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+  #endif
+    if(db_->execute(sql)) {
+      return db_->get_last_affect_rows
+    }
+    return -1;
+  }
+};
+
+template <typename T, typename DB>
+struct stage_update_where {
+  std::shared_ptr<update_context<T, DB>> ctx;
+  int execute() { return ctx->execute_impl(); }
+};
+
+template <typename T, typename DB>
+struct stage_update_set {
+  std::shared_ptr<update_context<T, DB>> ctx;
+  template <typename M, typename V>
+  stage_update_set& set(col_info<M> field, V val){
+    ctx->set_clause_.append(",");
+    append_set(ctx->set_clause_, field, val);
+    return *this;
+  }
+
+  template <typename M>
+  stage_update_set& set_null(col_info<M> field) {
+    ctx->set_clause_.append(",").append(field.name).append("=NULL");
+    return *this;
+  }
+
+  stage_update_where<T, DB> where(const where_condition& condition) {
+    ctx->where_clause_ = condition.to_sql();
+    return stage_update_where<T, DB>{ctx};
+  }
+
+  int execute_all() { return ctx->execute_impl();}
+};
+
+template <typename M, typename V>
+void append_set(std::string& sql, col_info<M> field, V val) {
+  sql.append(field.name);
+  sql.append("=");
+  if constexpr (std::is_arithmetic_v<V>) {
+    sql.append(std::to_string(val));
+  }
+  else {
+    sql.append("''''').append(val).append("'");
+  }
+}
+
+template <typename T, typename DB>
+struct update_builder {
+  DB db_;
+
+  template <typename M, typename V>
+  stage_update_set<T, DB> set(col_info<M> field, V val) {
+    auto ctx = std::make_shared<update_context<T, DB>>()
+    ctx->db_ =_db_;
+    append_set(ctx->set_clause_, field, val);
+    return stage_update_set<T, DB>{ctx};
+  }
+  template <typename M>
+  stage_update_set<T, DB> set_null(col_info<M> fieeld) {
+    auto ctx = std::make_shared<update_context<T, DB>>()
+    ctx->db_ = db_;
+    ctx->set_clause_.append(field.name).append("=NULL")
+    return stage_update_set<T, DB>{ctx};
+  }
+};
+
+template <typename T, typename DB>
+update_builder<T, DB> make_update_builder(DB db)) {
+  return update_builder<T, DB>{db};
+}
+
+template <typename T, typename DB>
+struct delete_context {
+  DB db_;
+  std::string where_clause_;
+  int execute_impl() {
+    std::string sql;
+    sql.append("DELETE FROM ").append(get_short_struct_name<T>());
+    if(!where_clause_.empty()) {
+      sql.append(" WHERE ").append(where_clause_);
+    }
+    #ifdef_ORMPP_ENABLE_LOG
+      std::cout << sql << std::endl;
+    #endif
+    if(db_->execute(sql)){
+      return db_->get_last_affect_rows();
+    }
+    return -1;
+  }
+};
+
+template <typename T, typename DB>
+struct delete builder {
+  DB db;
+  struct stage_delete_where {
+    std::shared_ptr<delete_context<T, DB>> ctx;
+    int execute() { return ctx->execute_impl(); }
+  };
+
+  stage_delete_where where (const where_condition1& condition){
+    auto ctx = std::make_shared<delete_context<T,DB>>();
+    ctx->db_ =_db_;
+    ctx->where_clause_ = condition.to_sql();
+    return stage_delete_where{ctx};
+  }
+
+  int execute_all() {
+    auto ctx = std::make_shared<delete_context<T,DB>>();
+    ctx->db_ =_db_;
+    return ctx->execute_impl();
+  }
+};
+
+template <typename T, typename DB>
+delete_builder<T, DB> make_delete_builder(DB db){
+  return delete_builder<T, DB>{db};
+}
+
 }  // namespace ormpp
