@@ -392,10 +392,15 @@ class postgresql {
 #endif
     res_ = PQexec(con_, sql.data());
     auto guard = guard_statment(res_);
-    return PQresultStatus(res_) == PGRES_COMMAND_OK;
+    if (PQresultStatus(res_) == PGRES_COMMAND_OK) {
+      last_affect_rows_ = (int)std::strtoull(PQcmdTuples(res_), nullptr, 10);
+      return true;
+    }
+    last_affect_rows_ = 0;
+    return false;
   }
 
-  int get_last_affect_rows() { (int)std::strtoull(PQcmdTuples(res_), nullptr, 10); }
+  int get_last_affect_rows() { return last_affect_rows_; }
   
   // transaction
   void set_enable_transaction(bool enable) { transaction_ = enable; }
@@ -860,6 +865,7 @@ class postgresql {
   inline static std::string last_error_;
   inline static bool has_error_ = false;
   inline static bool transaction_ = true;
+  int last_affect_rows_;
 };
 }  // namespace ormpp
 #endif  // ORM_POSTGRESQL_HPP
