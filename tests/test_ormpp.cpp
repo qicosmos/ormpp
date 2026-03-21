@@ -3158,13 +3158,13 @@ TEST_CASE("builder interfaces") {
     CHECK(vec.front().age == 20);
 
     CHECK(mysql.update<builder_person>()
-              .set(col(&builder_person::score), 0)
+              .set(col(&builder_person::score), 99)
               .where(col(&builder_person::id) == 1)
               .execute() == 1);
 
     CHECK(mysql.alter_table<builder_person>()
-              .add_index("idx_builder_person_name", col(&builder_person::name))
-              .drop_index("idx_builder_person_name")
+              .add_index("idx_builder_person_age", col(&builder_person::age))
+              .drop_index("idx_builder_person_age")
               .execute());
 
     CHECK(mysql.remove<builder_person>()
