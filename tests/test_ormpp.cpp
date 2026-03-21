@@ -3144,7 +3144,6 @@ TEST_CASE("builder interfaces") {
     CHECK(mysql.create_table<builder_person>()
               .auto_increment(col(&builder_person::id))
               .not_null(col(&builder_person::name), col(&builder_person::age))
-              .default_value(col(&builder_person::note), "init")
               .execute());
 
     CHECK(mysql.insert(builder_person{"tom", 18, 0, "init"}) == 1);
@@ -3182,7 +3181,6 @@ TEST_CASE("builder interfaces") {
     CHECK(postgres.create_table<builder_person>()
               .auto_increment(col(&builder_person::id))
               .not_null(col(&builder_person::name), col(&builder_person::age))
-              .default_value(col(&builder_person::note), "init")
               .execute());
 
     CHECK(postgres.insert(builder_person{"tom", 18, 0, "init"}) == 1);

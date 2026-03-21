@@ -395,6 +395,8 @@ class postgresql {
     return PQresultStatus(res_) == PGRES_COMMAND_OK;
   }
 
+  int get_last_affect_rows() { (int)std::strtoull(PQcmdTuples(res_), nullptr, 10); }
+  
   // transaction
   void set_enable_transaction(bool enable) { transaction_ = enable; }
 
