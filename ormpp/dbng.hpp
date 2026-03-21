@@ -122,6 +122,26 @@ class dbng {
     return query<T>(sql);
   }
 
+  template <typename T>
+  auto update(){
+    return db_.template make_update<T>();
+  }
+  
+  template <typename T>
+  auto remove(){
+    return db_.template make_delete<T>();
+  }
+  
+  template <typename T>
+  auto create_table(){
+    return db_.template make_create_table<T>();
+  }
+
+  template <typename T>
+  auto alter_table() {
+    return db_.template make_alter_table<T>();
+  }
+
   template <typename... Args>
   auto select(Args... args) {
     return db_.select(args...);

@@ -18,6 +18,8 @@ namespace ormpp {
 
 class mysql {
  public:
+  static constexpr DBType db_type_v = DBType::mysql;
+
   ~mysql() { disconnect(); }
 
   bool has_error() const { return has_error_; }
@@ -149,7 +151,7 @@ class mysql {
     return res.has_value() ? res.value() : 0;
   }
 
-  int get_last_affect_rows() { return (int)mysql_affected_rows(con_); }
+  int get_last_affect_rows() { return last_affect_rows_; }
 
   template <typename T>
   constexpr void set_param_bind(std::vector<MYSQL_BIND> &param_binds,
@@ -644,6 +646,26 @@ class mysql {
 
   auto select_all() { return ormpp::select_all(this); }
 
+  template <typename T>
+  auto make_update(){
+    return ormpp::make_update_builder<T>(this);
+  }
+  
+  template <typename T>
+  auto make_delete(){
+    return ormpp::make_delete_builder<T>(this);
+  }
+  
+  template <typename T>
+  auto make_create_table() {
+    return ormpp::make_create_table_builder<T>(this);
+  }
+  
+  template <typename T>
+  auto make_alter_table() {
+    return ormpp::make_alter_table_builder<T>(this);
+  }
+
   // if there is a sql error, how to tell the user? throw exception?
   template <typename T, typename... Args>
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query(
@@ -915,6 +937,7 @@ class mysql {
       set_last_error(mysql_stmt_error(stmt_));
       return false;
     }
+    last_affect_rows_ = (int)mysql_stmt_affected_rows(stmt_);
     return true;
   }
 
@@ -1243,6 +1266,7 @@ class mysql {
   MYSQL *con_ = nullptr;
   MYSQL_STMT *stmt_ = nullptr;
   MYSQL_RES *meta_ = nullptr;
+  int last_affect_rows_ = 0;
   inline static std::string sv_;
   inline static std::string last_error_;
   inline static bool has_error_ = false;

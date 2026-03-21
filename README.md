@@ -318,6 +318,52 @@ int main() {
 }
 ```
 
+#### 新增了4个链式调用接口
+
+新增接口：
+
+- create_table<T>()                                                                                    
+- update<T>()                                                                                      
+- remove<T>()                                                                                           
+- alter_table<T>()
+
+例子：
+
+```cpp
+struct builder_person {
+  std::string name;
+  int age;
+  int id;
+  int score;
+};
+
+sqlite.create_table<builder_person>()
+      .auto_increment(col(&builder_person::id))
+      .not_null(col(&builder_person::name), col(&builder_person::age))
+      .default_value(col(&builder_person::score), 0)
+      .execute();
+
+CHECK(sqlite.update<builder_person>()
+            .set(col(&builder_person::name), "jerry")
+            .set(col(&builder_person::age), 20)
+            .where(col(&builder_person::id) == 1)
+            .execute() == 1);
+
+CHECK(sqlite.update<builder_person>()
+            .set(col(&builder_person::score), 0)
+            .where(col(&builder_person::id) == 1)
+            .execute() == 1);
+
+CHECK(sqlite.alter_table<builder_person>()
+            .add_index("idx_builder_person_name", col(&builder_person::name))
+            .drop_index("idx_builder_person_name")
+            .execute());
+
+CHECK(sqlite.remove<builder_person>()
+            .where(col(&builder_person::id) == 1)
+            .execute() == 1);
+```
+
 ## 如何编译
 
 支持的选项如下:

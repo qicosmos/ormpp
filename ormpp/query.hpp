@@ -784,4 +784,599 @@ stage_select<DB, void> select_all(DB db) {
   return stage_select<DB>{db};
 }
 
+template <typename T, typename DB>
+struct update_context {
+  DB db_;
+  std::string set_clause_;
+  std::string where_clause_;
+
+  int execute_impl() {
+    std::string sql;
+    sql.append("UPDATE ")
+        .append(get_short_struct_name<T>())
+        .append(" SET ")
+        .append(set_clause_);
+    if (!where_clause_.empty()) {
+      sql.append(" WHERE ").append(where_clause_);
+    }
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    if (db_->execute(sql)) {
+      return db_->get_last_affect_rows();
+    }
+    return -1;
+  }
+};
+
+template <typename M, typename V>
+void append_set(std::string& sql, col_info<M> field, V val) {
+  sql.append(field.name);
+  sql.append("=");
+  if constexpr (std::is_arithmetic_v<V>) {
+    sql.append(std::to_string(val));
+  }
+  else {
+    sql.append("'").append(val).append("'");
+  }
+}
+
+template <typename T, typename DB>
+struct stage_update_where {
+  std::shared_ptr<update_context<T, DB>> ctx;
+  int execute() { return ctx->execute_impl(); }
+};
+
+template <typename T, typename DB>
+struct stage_update_set {
+  std::shared_ptr<update_context<T, DB>> ctx;
+  template <typename M, typename V>
+  stage_update_set& set(col_info<M> field, V val) {
+    ctx->set_clause_.append(",");
+    append_set(ctx->set_clause_, field, val);
+    return *this;
+  }
+
+  template <typename M>
+  stage_update_set& set_null(col_info<M> field) {
+    ctx->set_clause_.append(",").append(field.name).append("=NULL");
+    return *this;
+  }
+
+  stage_update_where<T, DB> where(const where_condition& condition) {
+    ctx->where_clause_ = condition.to_sql();
+    return stage_update_where<T, DB>{ctx};
+  }
+
+  int execute_all() { return ctx->execute_impl(); }
+};
+
+template <typename T, typename DB>
+struct update_builder {
+  DB db_;
+
+  template <typename M, typename V>
+  stage_update_set<T, DB> set(col_info<M> field, V val) {
+    auto ctx = std::make_shared<update_context<T, DB>>();
+    ctx->db_ = db_;
+    append_set(ctx->set_clause_, field, val);
+    return stage_update_set<T, DB>{ctx};
+  }
+
+  template <typename M>
+  stage_update_set<T, DB> set_null(col_info<M> field) {
+    auto ctx = std::make_shared<update_context<T, DB>>();
+    ctx->db_ = db_;
+    ctx->set_clause_.append(field.name).append("=NULL");
+    return stage_update_set<T, DB>{ctx};
+  }
+};
+
+template <typename T, typename DB>
+update_builder<T, DB> make_update_builder(DB db) {
+  return update_builder<T, DB>{db};
+}
+
+template <typename T, typename DB>
+struct delete_context {
+  DB db_;
+  std::string where_clause_;
+  int execute_impl() {
+    std::string sql;
+    sql.append("DELETE FROM ").append(get_short_struct_name<T>());
+    if (!where_clause_.empty()) {
+      sql.append(" WHERE ").append(where_clause_);
+    }
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    if (db_->execute(sql)) {
+      return db_->get_last_affect_rows();
+    }
+    return -1;
+  }
+};
+
+template <typename T, typename DB>
+struct delete_builder {
+  DB db_;
+  struct stage_delete_where {
+    std::shared_ptr<delete_context<T, DB>> ctx;
+    int execute() { return ctx->execute_impl(); }
+  };
+
+  stage_delete_where where(const where_condition& condition) {
+    auto ctx = std::make_shared<delete_context<T, DB>>();
+    ctx->db_ = db_;
+    ctx->where_clause_ = condition.to_sql();
+    return stage_delete_where{ctx};
+  }
+
+  int execute_all() {
+    auto ctx = std::make_shared<delete_context<T, DB>>();
+    ctx->db_ = db_;
+    return ctx->execute_impl();
+  }
+};
+
+template <typename T, typename DB>
+delete_builder<T, DB> make_delete_builder(DB db) {
+  return delete_builder<T, DB>{db};
+}
+
+template <typename T, typename DB>
+struct create_table_builder {
+  static constexpr DBType db_type = std::remove_pointer_t<DB>::db_type_v;
+  DB db_;
+  std::string auto_increment_field_;
+  std::set<std::string> primary_keys_;
+  std::set<std::string> not_null_fields_;
+  std::vector<std::string> unique_constraints_;
+  std::map<std::string, std::string> default_values_;
+  std::vector<std::string> check_constraints_;
+  std::vector<std::pair<std::string, std::string>> foreign_keys_;
+  std::string charset_;
+  std::string engine_;
+
+  template <typename M>
+  create_table_builder& auto_increment(col_info<M> field) {
+    auto_increment_field_ = std::string(field.name);
+    primary_keys_.insert(auto_increment_field_);
+    return *this;
+  }
+
+  template <typename... Fields>
+  create_table_builder& primary_key(Fields... fields) {
+    (primary_keys_.insert(std::string(fields.name)), ...);
+    return *this;
+  }
+
+  template <typename... Fields>
+  create_table_builder& not_null(Fields... fields) {
+    (not_null_fields_.insert(std::string(fields.name)), ...);
+    return *this;
+  }
+
+  template <typename... Fields>
+  create_table_builder& unique(Fields... fields) {
+    std::string cols;
+    ((cols.empty() ? cols.append(fields.name)
+                   : cols.append(",").append(fields.name)),
+     ...);
+    unique_constraints_.push_back(std::move(cols));
+    return *this;
+  }
+
+  template <typename M1, typename M2>
+  create_table_builder& foreign_key(col_info<M1> local, col_info<M2> ref) {
+    std::string ref_str;
+    ref_str.append(ref.class_name).append("(").append(ref.name).append(")");
+    foreign_keys_.emplace_back(std::string(local.name), std::move(ref_str));
+    return *this;
+  }
+
+  template <typename M, typename V>
+  create_table_builder& default_value(col_info<M> field, V val) {
+    if constexpr (std::is_arithmetic_v<V>) {
+      default_values_[std::string(field.name)] = std::to_string(val);
+    }
+    else {
+      std::string s = "'";
+      s.append(val).append("'");
+      default_values_[std::string(field.name)] = std::move(s);
+    }
+    return *this;
+  }
+
+  create_table_builder& check(const where_condition& cond) {
+    check_constraints_.push_back(cond.to_sql());
+    return *this;
+  }
+
+  create_table_builder& check(const std::string& expr) {
+    check_constraints_.push_back(expr);
+    return *this;
+  }
+
+  create_table_builder& charset(const std::string& cs) {
+    charset_ = cs;
+    return *this;
+  }
+
+  create_table_builder& engine(const std::string& eng) {
+    engine_ = eng;
+    return *this;
+  }
+
+  bool execute() {
+    std::string sql = generate_sql();
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    if (!auto_increment_field_.empty()) {
+      T t{};
+      ylt::reflection::for_each(
+          t, [&](auto& /*field*/, auto name, size_t /*index*/) {
+            if (std::string_view(name) == auto_increment_field_) {
+              add_auto_key_field(get_short_struct_name<T>(), name);
+            }
+          });
+    }
+    return db_->execute(sql);
+  }
+
+ private:
+  std::string generate_sql() {
+    auto table_name = get_short_struct_name<T>();
+    const auto type_name_arr = get_type_names<T>(db_type);
+    bool auto_inline_pk = false;
+    std::string sql;
+    sql.append("CREATE TABLE IF NOT EXISTS ").append(table_name).append("(");
+    T t{};
+    ylt::reflection::for_each(t, [&](auto& /*field*/, auto name, size_t index) {
+      std::string field_name(name);
+      std::string type_str = type_name_arr[index];
+
+      bool is_auto = (!auto_increment_field_.empty() &&
+                      field_name == auto_increment_field_);
+      if constexpr (db_type == DBType::postgresql) {
+        if (is_auto) {
+          if (type_str == "bigint") {
+            type_str = "bigserial";
+          }
+          else {
+            type_str = "serial";
+          }
+        }
+      }
+
+      sql.append(field_name).append(" ").append(type_str);
+      if constexpr (db_type == DBType::sqlite) {
+        if (is_auto) {
+          sql.append(" PRIMARY KEY AUTOINCREMENT");
+          auto_inline_pk = true;
+        }
+      }
+      else if constexpr (db_type == DBType::mysql) {
+        if (is_auto) {
+          sql.append(" AUTO_INCREMENT");
+        }
+      }
+
+      if (not_null_fields_.count(field_name)) {
+        sql.append(" NOT NULL");
+      }
+
+      if (default_values_.count(field_name)) {
+        sql.append(" DEFAULT ").append(default_values_[field_name]);
+      }
+
+      sql.append(",");
+    });
+
+    if (!auto_inline_pk && !primary_keys_.empty()) {
+      sql.append("PRIMARY KEY (");
+      bool first = true;
+      for (auto& k : primary_keys_) {
+        if (!first) {
+          sql.append(",");
+        }
+        sql.append(k);
+        first = false;
+      }
+      sql.append("),");
+    }
+
+    for (auto& u : unique_constraints_) {
+      sql.append("UNIQUE (").append(u).append("),");
+    }
+
+    for (auto& [local, ref] : foreign_keys_) {
+      sql.append("FOREIGN KEY (")
+          .append(local)
+          .append(") REFERENCES ")
+          .append(ref)
+          .append(",");
+    }
+
+    for (auto& chk : check_constraints_) {
+      sql.append("CHECK (").append(chk).append("),");
+    }
+
+    if (sql.back() == ',') {
+      sql.pop_back();
+    }
+    sql.append(")");
+
+    if constexpr (db_type == DBType::mysql) {
+      if (!engine_.empty()) {
+        sql.append(" ENGINE=").append(engine_);
+      }
+      if (!charset_.empty()) {
+        sql.append(" DEFAULT CHARSET=").append(charset_);
+      }
+      else {
+        sql.append(" DEFAULT CHARSET=utf8mb4");
+      }
+    }
+
+    return sql;
+  }
+};
+
+template <typename T, typename DB>
+create_table_builder<T, DB> make_create_table_builder(DB db) {
+  return create_table_builder<T, DB>{db};
+}
+
+template <typename T, typename DB>
+create_table_builder<T, DB> make_create_table_buillder(DB db) {
+  return make_create_table_builder<T, DB>(db);
+}
+
+template <typename T, typename DB>
+struct alter_table_builder {
+  static constexpr DBType db_type = std::remove_pointer_t<DB>::db_type_v;
+  DB db_;
+  struct alter_op {
+    std::string sql;
+  };
+
+  std::vector<alter_op> ops_;
+
+  template <typename M>
+  alter_table_builder& add_column(col_info<M> field,
+                                  const std::string& extra = "") {
+    const auto type_name_arr = get_type_names<T>(db_type);
+    std::string type_str;
+    size_t target_idx = 0;
+    T t{};
+    ylt::reflection::for_each(t, [&](auto& /*f*/, auto name, size_t index) {
+      if (std::string_view(name) == field.name) {
+        target_idx = index;
+      }
+    });
+
+    type_str = type_name_arr[target_idx];
+    std::string s;
+    s.append("ADD COLUMN ").append(field.name).append(" ").append(type_str);
+    if (!extra.empty()) {
+      s.append(" ").append(extra);
+    }
+    ops_.push_back({std::move(s)});
+    return *this;
+  }
+
+  alter_table_builder& add_column(const std::string& col_name,
+                                  const std::string& type_and_constraints) {
+    std::string s;
+    s.append("ADD COLUMN ")
+        .append(col_name)
+        .append(" ")
+        .append(type_and_constraints);
+    ops_.push_back({std::move(s)});
+    return *this;
+  }
+
+  template <typename M>
+  alter_table_builder& drop_column(col_info<M> field) {
+    std::string s;
+    s.append("DROP COLUMN ").append(field.name);
+    ops_.push_back({std::move(s)});
+    return *this;
+  }
+
+  alter_table_builder& drop_column(const std::string& col_name) {
+    std::string s;
+    s.append("DROP COLUMN ").append(col_name);
+    ops_.push_back({std::move(s)});
+    return *this;
+  }
+
+  template <typename M>
+  alter_table_builder& rename_column(col_info<M> field,
+                                     const std::string& new_name) {
+    std::string s;
+    s.append("RENAME COLUMN ")
+        .append(field.name)
+        .append(" TO ")
+        .append(new_name);
+    ops_.push_back({std::move(s)});
+    return *this;
+  }
+
+  template <typename M>
+  alter_table_builder& modify_column(col_info<M> field,
+                                     const std::string& new_type) {
+    std::string s;
+    if constexpr (db_type == DBType::mysql) {
+      s.append("MODIFY COLUMN ")
+          .append(field.name)
+          .append(" ")
+          .append(new_type);
+    }
+    else if constexpr (db_type == DBType::postgresql) {
+      s.append("ALTER COLUMN ")
+          .append(field.name)
+          .append(" TYPE ")
+          .append(new_type);
+    }
+    ops_.push_back({std::move(s)});
+    return *this;
+  }
+
+  template <typename... Fields>
+  alter_table_builder& add_index(const std::string& index_name,
+                                 Fields... fields) {
+    std::string cols;
+    ((cols.empty() ? cols.append(fields.name)
+                   : cols.append(",").append(fields.name)),
+     ...);
+    std::string s;
+    if constexpr (db_type == DBType::mysql) {
+      s.append("ADD INDEX ")
+          .append(index_name)
+          .append(" (")
+          .append(cols)
+          .append(")");
+    }
+    else {
+      s.append("_CREATE__INDEX__ ").append(index_name).append(" ").append(cols);
+    }
+    ops_.push_back({std::move(s)});
+    return *this;
+  }
+
+  alter_table_builder& drop_index(const std::string& index_name) {
+    std::string s;
+    if constexpr (db_type == DBType::mysql) {
+      s.append("DROP INDEX ").append(index_name);
+    }
+    else {
+      s.append("_DROP_INDEX__ ").append(index_name);
+    }
+    ops_.push_back({std::move(s)});
+    return *this;
+  }
+
+  template <typename... Fields>
+  alter_table_builder& add_unique(const std::string& constraint_name,
+                                  Fields... fields) {
+    std::string cols;
+    ((cols.empty() ? cols.append(fields.name)
+                   : cols.append(",").append(fields.name)),
+     ...);
+    std::string s;
+    s.append("ADD CONSTRAINT ")
+        .append(constraint_name)
+        .append(" UNIQUE (")
+        .append(cols)
+        .append(")");
+    ops_.push_back({std::move(s)});
+    return *this;
+  }
+
+  alter_table_builder& drop_constraint(const std::string& constraint_name) {
+    std::string s;
+    if constexpr (db_type == DBType::mysql) {
+      s.append("DROP INDEX ").append(constraint_name);
+    }
+    else {
+      s.append("DROP CONSTRAINT ").append(constraint_name);
+    }
+    ops_.push_back({std::move(s)});
+    return *this;
+  }
+
+  template <typename M1, typename M2>
+  alter_table_builder& add_foreign_key(const std::string& constraint_name,
+                                       col_info<M1> local, col_info<M2> ref) {
+    std::string s;
+    s.append("ADD CONSTRAINT ")
+        .append(constraint_name)
+        .append(" FOREIGN KEY (")
+        .append(local.name)
+        .append(") REFERENCES ")
+        .append(ref.class_name)
+        .append("(")
+        .append(ref.name)
+        .append(")");
+    ops_.push_back({std::move(s)});
+    return *this;
+  }
+
+  alter_table_builder& add_check(const std::string& constraint_name,
+                                 const std::string& expr) {
+    std::string s;
+    s.append("ADD CONSTRAINT ")
+        .append(constraint_name)
+        .append(" CHECK (")
+        .append(expr)
+        .append(")");
+    ops_.push_back({std::move(s)});
+    return *this;
+  }
+
+  alter_table_builder& add_check(const std::string& constraint_name,
+                                 const where_condition& cond) {
+    return add_check(constraint_name, cond.to_sql());
+  }
+
+  alter_table_builder& raw(const std::string& clause) {
+    ops_.push_back({clause});
+    return *this;
+  }
+
+  bool execute() {
+    auto table_name = get_short_struct_name<T>();
+    constexpr std::string_view ci_prefix = "_CREATE__INDEX__ ";
+    constexpr std::string_view di_prefix = "_DROP_INDEX__ ";
+    bool ok = true;
+    for (auto& op : ops_) {
+      std::string sql;
+      if (op.sql.compare(0, ci_prefix.size(), ci_prefix) == 0) {
+        auto rest = op.sql.substr(ci_prefix.size());
+        auto sp = rest.find(' ');
+        auto idx_name = rest.substr(0, sp);
+        auto cols = rest.substr(sp + 1);
+        sql.append("CREATE INDEX ")
+            .append(idx_name)
+            .append(" ON ")
+            .append(table_name)
+            .append("(")
+            .append(cols)
+            .append(")");
+      }
+      else if (op.sql.compare(0, di_prefix.size(), di_prefix) == 0) {
+        auto idx_name = op.sql.substr(di_prefix.size());
+        sql.append("DROP INDEX ").append(idx_name);
+      }
+      else {
+        sql.append("ALTER TABLE ")
+            .append(table_name)
+            .append(" ")
+            .append(op.sql);
+      }
+#ifdef ORMPP_ENABLE_LOG
+      std::cout << sql << std::endl;
+#endif
+      if (!db_->execute(sql)) {
+        ok = false;
+        break;
+      }
+    }
+    return ok;
+  }
+};
+
+template <typename T, typename DB>
+alter_table_builder<T, DB> make_alter_table_builder(DB db) {
+  return alter_table_builder<T, DB>{db};
+}
+
+template <typename T, typename DB>
+alter_table_builder<T, DB> make_alter_table_buildeer(DB db) {
+  return make_alter_table_builder<T, DB>(db);
+}
+
 }  // namespace ormpp

@@ -14,6 +14,8 @@
 namespace ormpp {
 class sqlite {
  public:
+  static constexpr DBType db_type_v = DBType::sqlite;
+
   ~sqlite() { disconnect(); }
 
   bool has_error() const { return has_error_; }
@@ -300,6 +302,25 @@ class sqlite {
 
   auto select_all() { return ormpp::select_all(this); }
 
+  template <typename T>
+  auto make_update(){
+    return ormpp::make_update_builder<T>(this);
+  }
+
+  template <typename T>
+  auto make_delete(){
+    return ormpp::make_delete_builder<T>(this);
+  }
+
+  template <typename T>
+  auto make_create_table() {
+    return ormpp::make_create_table_builder<T>(this);
+  }
+ 
+  template <typename T>
+  auto make_alter_table() {
+    return ormpp::make_alter_table_builder<T>(this);
+  }
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
   template <typename T, typename... Args>
