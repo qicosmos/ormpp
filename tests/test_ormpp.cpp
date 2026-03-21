@@ -3146,7 +3146,7 @@ TEST_CASE("builder interfaces") {
               .not_null(col(&builder_person::name), col(&builder_person::age))
               .execute());
 
-    CHECK(mysql.insert(builder_person{"tom", 18, 0, "init"}) == 1);
+    CHECK(mysql.insert(builder_person{"tom", 18, 0, 0}) == 1);
     CHECK(mysql.update<builder_person>()
               .set(col(&builder_person::name), "jerry")
               .set(col(&builder_person::age), 20)
@@ -3183,7 +3183,7 @@ TEST_CASE("builder interfaces") {
               .not_null(col(&builder_person::name), col(&builder_person::age))
               .execute());
 
-    CHECK(postgres.insert(builder_person{"tom", 18, 0, "init"}) == 1);
+    CHECK(postgres.insert(builder_person{"tom", 18, 0, 0}) == 1);
     CHECK(postgres.update<builder_person>()
               .set(col(&builder_person::name), "jerry")
               .set(col(&builder_person::age), 20)
