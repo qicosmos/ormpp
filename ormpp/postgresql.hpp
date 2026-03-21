@@ -392,15 +392,8 @@ class postgresql {
 #endif
     res_ = PQexec(con_, sql.data());
     auto guard = guard_statment(res_);
-    if (PQresultStatus(res_) == PGRES_COMMAND_OK) {
-      last_affect_rows_ = (int)std::strtoull(PQcmdTuples(res_), nullptr, 10);
-      return true;
-    }
-    last_affect_rows_ = 0;
-    return false;
+    return PQresultStatus(res_) == PGRES_COMMAND_OK;
   }
-
-  int get_last_affect_rows() { return last_affect_rows_; }
 
   // transaction
   void set_enable_transaction(bool enable) { transaction_ = enable; }
