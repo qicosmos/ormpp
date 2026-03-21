@@ -59,6 +59,14 @@ struct simple {
   std::array<char, 128> arr;
 };
 
+struct builder_person {
+  std::string name;
+  int age;
+  int id;
+  std::string note;
+};
+REGISTER_AUTO_KEY(builder_person, id)
+
 TEST_CASE("test mysql long string") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
@@ -3127,6 +3135,126 @@ struct region_model {
 };
 // REGISTER_AUTO_KEY(region_model, id)
 REGISTER_CONFLICT_KEY(region_model, id)
+
+TEST_CASE("builder interfaces") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists builder_person");
+    CHECK(mysql.create_table<builder_person>()
+              .auto_increment(col(&builder_person::id))
+              .not_null(col(&builder_person::name), col(&builder_person::age))
+              .default_value(col(&builder_person::note), "init")
+              .execute());
+
+    CHECK(mysql.insert(builder_person{"tom", 18, 0, "init"}) == 1);
+    CHECK(mysql.update<builder_person>()
+              .set(col(&builder_person::name), "jerry")
+              .set(col(&builder_person::age), 20)
+              .where(col(&builder_person::id) == 1)
+              .execute() == 1);
+    auto vec = mysql.query_s<builder_person>("id=1");
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "jerry");
+    CHECK(vec.front().age == 20);
+
+    CHECK(mysql.update<builder_person>()
+              .set_null(col(&builder_person::note))
+              .where(col(&builder_person::id) == 1)
+              .execute() == 1);
+
+    CHECK(mysql.alter_table<builder_person>()
+              .add_index("idx_builder_person_name", col(&builder_person::name))
+              .drop_index("idx_builder_person_name")
+              .execute());
+
+    CHECK(mysql.remove<builder_person>()
+              .where(col(&builder_person::id) == 1)
+              .execute() == 1);
+    CHECK(mysql.query_s<builder_person>().empty());
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists builder_person");
+    CHECK(postgres.create_table<builder_person>()
+              .auto_increment(col(&builder_person::id))
+              .not_null(col(&builder_person::name), col(&builder_person::age))
+              .default_value(col(&builder_person::note), "init")
+              .execute());
+
+    CHECK(postgres.insert(builder_person{"tom", 18, 0, "init"}) == 1);
+    CHECK(postgres.update<builder_person>()
+              .set(col(&builder_person::name), "jerry")
+              .set(col(&builder_person::age), 20)
+              .where(col(&builder_person::id) == 1)
+              .execute() == 1);
+    auto vec = postgres.query_s<builder_person>("id=1");
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "jerry");
+    CHECK(vec.front().age == 20);
+
+    CHECK(postgres.update<builder_person>()
+              .set_null(col(&builder_person::note))
+              .where(col(&builder_person::id) == 1)
+              .execute() == 1);
+
+    CHECK(postgres.alter_table<builder_person>()
+              .add_index("idx_builder_person_name", col(&builder_person::name))
+              .drop_index("idx_builder_person_name")
+              .execute());
+
+    CHECK(postgres.remove<builder_person>()
+              .where(col(&builder_person::id) == 1)
+              .execute() == 1);
+    CHECK(postgres.query_s<builder_person>().empty());
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_SQLITE3
+  dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
+  if (sqlite.connect(db)) {
+#endif
+    sqlite.execute("drop table if exists builder_person");
+    CHECK(sqlite.create_table<builder_person>()
+              .auto_increment(col(&builder_person::id))
+              .not_null(col(&builder_person::name), col(&builder_person::age))
+              .default_value(col(&builder_person::note), "init")
+              .execute());
+
+    CHECK(sqlite.insert(builder_person{"tom", 18, 0, "init"}) == 1);
+    CHECK(sqlite.update<builder_person>()
+              .set(col(&builder_person::name), "jerry")
+              .set(col(&builder_person::age), 20)
+              .where(col(&builder_person::id) == 1)
+              .execute() == 1);
+    auto vec = sqlite.query_s<builder_person>("id=1");
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "jerry");
+    CHECK(vec.front().age == 20);
+
+    CHECK(sqlite.update<builder_person>()
+              .set_null(col(&builder_person::note))
+              .where(col(&builder_person::id) == 1)
+              .execute() == 1);
+
+    CHECK(sqlite.alter_table<builder_person>()
+              .add_index("idx_builder_person_name", col(&builder_person::name))
+              .drop_index("idx_builder_person_name")
+              .execute());
+
+    CHECK(sqlite.remove<builder_person>()
+              .where(col(&builder_person::id) == 1)
+              .execute() == 1);
+    CHECK(sqlite.query_s<builder_person>().empty());
+  }
+#endif
+}
 
 TEST_CASE("struct with function") {
   std::string region_type = "region_type";
