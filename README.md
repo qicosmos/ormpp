@@ -334,13 +334,13 @@ struct builder_person {
   std::string name;
   int age;
   int id;
-  std::string note;
+  int score;
 };
 
 sqlite.create_table<builder_person>()
       .auto_increment(col(&builder_person::id))
       .not_null(col(&builder_person::name), col(&builder_person::age))
-      .default_value(col(&builder_person::note), "init")
+      .default_value(col(&builder_person::score), 0)
       .execute();
 
 CHECK(sqlite.update<builder_person>()
@@ -350,7 +350,7 @@ CHECK(sqlite.update<builder_person>()
             .execute() == 1);
 
 CHECK(sqlite.update<builder_person>()
-            .set_null(col(&builder_person::note))
+            .set(col(&builder_person::score), 0)
             .where(col(&builder_person::id) == 1)
             .execute() == 1);
 

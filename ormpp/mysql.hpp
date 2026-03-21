@@ -151,7 +151,7 @@ class mysql {
     return res.has_value() ? res.value() : 0;
   }
 
-  int get_last_affect_rows() { return (int)mysql_affected_rows(con_); }
+  int get_last_affect_rows() { return last_affect_rows_; }
 
   template <typename T>
   constexpr void set_param_bind(std::vector<MYSQL_BIND> &param_binds,
@@ -937,6 +937,7 @@ class mysql {
       set_last_error(mysql_stmt_error(stmt_));
       return false;
     }
+    last_affect_rows_ = (int)mysql_stmt_affected_rows(stmt_);
     return true;
   }
 
@@ -1265,6 +1266,7 @@ class mysql {
   MYSQL *con_ = nullptr;
   MYSQL_STMT *stmt_ = nullptr;
   MYSQL_RES *meta_ = nullptr;
+  int last_affect_rows_ = 0;
   inline static std::string sv_;
   inline static std::string last_error_;
   inline static bool has_error_ = false;
