@@ -809,6 +809,18 @@ struct update_context {
   }
 };
 
+template <typename M, typename V>
+void append_set(std::string& sql, col_info<M> field, V val) {
+  sql.append(field.name);
+  sql.append("=");
+  if constexpr (std::is_arithmetic_v<V>) {
+    sql.append(std::to_string(val));
+  }
+  else {
+    sql.append("'").append(val).append("'");
+  }
+}
+
 template <typename T, typename DB>
 struct stage_update_where {
   std::shared_ptr<update_context<T, DB>> ctx;
@@ -838,18 +850,6 @@ struct stage_update_set {
 
   int execute_all() { return ctx->execute_impl(); }
 };
-
-template <typename M, typename V>
-void append_set(std::string& sql, col_info<M> field, V val) {
-  sql.append(field.name);
-  sql.append("=");
-  if constexpr (std::is_arithmetic_v<V>) {
-    sql.append(std::to_string(val));
-  }
-  else {
-    sql.append("'").append(val).append("'");
-  }
-}
 
 template <typename T, typename DB>
 struct update_builder {
