@@ -314,13 +314,13 @@ class sqlite {
 
   template <typename T>
   auto make_create_table() {
-    return ormpp::make_create_table_builder<T>(thi:s);
+    return ormpp::make_create_table_builder<T>(this);
   }
  
-template <typename T>
-auto make_alter_table() {
-return ormpp::make_alter_table_builder<T>(this);
-}
+  template <typename T>
+  auto make_alter_table() {
+    return ormpp::make_alter_table_builder<T>(this);
+  }
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
   template <typename T, typename... Args>

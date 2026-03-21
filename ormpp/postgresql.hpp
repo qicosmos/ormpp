@@ -19,7 +19,7 @@ using namespace std::string_literals;
 namespace ormpp {
 class postgresql {
  public:
-  static constexpr DBType db_type_v = DBType::popstgresql
+  static constexpr DBType db_type_v = DBType::postgresql;
 
   ~postgresql() { disconnect(); }
 
@@ -280,12 +280,12 @@ class postgresql {
   auto select_all() { return ormpp::select_all(this); }
 
   template <typename T>
-  auto make_update(){
+  auto make_update() {
     return ormpp::make_update_builder<T>(this);
   }
 
   template <typename T>
-  auto make_delete(){
+  auto make_delete() {
     return ormpp::make_delete_builder<T>(this);
   }
 
@@ -298,7 +298,7 @@ class postgresql {
   auto make_alter_table() {
     return ormpp::make_alter_table_builder<T>(this);
   }
- 
+
   template <typename T, typename... Args>
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query(
       Args &&...args) {
@@ -398,9 +398,9 @@ class postgresql {
     }
     last_affect_rows_ = 0;
     return false;
-}
+  }
 
-int get_last_affect_rows() { return last_affect_rOWS_;
+  int get_last_affect_rows() { return last_affect_rows_; }
 
   // transaction
   void set_enable_transaction(bool enable) { transaction_ = enable; }
