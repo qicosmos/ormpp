@@ -116,27 +116,27 @@ class postgresql {
 
   template <typename T, typename... Args>
   uint64_t get_insert_id_after_insert(const T &t, Args &&...args) {
-    auto res = insert_or_update_impl(t, generate_insert_sql<T>(true),
+    auto res = insert_or_update_impl(t, generate_insert_sql<T>(db_type_v, true),
                                      OptType::insert, true);
     return res.has_value() ? res.value() : 0;
   }
 
   template <typename T, typename... Args>
   uint64_t get_insert_id_after_insert(const std::vector<T> &v, Args &&...args) {
-    auto res = insert_or_update_impl(v, generate_insert_sql<T>(true),
+    auto res = insert_or_update_impl(v, generate_insert_sql<T>(db_type_v, true),
                                      OptType::insert, true);
     return res.has_value() ? res.value() : 0;
   }
 
   template <typename T, typename... Args>
   constexpr bool delete_records(Args &&...where_conditon) {
-    auto sql = generate_delete_sql<T>(std::forward<Args>(where_conditon)...);
+    auto sql = generate_delete_sql<T>(db_type_v, std::forward<Args>(where_conditon)...);
     return execute(sql);
   }
 
   template <typename T, typename... Args>
   uint64_t delete_records_s(const std::string &str, Args &&...args) {
-    auto sql = generate_delete_sql<T>(str);
+    auto sql = generate_delete_sql<T>(db_type_v, str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -168,7 +168,7 @@ class postgresql {
   template <typename T, typename... Args>
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &str, Args &&...args) {
-    std::string sql = generate_query_sql<T>(str);
+    std::string sql = generate_query_sql<T>(db_type_v, str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -302,7 +302,7 @@ class postgresql {
   template <typename T, typename... Args>
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query(
       Args &&...args) {
-    std::string sql = generate_query_sql<T>(args...);
+    std::string sql = generate_query_sql<T>(db_type_v, args...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -459,7 +459,7 @@ class postgresql {
     }
 
     // 宏定义的conflict keys作为联合主键，优先级比ormpp_key更高
-    auto pks = get_conflict_keys<T>();
+    auto pks = get_conflict_keys<T>(db_type_v);
     if (!pks.empty()) {
       for (auto &key : pks) {
         primary_keys.insert(key);
@@ -599,7 +599,7 @@ class postgresql {
       if (type == OptType::update) {
         ylt::reflection::for_each(
             t, [&param_values, this](auto &field, auto name, auto /*index*/) {
-              if (is_conflict_key<T>(name)) {
+              if (is_conflict_key<T>(name, db_type_v)) {
                 set_param_values(param_values, field);
               }
             });
@@ -635,7 +635,7 @@ class postgresql {
   int insert_impl(OptType type, const T &t, Args &&...args) {
     auto res = insert_or_update_impl(
         t,
-        generate_insert_sql<T>(type == OptType::insert,
+        generate_insert_sql<T>(db_type_v, type == OptType::insert,
                                std::forward<Args>(args)...),
         type);
     return res.has_value() ? res.value() : INT_MIN;
@@ -645,7 +645,7 @@ class postgresql {
   int insert_impl(OptType type, const std::vector<T> &v, Args &&...args) {
     auto res = insert_or_update_impl(
         v,
-        generate_insert_sql<T>(type == OptType::insert,
+        generate_insert_sql<T>(db_type_v, type == OptType::insert,
                                std::forward<Args>(args)...),
         type);
     return res.has_value() ? res.value() : INT_MIN;
@@ -654,7 +654,7 @@ class postgresql {
   template <auto... members, typename T, typename... Args>
   int update_impl(const T &t, Args &&...args) {
     auto res = insert_or_update_impl<members...>(
-        t, generate_update_sql<T, members...>(std::forward<Args>(args)...),
+        t, generate_update_sql<T, members...>(db_type_v, std::forward<Args>(args)...),
         OptType::update, false, std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
@@ -662,7 +662,7 @@ class postgresql {
   template <auto... members, typename T, typename... Args>
   int update_impl(const std::vector<T> &v, Args &&...args) {
     auto res = insert_or_update_impl<members...>(
-        v, generate_update_sql<T, members...>(std::forward<Args>(args)...),
+        v, generate_update_sql<T, members...>(db_type_v, std::forward<Args>(args)...),
         OptType::update, false, std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
@@ -868,4 +868,5 @@ class postgresql {
   int last_affect_rows_;
 };
 }  // namespace ormpp
+
 #endif  // ORM_POSTGRESQL_HPP

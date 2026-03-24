@@ -199,7 +199,6 @@ inline constexpr auto get_type_names(DBType type) {
     std::string s;
     if (type == DBType::unknown) {
     }
-#ifdef ORMPP_ENABLE_MYSQL
     else if (type == DBType::mysql) {
       if constexpr (std::is_enum_v<U>) {
         s = "INTEGER"sv;
@@ -216,8 +215,6 @@ inline constexpr auto get_type_names(DBType type) {
         s = ormpp_mysql::type_to_name(identity<U>{});
       }
     }
-#endif
-#ifdef ORMPP_ENABLE_SQLITE3
     else if (type == DBType::sqlite) {
       if constexpr (std::is_enum_v<U>) {
         s = "INTEGER"sv;
@@ -234,8 +231,6 @@ inline constexpr auto get_type_names(DBType type) {
         s = ormpp_sqlite::type_to_name(identity<U>{});
       }
     }
-#endif
-#ifdef ORMPP_ENABLE_PG
     else if (type == DBType::postgresql) {
       if constexpr (std::is_enum_v<U>) {
         s = "integer"sv;
@@ -252,7 +247,6 @@ inline constexpr auto get_type_names(DBType type) {
         s = ormpp_postgresql::type_to_name(identity<U>{});
       }
     }
-#endif
 
     arr[index] = s;
   });
@@ -266,30 +260,37 @@ inline void for_each0(const std::tuple<Args...> &t, Func &&f,
   (f(std::get<Idx>(t)), ...);
 }
 
+// Returns the quoted table name appropriate for the given database type.
+// PostgreSQL uses double-quotes, MySQL uses backticks, SQLite uses backticks.
 template <typename T, typename = std::enable_if_t<iguana::ylt_refletable_v<T>>>
-inline std::string get_struct_name() {
-#ifdef ORMPP_ENABLE_PG
-  std::string quota_name =
-      "\"" + std::string(ylt::reflection::get_struct_name<T>()) + "\"";
-#else
-  std::string quota_name =
-      "`" + std::string(ylt::reflection::get_struct_name<T>()) + "`";
-#endif
-  return quota_name;
+inline std::string get_struct_name(DBType db_type) {
+  auto name = std::string(ylt::reflection::get_struct_name<T>());
+  if (db_type == DBType::postgresql) {
+    return "\"" + name + "\"";
+  }
+  return "`" + name + "`";
 }
 
+// Returns field list string with quoting appropriate for the given database.
+// MySQL wraps field names in backticks; others use plain names.
+// Results are cached per DB type.
 template <typename T, typename = std::enable_if_t<iguana::ylt_refletable_v<T>>>
-inline std::string get_fields() {
-  static std::string fields;
+inline std::string get_fields(DBType db_type) {
+  // Two static caches: one for MySQL (backtick-quoted), one for others (plain)
+  static std::string fields_mysql;
+  static std::string fields_other;
+  std::string &fields =
+      (db_type == DBType::mysql) ? fields_mysql : fields_other;
   if (!fields.empty()) {
     return fields;
   }
   for (const auto &it : ylt::reflection::get_member_names<T>()) {
-#ifdef ORMPP_ENABLE_MYSQL
-    fields += "`" + std::string(it) + "`";
-#else
-    fields += it;
-#endif
+    if (db_type == DBType::mysql) {
+      fields += "`" + std::string(it) + "`";
+    }
+    else {
+      fields += std::string(it);
+    }
     fields += ",";
   }
   fields.back() = ' ';
@@ -325,9 +326,15 @@ inline std::vector<std::string_view> split(std::string_view str) {
   return v;
 }
 
+// Returns conflict key names with quoting appropriate for the given database.
+// MySQL wraps key names in backticks; others use plain names.
+// Results are cached per DB type.
 template <typename T, typename = std::enable_if_t<iguana::ylt_refletable_v<T>>>
-inline std::vector<std::string> get_conflict_keys() {
-  static std::vector<std::string> res;
+inline std::vector<std::string> get_conflict_keys(DBType db_type) {
+  static std::vector<std::string> res_mysql;
+  static std::vector<std::string> res_other;
+  std::vector<std::string> &res =
+      (db_type == DBType::mysql) ? res_mysql : res_other;
   if (!res.empty()) {
     return res;
   }
@@ -336,11 +343,12 @@ inline std::vector<std::string> get_conflict_keys() {
   auto v = split(keys);
   for (auto sv : v) {
     std::string str;
-#ifdef ORMPP_ENABLE_MYSQL
-    str.append("`").append(sv).append("`");
-#else
-    str.append(sv);
-#endif
+    if (db_type == DBType::mysql) {
+      str.append("`").append(sv).append("`");
+    }
+    else {
+      str.append(sv);
+    }
     res.push_back(str);
   }
 
@@ -348,8 +356,8 @@ inline std::vector<std::string> get_conflict_keys() {
 }
 
 template <typename T>
-inline auto is_conflict_key(std::string_view field_name) {
-  for (const auto &it : get_conflict_keys<T>()) {
+inline auto is_conflict_key(std::string_view field_name, DBType db_type) {
+  for (const auto &it : get_conflict_keys<T>(db_type)) {
     if (it == field_name) {
       return true;
     }
@@ -358,12 +366,12 @@ inline auto is_conflict_key(std::string_view field_name) {
 }
 
 template <typename T, typename... Args>
-inline std::string generate_insert_sql(bool insert, Args &&...args) {
-#ifdef ORMPP_ENABLE_PG
-  if (!insert) {
+inline std::string generate_insert_sql(DBType db_type, bool insert,
+                                       Args &&...args) {
+  if (db_type == DBType::postgresql && !insert) {
     constexpr auto Count = ylt::reflection::members_count_v<T>;
     std::string sql = "insert into ";
-    auto name = get_struct_name<T>();
+    auto name = get_struct_name<T>(db_type);
     append(sql, name);
     int index = 0;
     std::string set;
@@ -397,10 +405,10 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
     append(sql, fields, values, conflict, "do update set", set);
     return sql;
   }
-#endif
+
   std::string sql = insert ? "insert into " : "replace into ";
   constexpr auto Count = ylt::reflection::members_count_v<T>;
-  auto name = get_struct_name<T>();
+  auto name = get_struct_name<T>(db_type);
   append(sql, name);
 
   int index = 0;
@@ -411,16 +419,18 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
     if (insert && is_auto_key<T>(field_name)) {
       continue;
     }
-#ifdef ORMPP_ENABLE_PG
-    values += "$" + std::to_string(++index);
-#else
-    values += "?";
-#endif
-#ifdef ORMPP_ENABLE_MYSQL
-    fields += "`" + field_name + "`";
-#else
-    fields += field_name;
-#endif
+    if (db_type == DBType::postgresql) {
+      values += "$" + std::to_string(++index);
+    }
+    else {
+      values += "?";
+    }
+    if (db_type == DBType::mysql) {
+      fields += "`" + field_name + "`";
+    }
+    else {
+      fields += field_name;
+    }
     if (i < Count - 1) {
       fields += ",";
       values += ",";
@@ -441,43 +451,44 @@ inline std::string generate_insert_sql(bool insert, Args &&...args) {
 }
 
 template <typename T, auto... members, typename... Args>
-inline std::string generate_update_sql(Args &&...args) {
+inline std::string generate_update_sql(DBType db_type, Args &&...args) {
   std::string sql, fields;
-  append(sql, "update", get_struct_name<T>(), "set");
+  append(sql, "update", get_struct_name<T>(db_type), "set");
 
-#ifdef ORMPP_ENABLE_PG
   size_t index = 0;
-#endif
 
   if constexpr (sizeof...(members) > 0) {
-#ifdef ORMPP_ENABLE_PG
-    (fields
-         .append(
-             ylt::reflection::name_of<T>(ylt::reflection::index_of<members>()))
-         .append("=$" + std::to_string(++index) + ","),
-     ...);
-#else
-    (fields
-         .append(
-             ylt::reflection::name_of<T>(ylt::reflection::index_of<members>()))
-         .append("=?,"),
-     ...);
-#endif
+    if (db_type == DBType::postgresql) {
+      (fields
+           .append(ylt::reflection::name_of<T>(
+               ylt::reflection::index_of<members>()))
+           .append("=$" + std::to_string(++index) + ","),
+       ...);
+    }
+    else {
+      (fields
+           .append(ylt::reflection::name_of<T>(
+               ylt::reflection::index_of<members>()))
+           .append("=?,"),
+       ...);
+    }
   }
   else {
     constexpr auto Count = ylt::reflection::members_count_v<T>;
     for (size_t i = 0; i < Count; ++i) {
       std::string field_name(ylt::reflection::name_of<T>(i));
-#ifdef ORMPP_ENABLE_MYSQL
-      fields.append("`").append(field_name).append("`");
-#else
-      fields.append(field_name);
-#endif
-#ifdef ORMPP_ENABLE_PG
-      fields.append("=$").append(std::to_string(++index)).append(",");
-#else
-      fields.append("=?,");
-#endif
+      if (db_type == DBType::mysql) {
+        fields.append("`").append(field_name).append("`");
+      }
+      else {
+        fields.append(field_name);
+      }
+      if (db_type == DBType::postgresql) {
+        fields.append("=$").append(std::to_string(++index)).append(",");
+      }
+      else {
+        fields.append("=?,");
+      }
     }
   }
   fields.pop_back();
@@ -487,13 +498,14 @@ inline std::string generate_update_sql(Args &&...args) {
     append(conflict, " and", args...);
   }
   else {
-    const auto &pks = get_conflict_keys<T>();
+    const auto &pks = get_conflict_keys<T>(db_type);
     for (const auto &it : pks) {
-#ifdef ORMPP_ENABLE_PG
-      append(conflict, " and", it + "=$" + std::to_string(++index));
-#else
-      append(conflict, " and", it + "=?");
-#endif
+      if (db_type == DBType::postgresql) {
+        append(conflict, " and", it + "=$" + std::to_string(++index));
+      }
+      else {
+        append(conflict, " and", it + "=?");
+      }
     }
   }
 
@@ -506,9 +518,10 @@ inline std::string generate_update_sql(Args &&...args) {
 inline bool is_empty(const std::string &t) { return t.empty(); }
 
 template <typename T, typename... Args>
-inline std::string generate_delete_sql(Args &&...where_conditon) {
+inline std::string generate_delete_sql(DBType db_type,
+                                       Args &&...where_conditon) {
   std::string sql = "delete from ";
-  auto name = get_struct_name<T>();
+  auto name = get_struct_name<T>(db_type);
   append(sql, name);
   if constexpr (sizeof...(Args) > 0) {
     if (!is_empty(std::forward<Args>(where_conditon)...))
@@ -544,11 +557,11 @@ inline void get_sql_conditions(std::string &sql, const std::string &arg,
 }
 
 template <typename T, typename... Args>
-inline std::string generate_query_sql(Args &&...args) {
+inline std::string generate_query_sql(DBType db_type, Args &&...args) {
   bool where = false;
   std::string sql = "select ";
-  auto fields = get_fields<T>();
-  auto name = get_struct_name<T>();
+  auto fields = get_fields<T>(db_type);
+  auto name = get_struct_name<T>(db_type);
   append(sql, fields, "from", name);
   if constexpr (sizeof...(Args) > 0) {
     using expander = int[];

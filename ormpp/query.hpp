@@ -376,19 +376,19 @@ class query_builder {
           .append(limit_clause_)
           .append(offset_clause_);
 
-#ifdef ORMPP_ENABLE_PG
-      if (sql_.find('?') != std::string::npos) {
-        int index = 1;
-        for (size_t i = 0; i < sql_.size(); i++) {
-          if (sql_[i] == '?') {
-            sql_[i] = '$';
-            std::string index_str = std::to_string(index++);
-            std::memcpy(&sql_[i + 1], index_str.data(),
-                        (std::min)(index_str.size(), size_t(2)));
+      if constexpr (std::remove_pointer_t<DB>::db_type_v == DBType::postgresql) {
+        if (sql_.find('?') != std::string::npos) {
+          int index = 1;
+          for (size_t i = 0; i < sql_.size(); i++) {
+            if (sql_[i] == '?') {
+              sql_[i] = '$';
+              std::string index_str = std::to_string(index++);
+              std::memcpy(&sql_[i + 1], index_str.data(),
+                          (std::min)(index_str.size(), size_t(2)));
+            }
           }
         }
       }
-#endif
 
       if constexpr (!ylt::reflection::is_ylt_refl_v<R> && !std::is_void_v<R> &&
                     !iguana::tuple_v<R>) {
