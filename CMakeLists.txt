@@ -9,27 +9,6 @@ include(cmake/develop.cmake)
 include(cmake/platform.cmake)
 include(cmake/dependency.cmake)
 
-# Auto-detect available database backends
-include(cmake/pgsql.cmake)
-if (PGSQL_FOUND)
-    include_directories(${PGSQL_INCLUDE_DIR})
-    add_definitions(-DORMPP_ENABLE_PG)
-endif()
-
-include(cmake/mysql.cmake)
-if (MYSQL_FOUND)
-    include_directories(${MYSQL_INCLUDE_DIR})
-    add_definitions(-DORMPP_ENABLE_MYSQL)
-endif()
-
-include(cmake/mariadb.cmake)
-if (MARIADB_FOUND)
-    include_directories(${MARIADB_INCLUDE_DIR})
-    add_definitions(-DORMPP_ENABLE_MYSQL)
-endif()
-
-# sqlite3 is always available (bundled)
-add_definitions(-DORMPP_ENABLE_SQLITE3)
 
 include_directories(ormpp)
 include_directories(./)
