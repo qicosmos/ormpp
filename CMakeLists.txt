@@ -9,29 +9,27 @@ include(cmake/develop.cmake)
 include(cmake/platform.cmake)
 include(cmake/dependency.cmake)
 
-# Each database backend can be enabled independently.
-# Multiple backends can coexist in the same binary.
-if (ENABLE_PG)
-    include(cmake/pgsql.cmake)
+# Auto-detect available database backends
+include(cmake/pgsql.cmake)
+if (PGSQL_FOUND)
     include_directories(${PGSQL_INCLUDE_DIR})
     add_definitions(-DORMPP_ENABLE_PG)
 endif()
 
-if (ENABLE_MYSQL)
-    include(cmake/mysql.cmake)
+include(cmake/mysql.cmake)
+if (MYSQL_FOUND)
     include_directories(${MYSQL_INCLUDE_DIR})
     add_definitions(-DORMPP_ENABLE_MYSQL)
 endif()
 
-if (ENABLE_MARIADB)
-    include(cmake/mariadb.cmake)
+include(cmake/mariadb.cmake)
+if (MARIADB_FOUND)
     include_directories(${MARIADB_INCLUDE_DIR})
     add_definitions(-DORMPP_ENABLE_MYSQL)
 endif()
 
-if (ENABLE_SQLITE3)
-    add_definitions(-DORMPP_ENABLE_SQLITE3)
-endif()
+# sqlite3 is always available (bundled)
+add_definitions(-DORMPP_ENABLE_SQLITE3)
 
 include_directories(ormpp)
 include_directories(./)

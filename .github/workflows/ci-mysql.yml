@@ -25,7 +25,7 @@ jobs:
           database: test_ormppdb
 
       - name: Configure cmake
-        run : cmake -B${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_MYSQL=ON
+        run : cmake -B${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
 
       - name: Build
         run : cmake --build ${{ github.workspace }}/build --config ${{ matrix.configuration }}

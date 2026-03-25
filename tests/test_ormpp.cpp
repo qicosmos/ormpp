@@ -2,9 +2,7 @@
 #include "mysql.hpp"
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
 #include "sqlite.hpp"
-#endif
 
 #ifdef ORMPP_ENABLE_PG
 #include <thread>
@@ -26,7 +24,7 @@ using namespace std::string_literals;
 using namespace ormpp;
 #ifdef ORMPP_ENABLE_PG
 const char *password = "123456";
-#elif defined(ORMPP_ENABLE_SQLITE3) && defined(SQLITE_HAS_CODEC)
+#elif defined(SQLITE_HAS_CODEC)
 const char *password = "123456";
 #else
 const char *password = "";
@@ -642,7 +640,6 @@ TEST_CASE("optional") {
     CHECK(vec2.front().empty_.has_value() == false);
   }
 #endif
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -885,7 +882,6 @@ TEST_CASE("optional") {
     CHECK(vec2.front().name.value() == "purecpp");
     CHECK(vec2.front().empty_.has_value() == false);
   }
-#endif
 }
 
 /*
@@ -1065,7 +1061,6 @@ TEST_CASE("connect") {
   REQUIRE(mysql.connect(ip, username, password, db, timeout));
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   REQUIRE(sqlite.connect(db, password));
@@ -1077,7 +1072,6 @@ TEST_CASE("connect") {
   REQUIRE(sqlite.connect(db, password));
 #else
   REQUIRE(sqlite.connect(db));
-#endif
 #endif
 }
 
@@ -1162,7 +1156,6 @@ TEST_CASE("create table") {
   REQUIRE(postgres.create_datatable<person>(not_null, auto_key));
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   REQUIRE(sqlite.connect(db, password));
@@ -1177,7 +1170,6 @@ TEST_CASE("create table") {
   REQUIRE(sqlite.create_datatable<person>(auto_key));
   REQUIRE(sqlite.create_datatable<person>(auto_key, not_null));
   REQUIRE(sqlite.create_datatable<person>(not_null, auto_key));
-#endif
 
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
@@ -1229,7 +1221,6 @@ TEST_CASE("insert query") {
   }
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -1243,7 +1234,6 @@ TEST_CASE("insert query") {
     CHECK(vec.size() == vec1.size());
     CHECK(vec.front().name == vec1.front().name);
   }
-#endif
 
   // auto key
   {
@@ -1281,7 +1271,6 @@ TEST_CASE("insert query") {
     }
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
     {
       sqlite.execute("drop table if exists student;");
       sqlite.create_datatable<student>(auto_key, not_null);
@@ -1296,7 +1285,6 @@ TEST_CASE("insert query") {
       auto vec4 = sqlite.query_s<student>("limit 2");
       CHECK(vec4.size() == 2);
     }
-#endif
   }
 
   // key
@@ -1321,7 +1309,6 @@ TEST_CASE("insert query") {
     }
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
     {
       sqlite.execute("drop table if exists student;");
       sqlite.create_datatable<student>(key, not_null);
@@ -1329,7 +1316,6 @@ TEST_CASE("insert query") {
       auto vec = sqlite.query_s<student>();
       CHECK(vec.size() == 1);
     }
-#endif
   }
 }
 
@@ -1397,7 +1383,6 @@ TEST_CASE("update replace") {
     CHECK(vec.front().age == 100);
   }
 #endif
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -1429,7 +1414,6 @@ TEST_CASE("update replace") {
     CHECK(vec.front().name == "update");
     CHECK(vec.front().age == 200);
   }
-#endif
 }
 
 TEST_CASE("update") {
@@ -1472,7 +1456,6 @@ TEST_CASE("update") {
   }
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -1489,7 +1472,6 @@ TEST_CASE("update") {
     CHECK(sqlite.update(v[1]) == 1);
     auto vec2 = sqlite.query_s<student>();
   }
-#endif
 }
 
 TEST_CASE("multi update") {
@@ -1532,7 +1514,6 @@ TEST_CASE("multi update") {
   }
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -1549,7 +1530,6 @@ TEST_CASE("multi update") {
     auto vec = sqlite.query_s<student>();
     CHECK(vec.size() == 3);
   }
-#endif
 }
 
 TEST_CASE("delete") {
@@ -1592,7 +1572,6 @@ TEST_CASE("delete") {
   }
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -1609,7 +1588,6 @@ TEST_CASE("delete") {
     auto vec2 = sqlite.query_s<student>();
     CHECK(vec2.size() == 0);
   }
-#endif
 }
 
 TEST_CASE("query") {
@@ -1645,7 +1623,6 @@ TEST_CASE("query") {
   }
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -1660,7 +1637,6 @@ TEST_CASE("query") {
     auto vec2 = sqlite.query_s<simple>("id=3");
     CHECK(vec2.size() == 1);
   }
-#endif
 }
 
 TEST_CASE("query some") {
@@ -1704,7 +1680,6 @@ TEST_CASE("query some") {
   }
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -1721,7 +1696,6 @@ TEST_CASE("query some") {
         "select code, name, dm from student");
     CHECK(vec2.size() == 3);
   }
-#endif
 }
 
 TEST_CASE("query multi table") {
@@ -1777,7 +1751,6 @@ TEST_CASE("query multi table") {
   }
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -1797,7 +1770,6 @@ TEST_CASE("query multi table") {
         "select * from person, student"s);
     CHECK(vec2.size() == 9);
   }
-#endif
 }
 
 TEST_CASE("transaction") {
@@ -1868,7 +1840,6 @@ TEST_CASE("transaction") {
   }
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -1900,7 +1871,6 @@ TEST_CASE("transaction") {
     vec = sqlite.query_s<student>();
     CHECK(vec.size() == 2);
   }
-#endif
 }
 
 struct log {
@@ -1986,7 +1956,6 @@ TEST_CASE("blob") {
     // CHECK(vec.front().bin.size() == size);
   }
 #endif
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -2004,7 +1973,6 @@ TEST_CASE("blob") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().bin.size() == size);
   }
-#endif
 }
 
 struct image_ex {
@@ -2067,7 +2035,6 @@ TEST_CASE("blob tuple") {
     // CHECK(img.bin.size() == size);
   }
 #endif
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -2095,7 +2062,6 @@ TEST_CASE("blob tuple") {
     CHECK(time == img_ex.time);
     CHECK(img.bin.size() == size);
   }
-#endif
 }
 
 TEST_CASE("create table with unique") {
@@ -2130,7 +2096,6 @@ TEST_CASE("create table with unique") {
     CHECK(vec3.size() == 1);
   }
 #endif
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -2149,7 +2114,6 @@ TEST_CASE("create table with unique") {
     auto vec3 = sqlite.query_s<person>();
     CHECK(vec3.size() == 1);
   }
-#endif
 }
 
 TEST_CASE("get insert id after insert") {
@@ -2180,7 +2144,6 @@ TEST_CASE("get insert id after insert") {
     CHECK(id == 5);
   }
 #endif
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -2196,7 +2159,6 @@ TEST_CASE("get insert id after insert") {
     id = sqlite.get_insert_id_after_insert<person>({{"purecpp"}, {"purecpp"}});
     CHECK(id == 5);
   }
-#endif
 }
 
 TEST_CASE("query_s delete_records_s") {
@@ -2289,7 +2251,6 @@ TEST_CASE("query_s delete_records_s") {
     CHECK(vec10.size() == 0);
   }
 #endif
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -2339,7 +2300,6 @@ TEST_CASE("query_s delete_records_s") {
     CHECK(vec10.size() == 0);
     CHECK(vec11.front().age == 200);
   }
-#endif
 }
 
 struct tuple_optional_t {
@@ -2409,7 +2369,6 @@ TEST_CASE("query tuple_optional_t") {
     CHECK(a2.has_value() == false);
   }
 #endif
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -2442,7 +2401,6 @@ TEST_CASE("query tuple_optional_t") {
     CHECK(a1.value() == 6);
     CHECK(a2.has_value() == false);
   }
-#endif
 }
 
 enum class Color { BLUE = 10, RED = 15 };
@@ -2524,7 +2482,6 @@ TEST_CASE("test enum") {
     CHECK(vec.size() == 0);
   }
 #endif
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -2561,7 +2518,6 @@ TEST_CASE("test enum") {
     vec = sqlite.query_s<test_enum_t>();
     CHECK(vec.size() == 0);
   }
-#endif
 }
 
 struct test_enum_with_name_t {
@@ -2644,7 +2600,6 @@ TEST_CASE("test enum with custom name") {
     CHECK(vec.size() == 0);
   }
 #endif
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -2681,7 +2636,6 @@ TEST_CASE("test enum with custom name") {
     vec = sqlite.query_s<test_enum_with_name_t>();
     CHECK(vec.size() == 0);
   }
-#endif
 }
 
 struct test_bool_t {
@@ -2723,7 +2677,6 @@ TEST_CASE("test bool") {
     CHECK(vec.front().ok == false);
   }
 #endif
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -2742,7 +2695,6 @@ TEST_CASE("test bool") {
     CHECK(vec.size() == 1);
     CHECK(vec.front().ok == false);
   }
-#endif
 }
 
 struct alias {
@@ -2778,7 +2730,6 @@ TEST_CASE("alias") {
     CHECK(vec.front().name == "purecpp");
   }
 #endif
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -2793,7 +2744,6 @@ TEST_CASE("alias") {
     auto vec = sqlite.query_s<alias>();
     CHECK(vec.front().name == "purecpp");
   }
-#endif
 }
 
 #ifdef ORMPP_ENABLE_PG
@@ -2919,7 +2869,6 @@ TEST_CASE("update section filed") {
     CHECK(vec2.front().name == "purecpp_bbbb");
   }
 #endif
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -2973,7 +2922,6 @@ TEST_CASE("update section filed") {
     CHECK(vec1.front().name == "purecpp_aaaa");
     CHECK(vec2.front().name == "purecpp_bbbb");
   }
-#endif
 }
 #endif
 
@@ -3100,7 +3048,6 @@ TEST_CASE("unsigned type") {
     CHECK(vec.front().v == "purecpp");
   }
 #endif
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -3124,7 +3071,6 @@ TEST_CASE("unsigned type") {
     CHECK(vec.front().h == 8);
     CHECK(vec.front().v == "purecpp");
   }
-#endif
 }
 
 #if __cplusplus >= 202002L
@@ -3223,7 +3169,6 @@ TEST_CASE("builder interfaces") {
   }
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -3263,7 +3208,6 @@ TEST_CASE("builder interfaces") {
               .execute() == 1);
     CHECK(sqlite.query_s<builder_person>().empty());
   }
-#endif
 }
 
 TEST_CASE("struct with function") {
@@ -3316,7 +3260,6 @@ TEST_CASE("struct with function") {
   }
 #endif
 
-#ifdef ORMPP_ENABLE_SQLITE3
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC
   if (sqlite.connect(db, password)) {
@@ -3340,6 +3283,5 @@ TEST_CASE("struct with function") {
     CHECK(vec.front().name == "purecpp");
     CHECK(sqlite.delete_records_s<region_model>("name=?", "purecpp") == 1);
   }
-#endif
 }
 #endif

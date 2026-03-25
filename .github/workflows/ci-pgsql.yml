@@ -47,7 +47,7 @@ jobs:
         env : 
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
-        run : cmake -B${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_PG=ON
+        run : cmake -B${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
 
       - name: Build
         run : cmake --build ${{ github.workspace }}/build --config ${{ matrix.configuration }}

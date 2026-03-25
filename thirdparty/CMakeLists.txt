@@ -7,8 +7,6 @@ target_include_directories(doctest INTERFACE doctest)
 #############################
 # sqlite3
 #############################
-if (ENABLE_SQLITE3)
-
 #############################
 # sqlcipher definitions
 #############################
@@ -29,5 +27,3 @@ if(ENABLE_SQLITE3_CODEC)
     target_include_directories(sqlite3 PUBLIC ${OpenSSL_INCLUDE_DIRS})
     target_link_libraries(sqlite3 PUBLIC OpenSSL::SSL OpenSSL::Crypto)
 endif(ENABLE_SQLITE3_CODEC)
-
-endif()
