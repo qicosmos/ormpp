@@ -130,7 +130,8 @@ class postgresql {
 
   template <typename T, typename... Args>
   constexpr bool delete_records(Args &&...where_conditon) {
-    auto sql = generate_delete_sql<T>(db_type_v, std::forward<Args>(where_conditon)...);
+    auto sql = generate_delete_sql<T>(db_type_v,
+                                      std::forward<Args>(where_conditon)...);
     return execute(sql);
   }
 
@@ -401,7 +402,7 @@ class postgresql {
   }
 
   int get_last_affect_rows() { return last_affect_rows_; }
-  
+
   // transaction
   void set_enable_transaction(bool enable) { transaction_ = enable; }
 
@@ -654,7 +655,9 @@ class postgresql {
   template <auto... members, typename T, typename... Args>
   int update_impl(const T &t, Args &&...args) {
     auto res = insert_or_update_impl<members...>(
-        t, generate_update_sql<T, members...>(db_type_v, std::forward<Args>(args)...),
+        t,
+        generate_update_sql<T, members...>(db_type_v,
+                                           std::forward<Args>(args)...),
         OptType::update, false, std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
@@ -662,7 +665,9 @@ class postgresql {
   template <auto... members, typename T, typename... Args>
   int update_impl(const std::vector<T> &v, Args &&...args) {
     auto res = insert_or_update_impl<members...>(
-        v, generate_update_sql<T, members...>(db_type_v, std::forward<Args>(args)...),
+        v,
+        generate_update_sql<T, members...>(db_type_v,
+                                           std::forward<Args>(args)...),
         OptType::update, false, std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }

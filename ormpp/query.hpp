@@ -376,7 +376,8 @@ class query_builder {
           .append(limit_clause_)
           .append(offset_clause_);
 
-      if constexpr (std::remove_pointer_t<DB>::db_type_v == DBType::postgresql) {
+      if constexpr (std::remove_pointer_t<DB>::db_type_v ==
+                    DBType::postgresql) {
         if (sql_.find('?') != std::string::npos) {
           int index = 1;
           for (size_t i = 0; i < sql_.size(); i++) {
@@ -736,7 +737,9 @@ struct stage_select {
 };
 
 template <typename T>
-concept HasName = requires(T t) { t.name; };
+concept HasName = requires(T t) {
+  t.name;
+};
 
 template <typename Arg>
 auto append_select(auto& sel, Arg arg) {
