@@ -166,7 +166,8 @@ class sqlite {
 
   template <typename T, typename... Args>
   bool delete_records(Args &&...where_conditon) {
-    auto sql = generate_delete_sql<T>(db_type_v, std::forward<Args>(where_conditon)...);
+    auto sql = generate_delete_sql<T>(db_type_v,
+                                      std::forward<Args>(where_conditon)...);
     return execute(sql);
   }
 
@@ -304,12 +305,12 @@ class sqlite {
   auto select_all() { return ormpp::select_all(this); }
 
   template <typename T>
-  auto make_update(){
+  auto make_update() {
     return ormpp::make_update_builder<T>(this);
   }
 
   template <typename T>
-  auto make_delete(){
+  auto make_delete() {
     return ormpp::make_delete_builder<T>(this);
   }
 
@@ -317,7 +318,7 @@ class sqlite {
   auto make_create_table() {
     return ormpp::make_create_table_builder<T>(this);
   }
- 
+
   template <typename T>
   auto make_alter_table() {
     return ormpp::make_alter_table_builder<T>(this);
@@ -762,7 +763,9 @@ class sqlite {
   template <auto... members, typename T, typename... Args>
   int update_impl(const T &t, Args &&...args) {
     auto res = insert_or_update_impl<members...>(
-        t, generate_update_sql<T, members...>(db_type_v, std::forward<Args>(args)...),
+        t,
+        generate_update_sql<T, members...>(db_type_v,
+                                           std::forward<Args>(args)...),
         OptType::update, false, std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
@@ -770,7 +773,9 @@ class sqlite {
   template <auto... members, typename T, typename... Args>
   int update_impl(const std::vector<T> &v, Args &&...args) {
     auto res = insert_or_update_impl<members...>(
-        v, generate_update_sql<T, members...>(db_type_v, std::forward<Args>(args)...),
+        v,
+        generate_update_sql<T, members...>(db_type_v,
+                                           std::forward<Args>(args)...),
         OptType::update, false, std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }

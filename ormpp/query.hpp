@@ -737,9 +737,7 @@ struct stage_select {
 };
 
 template <typename T>
-concept HasName = requires(T t) {
-  t.name;
-};
+concept HasName = requires(T t) { t.name; };
 
 template <typename Arg>
 auto append_select(auto& sel, Arg arg) {

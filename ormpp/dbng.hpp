@@ -123,17 +123,17 @@ class dbng {
   }
 
   template <typename T>
-  auto update(){
+  auto update() {
     return db_.template make_update<T>();
   }
-  
+
   template <typename T>
-  auto remove(){
+  auto remove() {
     return db_.template make_delete<T>();
   }
-  
+
   template <typename T>
-  auto create_table(){
+  auto create_table() {
     return db_.template make_create_table<T>();
   }
 
