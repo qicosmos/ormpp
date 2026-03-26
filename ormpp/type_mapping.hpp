@@ -1,12 +1,6 @@
 //
 // Created by qiyu on 10/23/17.
 //
-#ifdef ORMPP_ENABLE_MYSQL
-#include <mysql.h>
-#endif
-#ifdef ORMPP_ENABLE_SQLITE3
-#include <sqlite3.h>
-#endif
 #include <string>
 #include <string_view>
 #include <vector>
@@ -25,30 +19,14 @@ using blob = std::vector<char>;
 template <class T>
 struct identity {};
 
-#ifdef ORMPP_ENABLE_MYSQL
-namespace ormpp_mysql {
-inline int type_to_id(identity<char>) noexcept { return MYSQL_TYPE_TINY; }
-inline int type_to_id(identity<short>) noexcept { return MYSQL_TYPE_SHORT; }
-inline int type_to_id(identity<int>) noexcept { return MYSQL_TYPE_LONG; }
-inline int type_to_id(identity<float>) noexcept { return MYSQL_TYPE_FLOAT; }
-inline int type_to_id(identity<double>) noexcept { return MYSQL_TYPE_DOUBLE; }
-inline int type_to_id(identity<int8_t>) noexcept { return MYSQL_TYPE_TINY; }
-inline int type_to_id(identity<int64_t>) noexcept {
-  return MYSQL_TYPE_LONGLONG;
-}
-inline int type_to_id(identity<uint8_t>) noexcept { return MYSQL_TYPE_TINY; }
-inline int type_to_id(identity<uint16_t>) noexcept { return MYSQL_TYPE_SHORT; }
-inline int type_to_id(identity<uint32_t>) noexcept { return MYSQL_TYPE_LONG; }
-inline int type_to_id(identity<uint64_t>) noexcept {
-  return MYSQL_TYPE_LONGLONG;
-}
-inline int type_to_id(identity<std::string>) noexcept {
-  return MYSQL_TYPE_VAR_STRING;
-}
-inline int type_to_id(identity<std::string_view>) noexcept {
-  return MYSQL_TYPE_VAR_STRING;
-}
+// type_to_name mappings are always available (pure C++, no native DB headers).
+// type_to_id (MySQL enum constants) requires <mysql.h> and is guarded below.
 
+#ifdef ORMPP_ENABLE_MYSQL
+#include <mysql.h>
+#endif
+
+namespace ormpp_mysql {
 inline constexpr auto type_to_name(identity<bool>) noexcept {
   return "BOOLEAN"sv;
 }
@@ -95,9 +73,33 @@ inline auto type_to_name(identity<std::array<char, N>>) noexcept {
   std::string s = "varchar(" + std::to_string(N) + ")";
   return s;
 }
+
+// type_to_id uses MYSQL_TYPE_* constants — only available with <mysql.h>
+#ifdef ORMPP_ENABLE_MYSQL
+inline int type_to_id(identity<char>) noexcept { return MYSQL_TYPE_TINY; }
+inline int type_to_id(identity<short>) noexcept { return MYSQL_TYPE_SHORT; }
+inline int type_to_id(identity<int>) noexcept { return MYSQL_TYPE_LONG; }
+inline int type_to_id(identity<float>) noexcept { return MYSQL_TYPE_FLOAT; }
+inline int type_to_id(identity<double>) noexcept { return MYSQL_TYPE_DOUBLE; }
+inline int type_to_id(identity<int8_t>) noexcept { return MYSQL_TYPE_TINY; }
+inline int type_to_id(identity<int64_t>) noexcept {
+  return MYSQL_TYPE_LONGLONG;
+}
+inline int type_to_id(identity<uint8_t>) noexcept { return MYSQL_TYPE_TINY; }
+inline int type_to_id(identity<uint16_t>) noexcept { return MYSQL_TYPE_SHORT; }
+inline int type_to_id(identity<uint32_t>) noexcept { return MYSQL_TYPE_LONG; }
+inline int type_to_id(identity<uint64_t>) noexcept {
+  return MYSQL_TYPE_LONGLONG;
+}
+inline int type_to_id(identity<std::string>) noexcept {
+  return MYSQL_TYPE_VAR_STRING;
+}
+inline int type_to_id(identity<std::string_view>) noexcept {
+  return MYSQL_TYPE_VAR_STRING;
+}
+#endif  // ORMPP_ENABLE_MYSQL
 }  // namespace ormpp_mysql
-#endif
-#ifdef ORMPP_ENABLE_SQLITE3
+
 namespace ormpp_sqlite {
 inline constexpr auto type_to_name(identity<float>) noexcept {
   return "FLOAT"sv;
@@ -146,8 +148,7 @@ inline auto type_to_name(identity<std::array<char, N>>) noexcept {
   return s;
 }
 }  // namespace ormpp_sqlite
-#endif
-#ifdef ORMPP_ENABLE_PG
+
 namespace ormpp_postgresql {
 inline constexpr auto type_to_name(identity<bool>) noexcept {
   return "integer"sv;
@@ -196,7 +197,7 @@ inline auto type_to_name(identity<std::array<char, N>>) noexcept {
   return s;
 }
 }  // namespace ormpp_postgresql
-#endif
+
 }  // namespace ormpp
 
 #endif  // EXAMPLE1_TYPE_MAPPING_HPP

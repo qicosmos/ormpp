@@ -32,7 +32,7 @@ jobs:
         run: choco install openssl -y
 
       - name: Configure CMake
-        run: cmake -B${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_SQLITE3=ON -DENABLE_SQLITE3_CODEC=ON
+        run: cmake -B${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_SQLITE3_CODEC=ON
 
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config ${{ matrix.configuration }}

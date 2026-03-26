@@ -10,7 +10,3 @@ AllowShortIfStatementsOnASingleLine: Never
 ---
 Language: JavaScript
 DisableFormat: true
----
-# Ignore json file
-Language: Json
-DisableFormat: true
