@@ -3866,6 +3866,17 @@ TEST_CASE("issue #253: pg select with string in") {
   auto all_rows = postgres.query_s<users>();
   REQUIRE(all_rows.size() == 2);
 
+  // verify SQL injection is escaped
+  std::string evil = "b'); DROP TABLE users;--";
+  auto injected = postgres.select(all)
+                      .from<users>()
+                      .where(col(&users::user_id).in(evil))
+                      .collect();
+  CHECK(injected.empty());
+  // table should still exist after injection attempt
+  auto after = postgres.query_s<users>();
+  REQUIRE(after.size() == 2);
+
   postgres.execute("drop table if exists users;");
 #endif
 }

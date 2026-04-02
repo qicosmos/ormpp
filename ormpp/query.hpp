@@ -14,11 +14,10 @@ struct where_condition {
     std::string sql;
     sql.append("(").append(left).append(op);
     if (need_quote) {
-      sql.append("'");
+      sql.append("'").append(escape_sql_string(right)).append("'");
     }
-    sql.append(right);
-    if (need_quote) {
-      sql.append("'");
+    else {
+      sql.append(right);
     }
     sql.append(")");
     return sql;
@@ -90,7 +89,7 @@ struct col_info {
     }
     else {
       std::string str = "'";
-      str.append(val).append("'");
+      str.append(escape_sql_string(val)).append("'");
       return str;
     }
   }
@@ -818,7 +817,7 @@ void append_set(std::string& sql, col_info<M> field, V val) {
     sql.append(std::to_string(val));
   }
   else {
-    sql.append("'").append(val).append("'");
+    sql.append("'").append(escape_sql_string(val)).append("'");
   }
 }
 
@@ -983,7 +982,7 @@ struct create_table_builder {
     }
     else {
       std::string s = "'";
-      s.append(val).append("'");
+      s.append(escape_sql_string(val)).append("'");
       default_values_[std::string(field.name)] = std::move(s);
     }
     return *this;
