@@ -3844,14 +3844,12 @@ TEST_CASE("issue #253: pg select with string in") {
   dbng<postgresql> postgres;
   REQUIRE(postgres.connect(ip, username, password, db));
   postgres.execute("drop table if exists users;");
-  REQUIRE(postgres.create_datatable<users>(
-      ormpp_auto_key{col_name(&users::id)}));
-  REQUIRE(postgres.insert<users>(
-              {0, "a", "name_a", "description a", "a", "18175547579",
-               "2281-fc7cfee4-0002"}) == 1);
-  REQUIRE(postgres.insert<users>(
-              {0, "b", "name_b", "description b", "b", "18175547580",
-               "2281-fc7cfee4-0003"}) == 1);
+  REQUIRE(
+      postgres.create_datatable<users>(ormpp_auto_key{col_name(&users::id)}));
+  REQUIRE(postgres.insert<users>({0, "a", "name_a", "description a", "a",
+                                  "18175547579", "2281-fc7cfee4-0002"}) == 1);
+  REQUIRE(postgres.insert<users>({0, "b", "name_b", "description b", "b",
+                                  "18175547580", "2281-fc7cfee4-0003"}) == 1);
 
   // This is the exact pattern from issue #253
   std::string user_id = "b";
