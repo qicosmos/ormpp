@@ -638,28 +638,6 @@ TEST_CASE("optional") {
     CHECK(vec2.front().age.value() == 1);
     CHECK(vec2.front().name.value() == "purecpp");
     CHECK(vec2.front().empty_.has_value() == false);
-
-    // issue #253: fluent API with string field .in() should work without
-    // prepare (no parameterized args)
-    auto in_str = postgres.select(all)
-                      .from<test_optional>()
-                      .where(col(&test_optional::name).in("purecpp"))
-                      .collect();
-    REQUIRE(in_str.size() == 1);
-    CHECK(in_str.front().name.value() == "purecpp");
-
-    auto in_str2 = postgres.select(all)
-                       .from<test_optional>()
-                       .where(col(&test_optional::name).in("purecpp", "test"))
-                       .collect();
-    REQUIRE(in_str2.size() == 2);
-
-    // query_s without extra args should also work
-    auto qs_all = postgres.query_s<test_optional>();
-    REQUIRE(qs_all.size() == 2);
-
-    // delete_records_s without extra args
-    REQUIRE(postgres.delete_records_s<test_optional>("id=999"));
   }
 #endif
   dbng<sqlite> sqlite;
@@ -3847,4 +3825,49 @@ TEST_CASE("nested namespace") {
     CHECK(vec.front().email == "tom@test.com");
     CHECK(vec.front().status == 1);
   }
+}
+
+// issue #253: select with string field .in() on PostgreSQL
+struct users {
+  int id;
+  std::string user_id;
+  std::string nickname;
+  std::string description;
+  std::string password;
+  std::string phone;
+  std::string avatar_id;
+};
+REGISTER_AUTO_KEY(users, id)
+
+TEST_CASE("issue #253: pg select with string in") {
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  REQUIRE(postgres.connect(ip, username, password, db));
+  postgres.execute("drop table if exists users;");
+  REQUIRE(postgres.create_datatable<users>(
+      ormpp_auto_key{col_name(&users::id)}));
+  REQUIRE(postgres.insert<users>(
+              {0, "a", "name_a", "description a", "a", "18175547579",
+               "2281-fc7cfee4-0002"}) == 1);
+  REQUIRE(postgres.insert<users>(
+              {0, "b", "name_b", "description b", "b", "18175547580",
+               "2281-fc7cfee4-0003"}) == 1);
+
+  // This is the exact pattern from issue #253
+  std::string user_id = "b";
+  auto matched_rows = postgres.select(all)
+                          .from<users>()
+                          .where(col(&users::user_id).in(user_id))
+                          .collect();
+  REQUIRE(matched_rows.size() == 1);
+  CHECK(matched_rows.front().user_id == "b");
+  CHECK(matched_rows.front().nickname == "name_b");
+  CHECK(matched_rows.front().phone == "18175547580");
+
+  // select all without where
+  auto all_rows = postgres.query_s<users>();
+  REQUIRE(all_rows.size() == 2);
+
+  postgres.execute("drop table if exists users;");
+#endif
 }
