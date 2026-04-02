@@ -638,6 +638,28 @@ TEST_CASE("optional") {
     CHECK(vec2.front().age.value() == 1);
     CHECK(vec2.front().name.value() == "purecpp");
     CHECK(vec2.front().empty_.has_value() == false);
+
+    // issue #253: fluent API with string field .in() should work without
+    // prepare (no parameterized args)
+    auto in_str = postgres.select(all)
+                      .from<test_optional>()
+                      .where(col(&test_optional::name).in("purecpp"))
+                      .collect();
+    REQUIRE(in_str.size() == 1);
+    CHECK(in_str.front().name.value() == "purecpp");
+
+    auto in_str2 = postgres.select(all)
+                       .from<test_optional>()
+                       .where(col(&test_optional::name).in("purecpp", "test"))
+                       .collect();
+    REQUIRE(in_str2.size() == 2);
+
+    // query_s without extra args should also work
+    auto qs_all = postgres.query_s<test_optional>();
+    REQUIRE(qs_all.size() == 2);
+
+    // delete_records_s without extra args
+    REQUIRE(postgres.delete_records_s<test_optional>("id=999"));
   }
 #endif
   dbng<sqlite> sqlite;
