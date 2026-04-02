@@ -94,7 +94,7 @@ inline int add_conflict_key_field(std::string_view key,
 
 template <typename T>
 inline auto get_conflict_key() {
-  std::string_view struct_name = get_short_struct_name<T>();
+  std::string_view struct_name = ylt::reflection::get_struct_name<T>();
   auto it = get_conflict_map().find(struct_name);
   if (it == get_conflict_map().end()) {
     auto auto_key = get_auto_key_map().find(struct_name);
@@ -371,7 +371,7 @@ inline std::string generate_insert_sql(DBType db_type, bool insert,
   if (db_type == DBType::postgresql && !insert) {
     constexpr auto Count = ylt::reflection::members_count_v<T>;
     std::string sql = "insert into ";
-    auto name = get_struct_name<T>(db_type);
+    auto name = get_short_struct_name<T>();
     append(sql, name);
     int index = 0;
     std::string set;
@@ -408,7 +408,7 @@ inline std::string generate_insert_sql(DBType db_type, bool insert,
 
   std::string sql = insert ? "insert into " : "replace into ";
   constexpr auto Count = ylt::reflection::members_count_v<T>;
-  auto name = get_struct_name<T>(db_type);
+  auto name = get_short_struct_name<T>();
   append(sql, name);
 
   int index = 0;
@@ -453,7 +453,7 @@ inline std::string generate_insert_sql(DBType db_type, bool insert,
 template <typename T, auto... members, typename... Args>
 inline std::string generate_update_sql(DBType db_type, Args &&...args) {
   std::string sql, fields;
-  append(sql, "update", get_struct_name<T>(db_type), "set");
+  append(sql, "update", get_short_struct_name<T>(), "set");
 
   size_t index = 0;
 
@@ -521,7 +521,7 @@ template <typename T, typename... Args>
 inline std::string generate_delete_sql(DBType db_type,
                                        Args &&...where_conditon) {
   std::string sql = "delete from ";
-  auto name = get_struct_name<T>(db_type);
+  auto name = get_short_struct_name<T>();
   append(sql, name);
   if constexpr (sizeof...(Args) > 0) {
     if (!is_empty(std::forward<Args>(where_conditon)...))
@@ -561,7 +561,7 @@ inline std::string generate_query_sql(DBType db_type, Args &&...args) {
   bool where = false;
   std::string sql = "select ";
   auto fields = get_fields<T>(db_type);
-  auto name = get_struct_name<T>(db_type);
+  auto name = get_short_struct_name<T>();
   append(sql, fields, "from", name);
   if constexpr (sizeof...(Args) > 0) {
     using expander = int[];

@@ -531,7 +531,7 @@ class sqlite {
       });
     }
 
-    auto table_name = ylt::reflection::get_struct_name<T>();
+    auto table_name = get_short_struct_name<T>();
     const auto type_name_arr = get_type_names<T>(DBType::sqlite);
 
     std::string sql;
