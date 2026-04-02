@@ -3285,3 +3285,544 @@ TEST_CASE("struct with function") {
   }
 }
 #endif
+
+namespace ns_test {
+struct person_with_namespace {
+  int id;
+  std::string name;
+  int age;
+};
+REGISTER_AUTO_KEY(person_with_namespace, id)
+
+struct student_with_namespace {
+  int code;
+  std::string name;
+  char sex;
+  int age;
+  double dm;
+  std::string classroom;
+};
+REGISTER_CONFLICT_KEY(student_with_namespace, code)
+
+struct department {
+  int id;
+  std::string name;
+  int manager_id;
+};
+REGISTER_AUTO_KEY(department, id)
+
+namespace nested_ns {
+namespace inner {
+struct user_info {
+  int id;
+  std::string username;
+  std::string email;
+  int status;
+};
+REGISTER_AUTO_KEY(user_info, id)
+}  // namespace inner
+}  // namespace nested_ns
+}  // namespace ns_test
+
+TEST_CASE("test get_conflict_keys function") {
+  {
+    auto db_type = DBType::mysql;
+    auto key1s = ormpp::get_conflict_keys<student>(db_type);
+    CHECK(key1s.size() == 1);
+    CHECK(key1s[0] == "`code`");
+
+    auto key2s = ormpp::get_conflict_keys<test_ns::message_clear>(db_type);
+    CHECK(key2s.size() == 2);
+    CHECK(key2s[0] == "`room_id`");
+    CHECK(key2s[1] == "`user_id`");
+
+    auto key3s =
+        ormpp::get_conflict_keys<ns_test::student_with_namespace>(db_type);
+    CHECK(key3s.size() == 1);
+    CHECK(key3s[0] == "`code`");
+
+    auto key4s = ormpp::get_conflict_keys<person>(db_type);
+    CHECK(key4s.size() == 1);
+    CHECK(key4s[0] == "`id`");
+
+    auto key5s =
+        ormpp::get_conflict_keys<ns_test::person_with_namespace>(db_type);
+    CHECK(key5s.size() == 1);
+    CHECK(key5s[0] == "`id`");
+
+    auto key6s = ormpp::get_conflict_keys<simple>(db_type);
+    CHECK(key6s.empty());
+  }
+
+  std::vector db_types = {DBType::postgresql, DBType::sqlite};
+  for (const auto db_type : db_types) {
+    auto key1s = ormpp::get_conflict_keys<student>(db_type);
+    CHECK(key1s.size() == 1);
+    CHECK(key1s[0] == "code");
+
+    auto key2s = ormpp::get_conflict_keys<test_ns::message_clear>(db_type);
+    CHECK(key2s.size() == 2);
+    CHECK(key2s[0] == "room_id");
+    CHECK(key2s[1] == "user_id");
+
+    auto key3s =
+        ormpp::get_conflict_keys<ns_test::student_with_namespace>(db_type);
+    CHECK(key3s.size() == 1);
+    CHECK(key3s[0] == "code");
+
+    auto key4s = ormpp::get_conflict_keys<person>(db_type);
+    CHECK(key4s.size() == 1);
+    CHECK(key4s[0] == "id");
+
+    auto key5s =
+        ormpp::get_conflict_keys<ns_test::person_with_namespace>(db_type);
+    CHECK(key5s.size() == 1);
+    CHECK(key5s[0] == "id");
+
+    auto key6s = ormpp::get_conflict_keys<simple>(db_type);
+    CHECK(key6s.empty());
+  }
+}
+
+TEST_CASE("create table with namespace") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists person_with_namespace");
+    REQUIRE(mysql.create_datatable<ns_test::person_with_namespace>(
+        ormpp_auto_key{"id"}));
+    REQUIRE(mysql.insert(ns_test::person_with_namespace{0, "tom", 18}) == 1);
+    auto vec = mysql.query_s<ns_test::person_with_namespace>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "tom");
+    CHECK(vec.front().age == 18);
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists person_with_namespace");
+    REQUIRE(postgres.create_datatable<ns_test::person_with_namespace>(
+        ormpp_auto_key{"id"}));
+    REQUIRE(postgres.insert(ns_test::person_with_namespace{0, "tom", 18}) == 1);
+    auto vec = postgres.query_s<ns_test::person_with_namespace>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "tom");
+    CHECK(vec.front().age == 18);
+  }
+#endif
+
+  dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
+  if (sqlite.connect(db)) {
+#endif
+    sqlite.execute("drop table if exists person_with_namespace");
+    REQUIRE(sqlite.create_datatable<ns_test::person_with_namespace>(
+        ormpp_auto_key{"id"}));
+    REQUIRE(sqlite.insert(ns_test::person_with_namespace{0, "tom", 18}) == 1);
+    auto vec = sqlite.query_s<ns_test::person_with_namespace>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "tom");
+    CHECK(vec.front().age == 18);
+  }
+}
+
+TEST_CASE("insert with namespace") {
+  ns_test::student_with_namespace s = {1, "tom", 0, 19, 1.5, "room2"};
+  ns_test::student_with_namespace s1 = {2, "jack", 1, 20, 2.5, "room3"};
+  ns_test::student_with_namespace s2 = {3, "mike", 2, 21, 3.5, "room4"};
+  std::vector<ns_test::student_with_namespace> v{s1, s2};
+
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists student_with_namespace");
+    REQUIRE(mysql.create_datatable<ns_test::student_with_namespace>(
+        ormpp_key{col_name(&ns_test::student_with_namespace::code)}));
+    REQUIRE(mysql.insert(s) == 1);
+    auto vec1 = mysql.query_s<ns_test::student_with_namespace>();
+    CHECK(vec1.size() == 1);
+    REQUIRE(mysql.insert(v) == 2);
+    auto vec2 = mysql.query_s<ns_test::student_with_namespace>();
+    CHECK(vec2.size() == 3);
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists student_with_namespace");
+    REQUIRE(postgres.create_datatable<ns_test::student_with_namespace>(
+        ormpp_key{col_name(&ns_test::student_with_namespace::code)}));
+    REQUIRE(postgres.insert(s) == 1);
+    auto vec1 = postgres.query_s<ns_test::student_with_namespace>();
+    CHECK(vec1.size() == 1);
+    REQUIRE(postgres.insert(v) == 2);
+    auto vec2 = postgres.query_s<ns_test::student_with_namespace>();
+    CHECK(vec2.size() == 3);
+  }
+#endif
+
+  dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
+  if (sqlite.connect(db)) {
+#endif
+    sqlite.execute("drop table if exists student_with_namespace");
+    REQUIRE(sqlite.create_datatable<ns_test::student_with_namespace>(
+        ormpp_key{col_name(&ns_test::student_with_namespace::code)}));
+    REQUIRE(sqlite.insert(s) == 1);
+    auto vec1 = sqlite.query_s<ns_test::student_with_namespace>();
+    CHECK(vec1.size() == 1);
+    REQUIRE(sqlite.insert(v) == 2);
+    auto vec2 = sqlite.query_s<ns_test::student_with_namespace>();
+    CHECK(vec2.size() == 3);
+  }
+}
+
+TEST_CASE("update with namespace") {
+  ns_test::student_with_namespace s = {1, "tom", 0, 19, 1.5, "room2"};
+
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists student_with_namespace");
+    REQUIRE(mysql.create_datatable<ns_test::student_with_namespace>(
+        ormpp_key{col_name(&ns_test::student_with_namespace::code)}));
+    REQUIRE(mysql.insert(s) == 1);
+    auto vec = mysql.query_s<ns_test::student_with_namespace>();
+    CHECK(vec.size() == 1);
+    vec.front().name = "test1";
+    REQUIRE(mysql.update(vec.front()) == 1);
+    auto vec2 = mysql.query_s<ns_test::student_with_namespace>();
+    CHECK(vec2.front().name == "test1");
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists student_with_namespace");
+    REQUIRE(postgres.create_datatable<ns_test::student_with_namespace>(
+        ormpp_key{col_name(&ns_test::student_with_namespace::code)}));
+    REQUIRE(postgres.insert(s) == 1);
+    auto vec = postgres.query_s<ns_test::student_with_namespace>();
+    CHECK(vec.size() == 1);
+    vec.front().name = "test1";
+    REQUIRE(postgres.update(vec.front()) == 1);
+    auto vec2 = postgres.query_s<ns_test::student_with_namespace>();
+    CHECK(vec2.front().name == "test1");
+  }
+#endif
+
+  dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
+  if (sqlite.connect(db)) {
+#endif
+    sqlite.execute("drop table if exists student_with_namespace");
+    REQUIRE(sqlite.create_datatable<ns_test::student_with_namespace>(
+        ormpp_key{col_name(&ns_test::student_with_namespace::code)}));
+    REQUIRE(sqlite.insert(s) == 1);
+    auto vec = sqlite.query_s<ns_test::student_with_namespace>();
+    CHECK(vec.size() == 1);
+    vec.front().name = "test1";
+    REQUIRE(sqlite.update(vec.front()) == 1);
+    auto vec2 = sqlite.query_s<ns_test::student_with_namespace>();
+    CHECK(vec2.front().name == "test1");
+  }
+}
+
+TEST_CASE("delete with namespace") {
+  ns_test::student_with_namespace s = {1, "tom", 0, 19, 1.5, "room2"};
+  ns_test::student_with_namespace s1 = {2, "jack", 1, 20, 2.5, "room3"};
+  ns_test::student_with_namespace s2 = {3, "mike", 2, 21, 3.5, "room4"};
+  std::vector<ns_test::student_with_namespace> v{s, s1, s2};
+
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists student_with_namespace");
+    REQUIRE(mysql.create_datatable<ns_test::student_with_namespace>(
+        ormpp_key{col_name(&ns_test::student_with_namespace::code)}));
+    REQUIRE(mysql.insert(v) == 3);
+    REQUIRE(mysql.delete_records_s<ns_test::student_with_namespace>("code=1") ==
+            1);
+    auto vec1 = mysql.query_s<ns_test::student_with_namespace>();
+    CHECK(vec1.size() == 2);
+    REQUIRE(mysql.delete_records_s<ns_test::student_with_namespace>() == 2);
+    auto vec2 = mysql.query_s<ns_test::student_with_namespace>();
+    CHECK(vec2.size() == 0);
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists student_with_namespace");
+    REQUIRE(postgres.create_datatable<ns_test::student_with_namespace>(
+        ormpp_key{col_name(&ns_test::student_with_namespace::code)}));
+    REQUIRE(postgres.insert(v) == 3);
+    REQUIRE(postgres.delete_records_s<ns_test::student_with_namespace>(
+                "code=$1", 1) == 1);
+    auto vec1 = postgres.query_s<ns_test::student_with_namespace>();
+    CHECK(vec1.size() == 2);
+    REQUIRE(postgres.delete_records_s<ns_test::student_with_namespace>() == 2);
+    auto vec2 = postgres.query_s<ns_test::student_with_namespace>();
+    CHECK(vec2.size() == 0);
+  }
+#endif
+
+  dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
+  if (sqlite.connect(db)) {
+#endif
+    sqlite.execute("drop table if exists student_with_namespace");
+    REQUIRE(sqlite.create_datatable<ns_test::student_with_namespace>(
+        ormpp_key{col_name(&ns_test::student_with_namespace::code)}));
+    REQUIRE(sqlite.insert(v) == 3);
+    REQUIRE(sqlite.delete_records_s<ns_test::student_with_namespace>(
+                "code=1") == 1);
+    auto vec1 = sqlite.query_s<ns_test::student_with_namespace>();
+    CHECK(vec1.size() == 2);
+    REQUIRE(sqlite.delete_records_s<ns_test::student_with_namespace>() == 2);
+    auto vec2 = sqlite.query_s<ns_test::student_with_namespace>();
+    CHECK(vec2.size() == 0);
+  }
+}
+
+TEST_CASE("chain query with namespace") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists person_with_namespace");
+    REQUIRE(mysql.create_datatable<ns_test::person_with_namespace>(
+        ormpp_auto_key{"id"}));
+    REQUIRE(mysql.insert(ns_test::person_with_namespace{0, "tom", 18}) == 1);
+    REQUIRE(mysql.insert(ns_test::person_with_namespace{0, "jerry", 20}) == 1);
+    REQUIRE(mysql.insert(ns_test::person_with_namespace{0, "mike", 22}) == 1);
+
+    auto l = mysql.select(all)
+                 .from<ns_test::person_with_namespace>()
+                 .where(col(&ns_test::person_with_namespace::id).param())
+                 .collect(2);
+    CHECK(l.size() == 1);
+    CHECK(l.front().name == "jerry");
+
+    auto l1 = mysql.select(all)
+                  .from<ns_test::person_with_namespace>()
+                  .where(col(&ns_test::person_with_namespace::age) > 18)
+                  .collect();
+    CHECK(l1.size() == 2);
+
+    auto l2 =
+        mysql.select(all).from<ns_test::person_with_namespace>().collect();
+    CHECK(l2.size() == 3);
+
+    mysql.execute("drop table if exists department");
+    REQUIRE(mysql.create_datatable<ns_test::department>(ormpp_auto_key{"id"}));
+    REQUIRE(mysql.insert(ns_test::department{0, "Engineering", 1}) == 1);
+    REQUIRE(mysql.insert(ns_test::department{0, "Sales", 2}) == 1);
+    REQUIRE(mysql.insert(ns_test::department{0, "HR", 3}) == 1);
+
+    auto l3 = mysql
+                  .select(col(&ns_test::person_with_namespace::name),
+                          col(&ns_test::department::name))
+                  .from<ns_test::person_with_namespace>()
+                  .inner_join(col(&ns_test::person_with_namespace::id),
+                              col(&ns_test::department::manager_id))
+                  .collect();
+    CHECK(l3.size() >= 0);
+
+    mysql.execute("drop table if exists department");
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists person_with_namespace");
+    REQUIRE(postgres.create_datatable<ns_test::person_with_namespace>(
+        ormpp_auto_key{"id"}));
+    REQUIRE(postgres.insert(ns_test::person_with_namespace{0, "tom", 18}) == 1);
+    REQUIRE(postgres.insert(ns_test::person_with_namespace{0, "jerry", 20}) ==
+            1);
+    REQUIRE(postgres.insert(ns_test::person_with_namespace{0, "mike", 22}) ==
+            1);
+
+    auto l = postgres.select(all)
+                 .from<ns_test::person_with_namespace>()
+                 .where(col(&ns_test::person_with_namespace::id).param())
+                 .collect(2);
+    CHECK(l.size() == 1);
+    CHECK(l.front().name == "jerry");
+  }
+#endif
+
+  dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
+  if (sqlite.connect(db)) {
+#endif
+    sqlite.execute("drop table if exists person_with_namespace");
+    REQUIRE(sqlite.create_datatable<ns_test::person_with_namespace>(
+        ormpp_auto_key{"id"}));
+    REQUIRE(sqlite.insert(ns_test::person_with_namespace{0, "tom", 18}) == 1);
+    REQUIRE(sqlite.insert(ns_test::person_with_namespace{0, "jerry", 20}) == 1);
+    REQUIRE(sqlite.insert(ns_test::person_with_namespace{0, "mike", 22}) == 1);
+
+    auto l = sqlite.select(all)
+                 .from<ns_test::person_with_namespace>()
+                 .where(col(&ns_test::person_with_namespace::id).param())
+                 .collect(2);
+    CHECK(l.size() == 1);
+    CHECK(l.front().name == "jerry");
+
+    auto l1 = sqlite.select(all)
+                  .from<ns_test::person_with_namespace>()
+                  .where(col(&ns_test::person_with_namespace::age) > 18)
+                  .collect();
+    CHECK(l1.size() == 2);
+
+    auto l2 =
+        sqlite.select(all).from<ns_test::person_with_namespace>().collect();
+    CHECK(l2.size() == 3);
+  }
+}
+
+#if __cplusplus >= 202002L
+TEST_CASE("builder with namespace") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists person_with_namespace");
+    REQUIRE(mysql.create_table<ns_test::person_with_namespace>()
+                .auto_increment(col(&ns_test::person_with_namespace::id))
+                .not_null(col(&ns_test::person_with_namespace::name),
+                          col(&ns_test::person_with_namespace::age))
+                .execute());
+
+    REQUIRE(mysql.insert(ns_test::person_with_namespace{0, "tom", 18}) == 1);
+    REQUIRE(mysql.update<ns_test::person_with_namespace>()
+                .set(col(&ns_test::person_with_namespace::name), "jerry")
+                .set(col(&ns_test::person_with_namespace::age), 20)
+                .where(col(&ns_test::person_with_namespace::id) == 1)
+                .execute() == 1);
+    auto vec = mysql.query_s<ns_test::person_with_namespace>("id=1");
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "jerry");
+    CHECK(vec.front().age == 20);
+
+    REQUIRE(mysql.remove<ns_test::person_with_namespace>()
+                .where(col(&ns_test::person_with_namespace::id) == 1)
+                .execute() == 1);
+    CHECK(mysql.query_s<ns_test::person_with_namespace>().empty());
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists person_with_namespace");
+    REQUIRE(postgres.create_table<ns_test::person_with_namespace>()
+                .auto_increment(col(&ns_test::person_with_namespace::id))
+                .not_null(col(&ns_test::person_with_namespace::name),
+                          col(&ns_test::person_with_namespace::age))
+                .execute());
+
+    REQUIRE(postgres.insert(ns_test::person_with_namespace{0, "tom", 18}) == 1);
+    auto vec = postgres.query_s<ns_test::person_with_namespace>();
+    CHECK(vec.size() == 1);
+  }
+#endif
+
+  dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
+  if (sqlite.connect(db)) {
+#endif
+    sqlite.execute("drop table if exists person_with_namespace");
+    REQUIRE(sqlite.create_table<ns_test::person_with_namespace>()
+                .auto_increment(col(&ns_test::person_with_namespace::id))
+                .not_null(col(&ns_test::person_with_namespace::name),
+                          col(&ns_test::person_with_namespace::age))
+                .default_value(col(&ns_test::person_with_namespace::age), 0)
+                .execute());
+
+    REQUIRE(sqlite.insert(ns_test::person_with_namespace{0, "tom", 18}) == 1);
+    REQUIRE(sqlite.update<ns_test::person_with_namespace>()
+                .set(col(&ns_test::person_with_namespace::name), "jerry")
+                .set(col(&ns_test::person_with_namespace::age), 20)
+                .where(col(&ns_test::person_with_namespace::id) == 1)
+                .execute() == 1);
+    auto vec = sqlite.query_s<ns_test::person_with_namespace>("id=1");
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().name == "jerry");
+    CHECK(vec.front().age == 20);
+
+    REQUIRE(sqlite.remove<ns_test::person_with_namespace>()
+                .where(col(&ns_test::person_with_namespace::id) == 1)
+                .execute() == 1);
+    CHECK(sqlite.query_s<ns_test::person_with_namespace>().empty());
+  }
+}
+#endif
+
+TEST_CASE("nested namespace") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists user_info");
+    REQUIRE(mysql.create_datatable<ns_test::nested_ns::inner::user_info>(
+        ormpp_auto_key{"id"}));
+    REQUIRE(mysql.insert(ns_test::nested_ns::inner::user_info{
+                0, "tom", "tom@test.com", 1}) == 1);
+    auto vec = mysql.query_s<ns_test::nested_ns::inner::user_info>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().username == "tom");
+    CHECK(vec.front().email == "tom@test.com");
+    CHECK(vec.front().status == 1);
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists user_info");
+    REQUIRE(postgres.create_datatable<ns_test::nested_ns::inner::user_info>(
+        ormpp_auto_key{"id"}));
+    REQUIRE(postgres.insert(ns_test::nested_ns::inner::user_info{
+                0, "tom", "tom@test.com", 1}) == 1);
+    auto vec = postgres.query_s<ns_test::nested_ns::inner::user_info>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().username == "tom");
+  }
+#endif
+
+  dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
+  if (sqlite.connect(db)) {
+#endif
+    sqlite.execute("drop table if exists user_info");
+    REQUIRE(sqlite.create_datatable<ns_test::nested_ns::inner::user_info>(
+        ormpp_auto_key{"id"}));
+    REQUIRE(sqlite.insert(ns_test::nested_ns::inner::user_info{
+                0, "tom", "tom@test.com", 1}) == 1);
+    auto vec = sqlite.query_s<ns_test::nested_ns::inner::user_info>();
+    CHECK(vec.size() == 1);
+    CHECK(vec.front().username == "tom");
+    CHECK(vec.front().email == "tom@test.com");
+    CHECK(vec.front().status == 1);
+  }
+}

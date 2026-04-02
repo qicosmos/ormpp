@@ -107,13 +107,13 @@ struct col_info {
   }
 };
 
-#define col(c)                                                 \
-  col_info<typename ylt::reflection::internal::member_tratis<  \
-      decltype(c)>::value_type> {                              \
-    ylt::reflection::field_string<c>(),                        \
-        ylt::reflection::get_struct_name<                      \
-            typename ylt::reflection::internal::member_tratis< \
-                decltype(c)>::owner_type>()                    \
+#define col(c)                                                         \
+  col_info<typename ylt::reflection::internal::member_tratis<          \
+      decltype(c)>::value_type> {                                      \
+    ylt::reflection::field_string<c>(),                                \
+        std::string(get_short_struct_name<                             \
+                    typename ylt::reflection::internal::member_tratis< \
+                        decltype(c)>::owner_type>())                   \
   }
 
 template <auto field>
@@ -275,7 +275,7 @@ template <typename T>
 inline std::string join_impl(std::string prefix, auto field1, auto field2) {
   std::string sql;
   sql.append(prefix).append("join ");
-  if (ylt::reflection::get_struct_name<T>() == field1.class_name) {
+  if (std::string(get_short_struct_name<T>()) == field1.class_name) {
     sql.append(field2.class_name);
   }
   else {
@@ -730,7 +730,7 @@ struct stage_select {
     if (!select_clause_.empty()) {
       builder.ctx_->select_clause_ = select_clause_;
       builder.ctx_->from_clause_.append(" from ").append(
-          ylt::reflection::get_struct_name<T>());
+          std::string(get_short_struct_name<T>()));
     }
     return builder;
   }
