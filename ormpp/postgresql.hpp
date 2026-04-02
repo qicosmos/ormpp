@@ -141,10 +141,10 @@ class postgresql {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    if (!prepare<T>(sql))
-      return 0;
-
     if constexpr (sizeof...(Args) > 0) {
+      if (!prepare<T>(sql))
+        return 0;
+
       size_t index = 0;
       std::vector<const char *> param_values_buf;
       std::vector<std::vector<char>> param_values;
@@ -173,10 +173,10 @@ class postgresql {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    if (!prepare<T>(sql))
-      return {};
-
     if constexpr (sizeof...(Args) > 0) {
+      if (!prepare<T>(sql))
+        return {};
+
       size_t index = 0;
       std::vector<const char *> param_values_buf;
       std::vector<std::vector<char>> param_values;
@@ -218,10 +218,10 @@ class postgresql {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    if (!prepare<T>(sql))
-      return {};
-
     if constexpr (sizeof...(Args) > 0) {
+      if (!prepare<T>(sql))
+        return {};
+
       size_t index = 0;
       std::vector<const char *> param_values_buf;
       std::vector<std::vector<char>> param_values;
@@ -307,9 +307,6 @@ class postgresql {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    if (!prepare<T>(sql))
-      return {};
-
     res_ = PQexec(con_, sql.data());
     auto guard = guard_statment(res_);
     if (PQresultStatus(res_) != PGRES_TUPLES_OK) {
@@ -344,9 +341,6 @@ class postgresql {
 
       sql = get_sql(sql, std::forward<Args>(args)...);
     }
-
-    if (!prepare<T>(sql))
-      return {};
 
     res_ = PQexec(con_, sql.data());
     auto guard = guard_statment(res_);
