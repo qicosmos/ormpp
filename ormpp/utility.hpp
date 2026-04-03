@@ -575,13 +575,27 @@ inline std::string generate_query_sql(DBType db_type, Args &&...args) {
   return sql;
 }
 
+inline std::string escape_sql_string(std::string_view input) {
+  std::string result;
+  result.reserve(input.size());
+  for (char c : input) {
+    if (c == '\'') {
+      result.append("''");
+    }
+    else {
+      result.push_back(c);
+    }
+  }
+  return result;
+}
+
 template <typename T>
 inline constexpr auto to_str(T &&t) {
   if constexpr (std::is_arithmetic_v<std::decay_t<T>>) {
     return std::to_string(std::forward<T>(t));
   }
   else {
-    return std::string("'") + t + std::string("'");
+    return std::string("'") + escape_sql_string(t) + std::string("'");
   }
 }
 
