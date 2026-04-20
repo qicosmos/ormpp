@@ -154,7 +154,12 @@ where_condition build_where(auto field, auto val, std::string op) {
     name.append(".").append(field.name);
   }
 
-  if constexpr (std::is_arithmetic_v<value_type>) {
+  if constexpr (std::is_enum_v<value_type>) {
+    using underlying = std::underlying_type_t<value_type>;
+    return where_condition{name, op,
+                           std::to_string(static_cast<underlying>(val))};
+  }
+  else if constexpr (std::is_arithmetic_v<value_type>) {
     return where_condition{name, op, std::to_string(val)};
   }
   else {
@@ -237,6 +242,14 @@ inline constexpr auto token = token_t{};
 
 inline auto count() { return aggregate_field<uint64_t>{"COUNT(*)"}; }
 
+struct raw_sql_value {
+  std::string sql;
+};
+
+inline raw_sql_value raw_sql(std::string sql) {
+  return raw_sql_value{std::move(sql)};
+}
+
 template <typename T>
 inline auto build_aggregate_field(std::string prefix, auto field) {
   std::string str = std::move(prefix);
@@ -296,7 +309,16 @@ inline std::string join_impl(std::string prefix, auto field1, auto field2) {
 template <typename... Args>
 std::string order_by_sql(Args... fields) {
   std::string sql = " ORDER BY ";
-  (sql.append(fields.name).append(fields.sort_order).append(","), ...);
+  ([&] {
+    if (fields.class_name.empty()) {
+      sql.append(fields.name);
+    }
+    else {
+      sql.append(fields.class_name).append(".").append(fields.name);
+    }
+    sql.append(fields.sort_order).append(",");
+  }(),
+   ...);
   sql.pop_back();
   return sql;
 }
@@ -608,12 +630,12 @@ class query_builder {
     }
 
     stage_limit limit(uint64_t n) {
-      ctx->limit_c = " LIMIT " + std::to_string(n);
+      ctx->limit_clause_ = " LIMIT " + std::to_string(n);
       return stage_limit{ctx};
     }
 
     stage_limit limit(token_t) {
-      ctx->limit_c = " LIMIT ?  ";
+      ctx->limit_clause_ = " LIMIT ?  ";
       return stage_limit{ctx};
     }
 
@@ -813,7 +835,14 @@ template <typename M, typename V>
 void append_set(std::string& sql, col_info<M> field, V val) {
   sql.append(field.name);
   sql.append("=");
-  if constexpr (std::is_arithmetic_v<V>) {
+  if constexpr (std::is_same_v<std::decay_t<V>, raw_sql_value>) {
+    sql.append(val.sql);
+  }
+  else if constexpr (std::is_enum_v<V>) {
+    using underlying = std::underlying_type_t<V>;
+    sql.append(std::to_string(static_cast<underlying>(val)));
+  }
+  else if constexpr (std::is_arithmetic_v<V>) {
     sql.append(std::to_string(val));
   }
   else {
