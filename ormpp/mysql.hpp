@@ -408,7 +408,9 @@ class mysql {
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &str, Args &&...args) {
     constexpr auto SIZE = ylt::reflection::members_count_v<T>;
-    std::string sql = generate_query_sql<T>(db_type_v, str);
+    std::string sql = (str.find("select") != std::string::npos)
+                          ? str
+                          : generate_query_sql<T>(db_type_v, str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -472,7 +474,9 @@ class mysql {
       return {};
     }
 
-    while (mysql_stmt_fetch(stmt_) == 0) {
+    int fetch_ret = 0;
+    while ((fetch_ret = mysql_stmt_fetch(stmt_)) == 0 ||
+           fetch_ret == MYSQL_DATA_TRUNCATED) {
       ylt::reflection::for_each(
           t, [&param_binds, &mp, this](auto &field, auto /*name*/, auto index) {
             set_value(param_binds.at(index), field, index, mp);
@@ -581,7 +585,9 @@ class mysql {
       return {};
     }
 
-    while (mysql_stmt_fetch(stmt_) == 0) {
+    int fetch_ret2 = 0;
+    while ((fetch_ret2 = mysql_stmt_fetch(stmt_)) == 0 ||
+           fetch_ret2 == MYSQL_DATA_TRUNCATED) {
       index = 0;
       ormpp::for_each(
           tp,
@@ -728,7 +734,9 @@ class mysql {
       return {};
     }
 
-    while (mysql_stmt_fetch(stmt_) == 0) {
+    int fetch_ret3 = 0;
+    while ((fetch_ret3 = mysql_stmt_fetch(stmt_)) == 0 ||
+           fetch_ret3 == MYSQL_DATA_TRUNCATED) {
       ylt::reflection::for_each(
           t, [&param_binds, &mp, this](auto &field, auto /*name*/, auto index) {
             set_value(param_binds.at(index), field, index, mp);
@@ -840,7 +848,9 @@ class mysql {
       return {};
     }
 
-    while (mysql_stmt_fetch(stmt_) == 0) {
+    int fetch_ret2 = 0;
+    while ((fetch_ret2 = mysql_stmt_fetch(stmt_)) == 0 ||
+           fetch_ret2 == MYSQL_DATA_TRUNCATED) {
       index = 0;
       ormpp::for_each(
           tp,
