@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 
+#include "async_traits.hpp"
 #include "utility.hpp"
 
 namespace ormpp {
@@ -110,7 +111,7 @@ struct col_info {
   col_info<typename ylt::reflection::internal::member_tratis<          \
       decltype(c)>::value_type> {                                      \
     ylt::reflection::field_string<c>(),                                \
-        std::string(get_short_struct_name<                             \
+        std::string(ormpp::get_short_struct_name<                      \
                     typename ylt::reflection::internal::member_tratis< \
                         decltype(c)>::owner_type>())                   \
   }
@@ -127,11 +128,11 @@ std::string str_name() {
 
 #define col_name(c) str_name<c>()
 
-where_condition operator||(where_condition lhs, where_condition rhs) {
+inline where_condition operator||(where_condition lhs, where_condition rhs) {
   return where_condition{lhs.to_sql(), " OR ", rhs.to_sql()};
 }
 
-where_condition operator&&(where_condition lhs, where_condition rhs) {
+inline where_condition operator&&(where_condition lhs, where_condition rhs) {
   return where_condition{lhs.to_sql(), " AND ", rhs.to_sql()};
 }
 
@@ -350,6 +351,22 @@ class query_builder {
     std::string min_clause_;
     std::string max_clause_;
 
+    template <typename To>
+    static constexpr bool scalar_collect_target_v =
+        iguana::optional_v<To> || std::is_arithmetic_v<To> ||
+        iguana::string_container_v<To>;
+
+    template <typename To>
+    using collect_result_t = std::conditional_t<
+        !ylt::reflection::is_ylt_refl_v<R> && !std::is_void_v<R> &&
+            !iguana::tuple_v<R>,
+        R,
+        std::conditional_t<
+            std::is_void_v<R>, std::vector<T>,
+            std::conditional_t<std::is_void_v<To>, std::vector<R>,
+                               std::conditional_t<scalar_collect_target_v<To>,
+                                                  To, std::vector<To>>>>>;
+
     std::string aggregate_clause() {
       if (!count_clause_.empty()) {
         return count_clause_;
@@ -373,23 +390,19 @@ class query_builder {
       return "";
     }
 
-    template <typename... Args>
-    auto scalar(Args... args) {
-      using first = std::tuple_element_t<0, R>;
-      return collect<first>(args...);
-    }
+    std::string build_sql() const {
+      std::string sql = sql_;
+      std::string where_clause = where_clause_;
 
-    template <typename To, typename... Args>
-    auto collect(Args... args) {
       if (!select_clause_.empty()) {
-        sql_.append("select ").append(select_clause_).append(from_clause_);
-        if (!where_clause_.empty()) {
-          where_clause_.insert(0, " where ");
+        sql.append("select ").append(select_clause_).append(from_clause_);
+        if (!where_clause.empty()) {
+          where_clause.insert(0, " where ");
         }
       }
 
-      sql_.append(join_clause_)
-          .append(where_clause_)
+      sql.append(join_clause_)
+          .append(where_clause)
           .append(group_by_clause_)
           .append(having_clause_)
           .append(order_by_clause_)
@@ -399,58 +412,141 @@ class query_builder {
 
       if constexpr (std::remove_pointer_t<DB>::db_type_v ==
                     DBType::postgresql) {
-        if (sql_.find('?') != std::string::npos) {
+        if (sql.find('?') != std::string::npos) {
           int index = 1;
-          for (size_t i = 0; i < sql_.size(); i++) {
-            if (sql_[i] == '?') {
-              sql_[i] = '$';
+          for (size_t i = 0; i < sql.size(); i++) {
+            if (sql[i] == '?') {
+              sql[i] = '$';
               std::string index_str = std::to_string(index++);
-              std::memcpy(&sql_[i + 1], index_str.data(),
+              std::memcpy(&sql[i + 1], index_str.data(),
                           (std::min)(index_str.size(), size_t(2)));
             }
           }
         }
       }
 
+      return sql;
+    }
+
+    template <typename To, typename Result>
+    static auto extract_query_result(Result&& result) {
       if constexpr (!ylt::reflection::is_ylt_refl_v<R> && !std::is_void_v<R> &&
                     !iguana::tuple_v<R>) {
-        auto t = db_->template query_s<std::tuple<R>>(sql_, args...);
-        if (t.empty()) {
+        if (result.empty()) {
           return R{};
         }
-        return std::get<0>(t.front());
+        return std::get<0>(result.front());
       }
       else {
         if constexpr (std::is_void_v<R>) {
-          return db_->template query_s<T>(sql_, args...);
+          return std::forward<Result>(result);
         }
         else {
           if constexpr (std::is_void_v<To>) {
-            auto t = db_->template query_s<R>(sql_, args...);
-            return t;
+            return std::forward<Result>(result);
           }
           else {
-            // To: maybe a tuple mapping struct or a first row first col type.
-            if constexpr (iguana::optional_v<To> || std::is_arithmetic_v<To> ||
+            if constexpr (iguana::optional_v<To> ||
+                          std::is_arithmetic_v<To> ||
                           iguana::string_container_v<To>) {
-              auto t = db_->template query_s<R>(sql_, args...);
-              if (t.empty()) {
+              if (result.empty()) {
                 return To{};
               }
-              return std::get<0>(t.front());
+              return std::get<0>(result.front());
             }
             else {
-              auto t = db_->template query_s<To>(sql_, args...);
-              return t;
+              return std::forward<Result>(result);
             }
           }
         }
       }
     }
 
-    template <typename... Args>
-    auto collect(Args... args) {
-      return collect<void>(args...);
+    template <typename Out, typename Tuple, std::size_t... I>
+    db_awaitable_t<DB, std::vector<Out>> query_async_with_params(
+        const std::string& sql, Tuple& params, std::index_sequence<I...>) {
+      co_return co_await db_->template query_s<Out>(
+          sql, std::decay_t<decltype(std::get<I>(params))>(std::get<I>(params))...);
+    }
+
+    template <typename To, typename... Args>
+    auto collect_sync(Args&&... args) {
+      auto sql = build_sql();
+      if constexpr (!ylt::reflection::is_ylt_refl_v<R> && !std::is_void_v<R> &&
+                    !iguana::tuple_v<R>) {
+        auto result =
+            db_->template query_s<std::tuple<R>>(sql, std::forward<Args>(args)...);
+        return extract_query_result<To>(std::move(result));
+      }
+      else if constexpr (std::is_void_v<R>) {
+        auto result = db_->template query_s<T>(sql, std::forward<Args>(args)...);
+        return extract_query_result<To>(std::move(result));
+      }
+      else if constexpr (std::is_void_v<To>) {
+        auto result = db_->template query_s<R>(sql, std::forward<Args>(args)...);
+        return extract_query_result<To>(std::move(result));
+      }
+      else if constexpr (iguana::optional_v<To> || std::is_arithmetic_v<To> ||
+                         iguana::string_container_v<To>) {
+        auto result = db_->template query_s<R>(sql, std::forward<Args>(args)...);
+        return extract_query_result<To>(std::move(result));
+      }
+      else {
+        auto result = db_->template query_s<To>(sql, std::forward<Args>(args)...);
+        return extract_query_result<To>(std::move(result));
+      }
+    }
+
+    template <typename To = void, typename... Args>
+    requires(!is_async_db_v<DB>) auto collect(Args&&... args) {
+      return collect_sync<To>(std::forward<Args>(args)...);
+    }
+
+    template <typename To = void, typename... Args>
+    requires(is_async_db_v<DB>) db_awaitable_t<DB, collect_result_t<To>> collect(
+        Args&&... args) {
+      auto sql = build_sql();
+      auto params = std::make_tuple(std::forward<Args>(args)...);
+      if constexpr (!ylt::reflection::is_ylt_refl_v<R> && !std::is_void_v<R> &&
+                    !iguana::tuple_v<R>) {
+        auto result = co_await query_async_with_params<std::tuple<R>>(
+            sql, params, std::index_sequence_for<Args...>{});
+        co_return extract_query_result<To>(std::move(result));
+      }
+      else if constexpr (std::is_void_v<R>) {
+        auto result = co_await query_async_with_params<T>(
+            sql, params, std::index_sequence_for<Args...>{});
+        co_return extract_query_result<To>(std::move(result));
+      }
+      else if constexpr (std::is_void_v<To>) {
+        auto result = co_await query_async_with_params<R>(
+            sql, params, std::index_sequence_for<Args...>{});
+        co_return extract_query_result<To>(std::move(result));
+      }
+      else if constexpr (scalar_collect_target_v<To>) {
+        auto result = co_await query_async_with_params<R>(
+            sql, params, std::index_sequence_for<Args...>{});
+        co_return extract_query_result<To>(std::move(result));
+      }
+      else {
+        auto result = co_await query_async_with_params<To>(
+            sql, params, std::index_sequence_for<Args...>{});
+        co_return extract_query_result<To>(std::move(result));
+      }
+    }
+
+    template <typename Q = R, typename... Args>
+    requires(!is_async_db_v<DB> && iguana::tuple_v<Q>) auto scalar(
+        Args&&... args) {
+      using first = std::tuple_element_t<0, R>;
+      return collect<first>(std::forward<Args>(args)...);
+    }
+
+    template <typename Q = R, typename... Args>
+    requires(is_async_db_v<DB> && iguana::tuple_v<Q>)
+        db_awaitable_t<DB, std::tuple_element_t<0, Q>> scalar(Args&&... args) {
+      using first = std::tuple_element_t<0, Q>;
+      co_return co_await collect<first>(std::forward<Args>(args)...);
     }
   };
 
@@ -812,7 +908,7 @@ struct update_context {
   std::string set_clause_;
   std::string where_clause_;
 
-  int execute_impl() {
+  std::string build_sql() const {
     std::string sql;
     sql.append("UPDATE ")
         .append(get_short_struct_name<T>())
@@ -821,6 +917,11 @@ struct update_context {
     if (!where_clause_.empty()) {
       sql.append(" WHERE ").append(where_clause_);
     }
+    return sql;
+  }
+
+  auto execute_impl() requires(!is_async_db_v<DB>) {
+    auto sql = build_sql();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -828,6 +929,17 @@ struct update_context {
       return db_->get_last_affect_rows();
     }
     return -1;
+  }
+
+  db_awaitable_t<DB, int> execute_impl() requires(is_async_db_v<DB>) {
+    auto sql = build_sql();
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    if (co_await db_->execute(sql)) {
+      co_return db_->get_last_affect_rows();
+    }
+    co_return -1;
   }
 };
 
@@ -853,7 +965,7 @@ void append_set(std::string& sql, col_info<M> field, V val) {
 template <typename T, typename DB>
 struct stage_update_where {
   std::shared_ptr<update_context<T, DB>> ctx;
-  int execute() { return ctx->execute_impl(); }
+  auto execute() { return ctx->execute_impl(); }
 };
 
 template <typename T, typename DB>
@@ -877,7 +989,7 @@ struct stage_update_set {
     return stage_update_where<T, DB>{ctx};
   }
 
-  int execute_all() { return ctx->execute_impl(); }
+  auto execute_all() { return ctx->execute_impl(); }
 };
 
 template <typename T, typename DB>
@@ -910,12 +1022,18 @@ template <typename T, typename DB>
 struct delete_context {
   DB db_;
   std::string where_clause_;
-  int execute_impl() {
+
+  std::string build_sql() const {
     std::string sql;
     sql.append("DELETE FROM ").append(get_short_struct_name<T>());
     if (!where_clause_.empty()) {
       sql.append(" WHERE ").append(where_clause_);
     }
+    return sql;
+  }
+
+  auto execute_impl() requires(!is_async_db_v<DB>) {
+    auto sql = build_sql();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
@@ -924,6 +1042,17 @@ struct delete_context {
     }
     return -1;
   }
+
+  db_awaitable_t<DB, int> execute_impl() requires(is_async_db_v<DB>) {
+    auto sql = build_sql();
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    if (co_await db_->execute(sql)) {
+      co_return db_->get_last_affect_rows();
+    }
+    co_return -1;
+  }
 };
 
 template <typename T, typename DB>
@@ -931,7 +1060,7 @@ struct delete_builder {
   DB db_;
   struct stage_delete_where {
     std::shared_ptr<delete_context<T, DB>> ctx;
-    int execute() { return ctx->execute_impl(); }
+    auto execute() { return ctx->execute_impl(); }
   };
 
   stage_delete_where where(const where_condition& condition) {
@@ -941,7 +1070,7 @@ struct delete_builder {
     return stage_delete_where{ctx};
   }
 
-  int execute_all() {
+  auto execute_all() {
     auto ctx = std::make_shared<delete_context<T, DB>>();
     ctx->db_ = db_;
     return ctx->execute_impl();
@@ -1037,7 +1166,7 @@ struct create_table_builder {
     return *this;
   }
 
-  bool execute() {
+  auto execute() requires(!is_async_db_v<DB>) {
     std::string sql = generate_sql();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -1052,6 +1181,23 @@ struct create_table_builder {
           });
     }
     return db_->execute(sql);
+  }
+
+  db_awaitable_t<DB, bool> execute() requires(is_async_db_v<DB>) {
+    std::string sql = generate_sql();
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    if (!auto_increment_field_.empty()) {
+      T t{};
+      ylt::reflection::for_each(
+          t, [&](auto& /*field*/, auto name, size_t /*index*/) {
+            if (std::string_view(name) == auto_increment_field_) {
+              add_auto_key_field(get_short_struct_name<T>(), name);
+            }
+          });
+    }
+    co_return co_await db_->execute(sql);
   }
 
  private:
@@ -1356,7 +1502,7 @@ struct alter_table_builder {
     return *this;
   }
 
-  bool execute() {
+  auto execute() requires(!is_async_db_v<DB>) {
     auto table_name = get_short_struct_name<T>();
     constexpr std::string_view ci_prefix = "_CREATE__INDEX__ ";
     constexpr std::string_view di_prefix = "_DROP_INDEX__ ";
@@ -1395,6 +1541,47 @@ struct alter_table_builder {
       }
     }
     return ok;
+  }
+
+  db_awaitable_t<DB, bool> execute() requires(is_async_db_v<DB>) {
+    auto table_name = get_short_struct_name<T>();
+    constexpr std::string_view ci_prefix = "_CREATE__INDEX__ ";
+    constexpr std::string_view di_prefix = "_DROP_INDEX__ ";
+    bool ok = true;
+    for (auto& op : ops_) {
+      std::string sql;
+      if (op.sql.compare(0, ci_prefix.size(), ci_prefix) == 0) {
+        auto rest = op.sql.substr(ci_prefix.size());
+        auto sp = rest.find(' ');
+        auto idx_name = rest.substr(0, sp);
+        auto cols = rest.substr(sp + 1);
+        sql.append("CREATE INDEX ")
+            .append(idx_name)
+            .append(" ON ")
+            .append(table_name)
+            .append("(")
+            .append(cols)
+            .append(")");
+      }
+      else if (op.sql.compare(0, di_prefix.size(), di_prefix) == 0) {
+        auto idx_name = op.sql.substr(di_prefix.size());
+        sql.append("DROP INDEX ").append(idx_name);
+      }
+      else {
+        sql.append("ALTER TABLE ")
+            .append(table_name)
+            .append(" ")
+            .append(op.sql);
+      }
+#ifdef ORMPP_ENABLE_LOG
+      std::cout << sql << std::endl;
+#endif
+      if (!(co_await db_->execute(sql))) {
+        ok = false;
+        break;
+      }
+    }
+    co_return ok;
   }
 };
 

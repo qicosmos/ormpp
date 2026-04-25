@@ -2,6 +2,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests)
 project(test_ormpp)
 add_executable(${PROJECT_NAME}
         test_ormpp.cpp
+        async_mysql_smoke.cpp
         main.cpp
         )
 
@@ -22,3 +23,6 @@ if(MARIADB_FOUND)
 endif()
 target_link_libraries(${PROJECT_NAME} sqlite3)
 target_link_libraries(${PROJECT_NAME} doctest)
+if(ENABLE_MYSQL_ASYNC)
+        target_link_libraries(${PROJECT_NAME} OpenSSL::SSL OpenSSL::Crypto)
+endif()

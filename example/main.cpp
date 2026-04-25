@@ -1,3 +1,8 @@
+#ifdef ORMPP_ENABLE_MYSQL_ASYNC
+#include <asio.hpp>
+#include "mysql_async.hpp"
+#endif
+
 #ifdef ORMPP_ENABLE_MYSQL
 #include "mysql.hpp"
 #endif
@@ -40,6 +45,24 @@ struct student {
 REGISTER_AUTO_KEY(student, id)
 YLT_REFL(student, id, name, age)
 
+#ifdef ORMPP_ENABLE_MYSQL_ASYNC
+asio::awaitable<void> mysql_async_demo() {
+  dbng<mysql_async> mysql(co_await asio::this_coro::executor);
+  auto connected = co_await mysql.connect(ip, username, password, db);
+  if (!connected) {
+    co_return;
+  }
+
+  auto rows = co_await mysql.select(all)
+                  .from<person>()
+                  .where(col(&person::id).param())
+                  .collect(1);
+  (void)rows;
+
+  co_await mysql.disconnect();
+}
+#endif
+
 int main() {
 #ifdef ORMPP_ENABLE_MYSQL
   {
@@ -67,6 +90,13 @@ int main() {
     }
     init_size = pool.size();
     assert(init_size == 4);
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_MYSQL_ASYNC
+  {
+    asio::io_context ctx;
+    asio::co_spawn(ctx, mysql_async_demo(), asio::detached);
   }
 #endif
 

@@ -5,12 +5,14 @@
 #ifndef ORM_DBNG_HPP
 #define ORM_DBNG_HPP
 
+#include <type_traits>
 #include <chrono>
 #include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "async_traits.hpp"
 #include "query.hpp"
 
 namespace ormpp {
@@ -18,91 +20,100 @@ template <typename DB>
 class dbng {
  public:
   dbng() = default;
+  template <typename... Args>
+  requires(std::is_constructible_v<DB, Args...>)
+  explicit dbng(Args &&...args) : db_(std::forward<Args>(args)...) {}
   dbng(const dbng &) = delete;
-  ~dbng() { disconnect(); }
+  ~dbng() {
+    if constexpr (!is_async_db_v<DB>) {
+      disconnect();
+    }
+  }
 
-  bool connect(
+  decltype(auto) connect(
       const std::tuple<std::string, std::string, std::string, std::string,
                        std::optional<int>, std::optional<int>> &tp) {
     return db_.connect(tp);
   }
 
-  bool connect(const std::string &host, const std::string &user = "",
-               const std::string &passwd = "", const std::string &db = "",
-               const std::optional<int> &timeout = {},
-               const std::optional<int> &port = {}) {
+  decltype(auto) connect(const std::string &host, const std::string &user = "",
+                         const std::string &passwd = "",
+                         const std::string &db = "",
+                         const std::optional<int> &timeout = {},
+                         const std::optional<int> &port = {}) {
     return db_.connect(host, user, passwd, db, timeout, port);
   }
 
-  bool disconnect() { return db_.disconnect(); }
+  decltype(auto) disconnect() { return db_.disconnect(); }
 
   template <typename T, typename... Args>
-  bool create_datatable(Args &&...args) {
+  decltype(auto) create_datatable(Args &&...args) {
     return db_.template create_datatable<T>(std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  int insert(const T &t, Args &&...args) {
+  decltype(auto) insert(const T &t, Args &&...args) {
     return db_.insert(t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  int insert(const std::vector<T> &v, Args &&...args) {
+  decltype(auto) insert(const std::vector<T> &v, Args &&...args) {
     return db_.insert(v, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  int replace(const T &t, Args &&...args) {
+  decltype(auto) replace(const T &t, Args &&...args) {
     return db_.replace(t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  int replace(const std::vector<T> &v, Args &&...args) {
+  decltype(auto) replace(const std::vector<T> &v, Args &&...args) {
     return db_.replace(v, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  int update(const T &t, Args &&...args) {
+  decltype(auto) update(const T &t, Args &&...args) {
     return db_.update(t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  int update(const std::vector<T> &v, Args &&...args) {
+  decltype(auto) update(const std::vector<T> &v, Args &&...args) {
     return db_.update(v, std::forward<Args>(args)...);
   }
 
   template <auto... members, typename T, typename... Args>
-  int update_some(const T &t, Args &&...args) {
+  decltype(auto) update_some(const T &t, Args &&...args) {
     return db_.template update<members...>(t, std::forward<Args>(args)...);
   }
 
   template <auto... members, typename T, typename... Args>
-  int update_some(const std::vector<T> &v, Args &&...args) {
+  decltype(auto) update_some(const std::vector<T> &v, Args &&...args) {
     return db_.template update<members...>(v, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  uint64_t get_insert_id_after_insert(const T &t, Args &&...args) {
+  decltype(auto) get_insert_id_after_insert(const T &t, Args &&...args) {
     return db_.get_insert_id_after_insert(t, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  uint64_t get_insert_id_after_insert(const std::vector<T> &v, Args &&...args) {
+  decltype(auto) get_insert_id_after_insert(const std::vector<T> &v,
+                                            Args &&...args) {
     return db_.get_insert_id_after_insert(v, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  uint64_t delete_records_s(const std::string &str = "", Args &&...args) {
+  decltype(auto) delete_records_s(const std::string &str = "", Args &&...args) {
     return db_.template delete_records_s<T>(str, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  std::vector<T> query_s(const std::string &str = "", Args &&...args) {
+  decltype(auto) query_s(const std::string &str = "", Args &&...args) {
     return db_.template query_s<T>(str, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
-  [[deprecated]] bool delete_records(Args &&...where_condition) {
+  [[deprecated]] decltype(auto) delete_records(Args &&...where_condition) {
     return db_.template delete_records<T>(
         std::forward<Args>(where_condition)...);
   }
@@ -110,7 +121,7 @@ class dbng {
   // restriction, all the args are string, the first is the where condition,
   // rest are append conditions
   template <typename T, typename... Args>
-  [[deprecated]] std::vector<T> query(Args &&...args) {
+  [[deprecated]] decltype(auto) query(Args &&...args) {
     return db_.template query<T>(std::forward<Args>(args)...);
   }
 
@@ -157,20 +168,20 @@ class dbng {
     return delete_records<T>(sql);
   }
 
-  bool execute(const std::string &sql) { return db_.execute(sql); }
+  decltype(auto) execute(const std::string &sql) { return db_.execute(sql); }
 
   // transaction
   void set_enable_transaction(bool enable = true) {
     return db_.set_enable_transaction(enable);
   }
 
-  bool begin() { return db_.begin(); }
+  decltype(auto) begin() { return db_.begin(); }
 
-  bool commit() { return db_.commit(); }
+  decltype(auto) commit() { return db_.commit(); }
 
-  bool rollback() { return db_.rollback(); }
+  decltype(auto) rollback() { return db_.rollback(); }
 
-  bool ping() { return db_.ping(); }
+  decltype(auto) ping() { return db_.ping(); }
 
   bool has_error() { return db_.has_error(); }
 
