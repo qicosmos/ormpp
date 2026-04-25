@@ -297,6 +297,30 @@ inline std::string get_fields(DBType db_type) {
   return fields;
 }
 
+// Check if SQL string starts with SELECT keyword (case-insensitive)
+inline bool contains_select(const std::string& sql) {
+  if (sql.empty()) {
+    return false;
+  }
+  // Skip leading whitespace
+  auto it = sql.begin();
+  while (it != sql.end() && std::isspace(static_cast<unsigned char>(*it))) {
+    ++it;
+  }
+  if (it == sql.end()) {
+    return false;
+  }
+  // Check if starts with "select" (case-insensitive)
+  const char* select_keyword = "select";
+  for (int i = 0; i < 6 && it != sql.end(); ++i, ++it) {
+    if (std::tolower(static_cast<unsigned char>(*it)) != select_keyword[i]) {
+      return false;
+    }
+  }
+  // Ensure "select" is a complete word (followed by whitespace or end)
+  return it == sql.end() || std::isspace(static_cast<unsigned char>(*it));
+}
+
 inline std::vector<std::string_view> split(std::string_view str) {
   if (str.empty()) {
     return {};

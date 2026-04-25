@@ -624,6 +624,11 @@ inline std::string_view store_string_view(std::string_view value) {
   return string_view_storage.back();
 }
 
+// RAII wrapper for automatic string_view storage cleanup
+struct string_view_scope_guard {
+  ~string_view_scope_guard() { clear_string_view_storage(); }
+};
+
 template <typename T>
 inline std::string to_query_arg_impl(const T& value, bool no_backslash_escapes);
 
@@ -993,12 +998,12 @@ class mysql_async {
 
   bool has_error() const { return has_error_; }
 
-  static void reset_error() {
+  void reset_error() {
     has_error_ = false;
     last_error_.clear();
   }
 
-  static void set_last_error(std::string error) {
+  void set_last_error(std::string error) {
     has_error_ = true;
     last_error_ = std::move(error);
 #ifdef ORMPP_ENABLE_LOG
@@ -1728,13 +1733,6 @@ class mysql_async {
     }
   }
 
-  static bool contains_select(const std::string& sql) {
-    std::string lower(sql.size(), '\0');
-    std::transform(sql.begin(), sql.end(), lower.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return lower.find("select") != std::string::npos;
-  }
-
   struct t_is_vector_false {};
 
   template <typename Tag, typename T, typename... Args>
@@ -1804,9 +1802,9 @@ class mysql_async {
   std::uint64_t last_insert_id_ = 0;
   int last_affect_rows_ = 0;
 
-  inline static std::string last_error_;
-  inline static bool has_error_ = false;
-  inline static bool transaction_ = true;
+  std::string last_error_;
+  bool has_error_ = false;
+  bool transaction_ = true;
 };
 
 template <>

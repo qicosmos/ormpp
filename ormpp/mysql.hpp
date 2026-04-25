@@ -408,7 +408,7 @@ class mysql {
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &str, Args &&...args) {
     constexpr auto SIZE = ylt::reflection::members_count_v<T>;
-    std::string sql = (str.find("select") != std::string::npos)
+    std::string sql = contains_select(str)
                           ? str
                           : generate_query_sql<T>(db_type_v, str);
 #ifdef ORMPP_ENABLE_LOG
