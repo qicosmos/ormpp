@@ -504,9 +504,9 @@ class query_builder {
 
     template <typename To = void, typename... Args>
     requires(is_async_db_v<DB>) db_awaitable_t<DB, collect_result_t<To>> collect(
-        Args&&... args) {
+        Args... args) {
       auto sql = build_sql();
-      auto params = std::make_tuple(std::forward<Args>(args)...);
+      auto params = std::make_tuple(std::move(args)...);
       if constexpr (!ylt::reflection::is_ylt_refl_v<R> && !std::is_void_v<R> &&
                     !iguana::tuple_v<R>) {
         auto result = co_await query_async_with_params<std::tuple<R>>(
@@ -544,9 +544,9 @@ class query_builder {
 
     template <typename Q = R, typename... Args>
     requires(is_async_db_v<DB> && iguana::tuple_v<Q>)
-        db_awaitable_t<DB, std::tuple_element_t<0, Q>> scalar(Args&&... args) {
+        db_awaitable_t<DB, std::tuple_element_t<0, Q>> scalar(Args... args) {
       using first = std::tuple_element_t<0, Q>;
-      co_return co_await collect<first>(std::forward<Args>(args)...);
+      co_return co_await collect<first>(std::move(args)...);
     }
   };
 

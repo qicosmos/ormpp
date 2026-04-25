@@ -38,6 +38,21 @@ struct async_optional_row {
 REGISTER_AUTO_KEY(async_optional_row, id)
 YLT_REFL(async_optional_row, id, name, age)
 
+struct async_chain_optional_row {
+  int id;
+  std::optional<std::string> name;
+  std::optional<int> age;
+  std::optional<int> empty_;
+};
+REGISTER_AUTO_KEY(async_chain_optional_row, id)
+YLT_REFL(async_chain_optional_row, id, name, age, empty_)
+
+struct async_chain_optional_subset {
+  std::optional<std::string> name;
+  std::optional<int> age;
+};
+YLT_REFL(async_chain_optional_subset, name, age)
+
 struct async_enum_row {
   int id;
   async_color color;
@@ -89,6 +104,24 @@ struct async_builder_person {
 };
 REGISTER_AUTO_KEY(async_builder_person, id)
 YLT_REFL(async_builder_person, name, age, id, score)
+
+namespace async_ns_test {
+struct person_with_namespace {
+  int id;
+  std::string name;
+  int age;
+};
+REGISTER_AUTO_KEY(person_with_namespace, id)
+YLT_REFL(person_with_namespace, id, name, age)
+
+struct department {
+  int id;
+  std::string name;
+  int manager_id;
+};
+REGISTER_AUTO_KEY(department, id)
+YLT_REFL(department, id, name, manager_id)
+}  // namespace async_ns_test
 
 inline std::string getenv_or(const char* key, const char* fallback) {
   if (auto* val = std::getenv(key); val != nullptr) {
@@ -146,11 +179,28 @@ asio::awaitable<void> run_async_mysql_smoke() {
   require_async(builder_rows.size() == 1, "builder collect row count mismatch");
   require_async(builder_rows.front().age == 18, "builder collect age mismatch");
 
+  auto builder_rows_literal_task = db.select(all)
+                                       .from<async_person>()
+                                       .where(col(&async_person::name).param())
+                                       .collect("async_alice");
+  auto builder_rows_literal = co_await std::move(builder_rows_literal_task);
+  require_async(builder_rows_literal.size() == 1,
+                "builder literal collect row count mismatch");
+  require_async(builder_rows_literal.front().age == 18,
+                "builder literal collect age mismatch");
+
   auto scalar_age = co_await db.select(col(&async_person::age))
                             .from<async_person>()
                             .where(col(&async_person::name).param())
                             .scalar(std::string("async_bob"));
   require_async(scalar_age == 19, "scalar query mismatch");
+
+  auto scalar_age_literal_task = db.select(col(&async_person::age))
+                                   .from<async_person>()
+                                   .where(col(&async_person::name).param())
+                                   .scalar("async_bob");
+  auto scalar_age_literal = co_await std::move(scalar_age_literal_task);
+  require_async(scalar_age_literal == 19, "scalar literal query mismatch");
 
   auto replaced = co_await db.replace(async_person{
       static_cast<int>(inserted_id), "async_bob_replaced", 21});
@@ -229,6 +279,81 @@ asio::awaitable<void> run_async_mysql_smoke() {
   require_async(optional_rows.front().age.has_value() &&
                     optional_rows.front().age.value() == 88,
                 "optional int mismatch");
+
+  require_async(
+      co_await db.execute("drop table if exists async_chain_optional_row"),
+      "drop chain optional table failed");
+  require_async(
+      co_await db.create_datatable<async_chain_optional_row>(
+          ormpp_auto_key{"id"}),
+      "create chain optional table failed");
+  require_async(co_await db.insert(async_chain_optional_row{
+                    0, std::optional<std::string>{"purecpp"},
+                    std::optional<int>{1}, std::nullopt}) == 1,
+                "insert chain optional row 1 failed");
+  require_async(co_await db.insert(async_chain_optional_row{
+                    0, std::optional<std::string>{"test"},
+                    std::optional<int>{2}, std::nullopt}) == 1,
+                "insert chain optional row 2 failed");
+
+  auto chain_param_rows = co_await db.select(all)
+                              .from<async_chain_optional_row>()
+                              .where(col(&async_chain_optional_row::id).param())
+                              .collect(2);
+  require_async(chain_param_rows.size() == 1 &&
+                    chain_param_rows.front().name == std::optional<std::string>{"test"},
+                "chain param collect mismatch");
+
+  auto chain_subset_rows = co_await db
+                               .select(col(&async_chain_optional_row::name),
+                                       col(&async_chain_optional_row::age))
+                               .from<async_chain_optional_row>()
+                               .where(col(&async_chain_optional_row::id).param())
+                               .collect<async_chain_optional_subset>(2);
+  require_async(chain_subset_rows.size() == 1 &&
+                    chain_subset_rows.front().name ==
+                        std::optional<std::string>{"test"} &&
+                    chain_subset_rows.front().age == std::optional<int>{2},
+                "chain subset collect mismatch");
+
+  auto grouped_rows = co_await db
+                          .select(count(col(&async_chain_optional_row::id)),
+                                  col(&async_chain_optional_row::id))
+                          .from<async_chain_optional_row>()
+                          .group_by(col(&async_chain_optional_row::id))
+                          .having(sum(col(&async_chain_optional_row::age)) > 0 &&
+                                  count() > 0)
+                          .collect();
+  require_async(grouped_rows.size() == 2, "group_by having row count mismatch");
+
+  auto limit_offset_rows = co_await db.select(all)
+                                .from<async_chain_optional_row>()
+                                .where(col(&async_chain_optional_row::id).in(1, 2))
+                                .order_by(col(&async_chain_optional_row::id).desc(),
+                                          col(&async_chain_optional_row::name).desc())
+                                .limit(token)
+                                .offset(token)
+                                .collect(5, 0);
+  require_async(limit_offset_rows.size() == 2 &&
+                    limit_offset_rows.front().id == 2 &&
+                    limit_offset_rows.back().id == 1,
+                "limit offset collect mismatch");
+
+  auto between_rows = co_await db.select(all)
+                           .from<async_chain_optional_row>()
+                           .where(col(&async_chain_optional_row::name)
+                                      .between("purecpp", "test"))
+                           .collect();
+  require_async(between_rows.size() == 2, "between collect mismatch");
+
+  auto like_rows = co_await db.select(all)
+                        .from<async_chain_optional_row>()
+                        .where(col(&async_chain_optional_row::name).like("pure%"))
+                        .collect();
+  require_async(like_rows.size() == 1 &&
+                    like_rows.front().name ==
+                        std::optional<std::string>{"purecpp"},
+                "like collect mismatch");
 
   require_async(co_await db.execute("drop table if exists async_enum_row"),
                 "drop enum table failed");
@@ -356,6 +481,68 @@ asio::awaitable<void> run_async_mysql_smoke() {
   require_async(nickname_rows.size() == 1 &&
                     std::get<0>(nickname_rows.front()) == "nick",
                 "alter_table nickname mismatch");
+
+  require_async(
+      co_await db.execute("drop table if exists person_with_namespace"),
+      "drop namespaced person table failed");
+  require_async(
+      co_await db.create_datatable<async_ns_test::person_with_namespace>(
+          ormpp_auto_key{"id"}),
+      "create namespaced person table failed");
+  require_async(co_await db.insert(async_ns_test::person_with_namespace{
+                    0, "tom", 18}) == 1,
+                "insert namespaced person tom failed");
+  require_async(co_await db.insert(async_ns_test::person_with_namespace{
+                    0, "jerry", 20}) == 1,
+                "insert namespaced person jerry failed");
+  require_async(co_await db.insert(async_ns_test::person_with_namespace{
+                    0, "mike", 22}) == 1,
+                "insert namespaced person mike failed");
+
+  auto ns_param_rows = co_await db.select(all)
+                             .from<async_ns_test::person_with_namespace>()
+                             .where(col(&async_ns_test::person_with_namespace::id)
+                                        .param())
+                             .collect(2);
+  require_async(ns_param_rows.size() == 1 &&
+                    ns_param_rows.front().name == "jerry",
+                "namespaced param collect mismatch");
+
+  auto ns_where_rows = co_await db.select(all)
+                             .from<async_ns_test::person_with_namespace>()
+                             .where(col(&async_ns_test::person_with_namespace::age) >
+                                    18)
+                             .collect();
+  require_async(ns_where_rows.size() == 2, "namespaced where collect mismatch");
+
+  auto ns_all_rows =
+      co_await db.select(all).from<async_ns_test::person_with_namespace>().collect();
+  require_async(ns_all_rows.size() == 3, "namespaced all collect mismatch");
+
+  require_async(co_await db.execute("drop table if exists department"),
+                "drop namespaced department table failed");
+  require_async(
+      co_await db.create_datatable<async_ns_test::department>(
+          ormpp_auto_key{"id"}),
+      "create namespaced department table failed");
+  require_async(
+      co_await db.insert(async_ns_test::department{0, "Engineering", 1}) == 1,
+      "insert department 1 failed");
+  require_async(co_await db.insert(async_ns_test::department{0, "Sales", 2}) ==
+                    1,
+                "insert department 2 failed");
+  require_async(co_await db.insert(async_ns_test::department{0, "HR", 3}) == 1,
+                "insert department 3 failed");
+
+  auto join_rows =
+      co_await db
+          .select(col(&async_ns_test::person_with_namespace::name),
+                  col(&async_ns_test::department::name))
+          .from<async_ns_test::person_with_namespace>()
+          .inner_join(col(&async_ns_test::person_with_namespace::id),
+                      col(&async_ns_test::department::manager_id))
+          .collect();
+  require_async(join_rows.size() == 3, "namespaced join row count mismatch");
 
   require_async(co_await db.disconnect(), "disconnect failed");
 }
