@@ -59,25 +59,51 @@ endif()
 option(ENABLE_MYSQL_ASYNC "Enable standalone Asio based mysql async client" OFF)
 if (ENABLE_MYSQL_ASYNC)
     set(ORMPP_ASIO_INCLUDE_DIR "" CACHE PATH "Path to standalone Asio include directory")
+
+    # Try to find Asio from various sources
     if (NOT ORMPP_ASIO_INCLUDE_DIR)
-        if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../rest_rpc/thirdparty/asio/asio.hpp")
+        # 1. Try to find from system installation (e.g., /usr/include, /usr/local/include)
+        find_path(ASIO_INCLUDE_PATH asio.hpp
+            PATHS
+                /usr/include
+                /usr/local/include
+                /opt/local/include
+                /opt/homebrew/include
+            PATH_SUFFIXES asio
+        )
+
+        if (ASIO_INCLUDE_PATH)
+            set(ORMPP_ASIO_INCLUDE_DIR "${ASIO_INCLUDE_PATH}")
+        # 2. Try relative path (for development)
+        elseif (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../rest_rpc/thirdparty/asio/asio.hpp")
             set(ORMPP_ASIO_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../rest_rpc/thirdparty/asio")
-        elseif (EXISTS "/data/code/rest_rpc/thirdparty/asio/asio.hpp")
-            set(ORMPP_ASIO_INCLUDE_DIR "/data/code/rest_rpc/thirdparty/asio")
         endif()
     endif()
 
-    if (NOT ORMPP_ASIO_INCLUDE_DIR)
-        message(FATAL_ERROR "ENABLE_MYSQL_ASYNC is ON but standalone Asio headers were not found. Set ORMPP_ASIO_INCLUDE_DIR.")
-    endif()
+    # Check if Asio was found
+    if (ORMPP_ASIO_INCLUDE_DIR)
+        include_directories(${ORMPP_ASIO_INCLUDE_DIR})
 
-    include_directories(${ORMPP_ASIO_INCLUDE_DIR})
-    find_package(OpenSSL REQUIRED)
-    include_directories(${OpenSSL_INCLUDE_DIRS})
-    add_definitions(-DORMPP_ENABLE_MYSQL_ASYNC)
-    message(STATUS "ENABLE_MYSQL_ASYNC")
-    message(STATUS "Standalone Asio include: ${ORMPP_ASIO_INCLUDE_DIR}")
-    message(STATUS "OpenSSL include: ${OpenSSL_INCLUDE_DIRS}")
+        # Find OpenSSL (required for async MySQL)
+        find_package(OpenSSL QUIET)
+        if (OpenSSL_FOUND)
+            include_directories(${OpenSSL_INCLUDE_DIRS})
+            add_definitions(-DORMPP_ENABLE_MYSQL_ASYNC)
+            message(STATUS "ENABLE_MYSQL_ASYNC: ON")
+            message(STATUS "  Asio include: ${ORMPP_ASIO_INCLUDE_DIR}")
+            message(STATUS "  OpenSSL include: ${OpenSSL_INCLUDE_DIRS}")
+        else()
+            message(WARNING "ENABLE_MYSQL_ASYNC is ON but OpenSSL was not found. MySQL async will be disabled.")
+            message(STATUS "ENABLE_MYSQL_ASYNC: OFF (OpenSSL not found)")
+        endif()
+    else()
+        message(WARNING "ENABLE_MYSQL_ASYNC is ON but Asio headers were not found. MySQL async will be disabled.")
+        message(STATUS "ENABLE_MYSQL_ASYNC: OFF (Asio not found)")
+        message(STATUS "  You can install Asio via:")
+        message(STATUS "    - Ubuntu/Debian: sudo apt-get install libasio-dev")
+        message(STATUS "    - macOS: brew install asio")
+        message(STATUS "    - Or set ORMPP_ASIO_INCLUDE_DIR manually")
+    endif()
 endif()
 
 # sqlite3 is always available (bundled)
