@@ -991,6 +991,8 @@ class mysql_async {
   explicit mysql_async(asio::io_context& ctx)
       : mysql_async(ctx.get_executor()) {}
 
+  ~mysql_async() { close_socket(); }
+
   mysql_async(const mysql_async&) = delete;
   mysql_async& operator=(const mysql_async&) = delete;
   mysql_async(mysql_async&&) = default;
@@ -1088,24 +1090,13 @@ class mysql_async {
     }
     catch (const std::exception& e) {
       set_last_error(e.what());
-      if (socket_ && socket_->is_open()) {
-        std::error_code ec;
-        socket_->close(ec);
-      }
-      socket_.reset();
-      connected_ = false;
+      close_socket();
       co_return false;
     }
   }
 
   awaitable<bool> disconnect() {
-    if (socket_ && socket_->is_open()) {
-      std::error_code ec;
-      socket_->shutdown(asio::ip::tcp::socket::shutdown_both, ec);
-      socket_->close(ec);
-    }
-    socket_.reset();
-    connected_ = false;
+    close_socket();
     co_return true;
   }
 
@@ -1384,6 +1375,16 @@ class mysql_async {
   awaitable<bool> rollback() { co_return co_await execute("ROLLBACK"); }
 
  private:
+  void close_socket() noexcept {
+    if (socket_ && socket_->is_open()) {
+      std::error_code ec;
+      socket_->shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+      socket_->close(ec);
+    }
+    socket_.reset();
+    connected_ = false;
+  }
+
   template <typename CompletionToken>
   auto async_wait_for_timeout(CompletionToken&& token) {
     if (timeout_seconds_ <= 0) {

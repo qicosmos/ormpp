@@ -332,7 +332,7 @@ struct stage_aggregate_t;
 
 template <typename T, typename DB, typename R>
 class query_builder {
-  struct context {
+  struct context : public std::enable_shared_from_this<context> {
     DB db_;
     std::string sql_;
     std::string select_clause_;
@@ -503,34 +503,40 @@ class query_builder {
     }
 
     template <typename To = void, typename... Args>
-    requires(is_async_db_v<DB>) db_awaitable_t<DB, collect_result_t<To>> collect(
-        Args... args) {
-      auto sql = build_sql();
-      auto params = std::make_tuple(std::move(args)...);
+    requires(is_async_db_v<DB>) auto collect(Args... args) {
+      return collect_async<To>(this->shared_from_this(),
+                               std::make_tuple(std::move(args)...),
+                               std::index_sequence_for<Args...>{});
+    }
+
+    template <typename To, typename Tuple, std::size_t... I>
+    static db_awaitable_t<DB, collect_result_t<To>> collect_async(
+        std::shared_ptr<context> ctx, Tuple params, std::index_sequence<I...>) {
+      auto sql = ctx->build_sql();
       if constexpr (!ylt::reflection::is_ylt_refl_v<R> && !std::is_void_v<R> &&
                     !iguana::tuple_v<R>) {
-        auto result = co_await query_async_with_params<std::tuple<R>>(
-            sql, params, std::index_sequence_for<Args...>{});
+        auto result = co_await ctx->template query_async_with_params<
+            std::tuple<R>>(sql, params, std::index_sequence<I...>{});
         co_return extract_query_result<To>(std::move(result));
       }
       else if constexpr (std::is_void_v<R>) {
-        auto result = co_await query_async_with_params<T>(
-            sql, params, std::index_sequence_for<Args...>{});
+        auto result = co_await ctx->template query_async_with_params<T>(
+            sql, params, std::index_sequence<I...>{});
         co_return extract_query_result<To>(std::move(result));
       }
       else if constexpr (std::is_void_v<To>) {
-        auto result = co_await query_async_with_params<R>(
-            sql, params, std::index_sequence_for<Args...>{});
+        auto result = co_await ctx->template query_async_with_params<R>(
+            sql, params, std::index_sequence<I...>{});
         co_return extract_query_result<To>(std::move(result));
       }
       else if constexpr (scalar_collect_target_v<To>) {
-        auto result = co_await query_async_with_params<R>(
-            sql, params, std::index_sequence_for<Args...>{});
+        auto result = co_await ctx->template query_async_with_params<R>(
+            sql, params, std::index_sequence<I...>{});
         co_return extract_query_result<To>(std::move(result));
       }
       else {
-        auto result = co_await query_async_with_params<To>(
-            sql, params, std::index_sequence_for<Args...>{});
+        auto result = co_await ctx->template query_async_with_params<To>(
+            sql, params, std::index_sequence<I...>{});
         co_return extract_query_result<To>(std::move(result));
       }
     }
@@ -543,10 +549,11 @@ class query_builder {
     }
 
     template <typename Q = R, typename... Args>
-    requires(is_async_db_v<DB> && iguana::tuple_v<Q>)
-        db_awaitable_t<DB, std::tuple_element_t<0, Q>> scalar(Args... args) {
+    requires(is_async_db_v<DB> && iguana::tuple_v<Q>) auto scalar(Args... args) {
       using first = std::tuple_element_t<0, Q>;
-      co_return co_await collect<first>(std::move(args)...);
+      return collect_async<first>(this->shared_from_this(),
+                                  std::make_tuple(std::move(args)...),
+                                  std::index_sequence_for<Args...>{});
     }
   };
 
