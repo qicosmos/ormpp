@@ -2,9 +2,6 @@
 
 #ifdef ORMPP_ENABLE_MYSQL_ASYNC
 
-#include <asio.hpp>
-#include <asio/steady_timer.hpp>
-
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -13,6 +10,8 @@
 
 #include <algorithm>
 #include <array>
+#include <asio.hpp>
+#include <asio/steady_timer.hpp>
 #include <charconv>
 #include <chrono>
 #include <cstdint>
@@ -180,9 +179,7 @@ struct packet_reader {
   packet_reader(const byte* begin, const byte* end)
       : first(begin), cur(begin), last(end) {}
 
-  std::size_t remaining() const {
-    return static_cast<std::size_t>(last - cur);
-  }
+  std::size_t remaining() const { return static_cast<std::size_t>(last - cur); }
 
   bool empty() const { return cur == last; }
 
@@ -431,8 +428,7 @@ inline server_handshake parse_server_handshake(const bytes& payload) {
 }
 
 inline bytes scramble_mysql_native_password(
-    std::string_view password,
-    std::span<const byte, 20> scramble) {
+    std::string_view password, std::span<const byte, 20> scramble) {
   if (password.empty()) {
     return {};
   }
@@ -458,8 +454,7 @@ inline bytes scramble_mysql_native_password(
 }
 
 inline bytes scramble_caching_sha2_password(
-    std::string_view password,
-    std::span<const byte, 20> scramble) {
+    std::string_view password, std::span<const byte, 20> scramble) {
   if (password.empty()) {
     return {};
   }
@@ -469,8 +464,8 @@ inline bytes scramble_caching_sha2_password(
   std::array<byte, SHA256_DIGEST_LENGTH + 20> stage3_input{};
   std::array<byte, SHA256_DIGEST_LENGTH> stage3{};
 
-  SHA256(reinterpret_cast<const unsigned char*>(password.data()), password.size(),
-         stage1.data());
+  SHA256(reinterpret_cast<const unsigned char*>(password.data()),
+         password.size(), stage1.data());
   SHA256(stage1.data(), stage1.size(), stage2.data());
 
   std::memcpy(stage3_input.data(), stage2.data(), stage2.size());
@@ -504,7 +499,9 @@ inline bytes rsa_encrypt_password(std::string_view password,
     void operator()(EVP_PKEY* key) const noexcept { EVP_PKEY_free(key); }
   };
   struct evp_pkey_ctx_deleter {
-    void operator()(EVP_PKEY_CTX* ctx) const noexcept { EVP_PKEY_CTX_free(ctx); }
+    void operator()(EVP_PKEY_CTX* ctx) const noexcept {
+      EVP_PKEY_CTX_free(ctx);
+    }
   };
 
   std::unique_ptr<BIO, bio_deleter> bio(
@@ -663,7 +660,8 @@ inline std::string blob_to_hex(const T& value) {
 }
 
 template <typename T>
-inline std::string to_query_arg_impl(const T& value, bool no_backslash_escapes) {
+inline std::string to_query_arg_impl(const T& value,
+                                     bool no_backslash_escapes) {
   using U = std::decay_t<T>;
   if constexpr (is_optional_v<U>::value) {
     if (!value.has_value()) {
@@ -684,20 +682,23 @@ inline std::string to_query_arg_impl(const T& value, bool no_backslash_escapes) 
   }
   else if constexpr (iguana::array_v<U>) {
     return escape_mysql_string(
-        std::string_view(value.data(),
-                         std::find(value.data(), value.data() + value.size(), '\0') -
-                             value.data()),
+        std::string_view(
+            value.data(),
+            std::find(value.data(), value.data() + value.size(), '\0') -
+                value.data()),
         no_backslash_escapes);
   }
   else if constexpr (iguana::c_array_v<U>) {
     return escape_mysql_string(
-        std::string_view(value, std::find(value, value + sizeof(U), '\0') - value),
+        std::string_view(value,
+                         std::find(value, value + sizeof(U), '\0') - value),
         no_backslash_escapes);
   }
   else if constexpr (std::is_same_v<U, const char*> ||
                      std::is_same_v<U, char*>) {
-    return escape_mysql_string(value ? std::string_view(value) : std::string_view{},
-                               no_backslash_escapes);
+    return escape_mysql_string(
+        value ? std::string_view(value) : std::string_view{},
+        no_backslash_escapes);
   }
   else if constexpr (std::is_same_v<U, blob>) {
     return blob_to_hex(value);
@@ -820,7 +821,8 @@ inline std::string format_query_args(std::string sql, bool no_backslash_escapes,
 }
 
 template <typename T>
-inline void assign_text_value(T& value, const std::optional<std::string>& field);
+inline void assign_text_value(T& value,
+                              const std::optional<std::string>& field);
 
 template <typename T>
 inline void assign_integral(T& value, const std::string& s) {
@@ -844,7 +846,8 @@ inline void assign_integral(T& value, const std::string& s) {
 }
 
 template <typename T>
-inline void assign_text_value(T& value, const std::optional<std::string>& field) {
+inline void assign_text_value(T& value,
+                              const std::optional<std::string>& field) {
   using U = std::decay_t<T>;
   if (!field.has_value()) {
     value = U{};
@@ -897,7 +900,8 @@ inline void assign_text_value(T& value, const std::optional<std::string>& field)
 }
 
 template <typename T>
-inline T map_reflectable_row(const std::vector<std::optional<std::string>>& row) {
+inline T map_reflectable_row(
+    const std::vector<std::optional<std::string>>& row) {
   T value{};
   std::size_t index = 0;
   ylt::reflection::for_each(
@@ -921,19 +925,23 @@ inline Tuple map_tuple_row_impl(
         using item_type = std::tuple_element_t<I, Tuple>;
         auto& item = std::get<I>(result);
         if constexpr (iguana::ylt_refletable_v<item_type>) {
-          constexpr auto member_count = ylt::reflection::members_count_v<item_type>;
+          constexpr auto member_count =
+              ylt::reflection::members_count_v<item_type>;
           if (row.size() - col < member_count) {
-            throw std::runtime_error("mysql_async: tuple column count mismatch");
+            throw std::runtime_error(
+                "mysql_async: tuple column count mismatch");
           }
           item = map_reflectable_row<item_type>(
               std::vector<std::optional<std::string>>(
                   row.begin() + static_cast<std::ptrdiff_t>(col),
-                  row.begin() + static_cast<std::ptrdiff_t>(col + member_count)));
+                  row.begin() +
+                      static_cast<std::ptrdiff_t>(col + member_count)));
           col += member_count;
         }
         else {
           if (col >= row.size()) {
-            throw std::runtime_error("mysql_async: tuple column count mismatch");
+            throw std::runtime_error(
+                "mysql_async: tuple column count mismatch");
           }
           assign_text_value(item, row[col++]);
         }
@@ -953,7 +961,8 @@ inline T map_row(const std::vector<std::optional<std::string>>& row) {
   else {
     static_assert(iguana::is_tuple<T>::value,
                   "mysql_async::map_row only supports reflectable or tuple");
-    return map_tuple_row_impl<T>(row, std::make_index_sequence<std::tuple_size_v<T>>{});
+    return map_tuple_row_impl<T>(
+        row, std::make_index_sequence<std::tuple_size_v<T>>{});
   }
 }
 
@@ -1019,7 +1028,8 @@ std::string generate_create_table_sql(DBType db_type, bool append_mysql_charset,
   sql.append(table_name).append("(");
 
   T sample{};
-  ylt::reflection::for_each(sample, [&](auto& /*field*/, auto name, size_t index) {
+  ylt::reflection::for_each(sample, [&](auto& /*field*/, auto name,
+                                        size_t index) {
     sql.append(name).append(" ").append(type_name_arr[index]);
     std::string str_name(name);
 
@@ -1108,8 +1118,9 @@ class mysql_async {
   awaitable<bool> connect(
       const std::tuple<std::string, std::string, std::string, std::string,
                        std::optional<int>, std::optional<int>>& tp) {
-    co_return co_await connect(std::get<0>(tp), std::get<1>(tp), std::get<2>(tp),
-                               std::get<3>(tp), std::get<4>(tp), std::get<5>(tp));
+    co_return co_await connect(std::get<0>(tp), std::get<1>(tp),
+                               std::get<2>(tp), std::get<3>(tp),
+                               std::get<4>(tp), std::get<5>(tp));
   }
 
   awaitable<bool> connect(const std::string& host, const std::string& user = "",
@@ -1138,12 +1149,14 @@ class mysql_async {
       co_await asio::async_connect(*socket_, endpoints, asio::use_awaitable);
 
       auto handshake_payload = co_await read_packet();
-      auto handshake = detail::mysql_async::parse_server_handshake(handshake_payload);
+      auto handshake =
+          detail::mysql_async::parse_server_handshake(handshake_payload);
 
       server_capabilities_ = handshake.capabilities;
-      auth_plugin_name_ = handshake.auth_plugin_name.empty()
-                              ? std::string(detail::mysql_async::mysql_native_password)
-                              : handshake.auth_plugin_name;
+      auth_plugin_name_ =
+          handshake.auth_plugin_name.empty()
+              ? std::string(detail::mysql_async::mysql_native_password)
+              : handshake.auth_plugin_name;
       scramble_ = handshake.scramble;
 
       std::uint32_t client_caps =
@@ -1173,8 +1186,7 @@ class mysql_async {
 
       connected_ = true;
       co_return true;
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       set_last_error(e.what());
       close_socket();
       co_return false;
@@ -1190,8 +1202,7 @@ class mysql_async {
     try {
       auto result = co_await command_simple(0x0e, {});
       co_return !result.has_resultset;
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       set_last_error(e.what());
       co_return false;
     }
@@ -1206,8 +1217,7 @@ class mysql_async {
       std::cout << sql << std::endl;
 #endif
       co_return co_await execute(sql);
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       set_last_error(e.what());
       co_return false;
     }
@@ -1236,14 +1246,13 @@ class mysql_async {
   template <auto... members, typename T, typename... Args>
   awaitable<int> update(const T& t, Args&&... args) {
     try {
-      auto sql = generate_update_sql<T, members...>(db_type_v,
-                                                    std::forward<Args>(args)...);
-      auto formatted = format_struct_sql<t_is_vector_false>(sql, t, OptType::update,
-                                                            std::forward<Args>(args)...);
+      auto sql = generate_update_sql<T, members...>(
+          db_type_v, std::forward<Args>(args)...);
+      auto formatted = format_struct_sql<t_is_vector_false>(
+          sql, t, OptType::update, std::forward<Args>(args)...);
       auto ok = co_await execute(formatted);
       co_return ok ? last_affect_rows_ : std::numeric_limits<int>::min();
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       set_last_error(e.what());
       co_return std::numeric_limits<int>::min();
     }
@@ -1252,8 +1261,8 @@ class mysql_async {
   template <auto... members, typename T, typename... Args>
   awaitable<int> update(const std::vector<T>& v, Args&&... args) {
     try {
-      auto sql = generate_update_sql<T, members...>(db_type_v,
-                                                    std::forward<Args>(args)...);
+      auto sql = generate_update_sql<T, members...>(
+          db_type_v, std::forward<Args>(args)...);
       int affected = 0;
       if (transaction_ && !v.empty()) {
         if (!(co_await begin())) {
@@ -1262,9 +1271,8 @@ class mysql_async {
       }
 
       for (const auto& item : v) {
-        auto formatted =
-            format_struct_sql<t_is_vector_false>(sql, item, OptType::update,
-                                                 std::forward<Args>(args)...);
+        auto formatted = format_struct_sql<t_is_vector_false>(
+            sql, item, OptType::update, std::forward<Args>(args)...);
         if (!(co_await execute(formatted))) {
           if (transaction_ && !v.empty()) {
             co_await rollback();
@@ -1280,8 +1288,7 @@ class mysql_async {
         }
       }
       co_return affected;
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       set_last_error(e.what());
       co_return std::numeric_limits<int>::min();
     }
@@ -1319,18 +1326,18 @@ class mysql_async {
 #ifdef ORMPP_ENABLE_LOG
       std::cout << sql << std::endl;
 #endif
-      co_return (co_await execute(sql)) ? static_cast<std::uint64_t>(last_affect_rows_)
-                                        : 0;
-    }
-    catch (const std::exception& e) {
+      co_return (co_await execute(sql))
+          ? static_cast<std::uint64_t>(last_affect_rows_)
+          : 0;
+    } catch (const std::exception& e) {
       set_last_error(e.what());
       co_return 0;
     }
   }
 
   template <typename T, typename... Args>
-  awaitable<std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>>> query_s(
-      const std::string& str = "", Args&&... args) {
+  awaitable<std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>>>
+  query_s(const std::string& str = "", Args&&... args) {
     try {
       std::string sql =
           (contains_select(str) ? str : generate_query_sql<T>(db_type_v, str));
@@ -1355,8 +1362,7 @@ class mysql_async {
         rows.push_back(detail::mysql_async::map_row<T>(row));
       }
       co_return rows;
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       set_last_error(e.what());
       co_return std::vector<T>{};
     }
@@ -1389,8 +1395,7 @@ class mysql_async {
         rows.push_back(detail::mysql_async::map_row<T>(row));
       }
       co_return rows;
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       set_last_error(e.what());
       co_return std::vector<T>{};
     }
@@ -1449,8 +1454,7 @@ class mysql_async {
         last_affect_rows_ = 0;
       }
       co_return true;
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       set_last_error(e.what());
       co_return false;
     }
@@ -1496,7 +1500,8 @@ class mysql_async {
       detail::mysql_async::packet_header header;
       header.payload_size = detail::mysql_async::read_le24(header_buf.data());
       header.sequence_id = header_buf[3];
-      sequence_id_ = static_cast<detail::mysql_async::byte>(header.sequence_id + 1);
+      sequence_id_ =
+          static_cast<detail::mysql_async::byte>(header.sequence_id + 1);
 
       detail::mysql_async::bytes chunk(header.payload_size);
       if (header.payload_size > 0) {
@@ -1520,16 +1525,17 @@ class mysql_async {
     std::size_t offset = 0;
     do {
       auto remaining = payload.size() - offset;
-      auto chunk_size = std::min<std::size_t>(remaining,
-                                              detail::mysql_async::max_packet_chunk);
+      auto chunk_size = std::min<std::size_t>(
+          remaining, detail::mysql_async::max_packet_chunk);
 
       detail::mysql_async::bytes frame;
       frame.reserve(chunk_size + 4);
       detail::mysql_async::append_le24(frame,
                                        static_cast<std::uint32_t>(chunk_size));
       frame.push_back(sequence_id_++);
-      frame.insert(frame.end(), payload.begin() + static_cast<std::ptrdiff_t>(offset),
-                   payload.begin() + static_cast<std::ptrdiff_t>(offset + chunk_size));
+      frame.insert(
+          frame.end(), payload.begin() + static_cast<std::ptrdiff_t>(offset),
+          payload.begin() + static_cast<std::ptrdiff_t>(offset + chunk_size));
       co_await asio::async_write(*socket_, asio::buffer(frame),
                                  asio::use_awaitable);
 
@@ -1557,12 +1563,14 @@ class mysql_async {
     detail::mysql_async::append_lenenc_int(response, auth_data.size());
     response.insert(response.end(), auth_data.begin(), auth_data.end());
 
-    if (negotiated_capabilities_ & detail::mysql_async::client_connect_with_db) {
+    if (negotiated_capabilities_ &
+        detail::mysql_async::client_connect_with_db) {
       response.insert(response.end(), database_.begin(), database_.end());
       response.push_back(0);
     }
 
-    response.insert(response.end(), auth_plugin_name_.begin(), auth_plugin_name_.end());
+    response.insert(response.end(), auth_plugin_name_.begin(),
+                    auth_plugin_name_.end());
     response.push_back(0);
 
     detail::mysql_async::bytes attrs;
@@ -1614,14 +1622,16 @@ class mysql_async {
         rd.read_byte();
         auto data = rd.read_string(rd.remaining());
         if (auth_plugin_name_ == detail::mysql_async::caching_sha2_password) {
-          auto fast_auth_code = data.empty() ? 0 : static_cast<unsigned char>(data[0]);
+          auto fast_auth_code =
+              data.empty() ? 0 : static_cast<unsigned char>(data[0]);
           if (data.size() == 1 && fast_auth_code == 3) {
             payload = co_await read_packet();
             continue;
           }
           if (data.size() == 1 && fast_auth_code == 4) {
             if (is_secure_channel()) {
-              detail::mysql_async::bytes plain(password_.begin(), password_.end());
+              detail::mysql_async::bytes plain(password_.begin(),
+                                               password_.end());
               plain.push_back(0);
               co_await write_packet(std::move(plain));
             }
@@ -1629,10 +1639,11 @@ class mysql_async {
               co_await write_packet({2});
               auto public_key_packet = co_await read_packet();
               if (detail::mysql_async::is_err_packet(public_key_packet)) {
-                auto err = detail::mysql_async::parse_error_packet(public_key_packet);
-                throw std::runtime_error("mysql_async auth public key failed [" +
-                                         std::to_string(err.code) + "] " +
-                                         err.message);
+                auto err =
+                    detail::mysql_async::parse_error_packet(public_key_packet);
+                throw std::runtime_error(
+                    "mysql_async auth public key failed [" +
+                    std::to_string(err.code) + "] " + err.message);
               }
               auto encrypted = detail::mysql_async::rsa_encrypt_password(
                   password_, scramble_,
@@ -1651,7 +1662,8 @@ class mysql_async {
     }
   }
 
-  detail::mysql_async::bytes build_auth_response(std::string_view plugin) const {
+  detail::mysql_async::bytes build_auth_response(
+      std::string_view plugin) const {
     if (plugin == detail::mysql_async::mysql_native_password) {
       return detail::mysql_async::scramble_mysql_native_password(password_,
                                                                  scramble_);
@@ -1666,8 +1678,8 @@ class mysql_async {
 
   bool is_secure_channel() const { return false; }
 
-  void append_connect_attr(detail::mysql_async::bytes& out, std::string_view key,
-                           std::string_view value) {
+  void append_connect_attr(detail::mysql_async::bytes& out,
+                           std::string_view key, std::string_view value) {
     detail::mysql_async::append_lenenc_string(out, key);
     detail::mysql_async::append_lenenc_string(out, value);
   }
@@ -1690,7 +1702,8 @@ class mysql_async {
     co_return co_await read_query_response();
   }
 
-  awaitable<detail::mysql_async::query_result> query_text(const std::string& sql) {
+  awaitable<detail::mysql_async::query_result> query_text(
+      const std::string& sql) {
     co_return co_await command_simple(0x03, sql);
   }
 
@@ -1778,8 +1791,7 @@ class mysql_async {
       auto formatted = format_struct_sql<t_is_vector_false>(sql, item, type);
       auto ok = co_await execute(formatted);
       co_return ok ? last_affect_rows_ : std::numeric_limits<int>::min();
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       set_last_error(e.what());
       co_return std::numeric_limits<int>::min();
     }
@@ -1813,8 +1825,7 @@ class mysql_async {
         }
       }
       co_return affected;
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
       set_last_error(e.what());
       co_return std::numeric_limits<int>::min();
     }
@@ -1828,23 +1839,25 @@ class mysql_async {
     std::vector<std::string> values;
     values.reserve(ylt::reflection::members_count_v<T> * 2 + sizeof...(Args));
 
-    ylt::reflection::for_each(value, [&](auto& field, auto name, auto /*index*/) {
-      if (type == OptType::insert && is_auto_key<T>(name)) {
-        return;
-      }
-      values.push_back(detail::mysql_async::to_query_arg_impl(
-          field, !backslash_escapes_));
-    });
+    ylt::reflection::for_each(
+        value, [&](auto& field, auto name, auto /*index*/) {
+          if (type == OptType::insert && is_auto_key<T>(name)) {
+            return;
+          }
+          values.push_back(detail::mysql_async::to_query_arg_impl(
+              field, !backslash_escapes_));
+        });
 
     if constexpr (sizeof...(Args) == 0) {
       if (type == OptType::update) {
-        ylt::reflection::for_each(value, [&](auto& field, auto name, auto /*index*/) {
-          std::string key = detail::mysql_async::escape_identifier(name);
-          if (is_conflict_key<T>(key, db_type_v)) {
-            values.push_back(detail::mysql_async::to_query_arg_impl(
-                field, !backslash_escapes_));
-          }
-        });
+        ylt::reflection::for_each(
+            value, [&](auto& field, auto name, auto /*index*/) {
+              std::string key = detail::mysql_async::escape_identifier(name);
+              if (is_conflict_key<T>(key, db_type_v)) {
+                values.push_back(detail::mysql_async::to_query_arg_impl(
+                    field, !backslash_escapes_));
+              }
+            });
       }
     }
     else {
@@ -1859,8 +1872,9 @@ class mysql_async {
       detail::mysql_async::replace_next_placeholder(
           formatted, search_pos, std::move(item), !backslash_escapes_);
     }
-    if (detail::mysql_async::find_next_placeholder(
-            formatted, search_pos, !backslash_escapes_) != std::string_view::npos) {
+    if (detail::mysql_async::find_next_placeholder(formatted, search_pos,
+                                                   !backslash_escapes_) !=
+        std::string_view::npos) {
       throw std::runtime_error("mysql_async: placeholder count mismatch");
     }
     return formatted;
@@ -1887,7 +1901,8 @@ class mysql_async {
   detail::mysql_async::byte sequence_id_ = 0;
   std::uint16_t status_flags_ = 0;
   bool backslash_escapes_ = true;
-  std::string auth_plugin_name_ = std::string(detail::mysql_async::mysql_native_password);
+  std::string auth_plugin_name_ =
+      std::string(detail::mysql_async::mysql_native_password);
   std::array<detail::mysql_async::byte, 20> scramble_{};
   std::uint64_t last_insert_id_ = 0;
   int last_affect_rows_ = 0;

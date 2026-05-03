@@ -1,7 +1,6 @@
 #ifdef ORMPP_ENABLE_MYSQL_ASYNC
 
 #include <asio.hpp>
-
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
@@ -135,8 +134,8 @@ inline std::string getenv_or(const char* key, const char* fallback) {
 }
 
 inline bool load_config_file(ormpp_cfg& cfg) {
-  for (auto path : {"../cfg/ormpp.cfg", "cfg/ormpp.cfg",
-                    "../../cfg/ormpp.cfg"}) {
+  for (auto path :
+       {"../cfg/ormpp.cfg", "cfg/ormpp.cfg", "../../cfg/ormpp.cfg"}) {
     if (config_manager::from_file(cfg, path)) {
       return true;
     }
@@ -179,11 +178,11 @@ asio::awaitable<void> run_async_mysql_smoke() {
 
   require_async(co_await db.execute("drop table if exists async_person"),
                 "drop table failed");
-  require_async(co_await db.create_datatable<async_person>(ormpp_auto_key{"id"}),
-                "create table failed");
+  require_async(
+      co_await db.create_datatable<async_person>(ormpp_auto_key{"id"}),
+      "create table failed");
 
-  auto inserted =
-      co_await db.insert(async_person{0, "async_alice", 18});
+  auto inserted = co_await db.insert(async_person{0, "async_alice", 18});
   require_async(inserted == 1, "insert returned unexpected affected rows");
 
   auto inserted_id =
@@ -235,20 +234,20 @@ asio::awaitable<void> run_async_mysql_smoke() {
                 "multi placeholder question mark query mismatch");
 
   auto scalar_age = co_await db.select(col(&async_person::age))
-                            .from<async_person>()
-                            .where(col(&async_person::name).param())
-                            .scalar(std::string("async_bob"));
+                        .from<async_person>()
+                        .where(col(&async_person::name).param())
+                        .scalar(std::string("async_bob"));
   require_async(scalar_age == 19, "scalar query mismatch");
 
   auto scalar_age_literal_task = db.select(col(&async_person::age))
-                                   .from<async_person>()
-                                   .where(col(&async_person::name).param())
-                                   .scalar("async_bob");
+                                     .from<async_person>()
+                                     .where(col(&async_person::name).param())
+                                     .scalar("async_bob");
   auto scalar_age_literal = co_await std::move(scalar_age_literal_task);
   require_async(scalar_age_literal == 19, "scalar literal query mismatch");
 
-  auto replaced = co_await db.replace(async_person{
-      static_cast<int>(inserted_id), "async_bob_replaced", 21});
+  auto replaced = co_await db.replace(
+      async_person{static_cast<int>(inserted_id), "async_bob_replaced", 21});
   require_async(replaced >= 1, "replace failed");
 
   auto replaced_rows =
@@ -257,9 +256,8 @@ asio::awaitable<void> run_async_mysql_smoke() {
   require_async(replaced_rows.front().name == "async_bob_replaced",
                 "replace value mismatch");
 
-  auto updated =
-      co_await db.update(async_person{static_cast<int>(inserted_id),
-                                      "async_bob_updated", 22});
+  auto updated = co_await db.update(
+      async_person{static_cast<int>(inserted_id), "async_bob_updated", 22});
   require_async(updated == 1, "update failed");
 
   auto update_rows =
@@ -267,11 +265,11 @@ asio::awaitable<void> run_async_mysql_smoke() {
   require_async(update_rows.size() == 1, "update query row count mismatch");
   require_async(update_rows.front().age == 22, "update age mismatch");
 
-  auto builder_update_rows = co_await db.update<async_person>()
-                                  .set(col(&async_person::age), 30)
-                                  .where(col(&async_person::id) ==
-                                         static_cast<int>(inserted_id))
-                                  .execute();
+  auto builder_update_rows =
+      co_await db.update<async_person>()
+          .set(col(&async_person::age), 30)
+          .where(col(&async_person::id) == static_cast<int>(inserted_id))
+          .execute();
   require_async(builder_update_rows == 1, "builder update execute failed");
 
   auto after_builder_update =
@@ -279,10 +277,10 @@ asio::awaitable<void> run_async_mysql_smoke() {
   require_async(after_builder_update.front().age == 30,
                 "builder update result mismatch");
 
-  auto builder_delete_rows = co_await db.remove<async_person>()
-                                  .where(col(&async_person::id) ==
-                                         static_cast<int>(inserted_id))
-                                  .execute();
+  auto builder_delete_rows =
+      co_await db.remove<async_person>()
+          .where(col(&async_person::id) == static_cast<int>(inserted_id))
+          .execute();
   require_async(builder_delete_rows == 1, "builder delete execute failed");
 
   auto after_builder_delete =
@@ -328,10 +326,9 @@ asio::awaitable<void> run_async_mysql_smoke() {
   require_async(
       co_await db.execute("drop table if exists async_chain_optional_row"),
       "drop chain optional table failed");
-  require_async(
-      co_await db.create_datatable<async_chain_optional_row>(
-          ormpp_auto_key{"id"}),
-      "create chain optional table failed");
+  require_async(co_await db.create_datatable<async_chain_optional_row>(
+                    ormpp_auto_key{"id"}),
+                "create chain optional table failed");
   require_async(co_await db.insert(async_chain_optional_row{
                     0, std::optional<std::string>{"purecpp"},
                     std::optional<int>{1}, std::nullopt}) == 1,
@@ -345,68 +342,74 @@ asio::awaitable<void> run_async_mysql_smoke() {
                               .from<async_chain_optional_row>()
                               .where(col(&async_chain_optional_row::id).param())
                               .collect(2);
-  require_async(chain_param_rows.size() == 1 &&
-                    chain_param_rows.front().name == std::optional<std::string>{"test"},
-                "chain param collect mismatch");
+  require_async(
+      chain_param_rows.size() == 1 &&
+          chain_param_rows.front().name == std::optional<std::string>{"test"},
+      "chain param collect mismatch");
 
-  auto chain_subset_rows = co_await db
-                               .select(col(&async_chain_optional_row::name),
-                                       col(&async_chain_optional_row::age))
-                               .from<async_chain_optional_row>()
-                               .where(col(&async_chain_optional_row::id).param())
-                               .collect<async_chain_optional_subset>(2);
+  auto chain_subset_rows =
+      co_await db
+          .select(col(&async_chain_optional_row::name),
+                  col(&async_chain_optional_row::age))
+          .from<async_chain_optional_row>()
+          .where(col(&async_chain_optional_row::id).param())
+          .collect<async_chain_optional_subset>(2);
   require_async(chain_subset_rows.size() == 1 &&
                     chain_subset_rows.front().name ==
                         std::optional<std::string>{"test"} &&
                     chain_subset_rows.front().age == std::optional<int>{2},
                 "chain subset collect mismatch");
 
-  auto grouped_rows = co_await db
-                          .select(count(col(&async_chain_optional_row::id)),
-                                  col(&async_chain_optional_row::id))
-                          .from<async_chain_optional_row>()
-                          .group_by(col(&async_chain_optional_row::id))
-                          .having(sum(col(&async_chain_optional_row::age)) > 0 &&
-                                  count() > 0)
-                          .collect();
+  auto grouped_rows =
+      co_await db
+          .select(count(col(&async_chain_optional_row::id)),
+                  col(&async_chain_optional_row::id))
+          .from<async_chain_optional_row>()
+          .group_by(col(&async_chain_optional_row::id))
+          .having(sum(col(&async_chain_optional_row::age)) > 0 && count() > 0)
+          .collect();
   require_async(grouped_rows.size() == 2, "group_by having row count mismatch");
 
-  auto limit_offset_rows = co_await db.select(all)
-                                .from<async_chain_optional_row>()
-                                .where(col(&async_chain_optional_row::id).in(1, 2))
-                                .order_by(col(&async_chain_optional_row::id).desc(),
-                                          col(&async_chain_optional_row::name).desc())
-                                .limit(token)
-                                .offset(token)
-                                .collect(5, 0);
+  auto limit_offset_rows =
+      co_await db.select(all)
+          .from<async_chain_optional_row>()
+          .where(col(&async_chain_optional_row::id).in(1, 2))
+          .order_by(col(&async_chain_optional_row::id).desc(),
+                    col(&async_chain_optional_row::name).desc())
+          .limit(token)
+          .offset(token)
+          .collect(5, 0);
   require_async(limit_offset_rows.size() == 2 &&
                     limit_offset_rows.front().id == 2 &&
                     limit_offset_rows.back().id == 1,
                 "limit offset collect mismatch");
 
-  auto between_rows = co_await db.select(all)
-                           .from<async_chain_optional_row>()
-                           .where(col(&async_chain_optional_row::name)
-                                      .between("purecpp", "test"))
-                           .collect();
+  auto between_rows =
+      co_await db.select(all)
+          .from<async_chain_optional_row>()
+          .where(
+              col(&async_chain_optional_row::name).between("purecpp", "test"))
+          .collect();
   require_async(between_rows.size() == 2, "between collect mismatch");
 
-  auto like_rows = co_await db.select(all)
-                        .from<async_chain_optional_row>()
-                        .where(col(&async_chain_optional_row::name).like("pure%"))
-                        .collect();
-  require_async(like_rows.size() == 1 &&
-                    like_rows.front().name ==
-                        std::optional<std::string>{"purecpp"},
-                "like collect mismatch");
+  auto like_rows =
+      co_await db.select(all)
+          .from<async_chain_optional_row>()
+          .where(col(&async_chain_optional_row::name).like("pure%"))
+          .collect();
+  require_async(
+      like_rows.size() == 1 &&
+          like_rows.front().name == std::optional<std::string>{"purecpp"},
+      "like collect mismatch");
 
   require_async(co_await db.execute("drop table if exists async_enum_row"),
                 "drop enum table failed");
-  require_async(co_await db.create_datatable<async_enum_row>(ormpp_auto_key{"id"}),
-                "create enum table failed");
-  require_async(co_await db.insert(async_enum_row{0, async_color::blue, apple}) ==
-                    1,
-                "insert enum row failed");
+  require_async(
+      co_await db.create_datatable<async_enum_row>(ormpp_auto_key{"id"}),
+      "create enum table failed");
+  require_async(
+      co_await db.insert(async_enum_row{0, async_color::blue, apple}) == 1,
+      "insert enum row failed");
   auto enum_rows = co_await db.query_s<async_enum_row>();
   require_async(enum_rows.size() == 1, "enum row count mismatch");
   require_async(enum_rows.front().color == async_color::blue,
@@ -415,8 +418,9 @@ asio::awaitable<void> run_async_mysql_smoke() {
 
   require_async(co_await db.execute("drop table if exists async_bool_row"),
                 "drop bool table failed");
-  require_async(co_await db.create_datatable<async_bool_row>(ormpp_auto_key{"id"}),
-                "create bool table failed");
+  require_async(
+      co_await db.create_datatable<async_bool_row>(ormpp_auto_key{"id"}),
+      "create bool table failed");
   require_async(co_await db.insert(async_bool_row{0, true}) == 1,
                 "insert bool true failed");
   auto bool_rows = co_await db.query_s<async_bool_row>();
@@ -440,17 +444,13 @@ asio::awaitable<void> run_async_mysql_smoke() {
       async_string_view_row{1, 2, 3, 4, 5, 6, 7, 8, "purecpp"});
   require_async(string_view_id > 0, "insert string_view row failed");
   auto string_view_rows = co_await db.query_s<async_string_view_row>();
-  require_async(string_view_rows.size() == 1,
-                "string_view row count mismatch");
-  require_async(string_view_rows.front().a == 1 &&
-                    string_view_rows.front().b == 2 &&
-                    string_view_rows.front().c == 3 &&
-                    string_view_rows.front().d == 4 &&
-                    string_view_rows.front().e == 5 &&
-                    string_view_rows.front().f == 6 &&
-                    string_view_rows.front().g == 7 &&
-                    string_view_rows.front().h == 8,
-                "integer mapping mismatch");
+  require_async(string_view_rows.size() == 1, "string_view row count mismatch");
+  require_async(
+      string_view_rows.front().a == 1 && string_view_rows.front().b == 2 &&
+          string_view_rows.front().c == 3 && string_view_rows.front().d == 4 &&
+          string_view_rows.front().e == 5 && string_view_rows.front().f == 6 &&
+          string_view_rows.front().g == 7 && string_view_rows.front().h == 8,
+      "integer mapping mismatch");
   require_async(string_view_rows.front().v == "purecpp",
                 "string_view mapping mismatch");
 
@@ -480,7 +480,8 @@ asio::awaitable<void> run_async_mysql_smoke() {
     async_blob_ex_row blob_ex{1};
     blob_ex.bin.assign(data, data + size);
     blob_ex.time = "2023-03-29 13:55:00";
-    require_async(co_await db.insert(blob_ex) == 1, "insert blob ex row failed");
+    require_async(co_await db.insert(blob_ex) == 1,
+                  "insert blob ex row failed");
     auto blob_ex_rows = co_await db.query_s<async_blob_ex_row>("id=?", 1);
     require_async(blob_ex_rows.size() == 1, "blob ex row count mismatch");
     require_async(blob_ex_rows.front().bin.size() == static_cast<size_t>(size),
@@ -498,16 +499,17 @@ asio::awaitable<void> run_async_mysql_smoke() {
                   "blob tuple size mismatch");
   }
 
-  require_async(co_await db.execute("drop table if exists async_builder_person"),
-                "drop builder table failed");
+  require_async(
+      co_await db.execute("drop table if exists async_builder_person"),
+      "drop builder table failed");
   require_async(co_await db.create_table<async_builder_person>()
                     .auto_increment(col(&async_builder_person::id))
                     .not_null(col(&async_builder_person::name))
                     .execute(),
                 "create_table builder failed");
-  require_async(co_await db.insert(async_builder_person{"builder", 10, 0, 99}) ==
-                    1,
-                "insert builder row failed");
+  require_async(
+      co_await db.insert(async_builder_person{"builder", 10, 0, 99}) == 1,
+      "insert builder row failed");
   auto builder_created_rows =
       co_await db.query_s<async_builder_person>("name=?", "builder");
   require_async(builder_created_rows.size() == 1,
@@ -517,15 +519,14 @@ asio::awaitable<void> run_async_mysql_smoke() {
                     .add_column("nickname", "TEXT")
                     .execute(),
                 "alter_table add_column failed");
-  require_async(
-      co_await db.execute(
-          "update async_builder_person set nickname='nick' where name='builder'"),
-      "alter_table update nickname failed");
+  require_async(co_await db.execute("update async_builder_person set "
+                                    "nickname='nick' where name='builder'"),
+                "alter_table update nickname failed");
   auto nickname_rows = co_await db.query_s<std::tuple<std::string>>(
       "select nickname from async_builder_person where name=?", "builder");
-  require_async(nickname_rows.size() == 1 &&
-                    std::get<0>(nickname_rows.front()) == "nick",
-                "alter_table nickname mismatch");
+  require_async(
+      nickname_rows.size() == 1 && std::get<0>(nickname_rows.front()) == "nick",
+      "alter_table nickname mismatch");
 
   require_async(
       co_await db.execute("drop table if exists person_with_namespace"),
@@ -534,48 +535,48 @@ asio::awaitable<void> run_async_mysql_smoke() {
       co_await db.create_datatable<async_ns_test::person_with_namespace>(
           ormpp_auto_key{"id"}),
       "create namespaced person table failed");
-  require_async(co_await db.insert(async_ns_test::person_with_namespace{
-                    0, "tom", 18}) == 1,
+  require_async(co_await db.insert(
+                    async_ns_test::person_with_namespace{0, "tom", 18}) == 1,
                 "insert namespaced person tom failed");
-  require_async(co_await db.insert(async_ns_test::person_with_namespace{
-                    0, "jerry", 20}) == 1,
+  require_async(co_await db.insert(
+                    async_ns_test::person_with_namespace{0, "jerry", 20}) == 1,
                 "insert namespaced person jerry failed");
-  require_async(co_await db.insert(async_ns_test::person_with_namespace{
-                    0, "mike", 22}) == 1,
+  require_async(co_await db.insert(
+                    async_ns_test::person_with_namespace{0, "mike", 22}) == 1,
                 "insert namespaced person mike failed");
 
-  auto ns_param_rows = co_await db.select(all)
-                             .from<async_ns_test::person_with_namespace>()
-                             .where(col(&async_ns_test::person_with_namespace::id)
-                                        .param())
-                             .collect(2);
-  require_async(ns_param_rows.size() == 1 &&
-                    ns_param_rows.front().name == "jerry",
-                "namespaced param collect mismatch");
+  auto ns_param_rows =
+      co_await db.select(all)
+          .from<async_ns_test::person_with_namespace>()
+          .where(col(&async_ns_test::person_with_namespace::id).param())
+          .collect(2);
+  require_async(
+      ns_param_rows.size() == 1 && ns_param_rows.front().name == "jerry",
+      "namespaced param collect mismatch");
 
-  auto ns_where_rows = co_await db.select(all)
-                             .from<async_ns_test::person_with_namespace>()
-                             .where(col(&async_ns_test::person_with_namespace::age) >
-                                    18)
-                             .collect();
+  auto ns_where_rows =
+      co_await db.select(all)
+          .from<async_ns_test::person_with_namespace>()
+          .where(col(&async_ns_test::person_with_namespace::age) > 18)
+          .collect();
   require_async(ns_where_rows.size() == 2, "namespaced where collect mismatch");
 
-  auto ns_all_rows =
-      co_await db.select(all).from<async_ns_test::person_with_namespace>().collect();
+  auto ns_all_rows = co_await db.select(all)
+                         .from<async_ns_test::person_with_namespace>()
+                         .collect();
   require_async(ns_all_rows.size() == 3, "namespaced all collect mismatch");
 
   require_async(co_await db.execute("drop table if exists department"),
                 "drop namespaced department table failed");
-  require_async(
-      co_await db.create_datatable<async_ns_test::department>(
-          ormpp_auto_key{"id"}),
-      "create namespaced department table failed");
+  require_async(co_await db.create_datatable<async_ns_test::department>(
+                    ormpp_auto_key{"id"}),
+                "create namespaced department table failed");
   require_async(
       co_await db.insert(async_ns_test::department{0, "Engineering", 1}) == 1,
       "insert department 1 failed");
-  require_async(co_await db.insert(async_ns_test::department{0, "Sales", 2}) ==
-                    1,
-                "insert department 2 failed");
+  require_async(
+      co_await db.insert(async_ns_test::department{0, "Sales", 2}) == 1,
+      "insert department 2 failed");
   require_async(co_await db.insert(async_ns_test::department{0, "HR", 3}) == 1,
                 "insert department 3 failed");
 
@@ -613,19 +614,17 @@ TEST_CASE("mysql async formats placeholders with question marks in values") {
   CHECK(format_query_args("select `?` from t where name=?", false,
                           std::string("quoted?id")) ==
         "select `?` from t where name='quoted?id'");
-  CHECK_THROWS_WITH_AS(
-      format_query_args("select * from t where a=? and b=?", false,
-                        std::string("only?one")),
-      "mysql_async: placeholder count mismatch", std::runtime_error);
+  CHECK_THROWS_WITH_AS(format_query_args("select * from t where a=? and b=?",
+                                         false, std::string("only?one")),
+                       "mysql_async: placeholder count mismatch",
+                       std::runtime_error);
 
   std::string insert_sql = "insert into t(a,b) values(?,?)";
   std::size_t search_pos = 0;
   replace_next_placeholder(insert_sql, search_pos,
-                           to_query_arg_impl(std::string("a?b"), false),
-                           false);
+                           to_query_arg_impl(std::string("a?b"), false), false);
   replace_next_placeholder(insert_sql, search_pos,
-                           to_query_arg_impl(std::string("c?d"), false),
-                           false);
+                           to_query_arg_impl(std::string("c?d"), false), false);
   CHECK(insert_sql == "insert into t(a,b) values('a?b','c?d')");
   CHECK(find_next_placeholder(insert_sql, search_pos, false) ==
         std::string_view::npos);

@@ -1,12 +1,8 @@
 #ifdef ORMPP_ENABLE_MYSQL_ASYNC
 
-#include "doctest.h"
-#include "ormpp/asio_async_simple_adapter.hpp"
-
-#include <asio.hpp>
-
 #include <algorithm>
 #include <array>
+#include <asio.hpp>
 #include <chrono>
 #include <coroutine>
 #include <exception>
@@ -16,6 +12,9 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+#include "doctest.h"
+#include "ormpp/asio_async_simple_adapter.hpp"
 
 namespace {
 
@@ -50,10 +49,13 @@ class TestTask {
       value.emplace(std::forward<U>(result));
     }
 
-    void unhandled_exception() noexcept { exception = std::current_exception(); }
+    void unhandled_exception() noexcept {
+      exception = std::current_exception();
+    }
   };
 
-  explicit TestTask(std::coroutine_handle<promise_type> handle) : handle_(handle) {}
+  explicit TestTask(std::coroutine_handle<promise_type> handle)
+      : handle_(handle) {}
   TestTask(TestTask&& other) noexcept
       : handle_(std::exchange(other.handle_, nullptr)) {}
   TestTask& operator=(TestTask&& other) noexcept {
@@ -118,10 +120,13 @@ class TestTask<void> {
 
     FinalAwaiter final_suspend() noexcept { return {}; }
     void return_void() noexcept {}
-    void unhandled_exception() noexcept { exception = std::current_exception(); }
+    void unhandled_exception() noexcept {
+      exception = std::current_exception();
+    }
   };
 
-  explicit TestTask(std::coroutine_handle<promise_type> handle) : handle_(handle) {}
+  explicit TestTask(std::coroutine_handle<promise_type> handle)
+      : handle_(handle) {}
   TestTask(TestTask&& other) noexcept
       : handle_(std::exchange(other.handle_, nullptr)) {}
   TestTask& operator=(TestTask&& other) noexcept {
@@ -217,15 +222,18 @@ asio::awaitable<int, asio::any_io_executor> resume_probe_value(
     asio::any_io_executor executor, std::vector<std::string>* events,
     int value) {
   events->push_back("child-ready");
-  asio::post(executor, [events] { events->push_back("sentinel-before-resume"); });
+  asio::post(executor, [events] {
+    events->push_back("sentinel-before-resume");
+  });
   co_return value;
 }
 
 TestTask<int> start_is_deferred_task(asio::any_io_executor executor,
                                      std::vector<std::string>* events) {
   events->push_back("task-before-await");
-  auto value = co_await adapter::from_asio(start_probe_value(events, 7), executor)
-                   .coAwait(nullptr);
+  auto value =
+      co_await adapter::from_asio(start_probe_value(events, 7), executor)
+          .coAwait(nullptr);
   events->push_back("task-after-await");
   co_return value;
 }
@@ -233,27 +241,24 @@ TestTask<int> start_is_deferred_task(asio::any_io_executor executor,
 TestTask<int> resume_is_deferred_task(asio::any_io_executor executor,
                                       std::vector<std::string>* events) {
   events->push_back("task-before-await");
-  auto value =
-      co_await adapter::from_asio(resume_probe_value(executor, events, 11),
-                                  executor)
-          .coAwait(nullptr);
+  auto value = co_await adapter::from_asio(
+                   resume_probe_value(executor, events, 11), executor)
+                   .coAwait(nullptr);
   events->push_back("task-after-await");
   co_return value;
 }
 
 TestTask<void> value_void_and_exception_task(asio::any_io_executor executor) {
-  auto a =
-      co_await adapter::from_asio(immediate_value(17), executor).coAwait(nullptr);
+  auto a = co_await adapter::from_asio(immediate_value(17), executor)
+               .coAwait(nullptr);
   CHECK(a == 17);
 
-  auto b =
-      co_await adapter::from_asio(posted_value(executor, 19), executor)
-          .coAwait(nullptr);
+  auto b = co_await adapter::from_asio(posted_value(executor, 19), executor)
+               .coAwait(nullptr);
   CHECK(b == 19);
 
-  auto c =
-      co_await adapter::from_asio(timer_value(executor, 23), executor)
-          .coAwait(nullptr);
+  auto c = co_await adapter::from_asio(timer_value(executor, 23), executor)
+               .coAwait(nullptr);
   CHECK(c == 23);
 
   co_await adapter::from_asio(immediate_void(), executor).coAwait(nullptr);
@@ -261,7 +266,8 @@ TestTask<void> value_void_and_exception_task(asio::any_io_executor executor) {
 
   int exceptions = 0;
   try {
-    (void)(co_await adapter::from_asio(throwing_value(executor, false), executor)
+    (void)(co_await adapter::from_asio(throwing_value(executor, false),
+                                       executor)
                .coAwait(nullptr));
   } catch (const std::runtime_error& e) {
     CHECK(std::string(e.what()) == "immediate boom");
@@ -298,8 +304,8 @@ TestTask<int> stress_task(asio::any_io_executor executor, int task_index,
     auto value = task_index * 1000 + i;
     if ((task_index + i) % 11 == 0) {
       try {
-        (void)(co_await adapter::from_asio(
-                   throwing_value(executor, i % 2 == 0), executor)
+        (void)(co_await adapter::from_asio(throwing_value(executor, i % 2 == 0),
+                                           executor)
                    .coAwait(nullptr));
       } catch (const std::runtime_error&) {
         ++(*resume_count);
@@ -309,9 +315,8 @@ TestTask<int> stress_task(asio::any_io_executor executor, int task_index,
     }
 
     sum += co_await adapter::from_asio(
-                           patterned_value(executor, value, task_index + i),
-                           executor)
-                    .coAwait(nullptr);
+               patterned_value(executor, value, task_index + i), executor)
+               .coAwait(nullptr);
     ++(*resume_count);
   }
   co_return sum;
@@ -323,7 +328,8 @@ int expected_stress_sum(int task_index, int await_count) {
     auto value = task_index * 1000 + i;
     if ((task_index + i) % 11 == 0) {
       sum -= value;
-    } else {
+    }
+    else {
       sum += value;
     }
   }
@@ -349,14 +355,16 @@ TEST_CASE("asio async_simple adapter timing: start and resume are posted") {
 
     ctx.restart();
     REQUIRE(ctx.run_one() == 1);
-    CHECK(events == std::vector<std::string>{"handler-enter",
-                                             "task-before-await",
-                                             "handler-exit"});
+    CHECK(events == std::vector<std::string>{
+                        "handler-enter", "task-before-await", "handler-exit"});
 
-    run_until(ctx, [&] { return done; });
+    run_until(ctx, [&] {
+      return done;
+    });
     CHECK(task.result() == 7);
     CHECK(index_of(events, "handler-exit") < index_of(events, "child-start"));
-    CHECK(index_of(events, "child-start") < index_of(events, "task-after-await"));
+    CHECK(index_of(events, "child-start") <
+          index_of(events, "task-after-await"));
   }
 
   SUBCASE("completion does not resume parent inline") {
@@ -364,8 +372,12 @@ TEST_CASE("asio async_simple adapter timing: start and resume are posted") {
     bool done = false;
     auto task = resume_is_deferred_task(executor, &events);
 
-    asio::post(ctx, [&] { task.start(done); });
-    run_until(ctx, [&] { return done; });
+    asio::post(ctx, [&] {
+      task.start(done);
+    });
+    run_until(ctx, [&] {
+      return done;
+    });
 
     CHECK(task.result() == 11);
     CHECK(index_of(events, "child-ready") <
@@ -380,8 +392,12 @@ TEST_CASE("asio async_simple adapter timing: result and exception paths") {
   bool done = false;
   auto task = value_void_and_exception_task(ctx.get_executor());
 
-  asio::post(ctx, [&] { task.start(done); });
-  run_until(ctx, [&] { return done; });
+  asio::post(ctx, [&] {
+    task.start(done);
+  });
+  run_until(ctx, [&] {
+    return done;
+  });
   CHECK_NOTHROW(task.result());
 }
 
@@ -401,12 +417,15 @@ TEST_CASE("asio async_simple adapter timing: interleaved stress") {
   }
 
   for (int i = 0; i < task_count; ++i) {
-    asio::post(ctx, [&, i] { tasks[i].start(done[i]); });
+    asio::post(ctx, [&, i] {
+      tasks[i].start(done[i]);
+    });
   }
 
   run_until(ctx, [&] {
-    return std::all_of(done.begin(), done.end(),
-                       [](bool item) { return item; });
+    return std::all_of(done.begin(), done.end(), [](bool item) {
+      return item;
+    });
   });
 
   for (int i = 0; i < task_count; ++i) {

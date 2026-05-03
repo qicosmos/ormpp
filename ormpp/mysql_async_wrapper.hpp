@@ -1,18 +1,17 @@
 #pragma once
 
-#include "asio_async_simple_adapter.hpp"
-
-#include <cinatra/ylt/coro_io/io_context_pool.hpp>
-#include <ormpp/dbng.hpp>
-#include <ormpp/mysql_async.hpp>
-
 #include <async_simple/coro/Lazy.h>
 #include <async_simple/coro/SyncAwait.h>
 
+#include <cinatra/ylt/coro_io/io_context_pool.hpp>
 #include <cstdint>
 #include <optional>
+#include <ormpp/dbng.hpp>
+#include <ormpp/mysql_async.hpp>
 #include <string>
 #include <utility>
+
+#include "asio_async_simple_adapter.hpp"
 
 namespace db_wrapper {
 
@@ -37,11 +36,12 @@ class mysql_async_session {
     return adapter::from_asio(std::move(awaitable), executor_);
   }
 
-  async_simple::coro::Lazy<bool> connect(
-      const std::string &host, const std::string &user,
-      const std::string &passwd, const std::string &database,
-      const std::optional<int> &timeout = {},
-      const std::optional<int> &port = {}) {
+  async_simple::coro::Lazy<bool> connect(const std::string &host,
+                                         const std::string &user,
+                                         const std::string &passwd,
+                                         const std::string &database,
+                                         const std::optional<int> &timeout = {},
+                                         const std::optional<int> &port = {}) {
     co_return co_await await(
         db_.connect(host, user, passwd, database, timeout, port));
   }
@@ -52,15 +52,14 @@ class mysql_async_session {
 
   template <typename T, typename... Args>
   async_simple::coro::Lazy<int> insert(const T &value, Args &&...args) {
-    co_return co_await await(
-        db_.insert(value, std::forward<Args>(args)...));
+    co_return co_await await(db_.insert(value, std::forward<Args>(args)...));
   }
 
   template <typename T, typename... Args>
   async_simple::coro::Lazy<std::uint64_t> get_insert_id_after_insert(
       const T &value, Args &&...args) {
-    co_return co_await await(db_.get_insert_id_after_insert(
-        value, std::forward<Args>(args)...));
+    co_return co_await await(
+        db_.get_insert_id_after_insert(value, std::forward<Args>(args)...));
   }
 
   int get_last_affect_rows() { return db_.get_last_affect_rows(); }

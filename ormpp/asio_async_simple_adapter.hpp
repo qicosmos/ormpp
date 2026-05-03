@@ -25,7 +25,7 @@ namespace adapter {
 
 template <typename T>
 class AsioAwaitableAdapter {
-private:
+ private:
   static_assert(!std::is_reference_v<T>,
                 "AsioAwaitableAdapter does not support reference results");
 
@@ -60,7 +60,8 @@ private:
       if constexpr (std::is_void_v<T>) {
         co_await std::move(awaitable_);
         result_.emplace();
-      } else {
+      }
+      else {
         result_.emplace(co_await std::move(awaitable_));
       }
     } catch (...) {
@@ -79,10 +80,9 @@ private:
     }
   }
 
-public:
-  AsioAwaitableAdapter(
-      asio::awaitable<T, asio::any_io_executor> awaitable,
-      asio::any_io_executor executor)
+ public:
+  AsioAwaitableAdapter(asio::awaitable<T, asio::any_io_executor> awaitable,
+                       asio::any_io_executor executor)
       : awaitable_(std::move(awaitable)), asio_executor_(std::move(executor)) {}
 
   AsioAwaitableAdapter(const AsioAwaitableAdapter&) = delete;
@@ -90,9 +90,7 @@ public:
   AsioAwaitableAdapter(AsioAwaitableAdapter&&) = default;
   AsioAwaitableAdapter& operator=(AsioAwaitableAdapter&&) = default;
 
-  bool await_ready() const noexcept {
-    return false;
-  }
+  bool await_ready() const noexcept { return false; }
 
   bool await_suspend(std::coroutine_handle<> handle) noexcept {
     resume_handle_ = handle;
@@ -113,7 +111,8 @@ public:
     }
     if constexpr (std::is_void_v<T>) {
       return;
-    } else {
+    }
+    else {
       if (!result_.has_value()) {
         throw std::runtime_error(
             "asio_async_simple_adapter: missing asio result");
@@ -129,10 +128,9 @@ public:
 };
 
 template <typename T>
-inline auto from_asio(
-    asio::awaitable<T, asio::any_io_executor> awaitable,
-    asio::any_io_executor executor) {
+inline auto from_asio(asio::awaitable<T, asio::any_io_executor> awaitable,
+                      asio::any_io_executor executor) {
   return AsioAwaitableAdapter<T>(std::move(awaitable), executor);
 }
 
-} // namespace adapter
+}  // namespace adapter

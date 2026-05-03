@@ -1,8 +1,8 @@
 #ifdef ORMPP_ENABLE_MYSQL_ASYNC
 
 #include <asio.hpp>
-#include <chrono>
 #include <atomic>
+#include <chrono>
 #include <cstdlib>
 #include <string>
 #include <thread>
@@ -30,8 +30,8 @@ YLT_REFL(test_person, id, name, age)
 
 // 辅助函数：获取数据库连接参数
 inline bool load_config_file(ormpp_cfg& cfg) {
-  for (auto path : {"../cfg/ormpp.cfg", "cfg/ormpp.cfg",
-                    "../../cfg/ormpp.cfg"}) {
+  for (auto path :
+       {"../cfg/ormpp.cfg", "cfg/ormpp.cfg", "../../cfg/ormpp.cfg"}) {
     if (config_manager::from_file(cfg, path)) {
       return true;
     }
@@ -108,8 +108,8 @@ TEST_CASE("async_connection_pool: basic initialization") {
       pool_options options;
       options.log_pool_exhaustion = false;  // 禁用日志避免干扰测试输出
 
-      auto pool = std::make_shared<async_connection_pool<mysql_async>>(
-          executor, options);
+      auto pool = std::make_shared<async_connection_pool<mysql_async>>(executor,
+                                                                       options);
 
       bool success = co_await pool->init(2, "invalid_host", "invalid_user",
                                          "invalid_pass", "invalid_db", 1, 3306);
@@ -122,7 +122,8 @@ TEST_CASE("async_connection_pool: basic initialization") {
 
       // 第二次初始化应该返回 true（已经初始化）
       auto [host, user, password, db, timeout, port] = get_db_config();
-      bool success = co_await pool->init(2, host, user, password, db, timeout, port);
+      bool success =
+          co_await pool->init(2, host, user, password, db, timeout, port);
       CHECK(success);
 
       co_await pool->close_all();
@@ -567,11 +568,12 @@ TEST_CASE("async_connection_pool: edge cases") {
       options.log_pool_exhaustion = false;
 
       auto [host, user, password, db, timeout, port] = get_db_config();
-      auto pool = std::make_shared<async_connection_pool<mysql_async>>(
-          executor, options);
+      auto pool = std::make_shared<async_connection_pool<mysql_async>>(executor,
+                                                                       options);
 
       // 初始化大小为 0 的池
-      bool success = co_await pool->init(0, host, user, password, db, timeout, port);
+      bool success =
+          co_await pool->init(0, host, user, password, db, timeout, port);
       CHECK(success);
 
       // 获取连接应该超时
@@ -599,8 +601,8 @@ TEST_CASE("async_connection_pool: edge cases") {
       pool_options options;
       options.log_pool_exhaustion = false;
 
-      auto pool = std::make_shared<async_connection_pool<mysql_async>>(
-          executor, options);
+      auto pool = std::make_shared<async_connection_pool<mysql_async>>(executor,
+                                                                       options);
 
       // 未初始化就获取连接
       auto conn = co_await pool->get(std::chrono::seconds(1));
