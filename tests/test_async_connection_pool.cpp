@@ -3,13 +3,17 @@
 #include <asio.hpp>
 #include <chrono>
 #include <atomic>
+#include <cstdlib>
+#include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #include "async_connection_pool.hpp"
 #include "dbng.hpp"
 #include "doctest.h"
 #include "mysql_async.hpp"
+#include "ormpp_cfg.hpp"
 
 using namespace ormpp;
 
@@ -25,29 +29,53 @@ REGISTER_AUTO_KEY(test_person, id)
 YLT_REFL(test_person, id, name, age)
 
 // 辅助函数：获取数据库连接参数
-inline std::tuple<std::string, std::string, std::string, std::string, int>
+inline bool load_config_file(ormpp_cfg& cfg) {
+  for (auto path : {"../cfg/ormpp.cfg", "cfg/ormpp.cfg",
+                    "../../cfg/ormpp.cfg"}) {
+    if (config_manager::from_file(cfg, path)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+inline std::tuple<std::string, std::string, std::string, std::string, int, int>
 get_db_config() {
+  ormpp_cfg cfg{};
+  if (!load_config_file(cfg)) {
+    cfg.db_ip = "127.0.0.1";
+    cfg.user_name = "root";
+    cfg.pwd = "";
+    cfg.db_name = "test_ormppdb";
+    cfg.timeout = 5;
+    cfg.db_port = 3306;
+  }
+
   const char* host = std::getenv("ORMPP_ASYNC_MYSQL_HOST");
   const char* user = std::getenv("ORMPP_ASYNC_MYSQL_USER");
   const char* password = std::getenv("ORMPP_ASYNC_MYSQL_PASSWORD");
   const char* db = std::getenv("ORMPP_ASYNC_MYSQL_DB");
   const char* port_str = std::getenv("ORMPP_ASYNC_MYSQL_PORT");
 
-  return {host ? host : "127.0.0.1", user ? user : "root",
-          password ? password : "", db ? db : "test_ormppdb",
-          port_str ? std::atoi(port_str) : 3306};
+  return {host ? host : cfg.db_ip,
+          user ? user : cfg.user_name,
+          password ? password : cfg.pwd,
+          db ? db : cfg.db_name,
+          cfg.timeout,
+          port_str ? std::atoi(port_str) : cfg.db_port};
 }
 
 // 辅助函数：创建并初始化连接池
 asio::awaitable<std::shared_ptr<async_connection_pool<mysql_async>>>
 create_test_pool(asio::any_io_executor executor, size_t pool_size = 5,
                  pool_options options = {}) {
-  auto [host, user, password, db, port] = get_db_config();
+  auto [host, user, password, db, timeout, port] = get_db_config();
 
   auto pool =
       std::make_shared<async_connection_pool<mysql_async>>(executor, options);
 
-  bool success = co_await pool->init(pool_size, host, user, password, db, 5, port);
+  bool success =
+      co_await pool->init(pool_size, host, user, password, db, timeout, port);
   if (!success) {
     co_return nullptr;
   }
@@ -93,8 +121,8 @@ TEST_CASE("async_connection_pool: basic initialization") {
       REQUIRE(pool != nullptr);
 
       // 第二次初始化应该返回 true（已经初始化）
-      auto [host, user, password, db, port] = get_db_config();
-      bool success = co_await pool->init(2, host, user, password, db, 5, port);
+      auto [host, user, password, db, timeout, port] = get_db_config();
+      bool success = co_await pool->init(2, host, user, password, db, timeout, port);
       CHECK(success);
 
       co_await pool->close_all();
@@ -538,12 +566,12 @@ TEST_CASE("async_connection_pool: edge cases") {
       pool_options options;
       options.log_pool_exhaustion = false;
 
-      auto [host, user, password, db, port] = get_db_config();
+      auto [host, user, password, db, timeout, port] = get_db_config();
       auto pool = std::make_shared<async_connection_pool<mysql_async>>(
           executor, options);
 
       // 初始化大小为 0 的池
-      bool success = co_await pool->init(0, host, user, password, db, 5, port);
+      bool success = co_await pool->init(0, host, user, password, db, timeout, port);
       CHECK(success);
 
       // 获取连接应该超时

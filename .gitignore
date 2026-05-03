@@ -39,3 +39,5 @@
 .cache
 /.vs
 /CMakeSettings.json
+.cfg
+/test_ormppdb

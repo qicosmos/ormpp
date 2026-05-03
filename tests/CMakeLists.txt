@@ -4,6 +4,7 @@ add_executable(${PROJECT_NAME}
         test_ormpp.cpp
         async_mysql_smoke.cpp
         test_async_connection_pool.cpp
+        test_adapter_timing.cpp
         main.cpp
         )
 
@@ -26,8 +27,12 @@ target_link_libraries(${PROJECT_NAME} sqlite3)
 target_link_libraries(${PROJECT_NAME} doctest)
 if(ENABLE_MYSQL_ASYNC)
         target_link_libraries(${PROJECT_NAME} OpenSSL::SSL OpenSSL::Crypto)
+        add_test(NAME ${PROJECT_NAME}_async_mysql_format
+                COMMAND ${PROJECT_NAME} "--test-case=mysql async formats placeholders with question marks in values")
         add_test(NAME ${PROJECT_NAME}_async_mysql_smoke
                 COMMAND ${PROJECT_NAME} "--test-case=mysql async smoke")
         add_test(NAME ${PROJECT_NAME}_async_connection_pool
                 COMMAND ${PROJECT_NAME} --test-case=async_connection_pool:*)
+        add_test(NAME ${PROJECT_NAME}_adapter_timing
+                COMMAND ${PROJECT_NAME} "--test-case=asio async_simple adapter timing:*")
 endif()

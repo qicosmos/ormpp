@@ -715,21 +715,105 @@ inline std::string to_query_arg_impl(const T& value, bool no_backslash_escapes) 
   }
 }
 
-inline void replace_first_placeholder(std::string& sql, std::string value) {
-  auto pos = sql.find('?');
+inline std::size_t find_next_placeholder(std::string_view sql,
+                                         std::size_t start,
+                                         bool no_backslash_escapes) {
+  for (std::size_t i = start; i < sql.size(); ++i) {
+    switch (sql[i]) {
+      case '?':
+        return i;
+      case '\'':
+      case '"': {
+        const char quote = sql[i];
+        ++i;
+        while (i < sql.size()) {
+          if (!no_backslash_escapes && sql[i] == '\\') {
+            i += i + 1 < sql.size() ? 2 : 1;
+            continue;
+          }
+          if (sql[i] == quote) {
+            if (i + 1 < sql.size() && sql[i + 1] == quote) {
+              i += 2;
+              continue;
+            }
+            break;
+          }
+          ++i;
+        }
+        break;
+      }
+      case '`':
+        ++i;
+        while (i < sql.size()) {
+          if (sql[i] == '`') {
+            if (i + 1 < sql.size() && sql[i + 1] == '`') {
+              i += 2;
+              continue;
+            }
+            break;
+          }
+          ++i;
+        }
+        break;
+      case '-':
+        if (i + 1 < sql.size() && sql[i + 1] == '-') {
+          i += 2;
+          while (i < sql.size() && sql[i] != '\n' && sql[i] != '\r') {
+            ++i;
+          }
+        }
+        break;
+      case '#':
+        while (i < sql.size() && sql[i] != '\n' && sql[i] != '\r') {
+          ++i;
+        }
+        break;
+      case '/':
+        if (i + 1 < sql.size() && sql[i + 1] == '*') {
+          i += 2;
+          while (i + 1 < sql.size() && !(sql[i] == '*' && sql[i + 1] == '/')) {
+            ++i;
+          }
+          if (i + 1 < sql.size()) {
+            ++i;
+          }
+        }
+        break;
+      default:
+        break;
+    }
+  }
+  return std::string_view::npos;
+}
+
+inline void replace_next_placeholder(std::string& sql, std::size_t& search_pos,
+                                     std::string value,
+                                     bool no_backslash_escapes) {
+  auto pos = find_next_placeholder(sql, search_pos, no_backslash_escapes);
   if (pos == std::string::npos) {
     throw std::runtime_error("mysql_async: placeholder count mismatch");
   }
+  const auto next_search_pos = pos + value.size();
   sql.replace(pos, 1, value);
+  search_pos = next_search_pos;
+}
+
+inline void replace_first_placeholder(std::string& sql, std::string value) {
+  std::size_t search_pos = 0;
+  replace_next_placeholder(sql, search_pos, std::move(value), false);
 }
 
 template <typename... Args>
 inline std::string format_query_args(std::string sql, bool no_backslash_escapes,
                                      Args&&... args) {
-  (replace_first_placeholder(
-       sql, to_query_arg_impl(std::forward<Args>(args), no_backslash_escapes)),
+  std::size_t search_pos = 0;
+  (replace_next_placeholder(
+       sql, search_pos,
+       to_query_arg_impl(std::forward<Args>(args), no_backslash_escapes),
+       no_backslash_escapes),
    ...);
-  if (sql.find('?') != std::string::npos) {
+  if (find_next_placeholder(sql, search_pos, no_backslash_escapes) !=
+      std::string_view::npos) {
     throw std::runtime_error("mysql_async: placeholder count mismatch");
   }
   return sql;
@@ -837,13 +921,15 @@ inline Tuple map_tuple_row_impl(
         using item_type = std::tuple_element_t<I, Tuple>;
         auto& item = std::get<I>(result);
         if constexpr (iguana::ylt_refletable_v<item_type>) {
+          constexpr auto member_count = ylt::reflection::members_count_v<item_type>;
+          if (row.size() - col < member_count) {
+            throw std::runtime_error("mysql_async: tuple column count mismatch");
+          }
           item = map_reflectable_row<item_type>(
               std::vector<std::optional<std::string>>(
                   row.begin() + static_cast<std::ptrdiff_t>(col),
-                  row.begin() + static_cast<std::ptrdiff_t>(
-                                   col + ylt::reflection::members_count_v<
-                                             item_type>)));
-          col += ylt::reflection::members_count_v<item_type>;
+                  row.begin() + static_cast<std::ptrdiff_t>(col + member_count)));
+          col += member_count;
         }
         else {
           if (col >= row.size()) {
@@ -1768,10 +1854,13 @@ class mysql_async {
     }
 
     std::string formatted = sql;
+    std::size_t search_pos = 0;
     for (auto& item : values) {
-      detail::mysql_async::replace_first_placeholder(formatted, std::move(item));
+      detail::mysql_async::replace_next_placeholder(
+          formatted, search_pos, std::move(item), !backslash_escapes_);
     }
-    if (formatted.find('?') != std::string::npos) {
+    if (detail::mysql_async::find_next_placeholder(
+            formatted, search_pos, !backslash_escapes_) != std::string_view::npos) {
       throw std::runtime_error("mysql_async: placeholder count mismatch");
     }
     return formatted;

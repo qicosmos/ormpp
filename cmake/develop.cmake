@@ -35,13 +35,48 @@ int main()
     unset(CMAKE_REQUIRED_FLAGS)
 endmacro()
 
+macro(check_tsan _RESULT)
+    include(CheckCXXSourceRuns)
+    set(CMAKE_REQUIRED_FLAGS "-fsanitize=thread")
+    check_cxx_source_runs(
+            [====[
+int main()
+{
+  return 0;
+}
+]====]
+            ${_RESULT}
+    )
+    unset(CMAKE_REQUIRED_FLAGS)
+endmacro()
+
 # Enable address sanitizer
 option(ENABLE_SANITIZER "Enable sanitizer(Debug+Gcc/Clang/AppleClang)" ON)
-if(ENABLE_SANITIZER AND NOT MSVC)
+option(ENABLE_THREAD_SANITIZER "Enable thread sanitizer(Debug+Gcc/Clang/AppleClang)" OFF)
+if(ENABLE_SANITIZER AND ENABLE_THREAD_SANITIZER)
+    message(FATAL_ERROR "ENABLE_SANITIZER and ENABLE_THREAD_SANITIZER are mutually exclusive")
+endif()
+
+if(ENABLE_THREAD_SANITIZER AND NOT MSVC)
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        check_tsan(HAS_TSAN)
+        if(HAS_TSAN)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread -fno-omit-frame-pointer")
+            set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=thread")
+        else()
+            message(FATAL_ERROR "ENABLE_THREAD_SANITIZER is ON but thread sanitizer is not supported with current tool-chains")
+        endif()
+    else()
+        message(FATAL_ERROR "ENABLE_THREAD_SANITIZER is supported only for debug type")
+    endif()
+elseif(ENABLE_THREAD_SANITIZER AND MSVC)
+    message(FATAL_ERROR "ENABLE_THREAD_SANITIZER is not supported with MSVC")
+elseif(ENABLE_SANITIZER AND NOT MSVC)
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         check_asan(HAS_ASAN)
         if(HAS_ASAN)
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
+            set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
         else()
             message(WARNING "sanitizer is no supported with current tool-chains")
         endif()

@@ -3,11 +3,15 @@
 #include <asio.hpp>
 
 #include <cstdlib>
+#include <stdexcept>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "dbng.hpp"
 #include "doctest.h"
 #include "mysql_async.hpp"
+#include "ormpp_cfg.hpp"
 
 using namespace ormpp;
 
@@ -130,21 +134,47 @@ inline std::string getenv_or(const char* key, const char* fallback) {
   return fallback;
 }
 
+inline bool load_config_file(ormpp_cfg& cfg) {
+  for (auto path : {"../cfg/ormpp.cfg", "cfg/ormpp.cfg",
+                    "../../cfg/ormpp.cfg"}) {
+    if (config_manager::from_file(cfg, path)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+inline ormpp_cfg get_async_mysql_config() {
+  ormpp_cfg cfg{};
+  if (!load_config_file(cfg)) {
+    cfg.db_ip = "127.0.0.1";
+    cfg.user_name = "root";
+    cfg.pwd = "";
+    cfg.db_name = "test_ormppdb";
+    cfg.timeout = 5;
+    cfg.db_port = 3306;
+  }
+
+  cfg.db_ip = getenv_or("ORMPP_ASYNC_MYSQL_HOST", cfg.db_ip.c_str());
+  cfg.user_name = getenv_or("ORMPP_ASYNC_MYSQL_USER", cfg.user_name.c_str());
+  cfg.pwd = getenv_or("ORMPP_ASYNC_MYSQL_PASSWORD", cfg.pwd.c_str());
+  cfg.db_name = getenv_or("ORMPP_ASYNC_MYSQL_DB", cfg.db_name.c_str());
+  auto port_str = getenv_or("ORMPP_ASYNC_MYSQL_PORT", "");
+  if (!port_str.empty()) {
+    cfg.db_port = std::stoi(port_str);
+  }
+  return cfg;
+}
+
 asio::awaitable<void> run_async_mysql_smoke() {
   auto executor = co_await asio::this_coro::executor;
   dbng<mysql_async> db(executor);
 
-  auto host = getenv_or("ORMPP_ASYNC_MYSQL_HOST", "127.0.0.1");
-  auto user = getenv_or("ORMPP_ASYNC_MYSQL_USER", "root");
-  auto password = getenv_or("ORMPP_ASYNC_MYSQL_PASSWORD", "");
-  auto database = getenv_or("ORMPP_ASYNC_MYSQL_DB", "test_ormppdb");
-  auto port_str = getenv_or("ORMPP_ASYNC_MYSQL_PORT", "3306");
-  auto port = std::stoi(port_str);
+  auto cfg = get_async_mysql_config();
 
-  auto connected = co_await db.connect(host, user, password, database, 5, port);
-  if (!connected) {
-    co_return;
-  }
+  auto connected = co_await db.connect(cfg.db_ip, cfg.user_name, cfg.pwd,
+                                       cfg.db_name, cfg.timeout, cfg.db_port);
+  require_async(connected, "async mysql connect failed");
   require_async(co_await db.ping(), "async ping failed");
 
   require_async(co_await db.execute("drop table if exists async_person"),
@@ -188,6 +218,21 @@ asio::awaitable<void> run_async_mysql_smoke() {
                 "builder literal collect row count mismatch");
   require_async(builder_rows_literal.front().age == 18,
                 "builder literal collect age mismatch");
+
+  require_async(co_await db.insert(async_person{0, "async_a?b", 23}) == 1,
+                "insert value with question mark failed");
+  auto question_rows = co_await db.select(all)
+                           .from<async_person>()
+                           .where(col(&async_person::name).param())
+                           .collect(std::string("async_a?b"));
+  require_async(question_rows.size() == 1,
+                "question mark collect row count mismatch");
+  require_async(question_rows.front().age == 23,
+                "question mark collect value mismatch");
+  auto multi_question_rows = co_await db.query_s<async_person>(
+      "name=? and age=?", std::string("async_a?b"), 23);
+  require_async(multi_question_rows.size() == 1,
+                "multi placeholder question mark query mismatch");
 
   auto scalar_age = co_await db.select(col(&async_person::age))
                             .from<async_person>()
@@ -548,6 +593,48 @@ asio::awaitable<void> run_async_mysql_smoke() {
 }
 
 }  // namespace
+
+TEST_CASE("mysql async formats placeholders with question marks in values") {
+  using ormpp::detail::mysql_async::find_next_placeholder;
+  using ormpp::detail::mysql_async::format_query_args;
+  using ormpp::detail::mysql_async::map_row;
+  using ormpp::detail::mysql_async::replace_next_placeholder;
+  using ormpp::detail::mysql_async::to_query_arg_impl;
+
+  CHECK(format_query_args("select * from t where name=?", false,
+                          std::string("a?b")) ==
+        "select * from t where name='a?b'");
+  CHECK(format_query_args("select * from t where a=? and b=?", false,
+                          std::string("a?b"), std::string("c?d")) ==
+        "select * from t where a='a?b' and b='c?d'");
+  CHECK(format_query_args("select '?' as literal_q, ? as value", false,
+                          std::string("x?y")) ==
+        "select '?' as literal_q, 'x?y' as value");
+  CHECK(format_query_args("select `?` from t where name=?", false,
+                          std::string("quoted?id")) ==
+        "select `?` from t where name='quoted?id'");
+  CHECK_THROWS_WITH_AS(
+      format_query_args("select * from t where a=? and b=?", false,
+                        std::string("only?one")),
+      "mysql_async: placeholder count mismatch", std::runtime_error);
+
+  std::string insert_sql = "insert into t(a,b) values(?,?)";
+  std::size_t search_pos = 0;
+  replace_next_placeholder(insert_sql, search_pos,
+                           to_query_arg_impl(std::string("a?b"), false),
+                           false);
+  replace_next_placeholder(insert_sql, search_pos,
+                           to_query_arg_impl(std::string("c?d"), false),
+                           false);
+  CHECK(insert_sql == "insert into t(a,b) values('a?b','c?d')");
+  CHECK(find_next_placeholder(insert_sql, search_pos, false) ==
+        std::string_view::npos);
+
+  using nested_tuple = std::tuple<async_person, std::string>;
+  CHECK_THROWS_WITH_AS(
+      map_row<nested_tuple>({std::string("1"), std::string("name")}),
+      "mysql_async: tuple column count mismatch", std::runtime_error);
+}
 
 TEST_CASE("mysql async smoke") {
   asio::io_context ctx;
