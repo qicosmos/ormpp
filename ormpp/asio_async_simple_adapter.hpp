@@ -37,9 +37,15 @@
 #include <asio/cancellation_type.hpp>
 #endif
 
+#if defined(__has_include) && __has_include(<async_simple/Executor.h>)
+#include <async_simple/Executor.h>
+#define ORMPP_HAS_ASYNC_SIMPLE_EXECUTOR 1
+#else
 namespace async_simple {
 class Executor;
 }  // namespace async_simple
+#define ORMPP_HAS_ASYNC_SIMPLE_EXECUTOR 0
+#endif
 
 namespace adapter {
 
@@ -248,6 +254,7 @@ class SafeAsioAwaitableAdapter {
     auto handle = state->resume_handle;
     auto* async_executor =
         state->async_executor.load(std::memory_order_acquire);
+#if ORMPP_HAS_ASYNC_SIMPLE_EXECUTOR
     if (async_executor) {
       try {
         if (async_executor->schedule([state, handle]() mutable {
@@ -263,6 +270,9 @@ class SafeAsioAwaitableAdapter {
         }
       }
     }
+#else
+    (void)async_executor;
+#endif
 
     handle.resume();
   }
