@@ -325,6 +325,63 @@ mutex，也没有使用 CAS；每次桥接的主要额外成本是：
 取消、超时主动销毁父协程、或者 detached 后不等待结果，就不能再用这个裸 awaiter fast path，
 需要让 Asio 侧持有一份独立状态。
 
+## Safe Adapter
+
+如果调用场景不满足上面的单线程和父协程生命周期前提，可以使用 safe 版本：
+
+```cpp
+auto rows = co_await adapter::from_asio_safe(
+    db.select(ormpp::all).from<chat_message_t>().collect(),
+    asio_executor);
+```
+
+`mysql_async_session` 也提供了对应封装：
+
+```cpp
+auto rows = co_await db.await_safe(
+    db.raw().select(ormpp::all).from<chat_message_t>().collect());
+```
+
+safe 版本的主要差异：
+
+1. 用 `std::shared_ptr` 保存结果、异常、continuation 和取消信号，Asio 侧不会依赖裸 awaiter 地址。
+2. 用 `asio::strand` 串行化启动、完成、恢复和取消请求。
+3. 当当前 Asio 版本提供 `cancellation_signal` 时，支持通过 cancellation handle 请求取消。
+
+选择建议：
+
+| 场景 | 默认 `from_asio()` / `await()` | safe `from_asio_safe()` / `await_safe()` |
+| --- | --- | --- |
+| 单线程 `io_context`，父协程不会等待中销毁 | 推荐 | 可用，但有额外开销 |
+| 多线程同时 `run()` 同一个 `io_context` | 不安全 | 推荐 |
+| 需要外部取消操作 | 不支持 | 推荐 |
+| 父协程可能被取消或销毁 | 不安全 | 推荐 |
+
+safe 版本每次桥接会多一次共享状态分配，并通过 strand 增加若干次调度。相对于一次数据库网络 I/O
+通常可以忽略，但如果桥接的是大量内存内立即完成的小 awaitable，默认版本开销更低。
+
+示例：
+
+```cpp
+auto awaiter = adapter::from_asio_safe(long_running_query(), asio_executor);
+auto cancel = awaiter.get_cancellation_handle();
+
+// 另一个控制路径中：
+cancel.cancel(asio::cancellation_type::terminal);
+
+co_await std::move(awaiter);
+```
+
+取消请求是否能立刻中断操作，取决于底层 Asio 操作是否支持对应的 cancellation type。
+`cancellation_handle` 可以在 `co_await` 前获取；如果在 `co_spawn` 真正安装 cancellation slot
+之前就发起取消，safe adapter 会记录这次请求并在启动后补发。
+
+使用限制：
+
+1. `coAwait()` 传入的 `async_simple::Executor*` 是裸指针。safe adapter 会优先通过它恢复父协程，因此该 executor 必须在异步操作完成前保持有效。async_simple 当前接口没有提供 shared ownership，adapter 不能自行用 `weak_ptr` 保护它。
+2. 取消只表示向 Asio 协程请求取消；底层操作不支持对应 cancellation type 时，操作仍可能继续到自然完成。
+3. 如果只是在单线程数据库 I/O 链路里桥接普通查询，继续使用默认 `await()` / `from_asio()` 即可。
+
 ## 注意事项
 
 不要在 `async_simple::Lazy` 业务协程里直接 `co_await` ormpp 返回的 `asio::awaitable`。正确做法是通过桥接层启动 Asio 协程，再恢复 `async_simple` 协程。

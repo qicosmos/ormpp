@@ -97,21 +97,25 @@ if (ENABLE_MYSQL_ASYNC)
 
     # Try to find Asio from various sources
     if (NOT ORMPP_ASIO_INCLUDE_DIR)
-        # 1. Try to find from system installation (e.g., /usr/include, /usr/local/include)
-        find_path(ASIO_INCLUDE_PATH asio.hpp
-            PATHS
-                /usr/include
-                /usr/local/include
-                /opt/local/include
-                /opt/homebrew/include
-            PATH_SUFFIXES asio
-        )
-
-        if (ASIO_INCLUDE_PATH)
-            set(ORMPP_ASIO_INCLUDE_DIR "${ASIO_INCLUDE_PATH}")
-        # 2. Try relative path (for development)
+        # 1. Try relative paths (for development)
+        if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../cinatra/include/asio.hpp")
+            set(ORMPP_ASIO_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../cinatra/include")
         elseif (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../rest_rpc/thirdparty/asio/asio.hpp")
             set(ORMPP_ASIO_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../rest_rpc/thirdparty/asio")
+        else()
+            # 2. Try to find from system installation (e.g., /usr/include, /usr/local/include)
+            find_path(ASIO_INCLUDE_PATH asio.hpp
+                PATHS
+                    /usr/include
+                    /usr/local/include
+                    /opt/local/include
+                    /opt/homebrew/include
+                PATH_SUFFIXES asio
+            )
+
+            if (ASIO_INCLUDE_PATH)
+                set(ORMPP_ASIO_INCLUDE_DIR "${ASIO_INCLUDE_PATH}")
+            endif()
         endif()
     endif()
 

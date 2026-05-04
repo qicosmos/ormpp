@@ -36,6 +36,11 @@ class mysql_async_session {
     return adapter::from_asio(std::move(awaitable), executor_);
   }
 
+  template <typename T>
+  auto await_safe(asio::awaitable<T, asio::any_io_executor> awaitable) {
+    return adapter::from_asio_safe(std::move(awaitable), executor_);
+  }
+
   async_simple::coro::Lazy<bool> connect(const std::string &host,
                                          const std::string &user,
                                          const std::string &passwd,

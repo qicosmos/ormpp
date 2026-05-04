@@ -1,9 +1,13 @@
 #ifdef ORMPP_ENABLE_MYSQL_ASYNC
 
+#include <algorithm>
 #include <asio.hpp>
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
+#include <iomanip>
+#include <iostream>
+#include <numeric>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -65,6 +69,41 @@ get_db_config() {
           port_str ? std::atoi(port_str) : cfg.db_port};
 }
 
+inline bool getenv_enabled(const char* key) {
+  const char* value = std::getenv(key);
+  if (!value) {
+    return false;
+  }
+  std::string item(value);
+  return item == "1" || item == "true" || item == "TRUE" || item == "on" ||
+         item == "ON";
+}
+
+inline std::size_t getenv_size(const char* key, std::size_t fallback) {
+  const char* value = std::getenv(key);
+  if (!value || *value == '\0') {
+    return fallback;
+  }
+  return static_cast<std::size_t>(std::strtoull(value, nullptr, 10));
+}
+
+inline bool getenv_bool(const char* key, bool fallback) {
+  const char* value = std::getenv(key);
+  if (!value || *value == '\0') {
+    return fallback;
+  }
+  std::string item(value);
+  if (item == "1" || item == "true" || item == "TRUE" || item == "on" ||
+      item == "ON") {
+    return true;
+  }
+  if (item == "0" || item == "false" || item == "FALSE" || item == "off" ||
+      item == "OFF") {
+    return false;
+  }
+  return fallback;
+}
+
 // 辅助函数：创建并初始化连接池
 asio::awaitable<std::shared_ptr<async_connection_pool<mysql_async>>>
 create_test_pool(asio::any_io_executor executor, size_t pool_size = 5,
@@ -83,7 +122,173 @@ create_test_pool(asio::any_io_executor executor, size_t pool_size = 5,
   co_return pool;
 }
 
+struct stress_options {
+  std::size_t requests = 2000;
+  std::size_t concurrency = 64;
+  std::size_t pool_size = 50;
+  bool dynamic_expansion = false;
+  std::size_t dynamic_connections = 0;
+  std::chrono::seconds get_timeout{10};
+};
+
+stress_options get_stress_options() {
+  ormpp_cfg cfg{};
+  if (!load_config_file(cfg) || cfg.db_conn_num <= 0) {
+    cfg.db_conn_num = 50;
+  }
+
+  stress_options options;
+  options.requests = getenv_size("ORMPP_STRESS_REQUESTS", options.requests);
+  options.concurrency =
+      getenv_size("ORMPP_STRESS_CONCURRENCY", options.concurrency);
+  options.pool_size = getenv_size("ORMPP_STRESS_POOL_SIZE",
+                                  static_cast<std::size_t>(cfg.db_conn_num));
+  options.dynamic_expansion =
+      getenv_bool("ORMPP_STRESS_DYNAMIC", options.dynamic_expansion);
+  options.dynamic_connections =
+      getenv_size("ORMPP_STRESS_DYNAMIC_MAX", options.dynamic_connections);
+  options.get_timeout = std::chrono::seconds(
+      getenv_size("ORMPP_STRESS_GET_TIMEOUT_SECONDS",
+                  static_cast<std::size_t>(options.get_timeout.count())));
+
+  options.requests = std::max<std::size_t>(1, options.requests);
+  options.concurrency = std::max<std::size_t>(1, options.concurrency);
+  options.pool_size = std::max<std::size_t>(1, options.pool_size);
+  if (!options.dynamic_expansion) {
+    options.dynamic_connections = 0;
+  }
+  return options;
+}
+
+asio::awaitable<void> pooled_select_worker(
+    std::shared_ptr<async_connection_pool<mysql_async>> pool,
+    std::atomic_size_t* next_request, std::size_t request_count,
+    std::vector<std::int64_t>* latencies_us, std::atomic_size_t* successes,
+    std::atomic_size_t* failures, std::atomic_size_t* workers_done,
+    std::chrono::seconds get_timeout) {
+  for (;;) {
+    auto index = next_request->fetch_add(1, std::memory_order_relaxed);
+    if (index >= request_count) {
+      break;
+    }
+
+    auto begin = std::chrono::steady_clock::now();
+    bool ok = false;
+    try {
+      auto conn = co_await pool->get(get_timeout);
+      if (conn) {
+        ok = co_await conn->execute("select 1");
+        conn.reset();
+      }
+    } catch (...) {
+      ok = false;
+    }
+    auto end = std::chrono::steady_clock::now();
+
+    (*latencies_us)[index] =
+        std::chrono::duration_cast<std::chrono::microseconds>(end - begin)
+            .count();
+    if (ok) {
+      successes->fetch_add(1, std::memory_order_relaxed);
+    }
+    else {
+      failures->fetch_add(1, std::memory_order_relaxed);
+    }
+  }
+
+  workers_done->fetch_add(1, std::memory_order_release);
+}
+
+asio::awaitable<void> run_pooled_select_stress() {
+  auto executor = co_await asio::this_coro::executor;
+  auto stress = get_stress_options();
+
+  pool_options options;
+  options.enable_dynamic_expansion = stress.dynamic_expansion;
+  options.max_dynamic_connections = stress.dynamic_connections;
+  options.log_pool_exhaustion = false;
+
+  auto pool = co_await create_test_pool(executor, stress.pool_size, options);
+  REQUIRE(pool != nullptr);
+
+  std::vector<std::int64_t> latencies_us(stress.requests, 0);
+  std::atomic_size_t next_request{0};
+  std::atomic_size_t successes{0};
+  std::atomic_size_t failures{0};
+  std::atomic_size_t workers_done{0};
+
+  auto started = std::chrono::steady_clock::now();
+  for (std::size_t i = 0; i < stress.concurrency; ++i) {
+    asio::co_spawn(executor,
+                   pooled_select_worker(pool, &next_request, stress.requests,
+                                        &latencies_us, &successes, &failures,
+                                        &workers_done, stress.get_timeout),
+                   asio::detached);
+  }
+
+  while (workers_done.load(std::memory_order_acquire) < stress.concurrency) {
+    asio::steady_timer timer(executor);
+    timer.expires_after(std::chrono::milliseconds(20));
+    co_await timer.async_wait(asio::use_awaitable);
+  }
+  auto finished = std::chrono::steady_clock::now();
+
+  auto elapsed = std::chrono::duration_cast<std::chrono::duration<double>>(
+                     finished - started)
+                     .count();
+
+  std::sort(latencies_us.begin(), latencies_us.end());
+  auto percentile = [&](double p) {
+    auto index = static_cast<std::size_t>(
+        (p / 100.0) * static_cast<double>(latencies_us.size() - 1));
+    return latencies_us[index];
+  };
+  auto total_latency = std::accumulate(latencies_us.begin(), latencies_us.end(),
+                                       std::int64_t{0});
+  auto avg_latency = static_cast<double>(total_latency) /
+                     static_cast<double>(latencies_us.size());
+  auto success_count = successes.load(std::memory_order_relaxed);
+  auto failure_count = failures.load(std::memory_order_relaxed);
+  auto qps = elapsed > 0.0 ? static_cast<double>(success_count) / elapsed : 0.0;
+
+  auto [total, available, in_use, dynamic] = co_await pool->get_stats();
+
+  std::cout << std::fixed << std::setprecision(2)
+            << "\n[async mysql stress] pooled select 1\n"
+            << "  requests=" << stress.requests
+            << " concurrency=" << stress.concurrency
+            << " pool_size=" << stress.pool_size
+            << " dynamic=" << (stress.dynamic_expansion ? "on" : "off")
+            << " dynamic_max=" << stress.dynamic_connections << "\n"
+            << "  elapsed_s=" << elapsed << " success=" << success_count
+            << " failure=" << failure_count << " qps=" << qps << "\n"
+            << "  latency_us avg=" << avg_latency << " p50=" << percentile(50.0)
+            << " p90=" << percentile(90.0) << " p95=" << percentile(95.0)
+            << " p99=" << percentile(99.0) << " max=" << latencies_us.back()
+            << "\n"
+            << "  final_pool total=" << total << " available=" << available
+            << " in_use=" << in_use << " dynamic=" << dynamic << std::endl;
+
+  CHECK(failure_count == 0);
+  CHECK(success_count == stress.requests);
+  CHECK(available == stress.pool_size);
+  CHECK(in_use == 0);
+
+  co_await pool->close_all();
+}
+
 }  // namespace
+
+TEST_CASE("async mysql stress: pooled select throughput") {
+  if (!getenv_enabled("ORMPP_ASYNC_MYSQL_STRESS")) {
+    MESSAGE("set ORMPP_ASYNC_MYSQL_STRESS=1 to run async MySQL stress test");
+    return;
+  }
+
+  asio::io_context ctx;
+  asio::co_spawn(ctx, run_pooled_select_stress(), asio::detached);
+  ctx.run();
+}
 
 TEST_CASE("async_connection_pool: basic initialization") {
   asio::io_context ctx;

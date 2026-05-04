@@ -34,5 +34,5 @@ if(ENABLE_MYSQL_ASYNC)
         add_test(NAME ${PROJECT_NAME}_async_connection_pool
                 COMMAND ${PROJECT_NAME} --test-case=async_connection_pool:*)
         add_test(NAME ${PROJECT_NAME}_adapter_timing
-                COMMAND ${PROJECT_NAME} "--test-case=asio async_simple adapter timing:*")
+                COMMAND ${PROJECT_NAME} "--test-case=asio async_simple adapter timing:*,asio async_simple safe adapter:*")
 endif()

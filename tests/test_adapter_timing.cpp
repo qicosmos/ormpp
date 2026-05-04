@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <asio.hpp>
+#include <atomic>
 #include <chrono>
 #include <coroutine>
 #include <exception>
@@ -10,6 +11,8 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <system_error>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -151,6 +154,48 @@ class TestTask<void> {
       std::rethrow_exception(handle_.promise().exception);
     }
   }
+
+ private:
+  void destroy() noexcept {
+    if (handle_) {
+      handle_.destroy();
+      handle_ = nullptr;
+    }
+  }
+
+  std::coroutine_handle<promise_type> handle_;
+};
+
+class ConcurrentTask {
+ public:
+  struct promise_type {
+    ConcurrentTask get_return_object() {
+      return ConcurrentTask(
+          std::coroutine_handle<promise_type>::from_promise(*this));
+    }
+
+    std::suspend_always initial_suspend() noexcept { return {}; }
+    std::suspend_always final_suspend() noexcept { return {}; }
+    void return_void() noexcept {}
+    void unhandled_exception() noexcept { std::terminate(); }
+  };
+
+  explicit ConcurrentTask(std::coroutine_handle<promise_type> handle)
+      : handle_(handle) {}
+  ConcurrentTask(ConcurrentTask&& other) noexcept
+      : handle_(std::exchange(other.handle_, nullptr)) {}
+  ConcurrentTask& operator=(ConcurrentTask&& other) noexcept {
+    if (this != &other) {
+      destroy();
+      handle_ = std::exchange(other.handle_, nullptr);
+    }
+    return *this;
+  }
+  ConcurrentTask(const ConcurrentTask&) = delete;
+  ConcurrentTask& operator=(const ConcurrentTask&) = delete;
+  ~ConcurrentTask() { destroy(); }
+
+  void start() { handle_.resume(); }
 
  private:
   void destroy() noexcept {
@@ -336,6 +381,128 @@ int expected_stress_sum(int task_index, int await_count) {
   return sum;
 }
 
+TestTask<void> safe_value_void_and_exception_task(
+    asio::any_io_executor executor) {
+  auto a = co_await adapter::from_asio_safe(immediate_value(17), executor)
+               .coAwait(nullptr);
+  CHECK(a == 17);
+
+  auto b =
+      co_await adapter::from_asio_safe(posted_value(executor, 19), executor)
+          .coAwait(nullptr);
+  CHECK(b == 19);
+
+  co_await adapter::from_asio_safe(immediate_void(), executor).coAwait(nullptr);
+  co_await adapter::from_asio_safe(posted_void(executor), executor)
+      .coAwait(nullptr);
+
+  int exceptions = 0;
+  try {
+    (void)(co_await adapter::from_asio_safe(throwing_value(executor, false),
+                                            executor)
+               .coAwait(nullptr));
+  } catch (const std::runtime_error& e) {
+    CHECK(std::string(e.what()) == "immediate boom");
+    ++exceptions;
+  }
+
+  try {
+    (void)(co_await adapter::from_asio_safe(throwing_value(executor, true),
+                                            executor)
+               .coAwait(nullptr));
+  } catch (const std::runtime_error& e) {
+    CHECK(std::string(e.what()) == "deferred boom");
+    ++exceptions;
+  }
+
+  CHECK(exceptions == 2);
+}
+
+asio::awaitable<void, asio::any_io_executor> long_timer(
+    asio::any_io_executor executor) {
+  asio::steady_timer timer(executor);
+  timer.expires_after(std::chrono::hours(1));
+  co_await timer.async_wait(asio::use_awaitable);
+}
+
+asio::awaitable<void, asio::any_io_executor> observed_timer(
+    asio::any_io_executor executor, bool* started, bool* finished) {
+  *started = true;
+
+  asio::steady_timer timer(executor);
+  timer.expires_after(std::chrono::milliseconds(100));
+  try {
+    co_await timer.async_wait(asio::use_awaitable);
+  } catch (const std::system_error&) {
+  }
+
+  *finished = true;
+}
+
+TestTask<void> safe_parent_destroyed_task(asio::any_io_executor executor,
+                                          bool* child_started,
+                                          bool* child_finished,
+                                          bool* after_await) {
+  co_await adapter::from_asio_safe(
+      observed_timer(executor, child_started, child_finished), executor)
+      .coAwait(nullptr);
+  *after_await = true;
+}
+
+ConcurrentTask safe_concurrent_task(asio::any_io_executor executor, int value,
+                                    std::vector<int>* results,
+                                    std::atomic<int>* completed,
+                                    std::atomic<int>* resume_count) {
+  auto result = co_await adapter::from_asio_safe(
+                    patterned_value(executor, value, value), executor)
+                    .coAwait(nullptr);
+  (*results)[value] = result;
+  resume_count->fetch_add(1, std::memory_order_relaxed);
+  completed->fetch_add(1, std::memory_order_release);
+}
+
+#if ORMPP_ASIO_ASYNC_SIMPLE_ADAPTER_HAS_CANCELLATION
+TestTask<void> safe_cancellation_task(asio::any_io_executor executor,
+                                      std::function<bool()>* cancel,
+                                      bool* saw_cancel) {
+  auto awaiter = adapter::from_asio_safe(long_timer(executor), executor);
+  auto cancel_handle = awaiter.get_cancellation_handle();
+  *cancel = [cancel_handle]() mutable {
+    return cancel_handle.cancel(asio::cancellation_type::terminal);
+  };
+
+  try {
+    co_await std::move(awaiter).coAwait(nullptr);
+  } catch (const std::system_error& e) {
+    CHECK(e.code() == asio::error::operation_aborted);
+    *saw_cancel = true;
+  }
+}
+
+TestTask<void> safe_cancel_before_start_task(asio::any_io_executor executor,
+                                             bool* saw_cancel) {
+  auto awaiter = adapter::from_asio_safe(long_timer(executor), executor);
+  CHECK(awaiter.cancel(asio::cancellation_type::terminal));
+
+  try {
+    co_await std::move(awaiter).coAwait(nullptr);
+  } catch (const std::system_error& e) {
+    CHECK(e.code() == asio::error::operation_aborted);
+    *saw_cancel = true;
+  }
+}
+
+TestTask<void> safe_cancel_after_completion_task(
+    asio::any_io_executor executor) {
+  auto awaiter = adapter::from_asio_safe(immediate_value(42), executor);
+  auto cancel_handle = awaiter.get_cancellation_handle();
+
+  auto value = co_await std::move(awaiter).coAwait(nullptr);
+  CHECK(value == 42);
+  (void)cancel_handle.cancel(asio::cancellation_type::terminal);
+}
+#endif
+
 }  // namespace
 
 TEST_CASE("asio async_simple adapter timing: start and resume are posted") {
@@ -401,6 +568,137 @@ TEST_CASE("asio async_simple adapter timing: result and exception paths") {
   CHECK_NOTHROW(task.result());
 }
 
+TEST_CASE("asio async_simple safe adapter: result and exception paths") {
+  asio::io_context ctx;
+  bool done = false;
+  auto task = safe_value_void_and_exception_task(ctx.get_executor());
+
+  asio::post(ctx, [&] {
+    task.start(done);
+  });
+  run_until(ctx, [&] {
+    return done;
+  });
+  CHECK_NOTHROW(task.result());
+}
+
+TEST_CASE("asio async_simple safe adapter: parent coroutine destroyed") {
+  asio::io_context ctx;
+  bool done = false;
+  bool child_started = false;
+  bool child_finished = false;
+  bool after_await = false;
+
+  {
+    auto task = safe_parent_destroyed_task(ctx.get_executor(), &child_started,
+                                           &child_finished, &after_await);
+    asio::post(ctx, [&] {
+      task.start(done);
+    });
+
+    run_until(ctx, [&] {
+      return child_started;
+    });
+
+    CHECK_FALSE(done);
+    CHECK_FALSE(after_await);
+  }
+
+  ctx.restart();
+  ctx.run_for(std::chrono::milliseconds(500));
+
+  CHECK(child_finished);
+  CHECK_FALSE(done);
+  CHECK_FALSE(after_await);
+}
+
+TEST_CASE("asio async_simple safe adapter: move semantics") {
+  asio::io_context ctx;
+  using awaiter_type =
+      decltype(adapter::from_asio_safe(immediate_value(1), ctx.get_executor()));
+  typename awaiter_type::cancellation_handle handle;
+
+  {
+    auto awaiter1 =
+        adapter::from_asio_safe(immediate_value(42), ctx.get_executor());
+    handle = awaiter1.get_cancellation_handle();
+    CHECK(handle.valid());
+
+    auto awaiter2 = std::move(awaiter1);
+    CHECK(handle.valid());
+
+    auto awaiter3 =
+        adapter::from_asio_safe(immediate_value(99), ctx.get_executor());
+    awaiter3 = std::move(awaiter2);
+    CHECK(handle.valid());
+  }
+
+  CHECK_FALSE(handle.valid());
+}
+
+TEST_CASE("asio async_simple safe adapter: cancellation handle lifetime") {
+  asio::io_context ctx;
+  using awaiter_type =
+      decltype(adapter::from_asio_safe(immediate_value(1), ctx.get_executor()));
+  typename awaiter_type::cancellation_handle handle;
+
+  {
+    auto awaiter =
+        adapter::from_asio_safe(immediate_value(42), ctx.get_executor());
+    handle = awaiter.get_cancellation_handle();
+    CHECK(handle.valid());
+  }
+
+  CHECK_FALSE(handle.valid());
+  CHECK_FALSE(handle.cancel());
+}
+
+TEST_CASE("asio async_simple safe adapter: multi-threaded io_context") {
+  constexpr int task_count = 64;
+
+  asio::io_context ctx;
+  auto work_guard = asio::make_work_guard(ctx);
+  std::atomic<int> completed{0};
+  std::atomic<int> resume_count{0};
+  std::vector<int> results(task_count, 0);
+  std::vector<ConcurrentTask> tasks;
+  tasks.reserve(task_count);
+
+  std::thread t1([&] {
+    ctx.run();
+  });
+  std::thread t2([&] {
+    ctx.run();
+  });
+
+  for (int i = 0; i < task_count; ++i) {
+    tasks.push_back(safe_concurrent_task(ctx.get_executor(), i, &results,
+                                         &completed, &resume_count));
+  }
+
+  for (int i = 0; i < task_count; ++i) {
+    asio::post(ctx, [&, i] {
+      tasks[i].start();
+    });
+  }
+
+  for (int i = 0;
+       i < 1000 && completed.load(std::memory_order_acquire) != task_count;
+       ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+
+  CHECK(completed.load(std::memory_order_acquire) == task_count);
+  work_guard.reset();
+  t1.join();
+  t2.join();
+
+  CHECK(resume_count.load(std::memory_order_relaxed) == task_count);
+  for (int i = 0; i < task_count; ++i) {
+    CHECK(results[i] == i);
+  }
+}
+
 TEST_CASE("asio async_simple adapter timing: interleaved stress") {
   constexpr int task_count = 64;
   constexpr int await_count = 16;
@@ -433,5 +731,64 @@ TEST_CASE("asio async_simple adapter timing: interleaved stress") {
     CHECK(tasks[i].result() == expected_stress_sum(i, await_count));
   }
 }
+
+#if ORMPP_ASIO_ASYNC_SIMPLE_ADAPTER_HAS_CANCELLATION
+TEST_CASE("asio async_simple safe adapter: cancellation") {
+  asio::io_context ctx;
+  bool done = false;
+  bool saw_cancel = false;
+  std::function<bool()> cancel;
+  auto task = safe_cancellation_task(ctx.get_executor(), &cancel, &saw_cancel);
+
+  asio::post(ctx, [&] {
+    task.start(done);
+  });
+
+  ctx.restart();
+  REQUIRE(ctx.run_one() == 1);
+  REQUIRE(cancel);
+  CHECK(cancel());
+
+  run_until(ctx, [&] {
+    return done;
+  });
+  CHECK(saw_cancel);
+  CHECK_NOTHROW(task.result());
+}
+
+TEST_CASE("asio async_simple safe adapter: cancel before start") {
+  asio::io_context ctx;
+  bool done = false;
+  bool saw_cancel = false;
+  auto task = safe_cancel_before_start_task(ctx.get_executor(), &saw_cancel);
+
+  asio::post(ctx, [&] {
+    task.start(done);
+  });
+
+  run_until(ctx, [&] {
+    return done;
+  });
+
+  CHECK(saw_cancel);
+  CHECK_NOTHROW(task.result());
+}
+
+TEST_CASE("asio async_simple safe adapter: cancel after completion") {
+  asio::io_context ctx;
+  bool done = false;
+  auto task = safe_cancel_after_completion_task(ctx.get_executor());
+
+  asio::post(ctx, [&] {
+    task.start(done);
+  });
+
+  run_until(ctx, [&] {
+    return done;
+  });
+
+  CHECK_NOTHROW(task.result());
+}
+#endif
 
 #endif  // ORMPP_ENABLE_MYSQL_ASYNC
