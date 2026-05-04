@@ -17,8 +17,7 @@ inline constexpr bool is_async_db_v =
     db_execution_traits<std::remove_pointer_t<DB>>::is_async;
 
 template <typename DB, typename T>
-using db_awaitable_t =
-    typename db_execution_traits<std::remove_pointer_t<DB>>::template
-        awaitable_type<T>;
+using db_awaitable_t = typename db_execution_traits<
+    std::remove_pointer_t<DB>>::template awaitable_type<T>;
 
 }  // namespace ormpp

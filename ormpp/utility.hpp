@@ -298,7 +298,7 @@ inline std::string get_fields(DBType db_type) {
 }
 
 // Check if SQL string starts with SELECT keyword (case-insensitive)
-inline bool contains_select(const std::string& sql) {
+inline bool contains_select(const std::string &sql) {
   if (sql.empty()) {
     return false;
   }
@@ -311,7 +311,7 @@ inline bool contains_select(const std::string& sql) {
     return false;
   }
   // Check if starts with "select" (case-insensitive)
-  const char* select_keyword = "select";
+  const char *select_keyword = "select";
   for (int i = 0; i < 6 && it != sql.end(); ++i, ++it) {
     if (std::tolower(static_cast<unsigned char>(*it)) != select_keyword[i]) {
       return false;

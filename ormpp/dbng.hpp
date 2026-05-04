@@ -5,11 +5,11 @@
 #ifndef ORM_DBNG_HPP
 #define ORM_DBNG_HPP
 
-#include <type_traits>
 #include <chrono>
 #include <functional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 #include "async_traits.hpp"
@@ -21,7 +21,7 @@ class dbng {
  public:
   dbng() = default;
   template <typename... Args>
-  requires(std::is_constructible_v<DB, Args...>)
+    requires(std::is_constructible_v<DB, Args...>)
   explicit dbng(Args &&...args) : db_(std::forward<Args>(args)...) {}
   dbng(const dbng &) = delete;
   ~dbng() {
@@ -297,6 +297,16 @@ class dbng {
   DB db_;
   std::chrono::system_clock::time_point latest_tm_ =
       std::chrono::system_clock::now();
+};
+
+template <typename DB>
+  requires is_async_db_v<DB>
+struct db_execution_traits<dbng<DB>> {
+  static constexpr bool is_async = true;
+
+  template <typename T>
+  using awaitable_type =
+      typename db_execution_traits<DB>::template awaitable_type<T>;
 };
 }  // namespace ormpp
 

@@ -310,16 +310,17 @@ inline std::string join_impl(std::string prefix, auto field1, auto field2) {
 template <typename... Args>
 std::string order_by_sql(Args... fields) {
   std::string sql = " ORDER BY ";
-  ([&] {
-    if (fields.class_name.empty()) {
-      sql.append(fields.name);
-    }
-    else {
-      sql.append(fields.class_name).append(".").append(fields.name);
-    }
-    sql.append(fields.sort_order).append(",");
-  }(),
-   ...);
+  (
+      [&] {
+        if (fields.class_name.empty()) {
+          sql.append(fields.name);
+        }
+        else {
+          sql.append(fields.class_name).append(".").append(fields.name);
+        }
+        sql.append(fields.sort_order).append(",");
+      }(),
+      ...);
   sql.pop_back();
   return sql;
 }
@@ -446,8 +447,7 @@ class query_builder {
             return std::forward<Result>(result);
           }
           else {
-            if constexpr (iguana::optional_v<To> ||
-                          std::is_arithmetic_v<To> ||
+            if constexpr (iguana::optional_v<To> || std::is_arithmetic_v<To> ||
                           iguana::string_container_v<To>) {
               if (result.empty()) {
                 return To{};
@@ -466,7 +466,8 @@ class query_builder {
     db_awaitable_t<DB, std::vector<Out>> query_async_with_params(
         const std::string& sql, Tuple& params, std::index_sequence<I...>) {
       co_return co_await db_->template query_s<Out>(
-          sql, std::decay_t<decltype(std::get<I>(params))>(std::get<I>(params))...);
+          sql,
+          std::decay_t<decltype(std::get<I>(params))>(std::get<I>(params))...);
     }
 
     template <typename To, typename... Args>
@@ -474,36 +475,42 @@ class query_builder {
       auto sql = build_sql();
       if constexpr (!ylt::reflection::is_ylt_refl_v<R> && !std::is_void_v<R> &&
                     !iguana::tuple_v<R>) {
-        auto result =
-            db_->template query_s<std::tuple<R>>(sql, std::forward<Args>(args)...);
+        auto result = db_->template query_s<std::tuple<R>>(
+            sql, std::forward<Args>(args)...);
         return extract_query_result<To>(std::move(result));
       }
       else if constexpr (std::is_void_v<R>) {
-        auto result = db_->template query_s<T>(sql, std::forward<Args>(args)...);
+        auto result =
+            db_->template query_s<T>(sql, std::forward<Args>(args)...);
         return extract_query_result<To>(std::move(result));
       }
       else if constexpr (std::is_void_v<To>) {
-        auto result = db_->template query_s<R>(sql, std::forward<Args>(args)...);
+        auto result =
+            db_->template query_s<R>(sql, std::forward<Args>(args)...);
         return extract_query_result<To>(std::move(result));
       }
       else if constexpr (iguana::optional_v<To> || std::is_arithmetic_v<To> ||
                          iguana::string_container_v<To>) {
-        auto result = db_->template query_s<R>(sql, std::forward<Args>(args)...);
+        auto result =
+            db_->template query_s<R>(sql, std::forward<Args>(args)...);
         return extract_query_result<To>(std::move(result));
       }
       else {
-        auto result = db_->template query_s<To>(sql, std::forward<Args>(args)...);
+        auto result =
+            db_->template query_s<To>(sql, std::forward<Args>(args)...);
         return extract_query_result<To>(std::move(result));
       }
     }
 
     template <typename To = void, typename... Args>
-    requires(!is_async_db_v<DB>) auto collect(Args&&... args) {
+      requires(!is_async_db_v<DB>)
+    auto collect(Args&&... args) {
       return collect_sync<To>(std::forward<Args>(args)...);
     }
 
     template <typename To = void, typename... Args>
-    requires(is_async_db_v<DB>) auto collect(Args... args) {
+      requires(is_async_db_v<DB>)
+    auto collect(Args... args) {
       return collect_async<To>(this->shared_from_this(),
                                std::make_tuple(std::move(args)...),
                                std::index_sequence_for<Args...>{});
@@ -515,8 +522,9 @@ class query_builder {
       auto sql = ctx->build_sql();
       if constexpr (!ylt::reflection::is_ylt_refl_v<R> && !std::is_void_v<R> &&
                     !iguana::tuple_v<R>) {
-        auto result = co_await ctx->template query_async_with_params<
-            std::tuple<R>>(sql, params, std::index_sequence<I...>{});
+        auto result =
+            co_await ctx->template query_async_with_params<std::tuple<R>>(
+                sql, params, std::index_sequence<I...>{});
         co_return extract_query_result<To>(std::move(result));
       }
       else if constexpr (std::is_void_v<R>) {
@@ -542,14 +550,15 @@ class query_builder {
     }
 
     template <typename Q = R, typename... Args>
-    requires(!is_async_db_v<DB> && iguana::tuple_v<Q>) auto scalar(
-        Args&&... args) {
+      requires(!is_async_db_v<DB> && iguana::tuple_v<Q>)
+    auto scalar(Args&&... args) {
       using first = std::tuple_element_t<0, R>;
       return collect<first>(std::forward<Args>(args)...);
     }
 
     template <typename Q = R, typename... Args>
-    requires(is_async_db_v<DB> && iguana::tuple_v<Q>) auto scalar(Args... args) {
+      requires(is_async_db_v<DB> && iguana::tuple_v<Q>)
+    auto scalar(Args... args) {
       using first = std::tuple_element_t<0, Q>;
       return collect_async<first>(this->shared_from_this(),
                                   std::make_tuple(std::move(args)...),
@@ -927,7 +936,9 @@ struct update_context {
     return sql;
   }
 
-  auto execute_impl() requires(!is_async_db_v<DB>) {
+  auto execute_impl()
+    requires(!is_async_db_v<DB>)
+  {
     auto sql = build_sql();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -938,7 +949,9 @@ struct update_context {
     return -1;
   }
 
-  db_awaitable_t<DB, int> execute_impl() requires(is_async_db_v<DB>) {
+  db_awaitable_t<DB, int> execute_impl()
+    requires(is_async_db_v<DB>)
+  {
     auto sql = build_sql();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -1039,7 +1052,9 @@ struct delete_context {
     return sql;
   }
 
-  auto execute_impl() requires(!is_async_db_v<DB>) {
+  auto execute_impl()
+    requires(!is_async_db_v<DB>)
+  {
     auto sql = build_sql();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -1050,7 +1065,9 @@ struct delete_context {
     return -1;
   }
 
-  db_awaitable_t<DB, int> execute_impl() requires(is_async_db_v<DB>) {
+  db_awaitable_t<DB, int> execute_impl()
+    requires(is_async_db_v<DB>)
+  {
     auto sql = build_sql();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -1173,7 +1190,9 @@ struct create_table_builder {
     return *this;
   }
 
-  auto execute() requires(!is_async_db_v<DB>) {
+  auto execute()
+    requires(!is_async_db_v<DB>)
+  {
     std::string sql = generate_sql();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -1190,7 +1209,9 @@ struct create_table_builder {
     return db_->execute(sql);
   }
 
-  db_awaitable_t<DB, bool> execute() requires(is_async_db_v<DB>) {
+  db_awaitable_t<DB, bool> execute()
+    requires(is_async_db_v<DB>)
+  {
     std::string sql = generate_sql();
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -1509,7 +1530,9 @@ struct alter_table_builder {
     return *this;
   }
 
-  auto execute() requires(!is_async_db_v<DB>) {
+  auto execute()
+    requires(!is_async_db_v<DB>)
+  {
     auto table_name = get_short_struct_name<T>();
     constexpr std::string_view ci_prefix = "_CREATE__INDEX__ ";
     constexpr std::string_view di_prefix = "_DROP_INDEX__ ";
@@ -1550,7 +1573,9 @@ struct alter_table_builder {
     return ok;
   }
 
-  db_awaitable_t<DB, bool> execute() requires(is_async_db_v<DB>) {
+  db_awaitable_t<DB, bool> execute()
+    requires(is_async_db_v<DB>)
+  {
     auto table_name = get_short_struct_name<T>();
     constexpr std::string_view ci_prefix = "_CREATE__INDEX__ ";
     constexpr std::string_view di_prefix = "_DROP_INDEX__ ";

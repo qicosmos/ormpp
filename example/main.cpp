@@ -1,5 +1,6 @@
 #ifdef ORMPP_ENABLE_MYSQL_ASYNC
 #include <asio.hpp>
+
 #include "mysql_async.hpp"
 #endif
 

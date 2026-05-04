@@ -1,8 +1,8 @@
 #ifndef ORMPP_ASYNC_CONNECTION_POOL_HPP
 #define ORMPP_ASYNC_CONNECTION_POOL_HPP
 
-#include <asio.hpp>
 #include <algorithm>
+#include <asio.hpp>
 #include <chrono>
 #include <cstddef>
 #include <deque>
@@ -20,14 +20,15 @@ namespace ormpp {
 
 // Pool configuration options
 struct pool_options {
-  bool enable_dynamic_expansion = false;  // Allow temporary connections when pool is full
-  size_t max_dynamic_connections = 10;    // Max temporary connections
-  bool log_pool_exhaustion = true;        // Log when pool is exhausted
+  bool enable_dynamic_expansion =
+      false;  // Allow temporary connections when pool is full
+  size_t max_dynamic_connections = 10;  // Max temporary connections
+  bool log_pool_exhaustion = true;      // Log when pool is exhausted
 };
 
 // Async connection pool for databases that support async operations
 template <typename DB>
-requires is_async_db_v<DB>
+  requires is_async_db_v<DB>
 class async_connection_pool
     : public std::enable_shared_from_this<async_connection_pool<DB>> {
  public:
@@ -37,9 +38,7 @@ class async_connection_pool
 
   explicit async_connection_pool(executor_type executor,
                                  pool_options options = {})
-      : executor_(std::move(executor)),
-        strand_(executor_),
-        options_(options) {}
+      : executor_(std::move(executor)), strand_(executor_), options_(options) {}
 
   // Destructor - automatically cleanup connections
   ~async_connection_pool() {
@@ -86,8 +85,8 @@ class async_connection_pool
     for (size_t i = 0; i < pool_size_; ++i) {
       auto conn = std::make_unique<DB>(executor_);
 
-      bool connected =
-          co_await conn->connect(host_, user_, passwd_, database_, timeout_, port_);
+      bool connected = co_await conn->connect(host_, user_, passwd_, database_,
+                                              timeout_, port_);
       if (!connected) {
         co_await disconnect_available_connections();
         co_return false;
@@ -101,7 +100,8 @@ class async_connection_pool
   }
 
   // Get a connection from the pool (with timeout)
-  // Returns a shared_ptr with custom deleter that automatically returns connection to pool
+  // Returns a shared_ptr with custom deleter that automatically returns
+  // connection to pool
   awaitable<std::shared_ptr<DB>> get(
       std::chrono::seconds timeout = std::chrono::seconds(10)) {
     auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -167,10 +167,10 @@ class async_connection_pool
 
       // Wait for a connection to be returned
       // Use exponential backoff: 50ms, 100ms, 200ms, max 500ms
-      auto wait_time = std::min(
-          std::chrono::milliseconds(50 * (1 << std::min(wait_count - 1, size_t(3)))),
-          std::chrono::milliseconds(500)
-      );
+      auto wait_time =
+          std::min(std::chrono::milliseconds(
+                       50 * (1 << std::min(wait_count - 1, size_t(3)))),
+                   std::chrono::milliseconds(500));
       auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
           deadline - std::chrono::steady_clock::now());
       if (remaining <= std::chrono::milliseconds::zero()) {
@@ -190,7 +190,6 @@ class async_connection_pool
 
     co_return nullptr;
   }
-
 
   // Get pool statistics
   // Returns: (pool_size, available, in_use, dynamic_count)
@@ -218,8 +217,9 @@ class async_connection_pool
 
   // Close all connections gracefully
   // wait_for_return: if true, wait for all in-use connections to be returned
-  awaitable<void> close_all(bool wait_for_return = false,
-                            std::chrono::seconds max_wait = std::chrono::seconds(30)) {
+  awaitable<void> close_all(
+      bool wait_for_return = false,
+      std::chrono::seconds max_wait = std::chrono::seconds(30)) {
     co_await asio::post(strand_, asio::use_awaitable);
 
     if (!initialized_ || closing_) {
@@ -258,8 +258,9 @@ class async_connection_pool
       }
 
       if (in_use_count_ > 0) {
-        std::cerr << "[Connection Pool] Warning: Timeout waiting for connections. "
-                  << in_use_count_ << " connections still in use." << std::endl;
+        std::cerr
+            << "[Connection Pool] Warning: Timeout waiting for connections. "
+            << in_use_count_ << " connections still in use." << std::endl;
       }
     }
 
@@ -286,24 +287,21 @@ class async_connection_pool
     auto weak_pool = this->weak_from_this();
 
     try {
-      return std::shared_ptr<DB>(
-          raw, [weak_pool, dynamic](DB* db) mutable {
-            std::unique_ptr<DB> connection(db);
-            try {
-              if (auto pool = weak_pool.lock()) {
-                auto strand = pool->strand_;
-                asio::post(strand,
-                           [pool = std::move(pool),
-                            connection = std::move(connection),
-                            dynamic]() mutable {
-                             pool->return_connection(std::move(connection),
-                                                     dynamic);
-                           });
-              }
-            } catch (...) {
-              // Fallback to local destruction of the connection handle.
-            }
-          });
+      return std::shared_ptr<DB>(raw, [weak_pool, dynamic](DB* db) mutable {
+        std::unique_ptr<DB> connection(db);
+        try {
+          if (auto pool = weak_pool.lock()) {
+            auto strand = pool->strand_;
+            asio::post(strand, [pool = std::move(pool),
+                                connection = std::move(connection),
+                                dynamic]() mutable {
+              pool->return_connection(std::move(connection), dynamic);
+            });
+          }
+        } catch (...) {
+          // Fallback to local destruction of the connection handle.
+        }
+      });
     } catch (...) {
       delete raw;
       throw;
@@ -385,8 +383,7 @@ class async_connection_pool
   void log_connection_timeout(std::chrono::seconds timeout) {
     std::cerr << "[Connection Pool] Timeout after " << timeout.count()
               << " seconds waiting for connection. "
-              << "Consider increasing pool size or timeout."
-              << std::endl;
+              << "Consider increasing pool size or timeout." << std::endl;
   }
 
   executor_type executor_;
