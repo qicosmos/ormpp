@@ -1,0 +1,128 @@
+name: CI-MySQL-Async
+
+on: [push, pull_request]
+
+jobs:
+  build-and-test:
+    name: ubuntu-latest (${{ matrix.configuration }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: 123456
+          MYSQL_DATABASE: test_ormppdb
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -p123456"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 3306:3306
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev
+
+      - name: Install Asio 1.36
+        run: |
+          curl -fsSL -o /tmp/asio-1.36.0.tar.gz \
+            "https://downloads.sourceforge.net/project/asio/asio/1.36.0%20%28Stable%29/asio-1.36.0.tar.gz"
+          tar -xzf /tmp/asio-1.36.0.tar.gz -C /tmp
+          echo "ASIO_INCLUDE_DIR=/tmp/asio-1.36.0/include" >> "$GITHUB_ENV"
+
+      - name: Configure cmake
+        run: >
+          cmake -B${{ github.workspace }}/build
+          -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
+          -DENABLE_MYSQL_ASYNC=ON
+          -DORMPP_ASIO_INCLUDE_DIR="$ASIO_INCLUDE_DIR"
+
+      - name: Build
+        run: cmake --build ${{ github.workspace }}/build --config ${{ matrix.configuration }}
+
+      - name: Test async adapter timing
+        working-directory: ${{ github.workspace }}/build
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest -C ${{ matrix.configuration }} -R "^test_ormpp_adapter_timing$" -j 1 -V
+
+      - name: Test async MySQL formatting
+        working-directory: ${{ github.workspace }}/build
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest -C ${{ matrix.configuration }} -R "^test_ormpp_async_mysql_format$" -j 1 -V
+
+      - name: Test async MySQL smoke
+        working-directory: ${{ github.workspace }}/build
+        env:
+          ORMPP_ASYNC_MYSQL_HOST: 127.0.0.1
+          ORMPP_ASYNC_MYSQL_USER: root
+          ORMPP_ASYNC_MYSQL_PASSWORD: 123456
+          ORMPP_ASYNC_MYSQL_DB: test_ormppdb
+          ORMPP_ASYNC_MYSQL_PORT: 3306
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest -C ${{ matrix.configuration }} -R "^test_ormpp_async_mysql_smoke$" -j 1 -V
+
+      - name: Test async connection pool
+        working-directory: ${{ github.workspace }}/build
+        env:
+          ORMPP_ASYNC_MYSQL_HOST: 127.0.0.1
+          ORMPP_ASYNC_MYSQL_USER: root
+          ORMPP_ASYNC_MYSQL_PASSWORD: 123456
+          ORMPP_ASYNC_MYSQL_DB: test_ormppdb
+          ORMPP_ASYNC_MYSQL_PORT: 3306
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest -C ${{ matrix.configuration }} -R "^test_ormpp_async_connection_pool$" -j 1 -V
+
+  adapter-timing-tsan:
+    name: ubuntu-latest (adapter timing TSAN)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libssl-dev
+
+      - name: Install Asio 1.36
+        run: |
+          curl -fsSL -o /tmp/asio-1.36.0.tar.gz \
+            "https://downloads.sourceforge.net/project/asio/asio/1.36.0%20%28Stable%29/asio-1.36.0.tar.gz"
+          tar -xzf /tmp/asio-1.36.0.tar.gz -C /tmp
+          echo "ASIO_INCLUDE_DIR=/tmp/asio-1.36.0/include" >> "$GITHUB_ENV"
+
+      - name: Configure cmake
+        env:
+          CC: clang
+          CXX: clang++
+        run: >
+          cmake -B${{ github.workspace }}/build-tsan
+          -DCMAKE_BUILD_TYPE=Debug
+          -DENABLE_MYSQL_ASYNC=ON
+          -DORMPP_ASIO_INCLUDE_DIR="$ASIO_INCLUDE_DIR"
+          -DENABLE_SANITIZER=OFF
+          -DENABLE_THREAD_SANITIZER=ON
+
+      - name: Build
+        run: cmake --build ${{ github.workspace }}/build-tsan --config Debug --target test_ormpp
+
+      - name: Test async adapter timing under TSAN
+        working-directory: ${{ github.workspace }}/build-tsan
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
+        run: ctest -C Debug -R "^test_ormpp_adapter_timing$" -j 1 -V

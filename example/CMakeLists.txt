@@ -20,5 +20,8 @@ if(MARIADB_FOUND)
         target_link_libraries(${PROJECT_NAME} ${MARIADB_LIBRARY})
 endif()
 target_link_libraries(${PROJECT_NAME} sqlite3)
+if(ENABLE_MYSQL_ASYNC)
+        target_link_libraries(${PROJECT_NAME} OpenSSL::SSL OpenSSL::Crypto)
+endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

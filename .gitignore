@@ -6,6 +6,7 @@
 *.lo
 *.o
 *.obj
+*.log
 
 # Precompiled Headers
 *.gch
@@ -38,3 +39,5 @@
 .cache
 /.vs
 /CMakeSettings.json
+.cfg
+/test_ormppdb
