@@ -580,10 +580,8 @@ IGUANA_INLINE void from_json(T &value, It &&it, It &&end) {
   match<'{'>(it, end);
 
   skip_ws(it, end);
-          
   if (it == end)
-      IGUANA_UNLIKELY{ throw std::runtime_error("Failed to parse object"); }
-          
+    IGUANA_UNLIKELY{ throw std::runtime_error("unexpected end while parsing object"); }
   if (*it == '}')
     IGUANA_UNLIKELY {
       ++it;
