@@ -364,6 +364,53 @@ CHECK(sqlite.remove<builder_person>()
             .execute() == 1);
 ```
 
+#### 范围分区链式调用接口
+
+范围分区通过统一的链式 API 表达，ormpp 会根据数据库类型生成不同 SQL：
+
+- MySQL：使用原生 `PARTITION BY RANGE COLUMNS`、`DELETE ... PARTITION`、`ALTER TABLE ... TRUNCATE/DROP PARTITION`
+- PostgreSQL：使用父表 `PARTITION BY RANGE` 和子分区表
+- SQLite：没有原生分区，使用分区字段范围条件模拟删除，并为分区字段创建索引
+
+例子：
+
+```cpp
+struct order_log {
+  int id;
+  int bucket;
+  std::string payload;
+};
+
+auto p202405 = ormpp::range_partition("p202405", 202405, 202406);
+auto p202406 = ormpp::range_partition("p202406", 202406, 202407);
+
+db.create_table<order_log>()
+    .primary_key(col(&order_log::id), col(&order_log::bucket))
+    .partition_by_range(col(&order_log::bucket))
+    .partition(p202405)
+    .partition(p202406)
+    .execute();
+
+// 删除一个逻辑分区中的数据
+db.remove<order_log>()
+    .partition(col(&order_log::bucket), p202405)
+    .execute_all();
+
+// 清空一个逻辑分区
+db.alter_table<order_log>()
+    .clear_partition(col(&order_log::bucket), p202406)
+    .execute();
+
+// 维护分区结构。SQLite 没有原生分区，drop_partition 会失败返回 false。
+auto p202407 = ormpp::range_partition("p202407", 202407, 202408);
+db.alter_table<order_log>()
+    .add_partition(col(&order_log::bucket), p202407)
+    .drop_partition(p202407)
+    .execute();
+```
+
+注意：分区名会按 SQL 标识符校验，只允许字母、数字和下划线，且不能以数字开头。MySQL 分区表的主键/唯一键需要满足 MySQL 自身限制，通常应包含分区字段。
+
 ## 如何编译
 
 支持的选项如下:
