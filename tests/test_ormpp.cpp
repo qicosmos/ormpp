@@ -65,6 +65,12 @@ struct builder_person {
 };
 REGISTER_AUTO_KEY(builder_person, id)
 
+struct ormpp_partition_log {
+  int id;
+  int bucket;
+  std::string payload;
+};
+
 TEST_CASE("test mysql long string") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
@@ -3070,6 +3076,113 @@ TEST_CASE("unsigned type") {
     CHECK(vec.front().g == 7);
     CHECK(vec.front().h == 8);
     CHECK(vec.front().v == "purecpp");
+  }
+}
+
+TEST_CASE("builder range partition interfaces") {
+  auto p202405 = range_partition("p202405", 202405, 202406);
+  auto p202406 = range_partition("p202406", 202406, 202407);
+  auto p202407 = range_partition("p202407", 202407, 202408);
+
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists ormpp_partition_log");
+    CHECK(mysql.create_table<ormpp_partition_log>()
+              .primary_key(col(&ormpp_partition_log::id),
+                           col(&ormpp_partition_log::bucket))
+              .partition_by_range(col(&ormpp_partition_log::bucket))
+              .partition(p202405)
+              .partition(p202406)
+              .execute());
+
+    CHECK(mysql.insert(ormpp_partition_log{1, 202405, "old"}) == 1);
+    CHECK(mysql.insert(ormpp_partition_log{2, 202406, "current"}) == 1);
+    CHECK(mysql.remove<ormpp_partition_log>()
+              .partition(col(&ormpp_partition_log::bucket), p202405)
+              .execute_all() == 1);
+    CHECK(mysql.query_s<ormpp_partition_log>("bucket=?", 202405).empty());
+
+    CHECK(mysql.alter_table<ormpp_partition_log>()
+              .clear_partition(col(&ormpp_partition_log::bucket), p202406)
+              .execute());
+    CHECK(mysql.query_s<ormpp_partition_log>().empty());
+
+    CHECK(mysql.alter_table<ormpp_partition_log>()
+              .add_partition(col(&ormpp_partition_log::bucket), p202407)
+              .drop_partition(p202407)
+              .execute());
+  }
+#endif
+
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db)) {
+    postgres.execute("drop table if exists ormpp_partition_log cascade");
+    CHECK(postgres.create_table<ormpp_partition_log>()
+              .primary_key(col(&ormpp_partition_log::id),
+                           col(&ormpp_partition_log::bucket))
+              .partition_by_range(col(&ormpp_partition_log::bucket))
+              .partition(p202405)
+              .partition(p202406)
+              .execute());
+
+    CHECK(postgres.insert(ormpp_partition_log{1, 202405, "old"}) == 1);
+    CHECK(postgres.insert(ormpp_partition_log{2, 202406, "current"}) == 1);
+    CHECK(postgres.remove<ormpp_partition_log>()
+              .partition(col(&ormpp_partition_log::bucket), p202405)
+              .execute_all() == 1);
+    CHECK(postgres.query_s<ormpp_partition_log>("bucket=$1", 202405).empty());
+
+    CHECK(postgres.alter_table<ormpp_partition_log>()
+              .clear_partition(col(&ormpp_partition_log::bucket), p202406)
+              .execute());
+    CHECK(postgres.query_s<ormpp_partition_log>().empty());
+
+    CHECK(postgres.alter_table<ormpp_partition_log>()
+              .add_partition(col(&ormpp_partition_log::bucket), p202407)
+              .drop_partition(p202407)
+              .execute());
+  }
+#endif
+
+  dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  if (sqlite.connect(db, password)) {
+#else
+  if (sqlite.connect(db)) {
+#endif
+    sqlite.execute("drop table if exists ormpp_partition_log");
+    CHECK(sqlite.create_table<ormpp_partition_log>()
+              .primary_key(col(&ormpp_partition_log::id),
+                           col(&ormpp_partition_log::bucket))
+              .partition_by_range(col(&ormpp_partition_log::bucket))
+              .partition(p202405)
+              .partition(p202406)
+              .execute());
+
+    CHECK(sqlite.insert(ormpp_partition_log{1, 202405, "old"}) == 1);
+    CHECK(sqlite.insert(ormpp_partition_log{2, 202406, "current"}) == 1);
+    CHECK(sqlite.remove<ormpp_partition_log>()
+              .partition(col(&ormpp_partition_log::bucket), p202405)
+              .execute_all() == 1);
+    CHECK(sqlite.query_s<ormpp_partition_log>("bucket=?", 202405).empty());
+
+    CHECK(sqlite.alter_table<ormpp_partition_log>()
+              .clear_partition(col(&ormpp_partition_log::bucket), p202406)
+              .execute());
+    CHECK(sqlite.query_s<ormpp_partition_log>().empty());
+
+    CHECK(sqlite.alter_table<ormpp_partition_log>()
+              .add_partition(col(&ormpp_partition_log::bucket), p202407)
+              .execute());
+    CHECK_FALSE(sqlite.alter_table<ormpp_partition_log>()
+                    .drop_partition(p202407)
+                    .execute());
+    CHECK_FALSE(sqlite.create_table<ormpp_partition_log>()
+                    .partition_by_range(col(&ormpp_partition_log::bucket))
+                    .partition(range_partition("bad-name", 1, 2))
+                    .execute());
   }
 }
 
