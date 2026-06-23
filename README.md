@@ -988,7 +988,7 @@ TEST_REQUIRE(r);
 
 purecpp@163.com
 
-qq群: 492859173
+线上讨论: [项目讨论](https://purecpp.cn/chatroom.html)
 
 [http://purecpp.cn/](http://purecpp.cn/ "purecpp")
 
