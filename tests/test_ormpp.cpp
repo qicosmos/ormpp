@@ -65,6 +65,10 @@ struct builder_person {
 };
 REGISTER_AUTO_KEY(builder_person, id)
 
+struct fake_postgresql_db {
+  static constexpr DBType db_type_v = DBType::postgresql;
+};
+
 struct ormpp_partition_log {
   int id;
   int bucket;
@@ -3184,6 +3188,20 @@ TEST_CASE("builder range partition interfaces") {
                     .partition(range_partition("bad-name", 1, 2))
                     .execute());
   }
+}
+
+TEST_CASE("postgresql alter table add_index uses if not exists") {
+  alter_table_builder<builder_person, fake_postgresql_db *> builder{nullptr};
+  builder.add_index("idx_builder_person_name", col(&builder_person::name));
+
+  REQUIRE(builder.ops_.size() == 1);
+
+  std::string sql;
+  CHECK(
+      builder.build_operation_sql(builder.ops_.front(), "builder_person", sql));
+  CHECK(sql ==
+        "CREATE INDEX IF NOT EXISTS idx_builder_person_name ON "
+        "builder_person(name)");
 }
 
 #if __cplusplus >= 202002L
