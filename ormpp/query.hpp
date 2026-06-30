@@ -1953,8 +1953,13 @@ struct alter_table_builder {
       auto sp = rest.find(' ');
       auto idx_name = rest.substr(0, sp);
       auto cols = rest.substr(sp + 1);
-      sql.append("CREATE INDEX ")
-          .append(idx_name)
+      if constexpr (db_type == DBType::postgresql) {
+        sql.append("CREATE INDEX IF NOT EXISTS ");
+      }
+      else {
+        sql.append("CREATE INDEX ");
+      }
+      sql.append(idx_name)
           .append(" ON ")
           .append(table_name)
           .append("(")
