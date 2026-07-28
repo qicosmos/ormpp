@@ -5,14 +5,13 @@
 #include "sqlite.hpp"
 
 #ifdef ORMPP_ENABLE_PG
-#include <thread>
-
 #include "postgresql.hpp"
 #endif
 
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <thread>
 
 #include "connection_pool.hpp"
 #include "dbng.hpp"
