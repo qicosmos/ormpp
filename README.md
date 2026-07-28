@@ -235,12 +235,12 @@ struct person {
   std::optional<int> age; // 可以插入null值
   std::string name;
   int id;
-  static constexpr auto get_alias_field_names(alias *) {
-    return std::array{ylt::reflection::field_alias_t{"person_id", 0},
+  static constexpr auto get_alias_field_names(person *) {
+    return std::array{ylt::reflection::field_alias_t{"person_age", 0},
                       ylt::reflection::field_alias_t{"person_name", 1},
-                      ylt::reflection::field_alias_t{"person_age", 2}}; // 注意: 这里需与YLT_REFL的注册顺序一致
+                      ylt::reflection::field_alias_t{"person_id", 2}}; // 注意: 这里需与YLT_REFL的注册顺序一致
   }
-  static constexpr std::string_view get_alias_struct_name(student *) {
+  static constexpr std::string_view get_alias_struct_name(person *) {
     return "CUSTOM_TABLE_NAME"; // 表名默认结构体名字(person), 这里可以修改表名
   }
 };
@@ -624,7 +624,7 @@ struct person {
   int id;
   std::string name;
   std::optional<int> age; // 插入null值
-  static constexpr std::string_view get_alias_struct_name(student *) {
+  static constexpr std::string_view get_alias_struct_name(person *) {
     return "CUSTOM_TABLE_NAME";
   }
 };
@@ -840,7 +840,11 @@ std::vector<person> v{p1, p2};
 TEST_CHECK(mysql.replace(v)==2);
 ```
 
-注意：`replace` 会先尝试插入，如果存在主键或唯一键冲突则先删除旧记录再插入新记录。行为在不同数据库间略有差异：MySQL 使用 `REPLACE INTO`，PostgreSQL 使用 `INSERT ... ON CONFLICT ... DO UPDATE`，SQLite 使用 `REPLACE INTO`。
+注意：`replace` 的行为在不同数据库间有差异：
+- **MySQL / SQLite**：使用 `REPLACE INTO` — 先删除旧记录，再插入新记录
+- **PostgreSQL**：使用 `INSERT ... ON CONFLICT ... DO UPDATE` — 遇到冲突时更新原有记录，不会删除
+
+因此，PostgreSQL 下的 `replace` 不会触发删除相关的触发器，自增 ID 也不会重置。建议根据业务场景选择合适的数据库。
 
 返回值：int，成功返回替换数据的条数，失败返回INT_MIN.
 
@@ -879,12 +883,12 @@ get_insert_id_after_insert example:
 
 ```C++
 person p = {0, "test1", 2};  // id=0 表示让数据库自增
-mysql.insert(p);
+// get_insert_id_after_insert 内部会执行 insert 并返回自增 ID
 auto id = mysql.get_insert_id_after_insert<person>(p);
 std::cout << "inserted id: " << id << std::endl;
 ```
 
-注意：仅对含有自增主键的表有效。插入后调用此接口可获取数据库分配的自增ID。
+注意：`get_insert_id_after_insert` 内部会执行 insert 操作并返回自增 ID，无需在外部先调用 `insert`。仅对含有自增主键的表有效。
 
 返回值：uint64_t，成功返回自增ID，失败返回0.
 
@@ -1130,7 +1134,7 @@ struct person {
   int age;
 
   // 自定义字段别名（需与 YLT_REFL 注册顺序一致）
-  static constexpr auto get_alias_field_names(alias *) {
+  static constexpr auto get_alias_field_names(person *) {
     return std::array{
       ylt::reflection::field_alias_t{"person_id", 0},
       ylt::reflection::field_alias_t{"person_name", 1},
@@ -1139,7 +1143,7 @@ struct person {
   }
 
   // 自定义表名（默认使用结构体名 person）
-  static constexpr std::string_view get_alias_struct_name(student *) {
+  static constexpr std::string_view get_alias_struct_name(person *) {
     return "CUSTOM_TABLE_NAME";
   }
 };
@@ -1220,7 +1224,7 @@ if (conn) {
 - **超时等待**：获取连接时最多等待 3 秒，超时返回 `nullptr`
 - **健康检查**：自动检测连接是否存活（`ping`），失效连接会自动重建
 - **空闲超时**：连接空闲超过 8 小时会自动重建，避免数据库端超时断开
-- **线程安全**：内部使用 `std::mutex` 保护，多线程安全
+- **线程安全**：连接池本身是线程安全的（`get()` / `init()` 内部使用 `std::mutex` 保护），但**从池中获取的单个连接对象不可跨线程并发使用**。如需多线程并发查询，每个线程应独立 `get()` 一个连接。
 
 ## 异步 MySQL
 
@@ -1237,6 +1241,13 @@ cmake -B build -DENABLE_MYSQL_ASYNC=ON
 ```cpp
 #include "mysql_async.hpp"
 
+struct person {
+  int id;
+  std::string name;
+  int age;
+};
+YLT_REFL(person, id, name, age);
+
 ormpp::mysql_async async_mysql;
 // 异步连接
 co_await async_mysql.connect("127.0.0.1", "root", "12345", "testdb");
@@ -1248,7 +1259,7 @@ for (auto& p : result) {
 }
 
 // 异步插入
-person p{"tom", 20, 0};
+person p{0, "tom", 20};  // id=0 表示自增
 int affected = co_await async_mysql.insert(p);
 ```
 
