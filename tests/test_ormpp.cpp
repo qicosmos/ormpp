@@ -4032,8 +4032,7 @@ TEST_CASE("issue #238: multi-thread concurrent first query") {
   }
 
   sqlite_db.execute("drop table if exists thread_test_person");
-  REQUIRE(sqlite_db.create_datatable<thread_test_person>(
-      ormpp_auto_key{"id"}));
+  REQUIRE(sqlite_db.create_datatable<thread_test_person>(ormpp_auto_key{"id"}));
 
   // Insert test data
   for (int i = 1; i <= 10; ++i) {
@@ -4064,7 +4063,8 @@ TEST_CASE("issue #238: multi-thread concurrent first query") {
         db.create_datatable<thread_test_person>(ormpp_auto_key{"id"});
 
         for (int i = 1; i <= 5; ++i) {
-          thread_test_person p{0, "t" + std::to_string(t) + "_p" + std::to_string(i), 20 + i};
+          thread_test_person p{
+              0, "t" + std::to_string(t) + "_p" + std::to_string(i), 20 + i};
           db.insert(p);
         }
 
@@ -4076,8 +4076,7 @@ TEST_CASE("issue #238: multi-thread concurrent first query") {
         else {
           fail_count++;
         }
-      }
-      catch (...) {
+      } catch (...) {
         fail_count++;
       }
     });
@@ -4099,7 +4098,8 @@ TEST_CASE("issue #238: multi-thread concurrent first query") {
   for (int t = 0; t < 8; ++t) {
     threads2.emplace_back([&success_count2, t]() {
       dbng<sqlite> db;
-      if (!db.connect(":memory:")) return;
+      if (!db.connect(":memory:"))
+        return;
       db.execute("drop table if exists thread_test_person");
       db.create_datatable<thread_test_person>(ormpp_auto_key{"id"});
 

@@ -300,8 +300,7 @@ inline std::string get_fields(DBType db_type) {
 
   std::string &fields =
       (db_type == DBType::mysql) ? fields_mysql : fields_other;
-  std::once_flag &flag =
-      (db_type == DBType::mysql) ? init_mysql : init_other;
+  std::once_flag &flag = (db_type == DBType::mysql) ? init_mysql : init_other;
 
   std::call_once(flag, [&fields, db_type]() {
     for (const auto &it : ylt::reflection::get_member_names<T>()) {
