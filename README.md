@@ -262,11 +262,14 @@ int main() {
   mysql.insert(v);
 
   // 查询数据(id=1)
-  auto result = mysql.query_s<person>("id=?", 1);
+  auto one_person = mysql.query_s<person>("id=?", 1);
 
   // 获取插入后的自增id
-  auto id1 = mysql.get_insert_id_after_insert(p);
-  auto id2 = mysql.get_insert_id_after_insert(v);
+  person p3 = {0, "test4", 4};
+  person p4 = {0, "test5", 5};
+  person p5 = {0, "test6", 6};
+  auto id1 = mysql.get_insert_id_after_insert(p3);
+  auto id2 = mysql.get_insert_id_after_insert(std::vector<person>{p4, p5});
 
   // 更新数据
   mysql.update(p);
@@ -281,10 +284,16 @@ int main() {
   // mysql.update_some<&person::name, &person::age>(p);
   // mysql.update_some<&person::name, &person::age>(v);
 
-  auto result = mysql.query_s<person>();
-  for (auto &person : result) {
-    std::cout << person.id << " " << person.name << " " << person.age
-              << std::endl;
+  auto persons = mysql.query_s<person>();
+  for (auto &item : persons) {
+    std::cout << item.id << " " << item.name << " ";
+    if (item.age.has_value()) {
+      std::cout << *item.age;
+    }
+    else {
+      std::cout << "NULL";
+    }
+    std::cout << std::endl;
   }
 
   mysql.delete_records<person>();
@@ -292,7 +301,7 @@ int main() {
   // transaction
   mysql.begin();
   for (int i = 0; i < 10; ++i) {
-    person s = {"tom", 19};
+    person s = {0, "tom", 19};
     if (!mysql.insert(s)) {
       mysql.rollback();
       return -1;
@@ -1238,6 +1247,7 @@ cmake -B build -DENABLE_MYSQL_ASYNC=ON
 ### 基本用法
 
 ```cpp
+#include <asio.hpp>
 #include "mysql_async.hpp"
 
 struct person {
@@ -1247,35 +1257,62 @@ struct person {
 };
 YLT_REFL(person, id, name, age);
 
-ormpp::mysql_async async_mysql;
-// 异步连接
-co_await async_mysql.connect("127.0.0.1", "root", "12345", "testdb");
+asio::awaitable<void> run_mysql_async() {
+  ormpp::mysql_async async_mysql(co_await asio::this_coro::executor);
+  bool connected =
+      co_await async_mysql.connect("127.0.0.1", "root", "12345", "testdb");
+  if (!connected) {
+    co_return;
+  }
 
-// 异步查询
-auto result = co_await async_mysql.query_s<person>();
-for (auto& p : result) {
+  // 异步查询
+  auto result = co_await async_mysql.query_s<person>();
+  for (auto& p : result) {
     std::cout << p.name << std::endl;
+  }
+
+  // 异步插入
+  person p{0, "tom", 20};  // id=0 表示自增
+  int affected = co_await async_mysql.insert(p);
 }
 
-// 异步插入
-person p{0, "tom", 20};  // id=0 表示自增
-int affected = co_await async_mysql.insert(p);
+int main() {
+  asio::io_context io;
+  asio::co_spawn(io, run_mysql_async(), asio::detached);
+  io.run();
+}
 ```
 
 ### 异步连接池
 
 ```cpp
+#include <asio.hpp>
 #include "async_connection_pool.hpp"
+#include "mysql_async.hpp"
 
-// 初始化异步连接池
-ormpp::async_connection_pool<ormpp::mysql_async>::instance().init(
-    10, "127.0.0.1", "root", "12345", "testdb");
+asio::awaitable<void> run_pool() {
+  auto executor = co_await asio::this_coro::executor;
+  auto pool =
+      std::make_shared<ormpp::async_connection_pool<ormpp::mysql_async>>(
+          executor);
 
-// 获取异步连接
-coro = []() -> async_simple::coro::Lazy<void> {
-    auto conn = co_await ormpp::async_connection_pool<ormpp::mysql_async>::instance().get();
+  bool initialized =
+      co_await pool->init(10, "127.0.0.1", "root", "12345", "testdb");
+  if (!initialized) {
+    co_return;
+  }
+
+  auto conn = co_await pool->get();
+  if (conn) {
     auto result = co_await conn->query_s<person>();
-}();
+  }
+}
+
+int main() {
+  asio::io_context io;
+  asio::co_spawn(io, run_pool(), asio::detached);
+  io.run();
+}
 ```
 
 注意：异步接口需要 C++20 协程支持，编译器要求 GCC 10+、Clang 13+ 或 MSVC 2019 16.8+。

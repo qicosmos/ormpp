@@ -8,6 +8,7 @@
 #include "postgresql.hpp"
 #endif
 
+#include <atomic>
 #include <cstdint>
 #include <limits>
 #include <string>
@@ -4015,12 +4016,18 @@ TEST_CASE("issue #253: pg select with string in") {
 // Thread-safety test for issue #238
 // ------------------------------------------------------------------
 
-struct thread_test_person {
+struct thread_query_person {
   int id;
   std::string name;
   int age;
 };
-REGISTER_AUTO_KEY(thread_test_person, id)
+
+struct thread_conflict_person {
+  int id;
+  std::string name;
+  int age;
+};
+REGISTER_CONFLICT_KEY(thread_conflict_person, id, name)
 
 TEST_CASE("issue #238: multi-thread concurrent first query") {
   // Use SQLite (no external DB needed) to test thread safety
@@ -4030,86 +4037,105 @@ TEST_CASE("issue #238: multi-thread concurrent first query") {
     return;
   }
 
-  sqlite_db.execute("drop table if exists thread_test_person");
-  REQUIRE(sqlite_db.create_datatable<thread_test_person>(ormpp_auto_key{"id"}));
-
-  // Insert test data
-  for (int i = 1; i <= 10; ++i) {
-    thread_test_person p{0, "person_" + std::to_string(i), 20 + i};
-    REQUIRE(sqlite_db.insert(p) == 1);
-  }
-
-  // Verify data is there
-  auto all = sqlite_db.query<thread_test_person>();
-  REQUIRE(all.size() == 10);
-
-  // --- Test without init_reflection: concurrent first query ---
-  // Note: we use a fresh in-memory DB per thread to truly test
-  // the "first query" scenario for the same type T
+  constexpr int thread_count = 8;
   std::vector<std::thread> threads;
+  std::atomic<int> ready_count{0};
   std::atomic<int> success_count{0};
   std::atomic<int> fail_count{0};
+  std::atomic<bool> start{false};
 
-  for (int t = 0; t < 8; ++t) {
-    threads.emplace_back([&success_count, &fail_count, t]() {
-      try {
-        dbng<sqlite> db;
-        if (!db.connect(":memory:")) {
-          fail_count++;
-          return;
-        }
-        db.execute("drop table if exists thread_test_person");
-        db.create_datatable<thread_test_person>(ormpp_auto_key{"id"});
+  for (int t = 0; t < thread_count; ++t) {
+    threads.emplace_back(
+        [&ready_count, &success_count, &fail_count, &start, t]() {
+          bool ready_marked = false;
+          auto mark_ready = [&ready_count, &ready_marked]() {
+            ready_marked = true;
+            ready_count.fetch_add(1, std::memory_order_release);
+          };
 
-        for (int i = 1; i <= 5; ++i) {
-          thread_test_person p{
-              0, "t" + std::to_string(t) + "_p" + std::to_string(i), 20 + i};
-          db.insert(p);
-        }
+          try {
+            dbng<sqlite> db;
+            if (!db.connect(":memory:")) {
+              mark_ready();
+              fail_count.fetch_add(1, std::memory_order_relaxed);
+              return;
+            }
+            db.execute("drop table if exists thread_query_person");
+            if (!db.create_datatable<thread_query_person>()) {
+              mark_ready();
+              fail_count.fetch_add(1, std::memory_order_relaxed);
+              return;
+            }
 
-        // Concurrent first query on the same type from multiple threads
-        auto result = db.query<thread_test_person>();
-        if (result.size() == 5) {
-          success_count++;
-        }
-        else {
-          fail_count++;
-        }
-      } catch (...) {
-        fail_count++;
-      }
-    });
+            for (int i = 1; i <= 5; ++i) {
+              thread_query_person p{
+                  t * 100 + i,
+                  "t" + std::to_string(t) + "_p" + std::to_string(i), 20 + i};
+              if (db.insert(p) != 1) {
+                mark_ready();
+                fail_count.fetch_add(1, std::memory_order_relaxed);
+                return;
+              }
+            }
+
+            // Synchronize immediately before the first query_s<T>() call. No
+            // thread_query_person query is executed before this point.
+            mark_ready();
+            while (!start.load(std::memory_order_acquire)) {
+              std::this_thread::yield();
+            }
+
+            auto result = db.query_s<thread_query_person>();
+            if (result.size() == 5) {
+              success_count.fetch_add(1, std::memory_order_relaxed);
+            }
+            else {
+              fail_count.fetch_add(1, std::memory_order_relaxed);
+            }
+          } catch (...) {
+            if (!ready_marked) {
+              mark_ready();
+            }
+            fail_count.fetch_add(1, std::memory_order_relaxed);
+          }
+        });
   }
+
+  while (ready_count.load(std::memory_order_acquire) != thread_count) {
+    std::this_thread::yield();
+  }
+  start.store(true, std::memory_order_release);
 
   for (auto &th : threads) {
     th.join();
   }
 
   CHECK(fail_count == 0);
-  CHECK(success_count == 8);
+  CHECK(success_count == thread_count);
 
   // --- Test with init_reflection: should also pass ---
-  ormpp::init_reflection<thread_test_person>();
+  ormpp::init_reflection<thread_query_person>();
 
   std::vector<std::thread> threads2;
   std::atomic<int> success_count2{0};
 
-  for (int t = 0; t < 8; ++t) {
+  for (int t = 0; t < thread_count; ++t) {
     threads2.emplace_back([&success_count2, t]() {
       dbng<sqlite> db;
       if (!db.connect(":memory:"))
         return;
-      db.execute("drop table if exists thread_test_person");
-      db.create_datatable<thread_test_person>(ormpp_auto_key{"id"});
+      db.execute("drop table if exists thread_query_person");
+      db.create_datatable<thread_query_person>();
 
       for (int i = 1; i <= 3; ++i) {
-        thread_test_person p{0, "preinit_" + std::to_string(i), 30 + i};
+        thread_query_person p{t * 100 + i, "preinit_" + std::to_string(i),
+                              30 + i};
         db.insert(p);
       }
 
-      auto result = db.query<thread_test_person>();
+      auto result = db.query_s<thread_query_person>();
       if (result.size() == 3) {
-        success_count2++;
+        success_count2.fetch_add(1, std::memory_order_relaxed);
       }
     });
   }
@@ -4118,5 +4144,56 @@ TEST_CASE("issue #238: multi-thread concurrent first query") {
     th.join();
   }
 
-  CHECK(success_count2 == 8);
+  CHECK(success_count2 == thread_count);
+}
+
+TEST_CASE("issue #238: multi-thread concurrent conflict-key cache") {
+  constexpr int thread_count = 16;
+  std::vector<std::thread> threads;
+  std::atomic<int> ready_count{0};
+  std::atomic<int> success_count{0};
+  std::atomic<int> fail_count{0};
+  std::atomic<bool> start{false};
+
+  for (int t = 0; t < thread_count; ++t) {
+    threads.emplace_back([&ready_count, &success_count, &fail_count, &start,
+                          t]() {
+      ready_count.fetch_add(1, std::memory_order_release);
+      while (!start.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+      }
+
+      auto check_mysql = []() {
+        auto keys =
+            ormpp::get_conflict_keys<thread_conflict_person>(DBType::mysql);
+        return keys.size() == 2 && keys[0] == "`id`" && keys[1] == "`name`";
+      };
+      auto check_other = []() {
+        auto keys =
+            ormpp::get_conflict_keys<thread_conflict_person>(DBType::sqlite);
+        return keys.size() == 2 && keys[0] == "id" && keys[1] == "name";
+      };
+
+      bool ok = (t % 2 == 0) ? (check_mysql() && check_other())
+                             : (check_other() && check_mysql());
+      if (ok) {
+        success_count.fetch_add(1, std::memory_order_relaxed);
+      }
+      else {
+        fail_count.fetch_add(1, std::memory_order_relaxed);
+      }
+    });
+  }
+
+  while (ready_count.load(std::memory_order_acquire) != thread_count) {
+    std::this_thread::yield();
+  }
+  start.store(true, std::memory_order_release);
+
+  for (auto &th : threads) {
+    th.join();
+  }
+
+  CHECK(fail_count == 0);
+  CHECK(success_count == thread_count);
 }

@@ -380,6 +380,9 @@ template <typename T, typename = std::enable_if_t<iguana::ylt_refletable_v<T>>>
 inline std::vector<std::string> get_conflict_keys(DBType db_type) {
   static std::vector<std::string> res_mysql;
   static std::vector<std::string> res_other;
+  static std::mutex mutex;
+
+  std::lock_guard<std::mutex> lock(mutex);
   std::vector<std::string> &res =
       (db_type == DBType::mysql) ? res_mysql : res_other;
   if (!res.empty()) {
@@ -388,6 +391,10 @@ inline std::vector<std::string> get_conflict_keys(DBType db_type) {
 
   std::string_view keys = get_conflict_key<T>();
   auto v = split(keys);
+  if (v.empty()) {
+    return {};
+  }
+
   for (auto sv : v) {
     std::string str;
     if (db_type == DBType::mysql) {
