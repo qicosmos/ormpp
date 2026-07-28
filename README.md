@@ -974,6 +974,57 @@ auto r = mysql.warper_connect<log, validate>("127.0.0.1", "root", "12345", "test
 TEST_REQUIRE(r);
 ```
 
+## 线程安全
+
+### 问题背景
+
+ormpp 底层依赖 iguana 的编译期反射。iguana 的部分反射元数据采用**懒加载（Lazy Initialization）**策略：首次查询某个实体类型时才会初始化字段映射信息。
+
+在多线程场景下，如果多个线程**同时首次查询同一类型**，可能因并发初始化导致字段名映射错乱、字符串内存损坏（double-free）等问题。
+
+### 解决方案
+
+#### 方案一：预初始化（推荐）
+
+在启动工作线程之前，于主线程中显式调用 `ormpp::init_reflection<T>()` 触发一次性的反射初始化：
+
+```cpp
+#include "utility.hpp"
+
+struct person {
+  int id;
+  std::string name;
+  int age;
+};
+YLT_REFL(person, id, name, age);
+
+int main() {
+  // 1. 单线程预初始化（主线程）
+  ormpp::init_reflection<person>();
+
+  // 2. 此后可安全地在多线程中并发查询
+  std::vector<std::thread> threads;
+  for (int i = 0; i < 4; ++i) {
+    threads.emplace_back([]() {
+      dbng<mysql> mysql;
+      mysql.connect("127.0.0.1", "root", "12345", "testdb");
+      auto result = mysql.query<person>();  // 线程安全
+    });
+  }
+  for (auto &t : threads) t.join();
+}
+```
+
+#### 方案二：自动保护（内部缓存）
+
+ormpp 内部对 SQL 字段列表缓存（`get_fields<T>()`）已使用 `std::call_once` 保护，确保多线程首次并发访问时只初始化一次。但**仍强烈建议在应用层做预初始化**，因为 iguana 层面的反射元数据初始化不在 ormpp 控制范围内。
+
+### 适用场景
+
+- ✅ 单线程顺序查询：无需额外处理
+- ⚠️ 多线程同时首次查询**同一类型**：需要预初始化
+- ✅ 多线程查询不同类型（每个类型首次查询单线程）：无需额外处理
+
 ## roadmap
 
 1. 支持组合键。

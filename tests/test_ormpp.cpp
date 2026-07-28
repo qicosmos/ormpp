@@ -4011,3 +4011,113 @@ TEST_CASE("issue #253: pg select with string in") {
   postgres.execute("drop table if exists users;");
 #endif
 }
+
+// ------------------------------------------------------------------
+// Thread-safety test for issue #238
+// ------------------------------------------------------------------
+
+struct thread_test_person {
+  int id;
+  std::string name;
+  int age;
+};
+REGISTER_AUTO_KEY(thread_test_person, id)
+
+TEST_CASE("issue #238: multi-thread concurrent first query") {
+  // Use SQLite (no external DB needed) to test thread safety
+  dbng<sqlite> sqlite_db;
+  if (!sqlite_db.connect(":memory:")) {
+    // Skip if SQLite not available
+    return;
+  }
+
+  sqlite_db.execute("drop table if exists thread_test_person");
+  REQUIRE(sqlite_db.create_datatable<thread_test_person>(
+      ormpp_auto_key{"id"}));
+
+  // Insert test data
+  for (int i = 1; i <= 10; ++i) {
+    thread_test_person p{0, "person_" + std::to_string(i), 20 + i};
+    REQUIRE(sqlite_db.insert(p) == 1);
+  }
+
+  // Verify data is there
+  auto all = sqlite_db.query<thread_test_person>();
+  REQUIRE(all.size() == 10);
+
+  // --- Test without init_reflection: concurrent first query ---
+  // Note: we use a fresh in-memory DB per thread to truly test
+  // the "first query" scenario for the same type T
+  std::vector<std::thread> threads;
+  std::atomic<int> success_count{0};
+  std::atomic<int> fail_count{0};
+
+  for (int t = 0; t < 8; ++t) {
+    threads.emplace_back([&success_count, &fail_count, t]() {
+      try {
+        dbng<sqlite> db;
+        if (!db.connect(":memory:")) {
+          fail_count++;
+          return;
+        }
+        db.execute("drop table if exists thread_test_person");
+        db.create_datatable<thread_test_person>(ormpp_auto_key{"id"});
+
+        for (int i = 1; i <= 5; ++i) {
+          thread_test_person p{0, "t" + std::to_string(t) + "_p" + std::to_string(i), 20 + i};
+          db.insert(p);
+        }
+
+        // Concurrent first query on the same type from multiple threads
+        auto result = db.query<thread_test_person>();
+        if (result.size() == 5) {
+          success_count++;
+        }
+        else {
+          fail_count++;
+        }
+      }
+      catch (...) {
+        fail_count++;
+      }
+    });
+  }
+
+  for (auto &th : threads) {
+    th.join();
+  }
+
+  CHECK(fail_count == 0);
+  CHECK(success_count == 8);
+
+  // --- Test with init_reflection: should also pass ---
+  ormpp::init_reflection<thread_test_person>();
+
+  std::vector<std::thread> threads2;
+  std::atomic<int> success_count2{0};
+
+  for (int t = 0; t < 8; ++t) {
+    threads2.emplace_back([&success_count2, t]() {
+      dbng<sqlite> db;
+      if (!db.connect(":memory:")) return;
+      db.execute("drop table if exists thread_test_person");
+      db.create_datatable<thread_test_person>(ormpp_auto_key{"id"});
+
+      for (int i = 1; i <= 3; ++i) {
+        thread_test_person p{0, "preinit_" + std::to_string(i), 30 + i};
+        db.insert(p);
+      }
+
+      auto result = db.query<thread_test_person>();
+      if (result.size() == 3) {
+        success_count2++;
+      }
+    });
+  }
+
+  for (auto &th : threads2) {
+    th.join();
+  }
+
+  CHECK(success_count2 == 8);
+}
