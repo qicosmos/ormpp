@@ -67,7 +67,6 @@ ormpp是modern c++(c++11/14/17/20)开发的ORM库，目前支持了三种数据�
 8. **异步 MySQL** — 支持基于 ASIO/async_simple 的异步非阻塞查询
 9. **AOP 切面** — 支持日志、校验等切面编程，通过 `warper_connect` 接入
 10. **SQLCipher 加密** — SQLite 支持 SQLCipher 加密存储
-11. **零开销抽象** — 编译期生成 SQL，运行时无反射开销
 
 ## 自增主键
 
@@ -75,9 +74,9 @@ ormpp是modern c++(c++11/14/17/20)开发的ORM库，目前支持了三种数据�
 
 ```C++
 struct person {
+  int id;
   std::string name;
   int age;
-  int id;
 };
 REGISTER_AUTO_KEY(person, id)
 ```
@@ -232,13 +231,13 @@ auto results =
 using namespace ormpp;
 
 struct person {
-  std::optional<int> age; // 可以插入null值
-  std::string name;
   int id;
+  std::string name;
+  std::optional<int> age; // 可以插入null值
   static constexpr auto get_alias_field_names(person *) {
-    return std::array{ylt::reflection::field_alias_t{"person_age", 0},
+    return std::array{ylt::reflection::field_alias_t{"person_id", 0},
                       ylt::reflection::field_alias_t{"person_name", 1},
-                      ylt::reflection::field_alias_t{"person_id", 2}}; // 注意: 这里需与YLT_REFL的注册顺序一致
+                      ylt::reflection::field_alias_t{"person_age", 2}}; // 注意: 这里需与YLT_REFL的注册顺序一致
   }
   static constexpr std::string_view get_alias_struct_name(person *) {
     return "CUSTOM_TABLE_NAME"; // 表名默认结构体名字(person), 这里可以修改表名
@@ -249,9 +248,9 @@ REGISTER_CONFLICT_KEY(person, name)
 // REGISTER_CONFLICT_KEY(person, name, age) // 如果是多个
 
 int main() {
-  person p = {"test1", 2};
-  person p1 = {"test2", 3};
-  person p2 = {"test3", 4};
+  person p = {0, "test1", 2};
+  person p1 = {0, "test2", 3};
+  person p2 = {0, "test3", 4};
   std::vector<person> v{p1, p2};
 
   dbng<mysql> mysql;
@@ -266,8 +265,8 @@ int main() {
   auto result = mysql.query_s<person>("id=?", 1);
 
   // 获取插入后的自增id
-  auto id1 = mysql.get_insert_id_after_insert<person>(p);
-  auto id2 = mysql.get_insert_id_after_insert<person>(v);
+  auto id1 = mysql.get_insert_id_after_insert(p);
+  auto id2 = mysql.get_insert_id_after_insert(v);
 
   // 更新数据
   mysql.update(p);
@@ -884,7 +883,7 @@ get_insert_id_after_insert example:
 ```C++
 person p = {0, "test1", 2};  // id=0 表示让数据库自增
 // get_insert_id_after_insert 内部会执行 insert 并返回自增 ID
-auto id = mysql.get_insert_id_after_insert<person>(p);
+auto id = mysql.get_insert_id_after_insert(p);
 std::cout << "inserted id: " << id << std::endl;
 ```
 
@@ -1289,6 +1288,16 @@ ormpp 底层依赖 iguana 的编译期反射。iguana 的部分反射元数据�
 
 在多线程场景下，如果多个线程**同时首次查询同一类型**，可能因并发初始化导致字段名映射错乱、字符串内存损坏（double-free）等问题。
 
+### 线程安全保证范围
+
+| 对象 | 线程安全性 | 说明 |
+|------|-----------|------|
+| `connection_pool` | ✅ 线程安全 | `init()`、`get()` 等操作内部使用 `std::mutex` 保护 |
+| 单个 `dbng` / 连接对象 | ❌ 非线程安全 | 不可跨线程共享同一个连接实例 |
+| `query` / `insert` / `update` | 依赖连接对象 | 底层调用数据库 C API，本身无额外锁保护 |
+
+**推荐做法**：每个工作线程通过 `connection_pool::get()` 独立获取连接，用完自动归还。严禁多个线程同时操作同一个连接对象。
+
 ### 解决方案
 
 #### 方案一：预初始化（推荐）
@@ -1331,6 +1340,7 @@ ormpp 内部对 SQL 字段列表缓存（`get_fields<T>()`）已使用 `std::cal
 - ✅ 单线程顺序查询：无需额外处理
 - ⚠️ 多线程同时首次查询**同一类型**：需要预初始化
 - ✅ 多线程查询不同类型（每个类型首次查询单线程）：无需额外处理
+- ❌ 多线程共享同一连接对象：不支持，必须使用连接池或每线程独立连接
 
 ## roadmap
 
