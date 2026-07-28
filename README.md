@@ -39,6 +39,12 @@ https://github.com/qicosmos/iguana.git
 * [如何编译](#如何编译)
 * [作为第三方库引入](#作为第三方库引入)
 * [接口介绍](#接口介绍)
+* [高级特性](#高级特性)
+  * [可空字段](#可空字段-stdoptional)
+  * [枚举类型映射](#枚举类型映射)
+  * [字段别名与表别名](#字段别名与表别名)
+  * [反射注册](#反射注册-ylt_refl)
+  * [类型映射表](#类型映射表)
 * [连接池](#连接池)
 * [异步 MySQL](#异步-mysql)
 * [线程安全](#线程安全)
@@ -1056,6 +1062,132 @@ dbng<mysql> mysql;
 auto r = mysql.warper_connect<log, validate>("127.0.0.1", "root", "12345", "testdb");
 TEST_REQUIRE(r);
 ```
+
+## 高级特性
+
+### 可空字段 (std::optional)
+
+ormpp 支持 `std::optional<T>` 类型的字段，可优雅地处理数据库 NULL 值：
+
+```cpp
+struct person {
+  int id;
+  std::string name;
+  std::optional<int> age;  // age 可为 NULL
+};
+YLT_REFL(person, id, name, age);
+
+// 插入时 age 为 null
+person p1 = {1, "alice", {}};           // age = NULL
+person p2 = {2, "bob", 25};            // age = 25
+mysql.insert(p1);
+mysql.insert(p2);
+
+// 查询时自动还原 optional
+auto result = mysql.query_s<person>();
+for (auto& p : result) {
+  if (p.age.has_value()) {
+    std::cout << p.name << " age: " << *p.age << std::endl;
+  } else {
+    std::cout << p.name << " age: NULL" << std::endl;
+  }
+}
+```
+
+支持的可空类型：`std::optional<int>`, `std::optional<std::string>`, `std::optional<double>` 等。
+
+### 枚举类型映射
+
+ormpp 自动支持 C++ `enum` 和 `enum class` 与数据库整型字段的映射：
+
+```cpp
+enum class Color { BLUE = 10, RED = 15 };
+enum Fruit { APPLE, BANANA };
+
+struct test_enum_t {
+  Color color;
+  Fruit fruit;
+  int id;
+};
+YLT_REFL(test_enum_t, color, fruit, id);
+
+mysql.create_datatable<test_enum_t>(ormpp_auto_key{"id"});
+mysql.insert<test_enum_t>({Color::BLUE, APPLE, 0});
+
+auto vec = mysql.query<test_enum_t>();
+// vec[0].color == Color::BLUE
+// vec[0].fruit == APPLE
+```
+
+### 字段别名与表别名
+
+通过静态方法自定义数据库中的字段名和表名：
+
+```cpp
+struct person {
+  int id;
+  std::string name;
+  int age;
+
+  // 自定义字段别名（需与 YLT_REFL 注册顺序一致）
+  static constexpr auto get_alias_field_names(alias *) {
+    return std::array{
+      ylt::reflection::field_alias_t{"person_id", 0},
+      ylt::reflection::field_alias_t{"person_name", 1},
+      ylt::reflection::field_alias_t{"person_age", 2}
+    };
+  }
+
+  // 自定义表名（默认使用结构体名 person）
+  static constexpr std::string_view get_alias_struct_name(student *) {
+    return "CUSTOM_TABLE_NAME";
+  }
+};
+YLT_REFL(person, id, name, age);
+```
+
+### 反射注册 (YLT_REFL)
+
+ormpp 基于 iguana 的编译期反射，需要在结构体定义后使用 `YLT_REFL` 宏注册字段：
+
+```cpp
+struct student {
+  int code;
+  std::string name;
+  int age;
+  std::optional<std::string> email;
+};
+
+// 注册所有字段（顺序决定数据库表中的列顺序）
+YLT_REFL(student, code, name, age, email);
+
+// 注册自增主键
+REGISTER_AUTO_KEY(student, code);
+
+// 注册冲突键（用于 replace / upsert）
+REGISTER_CONFLICT_KEY(student, name);
+```
+
+### 类型映射表
+
+ormpp 自动将 C++ 类型映射为对应数据库的 SQL 类型：
+
+| C++ 类型 | MySQL | PostgreSQL | SQLite |
+|---------|-------|-----------|--------|
+| `bool` | BOOLEAN | integer | INTEGER |
+| `char` | TINYINT | char | INTEGER |
+| `short` | SMALLINT | smallint | INTEGER |
+| `int` | INTEGER | integer | INTEGER |
+| `int64_t` | BIGINT | bigint | INTEGER |
+| `uint64_t` | BIGINT UNSIGNED | bigint | INTEGER |
+| `float` | FLOAT | real | FLOAT |
+| `double` | DOUBLE | double precision | DOUBLE |
+| `std::string` | TEXT | text | TEXT |
+| `std::string_view` | TEXT | text | TEXT |
+| `std::array<char, N>` | VARCHAR(N) | varchar(N) | VARCHAR(N) |
+| `blob` (std::vector<char>) | BLOB | bytea | BLOB |
+| `enum` / `enum class` | INTEGER | integer | INTEGER |
+| `std::optional<T>` | 同 T 类型 | 同 T 类型 | 同 T 类型 |
 
 ## 连接池
 
