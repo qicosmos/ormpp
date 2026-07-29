@@ -5,6 +5,7 @@
 #define ORM_UTILITY_HPP
 #include <algorithm>
 #include <iostream>
+#include <mutex>
 #include <optional>
 #include <sstream>
 
@@ -110,6 +111,21 @@ inline auto get_conflict_key() {
       ormpp::add_conflict_key_field(                       \
           ylt::reflection::get_struct_name<STRUCT_NAME>(), \
           {MAKE_NAMES(__VA_ARGS__)});
+
+// ------------------------------------------------------------------
+// Thread-safety helpers
+// ------------------------------------------------------------------
+
+/// Eagerly initialize reflection metadata for type T.
+/// Call this once (single-threaded) before spawning worker threads
+/// to avoid lazy-init race conditions in multi-threaded queries.
+template <typename T>
+inline void init_reflection() {
+  // Touch all reflection data to force eager initialization
+  [[maybe_unused]] auto _ = ylt::reflection::get_struct_name<T>();
+  [[maybe_unused]] auto _names = ylt::reflection::get_member_names<T>();
+  [[maybe_unused]] auto _count = ylt::reflection::members_count_v<T>;
+}
 
 template <typename T>
 struct is_optional_v : std::false_type {};
@@ -279,21 +295,28 @@ inline std::string get_fields(DBType db_type) {
   // Two static caches: one for MySQL (backtick-quoted), one for others (plain)
   static std::string fields_mysql;
   static std::string fields_other;
+  static std::once_flag init_mysql;
+  static std::once_flag init_other;
+
   std::string &fields =
       (db_type == DBType::mysql) ? fields_mysql : fields_other;
-  if (!fields.empty()) {
-    return fields;
-  }
-  for (const auto &it : ylt::reflection::get_member_names<T>()) {
-    if (db_type == DBType::mysql) {
-      fields += "`" + std::string(it) + "`";
+  std::once_flag &flag = (db_type == DBType::mysql) ? init_mysql : init_other;
+
+  std::call_once(flag, [&fields, db_type]() {
+    for (const auto &it : ylt::reflection::get_member_names<T>()) {
+      if (db_type == DBType::mysql) {
+        fields += "`" + std::string(it) + "`";
+      }
+      else {
+        fields += std::string(it);
+      }
+      fields += ",";
     }
-    else {
-      fields += std::string(it);
+    if (!fields.empty()) {
+      fields.back() = ' ';
     }
-    fields += ",";
-  }
-  fields.back() = ' ';
+  });
+
   return fields;
 }
 
@@ -357,6 +380,9 @@ template <typename T, typename = std::enable_if_t<iguana::ylt_refletable_v<T>>>
 inline std::vector<std::string> get_conflict_keys(DBType db_type) {
   static std::vector<std::string> res_mysql;
   static std::vector<std::string> res_other;
+  static std::mutex mutex;
+
+  std::lock_guard<std::mutex> lock(mutex);
   std::vector<std::string> &res =
       (db_type == DBType::mysql) ? res_mysql : res_other;
   if (!res.empty()) {
@@ -365,6 +391,10 @@ inline std::vector<std::string> get_conflict_keys(DBType db_type) {
 
   std::string_view keys = get_conflict_key<T>();
   auto v = split(keys);
+  if (v.empty()) {
+    return {};
+  }
+
   for (auto sv : v) {
     std::string str;
     if (db_type == DBType::mysql) {
