@@ -860,9 +860,14 @@ TEST_CASE("optional") {
                   .from<test_optional>()
                   .where(col(&test_optional::name).like("pure%"))
                   .collect();
+    auto l6 = sqlite.select(all)
+                  .from<test_optional>()
+                  .where(col(&test_optional::id).like("%1%"))
+                  .collect();
     CHECK(l3.size() == 2);
     CHECK(l4.size() == 2);
     CHECK(l5.size() == 1);
+    CHECK(l6.size() == 1);
     auto list =
         sqlite.select(all)
             .from<test_optional>()

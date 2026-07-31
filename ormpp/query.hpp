@@ -69,6 +69,8 @@ struct col_info {
 
   template <typename T>
   where_condition between(T left, T right) {
+    static_assert(std::is_constructible_v<M, T>, "invalid type");
+
     std::string str_left;
     str_left.append(name).append(" between ").append(to_string(left));
 
@@ -84,7 +86,6 @@ struct col_info {
  private:
   template <typename value_type>
   std::string to_string(value_type val) {
-    static_assert(std::is_constructible_v<M, value_type>, "invalid type");
     if constexpr (std::is_arithmetic_v<value_type>) {
       return std::to_string(val);
     }
