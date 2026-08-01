@@ -3530,7 +3530,8 @@ TEST_CASE("test get_conflict_keys function") {
   }
 }
 
-TEST_CASE("generate update sql trims trailing spaces without dropping predicates") {
+TEST_CASE(
+    "generate update sql trims trailing spaces without dropping predicates") {
   CHECK(ormpp::generate_update_sql<wuliao_index_info>(DBType::mysql) ==
         "update yj_wuliaoindex set `id`=?,`number`=? where 1=1 and `id`=?");
   CHECK(ormpp::generate_update_sql<no_key_update_info>(DBType::mysql).empty());

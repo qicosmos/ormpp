@@ -654,8 +654,8 @@ class postgresql {
       set_last_error("update requires a conflict key or where condition");
       return INT_MIN;
     }
-    auto res = insert_or_update_impl<members...>(
-        t, sql, OptType::update, false, std::forward<Args>(args)...);
+    auto res = insert_or_update_impl<members...>(t, sql, OptType::update, false,
+                                                 std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
 
@@ -667,8 +667,8 @@ class postgresql {
       set_last_error("update requires a conflict key or where condition");
       return INT_MIN;
     }
-    auto res = insert_or_update_impl<members...>(
-        v, sql, OptType::update, false, std::forward<Args>(args)...);
+    auto res = insert_or_update_impl<members...>(v, sql, OptType::update, false,
+                                                 std::forward<Args>(args)...);
     return res.has_value() ? res.value() : INT_MIN;
   }
 
