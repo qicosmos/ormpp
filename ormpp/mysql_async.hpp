@@ -1248,6 +1248,10 @@ class mysql_async {
     try {
       auto sql = generate_update_sql<T, members...>(
           db_type_v, std::forward<Args>(args)...);
+      if (sql.empty()) {
+        set_last_error("update requires a conflict key or where condition");
+        co_return std::numeric_limits<int>::min();
+      }
       auto formatted = format_struct_sql<t_is_vector_false>(
           sql, t, OptType::update, std::forward<Args>(args)...);
       auto ok = co_await execute(formatted);
@@ -1263,6 +1267,10 @@ class mysql_async {
     try {
       auto sql = generate_update_sql<T, members...>(
           db_type_v, std::forward<Args>(args)...);
+      if (sql.empty()) {
+        set_last_error("update requires a conflict key or where condition");
+        co_return std::numeric_limits<int>::min();
+      }
       int affected = 0;
       if (transaction_ && !v.empty()) {
         if (!(co_await begin())) {
