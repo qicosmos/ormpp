@@ -57,6 +57,21 @@ struct simple {
   std::array<char, 128> arr;
 };
 
+struct wuliao_index_info {
+  int id;
+  int number;
+  static constexpr std::string_view get_alias_struct_name(wuliao_index_info *) {
+    return "yj_wuliaoindex";
+  }
+};
+REGISTER_AUTO_KEY(wuliao_index_info, id)
+
+struct no_key_update_info {
+  int id;
+  double code;
+  int age;
+};
+
 struct builder_person {
   std::string name;
   int age;
@@ -3513,6 +3528,16 @@ TEST_CASE("test get_conflict_keys function") {
     auto key6s = ormpp::get_conflict_keys<simple>(db_type);
     CHECK(key6s.empty());
   }
+}
+
+TEST_CASE(
+    "generate update sql trims trailing spaces without dropping predicates") {
+  CHECK(ormpp::generate_update_sql<wuliao_index_info>(DBType::mysql) ==
+        "update yj_wuliaoindex set `id`=?,`number`=? where 1=1 and `id`=?");
+  CHECK(ormpp::generate_update_sql<no_key_update_info>(DBType::mysql).empty());
+  CHECK(ormpp::generate_update_sql<no_key_update_info>(DBType::mysql, "id=1") ==
+        "update no_key_update_info set `id`=?,`code`=?,`age`=? where 1=1 and "
+        "id=1");
 }
 
 TEST_CASE("create table with namespace") {

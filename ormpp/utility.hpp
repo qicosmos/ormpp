@@ -548,12 +548,15 @@ inline std::string generate_update_sql(DBType db_type, Args &&...args) {
   fields.pop_back();
 
   std::string conflict = "where 1=1";
+  bool has_condition = false;
   if constexpr (sizeof...(Args) > 0) {
     append(conflict, " and", args...);
+    has_condition = true;
   }
   else {
     const auto &pks = get_conflict_keys<T>(db_type);
     for (const auto &it : pks) {
+      has_condition = true;
       if (db_type == DBType::postgresql) {
         append(conflict, " and", it + "=$" + std::to_string(++index));
       }
@@ -563,9 +566,14 @@ inline std::string generate_update_sql(DBType db_type, Args &&...args) {
     }
   }
 
+  if (!has_condition) {
+    return {};
+  }
+
   append(sql, fields, conflict);
-  sql.pop_back();
-  sql.pop_back();
+  while (!sql.empty() && sql.back() == ' ') {
+    sql.pop_back();
+  }
   return sql;
 }
 
