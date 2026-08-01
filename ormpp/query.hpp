@@ -77,11 +77,20 @@ struct col_info {
     return where_condition{str_left, " and ", str_right};
   }
 
-  where_condition like(std::string str) {
-    return where_condition{std::string(name), " like ", to_string(str)};
+  where_condition like(std::string_view str) {
+    static_assert(std::is_constructible_v<M, std::string> ||
+                      std::is_constructible_v<M, std::string_view>,
+                  "invalid type");
+    return where_condition{std::string(name), " like ", format_string(str)};
   }
 
  private:
+  static std::string format_string(std::string_view s) {
+    std::string str = "'";
+    str.append(escape_sql_string(s)).append("'");
+    return str;
+  }
+
   template <typename value_type>
   std::string to_string(value_type val) {
     static_assert(std::is_constructible_v<M, value_type>, "invalid type");
@@ -89,9 +98,7 @@ struct col_info {
       return std::to_string(val);
     }
     else {
-      std::string str = "'";
-      str.append(escape_sql_string(val)).append("'");
-      return str;
+      return format_string(val);
     }
   }
 

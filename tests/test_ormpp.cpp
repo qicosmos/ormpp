@@ -909,6 +909,14 @@ TEST_CASE("optional") {
   }
 }
 
+TEST_CASE("like condition quotes and escapes string patterns") {
+  std::string_view pattern = "pure%";
+  CHECK(col(&test_optional::name).like(pattern).to_sql() ==
+        "(name like 'pure%')");
+  CHECK(col(&test_optional::name).like("a'b%").to_sql() ==
+        "(name like 'a''b%')");
+}
+
 /*
 表别名, 聚合结果别名
 */
