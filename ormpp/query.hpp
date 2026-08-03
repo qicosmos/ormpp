@@ -25,6 +25,16 @@ struct where_condition {
   }
 };
 
+inline std::string qualified_field_name(std::string_view class_name,
+                                        std::string_view name) {
+  std::string str;
+  if (!class_name.empty()) {
+    str.append(class_name).append(".");
+  }
+  str.append(name);
+  return str;
+}
+
 template <typename M>
 struct col_info {
   using value_type = M;
@@ -60,17 +70,17 @@ struct col_info {
   }
 
   where_condition null() {
-    return where_condition{std::string(name), " IS ", "NULL"};
+    return where_condition{qualified_name(), " IS ", "NULL"};
   }
 
   where_condition not_null() {
-    return where_condition{std::string(name), " IS ", "NOT NULL"};
+    return where_condition{qualified_name(), " IS ", "NOT NULL"};
   }
 
   template <typename T>
   where_condition between(T left, T right) {
-    std::string str_left;
-    str_left.append(name).append(" between ").append(to_string(left));
+    std::string str_left = qualified_name();
+    str_left.append(" between ").append(to_string(left));
 
     std::string str_right;
     str_right.append(to_string(right));
@@ -81,10 +91,14 @@ struct col_info {
     static_assert(std::is_constructible_v<M, std::string> ||
                       std::is_constructible_v<M, std::string_view>,
                   "invalid type");
-    return where_condition{std::string(name), " like ", format_string(str)};
+    return where_condition{qualified_name(), " like ", format_string(str)};
   }
 
  private:
+  std::string qualified_name() const {
+    return qualified_field_name(class_name, name);
+  }
+
   static std::string format_string(std::string_view s) {
     std::string str = "'";
     str.append(escape_sql_string(s)).append("'");
@@ -108,8 +122,11 @@ struct col_info {
     (mid.append(to_string(args)).append(","), ...);
     mid.pop_back();
 
-    std::string left;
-    left.append(name).append(" ").append(s).append(" in(");
+    std::string left = qualified_name();
+    if (!s.empty()) {
+      left.append(" ").append(s);
+    }
+    left.append(" in(");
     return where_condition{left, mid, ")"};
   }
 };
@@ -448,16 +465,91 @@ std::string order_by_sql(Args... fields) {
   std::string sql = " ORDER BY ";
   (
       [&] {
-        if (fields.class_name.empty()) {
-          sql.append(fields.name);
-        }
-        else {
-          sql.append(fields.class_name).append(".").append(fields.name);
-        }
+        sql.append(qualified_field_name(fields.class_name, fields.name));
         sql.append(fields.sort_order).append(",");
       }(),
       ...);
   sql.pop_back();
+  return sql;
+}
+
+template <typename T>
+inline std::string select_all_fields_sql() {
+  std::string sql;
+  auto table_name = get_short_struct_name<T>();
+  for (const auto& name : ylt::reflection::get_member_names<T>()) {
+    sql.append(table_name).append(".").append(name).append(",");
+  }
+  if (!sql.empty()) {
+    sql.pop_back();
+  }
+  return sql;
+}
+
+inline void append_group_by_field(std::string& sql, auto field) {
+  sql.append(qualified_field_name(field.class_name, field.name)).append(",");
+}
+
+inline std::size_t find_next_postgresql_placeholder(std::string_view sql,
+                                                    std::size_t start) {
+  for (std::size_t i = start; i < sql.size(); ++i) {
+    switch (sql[i]) {
+      case '?':
+        return i;
+      case '\'':
+      case '"': {
+        const char quote = sql[i];
+        ++i;
+        while (i < sql.size()) {
+          if (sql[i] == quote) {
+            if (i + 1 < sql.size() && sql[i + 1] == quote) {
+              i += 2;
+              continue;
+            }
+            break;
+          }
+          ++i;
+        }
+        break;
+      }
+      case '-':
+        if (i + 1 < sql.size() && sql[i + 1] == '-') {
+          i += 2;
+          while (i < sql.size() && sql[i] != '\n' && sql[i] != '\r') {
+            ++i;
+          }
+        }
+        break;
+      case '/':
+        if (i + 1 < sql.size() && sql[i + 1] == '*') {
+          i += 2;
+          while (i + 1 < sql.size() && !(sql[i] == '*' && sql[i + 1] == '/')) {
+            ++i;
+          }
+          if (i + 1 < sql.size()) {
+            ++i;
+          }
+        }
+        break;
+      default:
+        break;
+    }
+  }
+  return std::string_view::npos;
+}
+
+inline std::string replace_postgresql_placeholders(std::string sql) {
+  std::size_t search_pos = 0;
+  int index = 1;
+  while (true) {
+    auto pos = find_next_postgresql_placeholder(sql, search_pos);
+    if (pos == std::string_view::npos) {
+      break;
+    }
+    std::string replacement = "$" + std::to_string(index++);
+    sql.replace(pos, 1, replacement);
+    search_pos = pos + replacement.size();
+  }
   return sql;
 }
 
@@ -549,17 +641,7 @@ class query_builder {
 
       if constexpr (std::remove_pointer_t<DB>::db_type_v ==
                     DBType::postgresql) {
-        if (sql.find('?') != std::string::npos) {
-          int index = 1;
-          for (size_t i = 0; i < sql.size(); i++) {
-            if (sql[i] == '?') {
-              sql[i] = '$';
-              std::string index_str = std::to_string(index++);
-              std::memcpy(&sql[i + 1], index_str.data(),
-                          (std::min)(index_str.size(), size_t(2)));
-            }
-          }
-        }
+        sql = replace_postgresql_placeholders(std::move(sql));
       }
 
       return sql;
@@ -863,9 +945,25 @@ class query_builder {
   template <typename... Args>
   stage_group_by group_by(Args... fields) {
     ctx_->group_by_clause_ = " GROUP BY ";
-    (ctx_->group_by_clause_.append(fields.name).append(","), ...);
+    (append_group_by_field(ctx_->group_by_clause_, fields), ...);
     ctx_->group_by_clause_.pop_back();
     return stage_group_by{ctx_};
+  }
+
+  template <typename... Args>
+  stage_order order_by(Args... fields) {
+    ctx_->order_by_clause_ = order_by_sql(fields...);
+    return stage_order{ctx_};
+  }
+
+  stage_limit limit(uint64_t n) {
+    ctx_->limit_clause_ = " LIMIT " + std::to_string(n);
+    return stage_limit{ctx_};
+  }
+
+  stage_limit limit(token_t) {
+    ctx_->limit_clause_ = " LIMIT ?  ";
+    return stage_limit{ctx_};
   }
 
   struct stage_where {
@@ -890,11 +988,7 @@ class query_builder {
     template <typename... Args>
     stage_group_by group_by(Args... fields) {
       ctx->group_by_clause_ = " GROUP BY ";
-      (ctx->group_by_clause_.append(fields.class_name)
-           .append(".")
-           .append(fields.name)
-           .append(","),
-       ...);
+      (append_group_by_field(ctx->group_by_clause_, fields), ...);
       ctx->group_by_clause_.pop_back();
       return stage_group_by{ctx};
     }
@@ -932,6 +1026,30 @@ class query_builder {
     stage_where where(const where_condition& condition) {
       ctx->where_clause_ = condition.to_sql();
       return stage_where{ctx};
+    }
+
+    template <typename... Args>
+    stage_group_by group_by(Args... fields) {
+      ctx->group_by_clause_ = " GROUP BY ";
+      (append_group_by_field(ctx->group_by_clause_, fields), ...);
+      ctx->group_by_clause_.pop_back();
+      return stage_group_by{ctx};
+    }
+
+    template <typename... Args>
+    stage_order order_by(Args... fields) {
+      ctx->order_by_clause_ = order_by_sql(fields...);
+      return stage_order{ctx};
+    }
+
+    stage_limit limit(uint64_t n) {
+      ctx->limit_clause_ = " LIMIT " + std::to_string(n);
+      return stage_limit{ctx};
+    }
+
+    stage_limit limit(token_t) {
+      ctx->limit_clause_ = " LIMIT ?  ";
+      return stage_limit{ctx};
     }
 
     template <typename To, typename... Args>
@@ -996,11 +1114,10 @@ struct stage_select {
   template <typename T>
   query_builder<T, DB, R> from() {
     auto builder = query_builder<T, DB, R>{db_};
-    if (!select_clause_.empty()) {
-      builder.ctx_->select_clause_ = select_clause_;
-      builder.ctx_->from_clause_.append(" from ").append(
-          std::string(get_short_struct_name<T>()));
-    }
+    builder.ctx_->select_clause_ =
+        select_clause_.empty() ? select_all_fields_sql<T>() : select_clause_;
+    builder.ctx_->from_clause_.append(" from ").append(
+        std::string(get_short_struct_name<T>()));
     return builder;
   }
 };
