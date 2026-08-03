@@ -599,7 +599,7 @@ inline void get_sql_conditions(std::string &sql, const std::string &arg,
                                Args &&...args) {
   std::string temp = arg;
   std::transform(arg.begin(), arg.end(), temp.begin(), ::tolower);
-  if (temp.find("select") != std::string::npos) {
+  if (contains_select(arg)) {
     sql = arg;
   }
   else {

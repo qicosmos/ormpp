@@ -186,6 +186,21 @@ struct test_optional {
 };
 REGISTER_AUTO_KEY(test_optional, id)
 
+struct Person {
+  std::string name;
+  int age;
+  int id;
+};
+REGISTER_AUTO_KEY(Person, id)
+
+struct Append {
+  int id;
+  std::optional<std::string> name;
+  std::optional<int> age;
+  std::optional<int> empty;
+};
+REGISTER_AUTO_KEY(Append, id)
+
 struct sub_optinal {
   std::optional<std::string> name;
   std::optional<int> age;
@@ -820,6 +835,29 @@ TEST_CASE("optional") {
                     .where(col(&person::id) > 0 || col(&person::id) == 1)
                     .collect();
       CHECK(l2.size() == 1);
+
+      auto all_join_rows =
+          sqlite.select(all)
+              .from<test_optional>()
+              .inner_join(col(&test_optional::id), col(&person::id))
+              .where(col(&test_optional::id) == 1)
+              .collect();
+      REQUIRE(all_join_rows.size() == 1);
+      CHECK(all_join_rows.front().id == 1);
+
+      auto grouped_all_rows = sqlite.select(all)
+                                  .from<test_optional>()
+                                  .group_by(col(&test_optional::id))
+                                  .collect();
+      CHECK(grouped_all_rows.size() == 2);
+
+      auto limited_all_rows = sqlite.select(all)
+                                  .from<test_optional>()
+                                  .order_by(col(&test_optional::id).desc())
+                                  .limit(1)
+                                  .collect();
+      REQUIRE(limited_all_rows.size() == 1);
+      CHECK(limited_all_rows.front().id == 2);
       sqlite.execute("DROP TABLE IF EXISTS person");
     }
     auto l0 = sqlite.select(all)
@@ -912,9 +950,53 @@ TEST_CASE("optional") {
 TEST_CASE("like condition quotes and escapes string patterns") {
   std::string_view pattern = "pure%";
   CHECK(col(&test_optional::name).like(pattern).to_sql() ==
-        "(name like 'pure%')");
+        "(test_optional.name like 'pure%')");
   CHECK(col(&test_optional::name).like("a'b%").to_sql() ==
-        "(name like 'a''b%')");
+        "(test_optional.name like 'a''b%')");
+}
+
+TEST_CASE("issue #269: sqlite select all with inner join") {
+  dbng<sqlite> db;
+  REQUIRE(db.connect("test_select_all_issue_269.db"));
+  db.execute("DROP TABLE IF EXISTS Person");
+  db.execute("DROP TABLE IF EXISTS Append");
+  REQUIRE(db.create_datatable<Person>());
+  REQUIRE(db.create_datatable<Append>());
+  REQUIRE(db.insert<Person>({"purecpp", 18, 0}) == 1);
+  REQUIRE(db.insert<Append>({0, "purecpp", 18, {}}) == 1);
+
+  auto ret = db.select(ormpp::all)
+                 .from<Append>()
+                 .inner_join(ormpp::col(&Person::id), ormpp::col(&Append::id))
+                 .where(ormpp::col(&Append::id) == 1)
+                 .collect();
+
+  REQUIRE(ret.size() == 1);
+  CHECK(ret.front().id == 1);
+  REQUIRE(ret.front().name.has_value());
+  CHECK(ret.front().name.value() == "purecpp");
+
+  db.execute("DROP TABLE IF EXISTS Person");
+  db.execute("DROP TABLE IF EXISTS Append");
+}
+
+TEST_CASE("query condition containing select is not treated as full SQL") {
+  CHECK(!contains_select("id in (select id from person)"));
+
+  auto sql = generate_query_sql<person>(DBType::sqlite,
+                                        "id in (select id from person)");
+  CHECK(sql.find("select ") == 0);
+  CHECK(sql.find("where 1=1 and  id in (select id from person)") !=
+        std::string::npos);
+}
+
+TEST_CASE("postgresql placeholder replacement skips SQL literals") {
+  CHECK(replace_postgresql_placeholders(
+            "select * from person where name='a?b' and id=?") ==
+        "select * from person where name='a?b' and id=$1");
+  CHECK(replace_postgresql_placeholders(
+            "select '?' as q, name from person where id=? limit ?  ") ==
+        "select '?' as q, name from person where id=$1 limit $2  ");
 }
 
 /*

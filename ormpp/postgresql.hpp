@@ -169,7 +169,8 @@ class postgresql {
   template <typename T, typename... Args>
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &str, Args &&...args) {
-    std::string sql = generate_query_sql<T>(db_type_v, str);
+    std::string sql =
+        contains_select(str) ? str : generate_query_sql<T>(db_type_v, str);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
