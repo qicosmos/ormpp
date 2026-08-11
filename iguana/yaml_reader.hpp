@@ -5,6 +5,9 @@
 #include "detail/charconv.h"
 #include "detail/utf.hpp"
 #include "yaml_util.hpp"
+#ifdef YLT_USE_CXX26_REFLECTION
+#include "ylt/reflection/reflect26_dispatch.hpp"
+#endif
 
 namespace iguana {
 
@@ -34,7 +37,7 @@ IGUANA_INLINE void parse_escape_str(U &value, It &&it, It &&end) {
   auto start = it;
   value.clear();
   while (it != end) {
-    if (*(it++) == '\\')
+    if (*(it++) == '\\' && it != end)
       IGUANA_UNLIKELY {
         if (*it == 'u') {
           value.append(&*start,
@@ -143,37 +146,50 @@ IGUANA_INLINE void yaml_parse_value(U &value, It &&value_begin,
 // string_view should be used  for string with ' " ?
 template <typename U, typename It,
           std::enable_if_t<string_container_v<U>, int> = 0>
-IGUANA_INLINE void yaml_parse_value(U &value, It &&value_begin,
-                                    It &&value_end) {
+IGUANA_INLINE void yaml_parse_value(U &value, It value_begin, It value_end) {
   using T = std::decay_t<U>;
-  auto start = value_begin;
   auto end = value_end;
-  if (*value_begin == '"') {
-    ++start;
-    --end;
-    if (*end != '"')
+
+  auto handle_quoted = [&](char quote_char, const char *error_msg) {
+    // Check minimum length: at least 2 characters (opening and closing quote)
+    if (std::distance(value_begin, value_end) < 2)
+      IGUANA_UNLIKELY { throw std::runtime_error(error_msg); }
+    ++value_begin;
+    --value_end;
+    if (*value_end != quote_char)
       IGUANA_UNLIKELY {
-        // TODO: improve
-        auto it = start;
-        while (*it != '"' && it != end) {
+        // Search for closing quote (may be followed by comment)
+        auto it = value_begin;
+        while (it != value_end && *it != quote_char) {
           ++it;
         }
-        if (it == end || (*(it + 1) != '#'))
-          IGUANA_UNLIKELY { throw std::runtime_error(R"(Expected ")"); }
-        end = it;
+        if (it == value_end)
+          IGUANA_UNLIKELY { throw std::runtime_error(error_msg); }
+        end = it++;
+        // skip spaces
+        if (!skip_space_till_end(it, value_end)) {
+          // Should be comment
+          if (*it != '#')
+            IGUANA_UNLIKELY { throw std::runtime_error(error_msg); }
+        }
       }
+    else {
+      end = value_end;
+    }
+  };
+
+  if (*value_begin == '"') {
+    handle_quoted('"', R"(Expected closing ")");
     if constexpr (string_v<T>) {
-      parse_escape_str(value, start, end);
+      parse_escape_str(value, value_begin, end);
       return;
     }
   }
   else if (*value_begin == '\'') {
-    ++start;
-    --end;
-    if (*end != '\'')
-      IGUANA_UNLIKELY { throw std::runtime_error(R"(Expected ')"); }
+    handle_quoted('\'', R"(Expected closing ')");
   }
-  value = T(&*start, static_cast<size_t>(std::distance(start, end)));
+  value =
+      T(&*value_begin, static_cast<size_t>(std::distance(value_begin, end)));
   if ((value == "~") || (value == "null")) {
     value = T{};
   }
@@ -546,6 +562,37 @@ IGUANA_INLINE void skip_object_value(It &&it, It &&end, size_t min_spaces) {
 
 }  // namespace detail
 
+#ifdef YLT_USE_CXX26_REFLECTION
+template <typename T, typename It, std::enable_if_t<ylt_refletable_v<T>, int>>
+IGUANA_INLINE void from_yaml(T &value, It &&it, It &&end, size_t min_spaces) {
+  auto spaces = skip_space_and_lines(it, end, min_spaces);
+  while (it != end) {
+    auto start = it;
+    auto keyend = yaml_skip_till<':'>(it, end);
+    std::string_view key = std::string_view{
+        &*start, static_cast<size_t>(std::distance(start, keyend))};
+
+    bool found = ylt::reflection::reflect26::dispatch_by_name(
+        value, key, [&](auto &field) IGUANA__INLINE_LAMBDA {
+          detail::yaml_parse_item(field, it, end, spaces + 1);
+        });
+    if (!found)
+      IGUANA_UNLIKELY {
+#ifdef THROW_UNKNOWN_KEY
+        throw std::runtime_error("Unknown key: " + std::string(key));
+#else
+        detail::skip_object_value(it, end, spaces + 1);
+#endif
+      }
+    auto subspaces = skip_space_and_lines<false>(it, end, min_spaces);
+    if (subspaces < min_spaces)
+      IGUANA_UNLIKELY {
+        it -= subspaces + 1;
+        return;
+      }
+  }
+}
+#else
 template <typename T, typename It, std::enable_if_t<ylt_refletable_v<T>, int>>
 IGUANA_INLINE void from_yaml(T &value, It &&it, It &&end, size_t min_spaces) {
   auto spaces = skip_space_and_lines(it, end, min_spaces);
@@ -586,6 +633,7 @@ IGUANA_INLINE void from_yaml(T &value, It &&it, It &&end, size_t min_spaces) {
       }
   }
 }
+#endif  // !YLT_USE_CXX26_REFLECTION
 
 template <typename T, typename It,
           std::enable_if_t<non_ylt_refletable_v<T>, int> = 0>

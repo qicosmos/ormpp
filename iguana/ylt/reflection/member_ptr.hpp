@@ -1,5 +1,9 @@
 #pragma once
 #include "member_count.hpp"
+#include "reflect26_compat.hpp"
+#ifdef YLT_USE_CXX26_REFLECTION
+#include "reflect26_core.hpp"
+#endif
 
 // modified based on:
 // https://github.com/getml/reflect-cpp/blob/main/include/rfl/internal/bind_fake_object_to_tuple.hpp
@@ -84,7 +88,9 @@ inline constexpr remove_cvref_t<T>& get_fake_object() noexcept {
   }
 
 // such file is generate macro file
+#ifndef YLT_USE_CXX26_REFLECTION
 #include "internal/generate/member_macro.hpp"
+#endif
 
 template <class T>
 inline constexpr auto tuple_view(T&& t) {
@@ -101,12 +107,19 @@ inline constexpr decltype(auto) tuple_view(T&& t, Visitor&& visitor) {
 
 template <class T>
 inline constexpr auto struct_to_tuple() {
+#ifdef YLT_USE_CXX26_REFLECTION
+  return reflect26::data_members<remove_cvref_t<T>>();
+#else
   return internal::object_tuple_view_helper<T,
                                             members_count_v<T>>::tuple_view();
+#endif
 }
 
 template <class T>
 inline constexpr auto object_to_tuple(T&& t) {
+#ifdef YLT_USE_CXX26_REFLECTION
+  return reflect26::data_members<remove_cvref_t<T>>();
+#else
   using type = remove_cvref_t<T>;
   if constexpr (is_out_ylt_refl_v<type>) {
     return refl_object_to_tuple(std::forward<T>(t));
@@ -117,10 +130,15 @@ inline constexpr auto object_to_tuple(T&& t) {
   else {
     return internal::tuple_view(std::forward<T>(t));
   }
+#endif
 }
 
 template <class T, typename Visitor, size_t Count = members_count_v<T>>
 inline constexpr decltype(auto) visit_members(T&& t, Visitor&& visitor) {
+#ifdef YLT_USE_CXX26_REFLECTION
+  return reflect26::for_each_data_member(std::forward<T>(t),
+                                         std::forward<Visitor>(visitor));
+#else
   using type = remove_cvref_t<T>;
   if constexpr (is_out_ylt_refl_v<type>) {
     return refl_visit_members(std::forward<T>(t),
@@ -134,5 +152,6 @@ inline constexpr decltype(auto) visit_members(T&& t, Visitor&& visitor) {
     return internal::tuple_view<Count>(std::forward<T>(t),
                                        std::forward<Visitor>(visitor));
   }
+#endif
 }
 }  // namespace ylt::reflection

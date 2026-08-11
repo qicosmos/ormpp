@@ -4,6 +4,7 @@
 #include <optional>
 #include <tuple>
 #include <type_traits>
+#include <utility>
 #include <vector>
 #if __has_include(<ylt/util/expected.hpp>)
 #include <ylt/util/expected.hpp>
@@ -11,7 +12,11 @@
 #include "iguana/ylt/util/expected.hpp"
 #endif
 
+#include "reflect26_compat.hpp"
 #include "user_reflect_macro.hpp"
+#ifdef YLT_USE_CXX26_REFLECTION
+#include "reflect26_core.hpp"
+#endif
 namespace struct_pack {
 template <typename T, uint64_t version>
 struct compatible;
@@ -70,6 +75,20 @@ struct optional_impl<T, std::void_t<decltype(std::declval<T>().value()),
 
 template <typename T>
 constexpr bool optional = !expected<T> && optional_impl<T>::value;
+#endif
+
+template <typename T>
+struct pair_impl : std::false_type {};
+
+template <typename F, typename S>
+struct pair_impl<std::pair<F, S>> : std::true_type {};
+
+#if __cpp_concepts >= 201907L
+template <typename T>
+concept pair = pair_impl<remove_cvref_t<T>>::value;
+#else
+template <typename T>
+constexpr bool pair = pair_impl<remove_cvref_t<T>>::value;
 #endif
 
 namespace internal {
@@ -169,6 +188,14 @@ inline constexpr std::size_t members_count_impl() {
 template <typename T>
 inline constexpr std::size_t members_count() {
   using type = remove_cvref_t<T>;
+#ifdef YLT_USE_CXX26_REFLECTION
+  if constexpr (internal::tuple_size<type>) {
+    return std::tuple_size<type>::value;
+  }
+  else {
+    return reflect26::members_count<type>();
+  }
+#else
   if constexpr (is_out_ylt_refl_v<type>) {
     return refl_member_count(ylt::reflection::identity<type>{});
   }
@@ -179,11 +206,17 @@ inline constexpr std::size_t members_count() {
     return std::tuple_size<type>::value;
   }
   else if constexpr (std::is_aggregate_v<type>) {
-    return internal::members_count_impl<type>();
+    if constexpr (std::is_empty_v<type>) {
+      return 0;
+    }
+    else {
+      return internal::members_count_impl<type>();
+    }
   }
   else {
     static_assert(!sizeof(T), "not supported type!");
   }
+#endif
 }
 
 template <typename T>

@@ -51,28 +51,29 @@ template <char... C, typename It>
 IGUANA_INLINE auto yaml_skip_till(It &&it, It &&end) {
   if (it == end)
     IGUANA_UNLIKELY { return it; }
+  std::decay_t<decltype(it)> start = it;
   std::decay_t<decltype(it)> res = it;
   while ((it != end) && (!((... || (*it == C))))) {
     if (*it == '\n')
       IGUANA_UNLIKELY { throw std::runtime_error("\\n is not expected"); }
-    else if (*it == ' ')
+    else if (*it == ' ' || *it == '\t')
       IGUANA_UNLIKELY {
         res = it;
-        while (it != end && *it == ' ') ++it;
+        while (it != end && (*it == ' ' || *it == '\t')) ++it;
+        continue;
       }
     else if (*it == '#')
       IGUANA_UNLIKELY {
-        if (*(it - 1) == ' ')
+        // Check if it - 1 is valid before accessing
+        if (it > start && (*(it - 1) == ' ' || *(it - 1) == '\t'))
           IGUANA_UNLIKELY {
-            // it - 1 may be illegal
             while ((it != end) && *it != '\n') {
               ++it;
             }
             return res;
           }
       }
-    else
-      IGUANA_LIKELY { ++it; }
+    res = ++it;
   }
 
   if (it == end)
@@ -82,7 +83,7 @@ IGUANA_INLINE auto yaml_skip_till(It &&it, It &&end) {
       throw std::runtime_error(error);
     }
   ++it;  // skip
-  return (*(it - 2) == ' ') ? res : it - 1;
+  return res;
 }
 
 // If there are '\n' , return indentation

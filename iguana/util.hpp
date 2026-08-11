@@ -49,6 +49,9 @@ inline constexpr bool enum_v = std::is_enum_v<std::decay_t<T>>;
 template <typename T>
 constexpr inline bool optional_v = ylt::reflection::optional<T>;
 
+template <typename T>
+constexpr inline bool pair_v = ylt::reflection::pair<T>;
+
 template <class, class = void>
 struct is_container : std::false_type {};
 
@@ -165,11 +168,23 @@ inline constexpr auto for_each_tuple(F&& f, T&& tup) {
 }
 
 template <class T>
+constexpr inline bool reflect26_excluded_v = false;
+
+template <class T>
 constexpr inline bool ylt_refletable_v =
-    (ylt::reflection::is_ylt_refl_v<T> ||
-     std::is_aggregate_v<
-         ylt::reflection::remove_cvref_t<T>>)&&!fixed_array_v<T> &&
+#ifdef YLT_USE_CXX26_REFLECTION
+    (std::is_class_v<ylt::reflection::remove_cvref_t<T>> ||
+     std::is_aggregate_v<ylt::reflection::remove_cvref_t<T>>) &&
+    !string_container_v<T> && !container_v<T> && !fixed_array_v<T> &&
+    !tuple_v<T> && !optional_v<T> && !variant_v<T> && !smart_ptr_v<T> &&
+    !reflect26_excluded_v<ylt::reflection::remove_cvref_t<T>> &&
     !ylt::reflection::is_custom_refl_v<T> && !is_pb_type_v<T>;
+#else
+    (ylt::reflection::is_ylt_refl_v<T> ||
+     std::is_aggregate_v<ylt::reflection::remove_cvref_t<T>>) &&
+    !fixed_array_v<T> && !ylt::reflection::is_custom_refl_v<T> &&
+    !is_pb_type_v<T>;
+#endif
 
 template <class T>
 constexpr inline bool non_ylt_refletable_v = !ylt_refletable_v<T>;

@@ -31,6 +31,11 @@ inline unsigned parse_unicode_hex4(It &&it) {
 // https://github.com/Tencent/rapidjson/blob/master/include/rapidjson/encodings.h
 template <typename Ch = char, typename OutputStream>
 inline void encode_utf8(OutputStream &os, unsigned codepoint) {
+  if (codepoint > 0x10FFFF)
+    IGUANA_UNLIKELY {
+      throw std::runtime_error("Invalid unicode codepoint:" +
+                               std::to_string(codepoint));
+    }
   if (codepoint <= 0x7F)
     os.push_back(static_cast<Ch>(codepoint & 0xFF));
   else if (codepoint <= 0x7FF) {
@@ -43,7 +48,6 @@ inline void encode_utf8(OutputStream &os, unsigned codepoint) {
     os.push_back(static_cast<Ch>(0x80 | (codepoint & 0x3F)));
   }
   else {
-    assert(codepoint <= 0x10FFFF);
     os.push_back(static_cast<Ch>(0xF0 | ((codepoint >> 18) & 0xFF)));
     os.push_back(static_cast<Ch>(0x80 | ((codepoint >> 12) & 0x3F)));
     os.push_back(static_cast<Ch>(0x80 | ((codepoint >> 6) & 0x3F)));

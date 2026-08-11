@@ -32,6 +32,9 @@ template <typename T>
 constexpr inline bool numeric_str_v =
     std::is_same_v<numeric_str, std::remove_cvref_t<T>>;
 
+template <>
+constexpr inline bool reflect26_excluded_v<numeric_str> = true;
+
 template <typename It>
 IGUANA_INLINE void skip_comment(It &&it, It &&end) {
   ++it;
@@ -210,7 +213,7 @@ IGUANA_INLINE bool is_numeric(char c) noexcept {
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // E
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0   // F
   };
-  return static_cast<bool>(is_num[static_cast<unsigned int>(c)]);
+  return static_cast<bool>(is_num[static_cast<unsigned char>(c)]);
 }
 
 // '\t' '\r' '\n'  '"' '}' ']' ',' ' '  '\0'
@@ -234,7 +237,7 @@ IGUANA_INLINE bool can_follow_number(char c) noexcept {
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  // E
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0   // F
   };
-  return static_cast<bool>(can_follow_num[static_cast<unsigned int>(c)]);
+  return static_cast<bool>(can_follow_num[static_cast<unsigned char>(c)]);
 }
 
 }  // namespace iguana

@@ -2,6 +2,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstring>
+#include <limits>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -76,6 +77,23 @@ template <typename T>
 constexpr bool is_lenprefix_v = (get_wire_type<T>() ==
                                  WireType::LengthDelimeted);
 
+template <typename T>
+inline constexpr bool pb_well_known_chrono_v =
+    std::is_same_v<std::remove_const_t<std::remove_reference_t<T>>,
+                   std::chrono::system_clock::time_point> ||
+    std::is_same_v<std::remove_const_t<std::remove_reference_t<T>>,
+                   std::chrono::nanoseconds>;
+
+template <bool TimestampSchema, typename T>
+IGUANA_INLINE auto make_pb_well_known_value(const T& value) {
+  if constexpr (TimestampSchema) {
+    return iguana::pb_timestamp{value};
+  }
+  else {
+    return iguana::pb_duration{value};
+  }
+}
+
 [[nodiscard]] IGUANA_INLINE uint32_t encode_zigzag(int32_t v) {
   return (static_cast<uint32_t>(v) << 1U) ^
          static_cast<uint32_t>(
@@ -98,90 +116,97 @@ constexpr bool is_lenprefix_v = (get_wire_type<T>() ==
 
 template <class T>
 IGUANA_INLINE uint64_t decode_varint(T& data, size_t& pos) {
-  const int8_t* begin = reinterpret_cast<const int8_t*>(data.data());
-  const int8_t* end = begin + data.size();
-  const int8_t* p = begin;
+  if (data.empty())
+    IGUANA_UNLIKELY {
+      throw std::invalid_argument("Invalid varint value: too few bytes.");
+    }
+
+  const auto* begin = reinterpret_cast<const unsigned char*>(data.data());
   uint64_t val = 0;
-
-  if ((static_cast<uint64_t>(*p) & 0x80) == 0) {
-    pos = 1;
-    return static_cast<uint64_t>(*p);
-  }
-
-  // end is always greater than or equal to begin, so this subtraction is safe
-  if (size_t(end - begin) >= 10)
-    IGUANA_LIKELY {  // fast path
-      int64_t b;
-      do {
-        b = *p++;
-        val = (b & 0x7f);
-        if (b >= 0) {
-          break;
-        }
-        b = *p++;
-        val |= (b & 0x7f) << 7;
-        if (b >= 0) {
-          break;
-        }
-        b = *p++;
-        val |= (b & 0x7f) << 14;
-        if (b >= 0) {
-          break;
-        }
-        b = *p++;
-        val |= (b & 0x7f) << 21;
-        if (b >= 0) {
-          break;
-        }
-        b = *p++;
-        val |= (b & 0x7f) << 28;
-        if (b >= 0) {
-          break;
-        }
-        b = *p++;
-        val |= (b & 0x7f) << 35;
-        if (b >= 0) {
-          break;
-        }
-        b = *p++;
-        val |= (b & 0x7f) << 42;
-        if (b >= 0) {
-          break;
-        }
-        b = *p++;
-        val |= (b & 0x7f) << 49;
-        if (b >= 0) {
-          break;
-        }
-        b = *p++;
-        val |= (b & 0x7f) << 56;
-        if (b >= 0) {
-          break;
-        }
-        b = *p++;
-        val |= (b & 0x01) << 63;
-        if (b >= 0) {
-          break;
-        }
-        throw std::invalid_argument("Invalid varint value: too many bytes.");
-      } while (false);
-    }
-  else {
-    int shift = 0;
-    while (p != end && *p < 0) {
-      val |= static_cast<uint64_t>(*p++ & 0x7f) << shift;
-      shift += 7;
-    }
-    if (p == end)
+  const size_t size = data.size();
+  const size_t limit = size < 10 ? size : 10;
+  for (size_t i = 0; i < limit; ++i) {
+    const uint64_t byte = begin[i];
+    if (i == 9 && (byte & 0xfeU) != 0)
       IGUANA_UNLIKELY {
-        throw std::invalid_argument("Invalid varint value: too few bytes.");
+        throw std::invalid_argument("Invalid varint value: too many bytes.");
       }
-    val |= static_cast<uint64_t>(*p++) << shift;
+    val |= (byte & 0x7fU) << (7 * i);
+    if ((byte & 0x80U) == 0) {
+      pos = i + 1;
+      return val;
+    }
   }
 
-  pos = (p - begin);
-  return val;
+  if (size >= 10)
+    IGUANA_UNLIKELY {
+      throw std::invalid_argument("Invalid varint value: too many bytes.");
+    }
+  throw std::invalid_argument("Invalid varint value: too few bytes.");
 }
+
+struct pb_key {
+  uint32_t field_number;
+  WireType wire_type;
+  size_t tag_size;
+};
+
+IGUANA_INLINE pb_key decode_key(std::string_view data,
+                                bool allow_end_group = false) {
+  size_t pos = 0;
+  const uint64_t raw_key = decode_varint(data, pos);
+  if (raw_key > std::numeric_limits<uint32_t>::max())
+    IGUANA_UNLIKELY {
+      throw std::invalid_argument("Invalid protobuf tag: too large.");
+    }
+  const uint32_t key = static_cast<uint32_t>(raw_key);
+  const uint32_t wire = key & 0b0111U;
+  const uint32_t field_number = key >> 3U;
+  if (field_number == 0)
+    IGUANA_UNLIKELY {
+      throw std::invalid_argument(
+          "Invalid protobuf tag: field number must be positive.");
+    }
+  if (wire > static_cast<uint32_t>(WireType::Fixed32))
+    IGUANA_UNLIKELY {
+      throw std::invalid_argument("Invalid protobuf tag: unknown wire type.");
+    }
+  auto wire_type = static_cast<WireType>(wire);
+  if (wire_type == WireType::EndGroup && !allow_end_group)
+    IGUANA_UNLIKELY {
+      throw std::invalid_argument("unexpected end group in protobuf stream");
+    }
+  return {field_number, wire_type, pos};
+}
+
+IGUANA_INLINE size_t decode_length_delimited(std::string_view& pb_str,
+                                             const char* error) {
+  size_t pos = 0;
+  const uint64_t size = decode_varint(pb_str, pos);
+  pb_str = pb_str.substr(pos);
+  if (size > pb_str.size())
+    IGUANA_UNLIKELY { throw std::invalid_argument(error); }
+  if (size > std::numeric_limits<size_t>::max())
+    IGUANA_UNLIKELY {
+      throw std::invalid_argument("Invalid length-delimited value: too large.");
+    }
+  return static_cast<size_t>(size);
+}
+
+inline constexpr size_t max_pb_recursion_depth = 100;
+inline thread_local size_t pb_recursion_depth = 0;
+
+struct pb_recursion_guard {
+  pb_recursion_guard() {
+    if (pb_recursion_depth >= max_pb_recursion_depth)
+      IGUANA_UNLIKELY {
+        throw std::runtime_error("protobuf message recursion limit exceeded");
+      }
+    ++pb_recursion_depth;
+  }
+
+  ~pb_recursion_guard() { --pb_recursion_depth; }
+};
 
 // value == 0 ? 1 : floor(log2(value)) / 7 + 1
 constexpr size_t variant_uint32_size_constexpr(uint32_t value) {
@@ -197,7 +222,7 @@ template <uint64_t v, typename Writer, size_t... I>
 IGUANA_INLINE void append_varint_u32(Writer& writer,
                                      std::index_sequence<I...>) {
   uint8_t temp = 0;
-  ((temp = static_cast<uint8_t>(v >> (7 * I)),
+  ((temp = static_cast<uint8_t>((v >> (7 * I)) | 0x80),
     writer.write((const char*)&temp, 1)),
    ...);
 }
@@ -401,6 +426,83 @@ template <size_t key_size, bool omit_default_val = true, typename Type,
           typename Arr>
 IGUANA_INLINE size_t pb_key_value_size(Type&& t, Arr& size_arr);
 
+template <bool TimestampSchema, size_t key_size, bool omit_default_val = true,
+          typename Type, typename Arr>
+IGUANA_INLINE size_t pb_well_known_key_value_size(Type&& t, Arr& size_arr) {
+  using T = std::remove_const_t<std::remove_reference_t<Type>>;
+  if constexpr (optional_v<T>) {
+    if (!t.has_value()) {
+      return 0;
+    }
+    return pb_well_known_key_value_size<TimestampSchema, key_size,
+                                        omit_default_val>(*t, size_arr);
+  }
+  else if constexpr (is_sequence_container<T>::value) {
+    size_t len = 0;
+    for (auto& item : t) {
+      len += pb_well_known_key_value_size<TimestampSchema, key_size, false>(
+          item, size_arr);
+    }
+    return len;
+  }
+  else {
+    auto wire_value = make_pb_well_known_value<TimestampSchema>(t);
+    return pb_key_value_size<key_size, omit_default_val>(wire_value, size_arr);
+  }
+}
+
+template <typename Wire, typename T>
+IGUANA_INLINE auto make_pb_wire_scalar(const T& value) {
+  using W = ylt::reflection::remove_cvref_t<Wire>;
+  using U = ylt::reflection::remove_cvref_t<T>;
+  if constexpr (std::is_same_v<W, U>) {
+    return value;
+  }
+  else if constexpr (is_pb_type_v<W>) {
+    return W{static_cast<typename W::value_type>(value)};
+  }
+  else {
+    return W{value};
+  }
+}
+
+template <typename T, typename Wire>
+IGUANA_INLINE void assign_pb_wire_value(T& value, Wire&& wire) {
+  using U = ylt::reflection::remove_cvref_t<T>;
+  using W = ylt::reflection::remove_cvref_t<Wire>;
+  if constexpr (std::is_same_v<U, W>) {
+    value = std::forward<Wire>(wire);
+  }
+  else if constexpr (optional_v<U>) {
+    if (wire.has_value()) {
+      typename U::value_type item{};
+      assign_pb_wire_value(item, *wire);
+      value = std::move(item);
+    }
+    else {
+      value.reset();
+    }
+  }
+  else if constexpr (is_sequence_container<U>::value) {
+    value.clear();
+    for (auto& item : wire) {
+      typename U::value_type converted{};
+      assign_pb_wire_value(converted, item);
+      value.push_back(std::move(converted));
+    }
+  }
+  else if constexpr (is_pb_type_v<W>) {
+    value = wire.val;
+  }
+  else {
+    value = static_cast<U>(wire);
+  }
+}
+
+template <typename Wire, size_t key_size, bool omit_default_val = true,
+          typename Type, typename Arr>
+IGUANA_INLINE size_t pb_schema_key_value_size(Type&& t, Arr& size_arr);
+
 template <typename Variant, typename T, size_t I>
 constexpr inline size_t get_variant_index() {
   if constexpr (I == 0) {
@@ -459,24 +561,52 @@ IGUANA_INLINE size_t pb_key_value_size(Type&& t, Arr& size_arr) {
                                    std::decay_t<decltype(tuple)>>;
           auto value = std::get<decltype(i)::value>(tuple);
           using U = typename field_type::value_type;
+          using wire_type = typename field_type::wire_value_type;
           using sub_type = typename field_type::sub_type;
           auto& val = value.value(t);
-          if constexpr (variant_v<U>) {
+          if constexpr (field_type::timestamp_schema ||
+                        field_type::duration_schema) {
+            constexpr uint32_t sub_key =
+                (value.field_no << 3) |
+                static_cast<uint32_t>(WireType::LengthDelimeted);
+            constexpr auto sub_keysize = variant_uint32_size_constexpr(sub_key);
+            len += pb_well_known_key_value_size<field_type::timestamp_schema,
+                                                sub_keysize>(val, size_arr);
+          }
+          else if constexpr (field_type::optional_schema) {
+            constexpr uint32_t sub_key =
+                (value.field_no << 3) |
+                static_cast<uint32_t>(get_wire_type<wire_type>());
+            constexpr auto sub_keysize = variant_uint32_size_constexpr(sub_key);
+            len += pb_schema_key_value_size<wire_type, sub_keysize, false>(
+                val, size_arr);
+          }
+          else if constexpr (variant_v<U>) {
             constexpr auto offset =
                 get_variant_index<U, sub_type, std::variant_size_v<U> - 1>();
-            if constexpr (offset == 0) {
-              len += pb_oneof_size<value.field_no>(val, size_arr);
+            if (val.index() == offset) {
+              if constexpr (!std::is_same_v<sub_type, std::monostate>) {
+                constexpr uint32_t sub_key =
+                    (value.field_no << 3) |
+                    static_cast<uint32_t>(get_wire_type<sub_type>());
+                constexpr auto sub_keysize =
+                    variant_uint32_size_constexpr(sub_key);
+                len += pb_key_value_size<sub_keysize, false>(
+                    std::get<offset>(val), size_arr);
+              }
             }
           }
           else {
             constexpr uint32_t sub_key =
                 (value.field_no << 3) |
-                static_cast<uint32_t>(get_wire_type<U>());
+                static_cast<uint32_t>(get_wire_type<wire_type>());
             constexpr auto sub_keysize = variant_uint32_size_constexpr(sub_key);
-            len += pb_key_value_size<sub_keysize>(val, size_arr);
+            len +=
+                pb_schema_key_value_size<wire_type, sub_keysize>(val, size_arr);
           }
         },
         std::make_index_sequence<SIZE>{});
+    len += pb_unknown_fields_size(t);
     if constexpr (inherits_from_base_v<T>) {
       t.cache_size = len;
     }
@@ -541,6 +671,49 @@ IGUANA_INLINE size_t pb_key_value_size(Type&& t, Arr& size_arr) {
   }
 }
 
+template <typename Wire, size_t key_size, bool omit_default_val, typename Type,
+          typename Arr>
+IGUANA_INLINE size_t pb_schema_key_value_size(Type&& t, Arr& size_arr) {
+  using T = ylt::reflection::remove_cvref_t<Type>;
+  using W = ylt::reflection::remove_cvref_t<Wire>;
+  if constexpr (std::is_same_v<T, W>) {
+    return pb_key_value_size<key_size, omit_default_val>(std::forward<Type>(t),
+                                                         size_arr);
+  }
+  else if constexpr (optional_v<T>) {
+    if (!t.has_value()) {
+      return 0;
+    }
+    return pb_schema_key_value_size<typename W::value_type, key_size,
+                                    omit_default_val>(*t, size_arr);
+  }
+  else if constexpr (is_sequence_container<T>::value) {
+    using wire_item_type = typename W::value_type;
+    size_t len = 0;
+    if constexpr (is_lenprefix_v<wire_item_type>) {
+      for (auto& item : t) {
+        len += pb_schema_key_value_size<wire_item_type, key_size, false>(
+            item, size_arr);
+      }
+      return len;
+    }
+    else {
+      for (auto& item : t) {
+        auto wire_item = make_pb_wire_scalar<wire_item_type>(item);
+        len += str_numeric_size<0, false>(wire_item);
+      }
+      if (len == 0) {
+        return 0;
+      }
+      return key_size + variant_uint32_size(static_cast<uint32_t>(len)) + len;
+    }
+  }
+  else {
+    auto wire_value = make_pb_wire_scalar<W>(t);
+    return pb_key_value_size<key_size, omit_default_val>(wire_value, size_arr);
+  }
+}
+
 // return the payload size
 template <bool skip_next = true, typename Type>
 IGUANA_INLINE size_t pb_value_size(Type&& t, uint32_t*& sz_ptr) {
@@ -585,6 +758,69 @@ IGUANA_INLINE size_t pb_value_size(Type&& t, uint32_t*& sz_ptr) {
     return str_numeric_size<0, false>(t);
   }
 }
+
+template <typename T, size_t... I>
+inline auto build_pb_members_impl(
+    const std::array<size_t, sizeof...(I)>& offset_arr,
+    std::index_sequence<I...>) {
+  constexpr auto names = ylt::reflection::get_member_names<T>();
+  constexpr auto numbers = get_pb_field_numbers((T*)nullptr);
+#ifdef YLT_USE_CXX26_REFLECTION
+  static constexpr auto members =
+      ylt::reflection::reflect26::data_members_array<T>();
+  return std::tuple_cat(
+      build_pb_fields_impl<T, numbers[I] - 1,
+                           ylt::reflection::reflect26::meta_type_t<members[I]>>(
+          offset_arr[I], names[I])...);
+#else
+  using Tuple = decltype(ylt::reflection::object_to_tuple(std::declval<T>()));
+  return std::tuple_cat(
+      build_pb_fields_impl<T, numbers[I] - 1, std::tuple_element_t<I, Tuple>>(
+          offset_arr[I], names[I])...);
+#endif
+}
+
+template <typename T>
+inline auto build_pb_members() {
+#ifdef YLT_USE_CXX26_REFLECTION
+  constexpr size_t N = ylt::reflection::members_count_v<T>;
+  static const auto& offset_arr =
+      ylt::reflection::internal::get_member_offset_arr<T>();
+#else
+  using Tuple = decltype(ylt::reflection::object_to_tuple(std::declval<T>()));
+  constexpr size_t N = std::tuple_size_v<Tuple>;
+  static auto& offset_arr = ylt::reflection::internal::get_member_offset_arr(
+      ylt::reflection::internal::wrapper<T>::value);
+#endif
+
+  auto res =
+      build_pb_members_impl<T>(offset_arr, std::make_index_sequence<N>{});
+  using ResultTuple = decltype(res);
+  validate_pb_members_tuple<ResultTuple>();
+  return res;
+}
+
+#define YLT_REFL_PB(STRUCT, ...)                                      \
+  IGUANA_PB_YLT_REFL_FWD(                                             \
+      STRUCT, WRAP_ARGS(IGUANA_PB_FIELD_NAME, unused, ##__VA_ARGS__)) \
+  inline constexpr auto get_pb_field_numbers(STRUCT*) {               \
+    return std::array<size_t, YLT_ARG_COUNT(__VA_ARGS__)>{            \
+        WRAP_ARGS(IGUANA_PB_FIELD_NO, unused, ##__VA_ARGS__)};        \
+  }                                                                   \
+  inline auto get_members_impl(STRUCT*) {                             \
+    return iguana::detail::build_pb_members<STRUCT>();                \
+  }
+
+#define IGUANA_PB_GET_FIELD_(field, no) field
+#define IGUANA_PB_GET_FIELD(pair) IGUANA_PB_GET_FIELD_ pair
+
+#define IGUANA_PB_GET_NO_(field, no) no
+#define IGUANA_PB_GET_NO(pair) IGUANA_PB_GET_NO_ pair
+
+#define IGUANA_PB_FIELD_NAME(unused, pair) IGUANA_PB_GET_FIELD(pair)
+#define IGUANA_PB_FIELD_NO(unused, pair) (size_t) IGUANA_PB_GET_NO(pair)
+
+#define IGUANA_PB_YLT_REFL_FWD(STRUCT, ...) YLT_REFL(STRUCT, __VA_ARGS__)
 
 }  // namespace detail
 }  // namespace iguana
