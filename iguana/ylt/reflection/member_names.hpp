@@ -1,9 +1,15 @@
 #pragma once
+#include <array>
+#include <stdexcept>
 #include <string_view>
 #include <variant>
 
 #include "member_ptr.hpp"
+#include "reflect26_compat.hpp"
 #include "template_string.hpp"
+#ifdef YLT_USE_CXX26_REFLECTION
+#include "reflect26_core.hpp"
+#endif
 
 namespace ylt::reflection {
 
@@ -116,8 +122,10 @@ inline constexpr void init_arr_with_tuple(U& arr, std::index_sequence<Is...>) {
 template <typename T>
 inline constexpr std::array<std::string_view, members_count_v<T>>
 get_member_names() {
-  constexpr size_t Count = members_count_v<T>;
   using type = remove_cvref_t<T>;
+#ifdef YLT_USE_CXX26_REFLECTION
+  return reflect26::member_names_array<type>();
+#else
   if constexpr (is_out_ylt_refl_v<type>) {
     return refl_member_names(ylt::reflection::identity<type>{});
   }
@@ -125,38 +133,64 @@ get_member_names() {
     return type::refl_member_names(ylt::reflection::identity<type>{});
   }
   else {
+    constexpr size_t Count = members_count_v<T>;
     std::array<std::string_view, Count> arr;
-#if __cplusplus >= 202002L
+#if __cplusplus >= 202002L && (!defined(_MSC_VER) || _MSC_VER >= 1930)
     constexpr auto tp = struct_to_tuple<T>();
     [&]<size_t... Is>(std::index_sequence<Is...>) mutable {
       ((arr[Is] =
             internal::get_member_name<internal::wrap(std::get<Is>(tp))>()),
        ...);
-    }
-    (std::make_index_sequence<Count>{});
+    }(std::make_index_sequence<Count>{});
 #else
     init_arr_with_tuple<T>(arr, std::make_index_sequence<Count>{});
 #endif
     return arr;
   }
+#endif
 }
 
+#ifdef YLT_USE_CXX26_REFLECTION
+template <std::size_t N>
+struct member_names_linear_map {
+  std::array<std::string_view, N> names;
+
+  constexpr std::size_t size() const noexcept { return N; }
+  constexpr auto begin() const noexcept { return names.begin(); }
+  constexpr auto end() const noexcept { return names.end(); }
+
+  static constexpr std::string_view normalized_name(std::string_view name) {
+    return reflect26::normalized_member_name(name);
+  }
+
+  constexpr std::size_t at(std::string_view name) const {
+    for (std::size_t i = 0; i < N; ++i) {
+      if (names[i] == name || normalized_name(names[i]) == name) {
+        return i;
+      }
+    }
+    throw std::out_of_range("unknown member name");
+  }
+};
+#else
 template <typename T, size_t... Is>
 inline constexpr auto get_member_names_map_impl(T& name_arr,
                                                 std::index_sequence<Is...>) {
   return frozen::unordered_map<frozen::string, size_t, sizeof...(Is)>{
       {name_arr[Is], Is}...};
 }
+#endif
 
 template <typename T>
 inline constexpr auto get_member_names_map() {
   constexpr auto name_arr = get_member_names<T>();
-#if __cplusplus >= 202002L
+#ifdef YLT_USE_CXX26_REFLECTION
+  return member_names_linear_map<name_arr.size()>{name_arr};
+#elif __cplusplus >= 202002L
   return [&]<size_t... Is>(std::index_sequence<Is...>) mutable {
     return frozen::unordered_map<frozen::string, size_t, name_arr.size()>{
         {name_arr[Is], Is}...};
-  }
-  (std::make_index_sequence<name_arr.size()>{});
+  }(std::make_index_sequence<name_arr.size()>{});
 #else
   return get_member_names_map_impl(name_arr,
                                    std::make_index_sequence<name_arr.size()>{});
@@ -173,29 +207,40 @@ inline auto get_member_offset_arr_impl(T& t, Tuple& tp,
 
 template <typename T>
 inline const auto& get_member_offset_arr(T&& t) {
+#ifdef YLT_USE_CXX26_REFLECTION
+  [[maybe_unused]] static constexpr auto arr =
+      reflect26::member_offsets<remove_cvref_t<T>>();
+  return arr;
+#else
   constexpr size_t Count = members_count_v<T>;
   auto tp = ylt::reflection::object_to_tuple(std::forward<T>(t));
 
 #if __cplusplus >= 202002L
-  [[maybe_unused]] static std::array<size_t, Count> arr = {[&]<size_t... Is>(
-      std::index_sequence<Is...>) mutable {std::array<size_t, Count> arr;
-  ((arr[Is] = size_t((const char*)&std::get<Is>(tp) - (char*)(&t))), ...);
-  return arr;
-}
-(std::make_index_sequence<Count>{})
-};  // namespace internal
+  [[maybe_unused]] static std::array<size_t, Count> arr = {
+      [&]<size_t... Is>(std::index_sequence<Is...>) mutable {
+        std::array<size_t, Count> arr;
+        ((arr[Is] = size_t((const char*)&std::get<Is>(tp) - (char*)(&t))), ...);
+        return arr;
+      }(std::make_index_sequence<Count>{})};  // namespace internal
 
-return arr;
+  return arr;
 #else
   [[maybe_unused]] static std::array<size_t, Count> arr =
       get_member_offset_arr_impl(t, tp, std::make_index_sequence<Count>{});
   return arr;
 #endif
+#endif
 }  // namespace ylt::reflection
 
 template <typename T>
 inline const auto& get_member_offset_arr() {
+#ifdef YLT_USE_CXX26_REFLECTION
+  [[maybe_unused]] static constexpr auto arr =
+      reflect26::member_offsets<remove_cvref_t<T>>();
+  return arr;
+#else
   return get_member_offset_arr(internal::wrapper<T>::value);
+#endif
 }  // namespace ylt::reflection
 }  // namespace internal
 
@@ -204,9 +249,29 @@ inline constexpr auto tuple_to_variant(std::tuple<Args...>) {
   return std::variant<std::add_pointer_t<Args>...>{};
 }
 
+#ifdef YLT_USE_CXX26_REFLECTION
+namespace internal {
+template <typename T, typename Member>
+using copy_const_t =
+    std::conditional_t<std::is_const_v<std::remove_reference_t<T>>,
+                       std::add_const_t<Member>, Member>;
+
+template <typename T, std::size_t... Is>
+inline constexpr auto struct_variant_reflect(std::index_sequence<Is...>) {
+  static constexpr auto members = reflect26::data_members_array<T>();
+  return std::variant<std::add_pointer_t<
+      copy_const_t<T, reflect26::meta_type_t<members[Is]>>>...>{};
+}
+}  // namespace internal
+
+template <typename T>
+using struct_variant_t = decltype(internal::struct_variant_reflect<T>(
+    std::make_index_sequence<members_count_v<remove_cvref_t<T>>>{}));
+#else
 template <typename T>
 using struct_variant_t = decltype(tuple_to_variant(
     std::declval<decltype(struct_to_tuple<remove_cvref_t<T>>())>));
+#endif
 
 template <typename T>
 constexpr auto member_names_map = internal::get_member_names_map<T>();
@@ -248,15 +313,26 @@ inline constexpr auto get_alias_field_names() {
 
 template <typename T>
 constexpr std::string_view get_struct_name() {
-  if constexpr (internal::has_alias_struct_name_v<T>) {
-    return get_alias_struct_name((T*)nullptr);
-  }
-  else if constexpr (internal::has_inner_alias_struct_name_v<T>) {
-    return T::get_alias_struct_name((T*)nullptr);
+  using U = ylt::reflection::remove_cvref_t<T>;
+#ifdef YLT_USE_CXX26_REFLECTION
+  constexpr auto annotation_name = reflect26::type_name<U>();
+  if constexpr (!annotation_name.empty()) {
+    return annotation_name;
   }
   else {
-    return type_string<T>();
+#endif
+    if constexpr (internal::has_alias_struct_name_v<U>) {
+      return get_alias_struct_name((U*)nullptr);
+    }
+    else if constexpr (internal::has_inner_alias_struct_name_v<U>) {
+      return U::get_alias_struct_name((U*)nullptr);
+    }
+    else {
+      return type_string<U>();
+    }
+#ifdef YLT_USE_CXX26_REFLECTION
   }
+#endif
 }
 
 template <typename T>
@@ -342,8 +418,25 @@ inline constexpr void for_each_impl(Visit&& func, U& arr,
 
 template <typename T, typename Visit>
 inline constexpr void for_each(Visit&& func) {
+#ifdef YLT_USE_CXX26_REFLECTION
+  static constexpr auto arr = get_member_names<T>();
+  [[maybe_unused]] size_t index = 0;
+  template for (constexpr auto name : arr) {
+    if constexpr (std::is_invocable_v<Visit, std::string_view, size_t>) {
+      func(name, index++);
+    }
+    else if constexpr (std::is_invocable_v<Visit, std::string_view>) {
+      func(name);
+    }
+    else {
+      static_assert(sizeof(Visit) < 0,
+                    "invalid arguments, full arguments: [std::string_view, "
+                    "size_t], at least has std::string_view and make sure keep "
+                    "the order of arguments");
+    }
+  }
+#elif __cplusplus >= 202002L
   constexpr auto arr = get_member_names<T>();
-#if __cplusplus >= 202002L
   [&]<size_t... Is>(std::index_sequence<Is...>) mutable {
     if constexpr (std::is_invocable_v<Visit, std::string_view, size_t>) {
       (func(arr[Is], Is), ...);
@@ -357,9 +450,9 @@ inline constexpr void for_each(Visit&& func) {
                     "size_t], at least has std::string_view and make sure keep "
                     "the order of arguments");
     }
-  }
-  (std::make_index_sequence<arr.size()>{});
+  }(std::make_index_sequence<arr.size()>{});
 #else
+  constexpr auto arr = get_member_names<T>();
   for_each_impl(std::forward<Visit>(func), arr,
                 std::make_index_sequence<arr.size()>{});
 #endif

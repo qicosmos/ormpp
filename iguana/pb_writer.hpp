@@ -28,6 +28,77 @@ template <uint32_t key, bool omit_default_val = true, typename Type,
           typename Writer>
 IGUANA_INLINE void to_pb_impl(Type&& t, uint32_t*& sz_ptr, Writer& writer);
 
+template <uint32_t key, bool omit_default_val, typename T, typename Writer>
+IGUANA_INLINE void encode_numeric_field(T t, Writer& writer);
+
+template <bool TimestampSchema, uint32_t key, bool omit_default_val = true,
+          typename Type, typename Writer>
+IGUANA_INLINE void to_pb_well_known_impl(Type&& t, uint32_t*& sz_ptr,
+                                         Writer& writer) {
+  using T = std::remove_const_t<std::remove_reference_t<Type>>;
+  if constexpr (optional_v<T>) {
+    if (!t.has_value()) {
+      return;
+    }
+    to_pb_well_known_impl<TimestampSchema, key, omit_default_val>(*t, sz_ptr,
+                                                                  writer);
+  }
+  else if constexpr (is_sequence_container<T>::value) {
+    for (auto& item : t) {
+      to_pb_well_known_impl<TimestampSchema, key, false>(item, sz_ptr, writer);
+    }
+  }
+  else {
+    auto wire_value = make_pb_well_known_value<TimestampSchema>(t);
+    to_pb_impl<key, omit_default_val>(wire_value, sz_ptr, writer);
+  }
+}
+
+template <typename Wire, uint32_t key, bool omit_default_val = true,
+          typename Type, typename Writer>
+IGUANA_INLINE void to_pb_schema_impl(Type&& t, uint32_t*& sz_ptr,
+                                     Writer& writer) {
+  using T = ylt::reflection::remove_cvref_t<Type>;
+  using W = ylt::reflection::remove_cvref_t<Wire>;
+  if constexpr (std::is_same_v<T, W>) {
+    to_pb_impl<key, omit_default_val>(std::forward<Type>(t), sz_ptr, writer);
+  }
+  else if constexpr (optional_v<T>) {
+    if (!t.has_value()) {
+      return;
+    }
+    to_pb_schema_impl<typename W::value_type, key, omit_default_val>(*t, sz_ptr,
+                                                                     writer);
+  }
+  else if constexpr (is_sequence_container<T>::value) {
+    using wire_item_type = typename W::value_type;
+    if constexpr (is_lenprefix_v<wire_item_type>) {
+      for (auto& item : t) {
+        to_pb_schema_impl<wire_item_type, key, false>(item, sz_ptr, writer);
+      }
+    }
+    else {
+      if (t.empty())
+        IGUANA_UNLIKELY { return; }
+      serialize_varint_u32<key>(writer);
+      size_t len = 0;
+      for (auto& item : t) {
+        auto wire_item = make_pb_wire_scalar<wire_item_type>(item);
+        len += str_numeric_size<0, false>(wire_item);
+      }
+      serialize_varint(len, writer);
+      for (auto& item : t) {
+        auto wire_item = make_pb_wire_scalar<wire_item_type>(item);
+        encode_numeric_field<0, false>(wire_item, writer);
+      }
+    }
+  }
+  else {
+    auto wire_value = make_pb_wire_scalar<W>(t);
+    to_pb_impl<key, omit_default_val>(wire_value, sz_ptr, writer);
+  }
+}
+
 template <uint32_t key, typename V, typename Writer>
 IGUANA_INLINE void encode_pair_value(V&& val, size_t size, uint32_t*& sz_ptr,
                                      Writer& writer) {
@@ -120,22 +191,44 @@ IGUANA_INLINE void to_pb_impl(Type&& t, uint32_t*& sz_ptr, Writer& writer) {
           auto& val = value.value(t);
 
           using U = typename field_type::value_type;
+          using wire_type = typename field_type::wire_value_type;
           using sub_type = typename field_type::sub_type;
-          if constexpr (variant_v<U>) {
+          if constexpr (field_type::timestamp_schema ||
+                        field_type::duration_schema) {
+            constexpr uint32_t sub_key =
+                (value.field_no << 3) |
+                static_cast<uint32_t>(WireType::LengthDelimeted);
+            to_pb_well_known_impl<field_type::timestamp_schema, sub_key>(
+                val, sz_ptr, writer);
+          }
+          else if constexpr (field_type::optional_schema) {
+            constexpr uint32_t sub_key =
+                (value.field_no << 3) |
+                static_cast<uint32_t>(get_wire_type<wire_type>());
+            to_pb_schema_impl<wire_type, sub_key, false>(val, sz_ptr, writer);
+          }
+          else if constexpr (variant_v<U>) {
             constexpr auto offset =
                 get_variant_index<U, sub_type, std::variant_size_v<U> - 1>();
-            if constexpr (offset == 0) {
-              to_pb_oneof<value.field_no>(val, sz_ptr, writer);
+            if (val.index() == offset) {
+              if constexpr (!std::is_same_v<sub_type, std::monostate>) {
+                constexpr uint32_t sub_key =
+                    (value.field_no << 3) |
+                    static_cast<uint32_t>(get_wire_type<sub_type>());
+                to_pb_impl<sub_key, false>(std::get<offset>(val), sz_ptr,
+                                           writer);
+              }
             }
           }
           else {
             constexpr uint32_t sub_key =
                 (value.field_no << 3) |
-                static_cast<uint32_t>(get_wire_type<U>());
-            to_pb_impl<sub_key>(val, sz_ptr, writer);
+                static_cast<uint32_t>(get_wire_type<wire_type>());
+            to_pb_schema_impl<wire_type, sub_key>(val, sz_ptr, writer);
           }
         },
         std::make_index_sequence<SIZE>{});
+    write_pb_unknown_fields(t, writer);
   }
   else if constexpr (is_sequence_container<T>::value) {
     // TODO support std::array
@@ -329,8 +422,66 @@ IGUANA_INLINE void to_proto_impl(
           auto value = std::get<decltype(i)::value>(tuple);
 
           using U = typename field_type::value_type;
+          using WireU = typename field_type::wire_value_type;
           using sub_type = typename field_type::sub_type;
-          if constexpr (ylt_refletable_v<U>) {
+          if constexpr (field_type::bytes_schema) {
+            if constexpr (is_sequence_container<U>::value) {
+              build_proto_field(
+                  out, "repeated bytes",
+                  {value.field_name.data(), value.field_name.size()},
+                  value.field_no);
+            }
+            else if constexpr (optional_v<U>) {
+              out.append("  optional");
+              build_proto_field(
+                  out, "bytes",
+                  {value.field_name.data(), value.field_name.size()},
+                  value.field_no);
+            }
+            else {
+              build_proto_field(
+                  out, "bytes ",
+                  {value.field_name.data(), value.field_name.size()},
+                  value.field_no);
+            }
+          }
+          else if constexpr (field_type::timestamp_schema) {
+            if constexpr (is_sequence_container<U>::value) {
+              build_proto_field(
+                  out, "repeated google.protobuf.Timestamp",
+                  {value.field_name.data(), value.field_name.size()},
+                  value.field_no);
+            }
+            else {
+              build_proto_field(
+                  out, "google.protobuf.Timestamp",
+                  {value.field_name.data(), value.field_name.size()},
+                  value.field_no);
+            }
+          }
+          else if constexpr (field_type::duration_schema) {
+            if constexpr (is_sequence_container<U>::value) {
+              build_proto_field(
+                  out, "repeated google.protobuf.Duration",
+                  {value.field_name.data(), value.field_name.size()},
+                  value.field_no);
+            }
+            else {
+              build_proto_field(
+                  out, "google.protobuf.Duration",
+                  {value.field_name.data(), value.field_name.size()},
+                  value.field_no);
+            }
+          }
+          else if constexpr (field_type::optional_schema) {
+            static_assert(optional_v<U>,
+                          "pb_optional member must be std::optional<T>");
+            out.append("  optional");
+            to_proto_impl<typename WireU::value_type>(
+                out, map, {value.field_name.data(), value.field_name.size()},
+                value.field_no);
+          }
+          else if constexpr (ylt_refletable_v<U>) {
             constexpr auto str_type = get_type_string<U>();
             build_proto_field(
                 out, str_type,
@@ -341,25 +492,28 @@ IGUANA_INLINE void to_proto_impl(
           }
           else if constexpr (variant_v<U>) {
             constexpr size_t var_size = std::variant_size_v<U>;
+            constexpr size_t first_case = pb_variant_first_case_index<U>();
 
             constexpr auto offset =
                 get_variant_index<U, sub_type, var_size - 1>();
 
-            if (offset == 0) {
+            if (offset == first_case) {
               out.append("  oneof ");
               out.append(value.field_name.data(), value.field_name.size())
                   .append(" {\n");
             }
 
-            constexpr auto str_type = get_type_string<sub_type>();
-            std::string field_name = " one_of_";
-            field_name.append(str_type);
+            if constexpr (!std::is_same_v<sub_type, std::monostate>) {
+              constexpr auto str_type = get_type_string<sub_type>();
+              std::string field_name = " one_of_";
+              field_name.append(str_type);
 
-            out.append("  ");
-            build_proto_field(out, str_type, field_name, value.field_no);
+              out.append("  ");
+              build_proto_field(out, str_type, field_name, value.field_no);
 
-            if constexpr (ylt_refletable_v<sub_type>) {
-              build_sub_proto<sub_type>(map, str_type, sub_str);
+              if constexpr (ylt_refletable_v<sub_type>) {
+                build_sub_proto<sub_type>(map, str_type, sub_str);
+              }
             }
 
             if (offset == var_size - 1) {
@@ -367,9 +521,9 @@ IGUANA_INLINE void to_proto_impl(
             }
           }
           else {
-            to_proto_impl<U>(out, map,
-                             {value.field_name.data(), value.field_name.size()},
-                             value.field_no);
+            to_proto_impl<WireU>(
+                out, map, {value.field_name.data(), value.field_name.size()},
+                value.field_no);
           }
         },
         std::make_index_sequence<SIZE>{});
@@ -464,6 +618,130 @@ IGUANA_INLINE void build_sub_proto(Map& map, std::string_view str_type,
     map.emplace(str_type, std::move(sub_str));
   }
 }
+
+template <typename T>
+constexpr bool proto_needs_timestamp_import();
+
+template <typename T>
+constexpr bool proto_needs_duration_import();
+
+template <typename T>
+constexpr bool proto_value_needs_timestamp_import();
+
+template <typename T>
+constexpr bool proto_value_needs_duration_import();
+
+template <typename Variant, size_t... I>
+constexpr bool proto_variant_needs_timestamp_import(std::index_sequence<I...>) {
+  return (proto_value_needs_timestamp_import<
+              std::variant_alternative_t<I, Variant>>() ||
+          ...);
+}
+
+template <typename Variant, size_t... I>
+constexpr bool proto_variant_needs_duration_import(std::index_sequence<I...>) {
+  return (proto_value_needs_duration_import<
+              std::variant_alternative_t<I, Variant>>() ||
+          ...);
+}
+
+template <typename T>
+constexpr bool proto_value_needs_timestamp_import() {
+  using U = std::remove_cvref_t<T>;
+  if constexpr (std::is_same_v<U, std::monostate> ||
+                pb_well_known_chrono_v<U>) {
+    return false;
+  }
+  else if constexpr (optional_v<U>) {
+    return proto_value_needs_timestamp_import<typename U::value_type>();
+  }
+  else if constexpr (is_sequence_container<U>::value) {
+    return proto_value_needs_timestamp_import<typename U::value_type>();
+  }
+  else if constexpr (is_map_container<U>::value) {
+    return proto_value_needs_timestamp_import<typename U::mapped_type>();
+  }
+  else if constexpr (variant_v<U>) {
+    return proto_variant_needs_timestamp_import<U>(
+        std::make_index_sequence<std::variant_size_v<U>>{});
+  }
+  else if constexpr (ylt_refletable_v<U> || is_custom_reflection_v<U>) {
+    return proto_needs_timestamp_import<U>();
+  }
+  else {
+    return false;
+  }
+}
+
+template <typename T>
+constexpr bool proto_value_needs_duration_import() {
+  using U = std::remove_cvref_t<T>;
+  if constexpr (std::is_same_v<U, std::monostate> ||
+                pb_well_known_chrono_v<U>) {
+    return false;
+  }
+  else if constexpr (optional_v<U>) {
+    return proto_value_needs_duration_import<typename U::value_type>();
+  }
+  else if constexpr (is_sequence_container<U>::value) {
+    return proto_value_needs_duration_import<typename U::value_type>();
+  }
+  else if constexpr (is_map_container<U>::value) {
+    return proto_value_needs_duration_import<typename U::mapped_type>();
+  }
+  else if constexpr (variant_v<U>) {
+    return proto_variant_needs_duration_import<U>(
+        std::make_index_sequence<std::variant_size_v<U>>{});
+  }
+  else if constexpr (ylt_refletable_v<U> || is_custom_reflection_v<U>) {
+    return proto_needs_duration_import<U>();
+  }
+  else {
+    return false;
+  }
+}
+
+template <typename Tuple, size_t... I>
+constexpr bool proto_tuple_needs_timestamp_import(std::index_sequence<I...>) {
+  return ((std::tuple_element_t<I, Tuple>::timestamp_schema ||
+           proto_value_needs_timestamp_import<
+               typename std::tuple_element_t<I, Tuple>::value_type>()) ||
+          ...);
+}
+
+template <typename Tuple, size_t... I>
+constexpr bool proto_tuple_needs_duration_import(std::index_sequence<I...>) {
+  return ((std::tuple_element_t<I, Tuple>::duration_schema ||
+           proto_value_needs_duration_import<
+               typename std::tuple_element_t<I, Tuple>::value_type>()) ||
+          ...);
+}
+
+template <typename T>
+constexpr bool proto_needs_timestamp_import() {
+  if constexpr (ylt_refletable_v<T> || is_custom_reflection_v<T>) {
+    using Tuple =
+        std::decay_t<decltype(get_pb_members_tuple(std::declval<T&>()))>;
+    return proto_tuple_needs_timestamp_import<Tuple>(
+        std::make_index_sequence<std::tuple_size_v<Tuple>>{});
+  }
+  else {
+    return false;
+  }
+}
+
+template <typename T>
+constexpr bool proto_needs_duration_import() {
+  if constexpr (ylt_refletable_v<T> || is_custom_reflection_v<T>) {
+    using Tuple =
+        std::decay_t<decltype(get_pb_members_tuple(std::declval<T&>()))>;
+    return proto_tuple_needs_duration_import<Tuple>(
+        std::make_index_sequence<std::tuple_size_v<Tuple>>{});
+  }
+  else {
+    return false;
+  }
+}
 #endif
 }  // namespace detail
 
@@ -496,6 +774,12 @@ IGUANA_INLINE void to_proto(Stream& out, std::string_view ns = "") {
   if (gen_header) {
     constexpr std::string_view crlf = "\r\n\r\n";
     out.append(R"(syntax = "proto3";)").append(crlf);
+    if constexpr (detail::proto_needs_timestamp_import<T>()) {
+      out.append(R"(import "google/protobuf/timestamp.proto";)").append(crlf);
+    }
+    if constexpr (detail::proto_needs_duration_import<T>()) {
+      out.append(R"(import "google/protobuf/duration.proto";)").append(crlf);
+    }
     if (!ns.empty()) {
       out.append("package ").append(ns).append(";").append(crlf);
     }

@@ -25,6 +25,10 @@ template <bool Is_writing_escape = true, typename Stream, typename T,
 IGUANA_INLINE void to_json_impl(Stream &ss, const T &v);
 
 template <bool Is_writing_escape = true, typename Stream, typename T,
+          std::enable_if_t<pair_v<T>, int> = 0>
+IGUANA_INLINE void to_json_impl(Stream &ss, const T &v);
+
+template <bool Is_writing_escape = true, typename Stream, typename T,
           std::enable_if_t<smart_ptr_v<T>, int> = 0>
 IGUANA_INLINE void to_json_impl(Stream &ss, const T &v);
 
@@ -188,7 +192,7 @@ IGUANA_INLINE void to_json_impl(Stream &ss, const T &t) {
       return n;
     };
     size_t len = get_length(n);
-    ss.append(std::begin(t), len);
+    ss.append(std::data(t), len);
     ss.push_back('"');
   }
   else {
@@ -212,12 +216,22 @@ IGUANA_INLINE void to_json_impl(Stream &ss, const T &o) {
 template <bool Is_writing_escape, typename Stream, typename T,
           std::enable_if_t<sequence_container_v<T>, int>>
 IGUANA_INLINE void to_json_impl(Stream &ss, const T &v) {
-  ss.push_back('[');
+  constexpr char pre = pair_v<typename T::value_type> ? '{' : '[';
+  ss.push_back(pre);
   join(ss, v.cbegin(), v.cend(), ',',
        [&ss](const auto &jsv) IGUANA__INLINE_LAMBDA {
          to_json_impl<Is_writing_escape>(ss, jsv);
        });
-  ss.push_back(']');
+  constexpr char post = pair_v<typename T::value_type> ? '}' : ']';
+  ss.push_back(post);
+}
+
+template <bool Is_writing_escape, typename Stream, typename T,
+          std::enable_if_t<pair_v<T>, int>>
+IGUANA_INLINE void to_json_impl(Stream &ss, const T &v) {
+  render_key<Is_writing_escape>(ss, v.first);
+  ss.push_back(':');
+  to_json_impl<Is_writing_escape>(ss, v.second);
 }
 
 constexpr auto write_json_key = [](auto &s, auto name) IGUANA__INLINE_LAMBDA {

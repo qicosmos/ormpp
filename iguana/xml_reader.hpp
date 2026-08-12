@@ -1,9 +1,13 @@
 #pragma once
 #include <charconv>
+#include <vector>
 
 #include "detail/charconv.h"
 #include "detail/utf.hpp"
 #include "xml_util.hpp"
+#ifdef YLT_USE_CXX26_REFLECTION
+#include "ylt/reflection/reflect26_dispatch.hpp"
+#endif
 
 namespace iguana {
 namespace detail {
@@ -378,19 +382,42 @@ IGUANA_INLINE void skip_till_first_key(It &&it, It &&end) {
   }
 }
 
+IGUANA_INLINE bool contains_xml_key(const std::vector<std::string_view> &keys,
+                                    std::string_view key) {
+  for (auto item : keys) {
+    if (item == key) {
+      return true;
+    }
+  }
+  return false;
+}
+
 template <typename T>
-IGUANA_INLINE void check_required(std::string_view key_set) {
+IGUANA_INLINE void check_required(
+    const std::vector<std::string_view> &parsed_keys) {
   if constexpr (iguana::has_iguana_required_arr_v<T>) {
     constexpr auto required_arr =
         iguana::iguana_required_struct<T>::requied_arr();
     for (auto &item : required_arr) {
-      if (key_set.find(item) == std::string_view::npos) {
+      if (!contains_xml_key(parsed_keys, item)) {
         std::string err = "required filed ";
         err.append(item).append(" not found!");
         throw std::invalid_argument(err);
       }
     }
   }
+#ifdef YLT_USE_CXX26_REFLECTION
+  if constexpr (iguana::detail::xml_required_count<T>() > 0) {
+    constexpr auto required_arr = iguana::detail::xml_required_names<T>();
+    for (auto &item : required_arr) {
+      if (!contains_xml_key(parsed_keys, item)) {
+        std::string err = "required filed ";
+        err.append(item).append(" not found!");
+        throw std::invalid_argument(err);
+      }
+    }
+  }
+#endif
 }
 
 template <typename T, typename It, std::enable_if_t<ylt_refletable_v<T>, int>>
@@ -409,12 +436,11 @@ IGUANA_INLINE void xml_parse_item(T &value, It &&it, It &&end,
   std::string_view key =
       std::string_view{&*start, static_cast<size_t>(std::distance(start, it))};
 
-  [[maybe_unused]] std::string key_set;
+  [[maybe_unused]] std::vector<std::string_view> parsed_keys;
   bool parse_done = false;
   // sequential parse
   ylt::reflection::for_each(value, [&](auto &field, auto st_key, auto index) {
 #if defined(_MSC_VER) && _MSVC_LANG < 202002L
-    // seems MVSC can't pass a constexpr value to lambda
     constexpr auto cdata_idx = get_type_index<is_cdata_t, U>();
 #endif
     using item_type = std::remove_reference_t<decltype(field)>;
@@ -425,8 +451,8 @@ IGUANA_INLINE void xml_parse_item(T &value, It &&it, It &&end,
       IGUANA_UNLIKELY { return; }
     if constexpr (!cdata_v<item_type>) {
       xml_parse_item(field, it, end, key);
-      if constexpr (iguana::has_iguana_required_arr_v<U>) {
-        key_set.append(key).append(", ");
+      if constexpr (iguana::has_xml_required_fields_v<U>) {
+        parsed_keys.push_back(key);
       }
     }
     if (skip_till_close_tag<cdata_idx>(value, it, end))
@@ -442,11 +468,30 @@ IGUANA_INLINE void xml_parse_item(T &value, It &&it, It &&end,
   });
   if (parse_done)
     IGUANA_UNLIKELY {
-      check_required<U>(key_set);
+      check_required<U>(parsed_keys);
       return;
     }
   // map parse
   while (true) {
+#ifdef YLT_USE_CXX26_REFLECTION
+    bool found = ylt::reflection::reflect26::dispatch_by_name(
+        value, key, [&](auto &field) IGUANA__INLINE_LAMBDA {
+          if constexpr (!cdata_v<std::remove_reference_t<decltype(field)>>) {
+            xml_parse_item(field, it, end, key);
+            if constexpr (iguana::has_xml_required_fields_v<U>) {
+              parsed_keys.push_back(key);
+            }
+          }
+        });
+    if (!found)
+      IGUANA_UNLIKELY {
+#ifdef THROW_UNKNOWN_KEY
+        throw std::runtime_error("Unknown key: " + std::string(key));
+#else
+        skip_object_value(it, end, key);
+#endif
+      }
+#else
     static auto frozen_map = ylt::reflection::get_variant_map<U>();
     const auto &member_it = frozen_map.find(key);
     if (member_it != frozen_map.end())
@@ -458,8 +503,8 @@ IGUANA_INLINE void xml_parse_item(T &value, It &&it, It &&end,
                 auto member_ptr =
                     (value_type *)((char *)(&value) + offset.value);
                 xml_parse_item(*member_ptr, it, end, key);
-                if constexpr (iguana::has_iguana_required_arr_v<U>) {
-                  key_set.append(key).append(", ");
+                if constexpr (iguana::has_xml_required_fields_v<U>) {
+                  parsed_keys.push_back(key);
                 }
               }
             },
@@ -473,9 +518,10 @@ IGUANA_INLINE void xml_parse_item(T &value, It &&it, It &&end,
         skip_object_value(it, end, key);
 #endif
       }
+#endif
     if (skip_till_close_tag<cdata_idx>(value, it, end)) {
       match_close_tag(it, end, name);
-      check_required<U>(key_set);
+      check_required<U>(parsed_keys);
       return;
     }
     start = it;

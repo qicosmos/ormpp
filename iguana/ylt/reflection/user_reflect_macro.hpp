@@ -1,9 +1,11 @@
 #pragma once
+#include <array>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
 
 #include "internal/arg_list_macro.hpp"
+#include "reflect26_compat.hpp"
 
 namespace ylt::reflection {
 template <typename T>
@@ -164,4 +166,13 @@ struct is_custom_reflect<
 template <typename T>
 inline constexpr bool is_custom_refl_v =
     is_custom_reflect<remove_cvref_t<T>>::value;
+#ifdef YLT_USE_CXX26_REFLECTION
+#undef YLT_REFL
+#undef YLT_REFL_PRIVATE
+#undef YLT_REFL_PRIVATE_
+#define YLT_REFL(STRUCT, ...)
+#define YLT_REFL_PRIVATE(STRUCT, ...)
+#define YLT_REFL_PRIVATE_(STRUCT, ...)
+#endif
+
 }  // namespace ylt::reflection

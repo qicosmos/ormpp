@@ -2,8 +2,15 @@
 #include "common.hpp"
 #include "detail/pb_type.hpp"
 #include "util.hpp"
+#ifdef YLT_USE_CXX26_REFLECTION
+#include <meta>
+
+#include "ylt/reflection/reflect26_core.hpp"
+#endif
 
 namespace iguana {
+struct xml_required {};
+
 template <typename T>
 struct iguana_required_struct;
 #define REQUIRED_IMPL(STRUCT_NAME, N, ...)             \
@@ -29,6 +36,62 @@ struct has_iguana_required_arr<
 
 template <class T>
 constexpr bool has_iguana_required_arr_v = has_iguana_required_arr<T>::value;
+
+#ifdef YLT_USE_CXX26_REFLECTION
+namespace detail {
+template <typename T>
+struct is_xml_required_annotation : std::false_type {};
+
+template <>
+struct is_xml_required_annotation<iguana::xml_required> : std::true_type {};
+
+template <std::meta::info Member>
+consteval bool has_xml_required() {
+  return ylt::reflection::reflect26::has_annotation<
+      Member, is_xml_required_annotation>();
+}
+
+template <typename T>
+consteval size_t xml_required_count() {
+  using U = ylt::reflection::remove_cvref_t<T>;
+  static constexpr auto members =
+      ylt::reflection::reflect26::data_members_array<U>();
+  size_t count = 0;
+  template for (constexpr auto member : members) {
+    if constexpr (has_xml_required<member>()) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+template <typename T>
+consteval auto xml_required_names() {
+  using U = ylt::reflection::remove_cvref_t<T>;
+  static constexpr auto members =
+      ylt::reflection::reflect26::data_members_array<U>();
+  constexpr auto member_names = ylt::reflection::get_member_names<U>();
+  std::array<std::string_view, xml_required_count<U>()> names{};
+  size_t index = 0;
+  size_t member_index = 0;
+  template for (constexpr auto member : members) {
+    if constexpr (has_xml_required<member>()) {
+      names[index++] = member_names[member_index];
+    }
+    ++member_index;
+  }
+  return names;
+}
+}  // namespace detail
+#endif
+
+template <class T>
+constexpr bool has_xml_required_fields_v =
+    has_iguana_required_arr_v<T>
+#ifdef YLT_USE_CXX26_REFLECTION
+    || detail::xml_required_count<T>() > 0
+#endif
+    ;
 
 template <typename T,
           typename map_type = std::unordered_map<std::string, std::string>>
@@ -76,6 +139,12 @@ struct is_cdata_t : std::false_type {};
 template <typename T>
 struct is_cdata_t<xml_cdata_t<T>> : std::true_type {};
 
+template <typename T, typename map_type>
+constexpr inline bool reflect26_excluded_v<xml_attr_t<T, map_type>> = true;
+
+template <typename T>
+constexpr inline bool reflect26_excluded_v<xml_cdata_t<T>> = true;
+
 template <std::size_t index, template <typename...> typename Condition,
           typename Tuple>
 constexpr int element_index_helper() {
@@ -94,8 +163,13 @@ constexpr int element_index_helper() {
 
 template <template <typename...> typename Condition, typename T>
 constexpr int tuple_element_index() {
+#ifdef YLT_USE_CXX26_REFLECTION
+  return static_cast<int>(
+      ylt::reflection::reflect26::member_index_if<Condition, T>());
+#else
   using Tuple = decltype(ylt::reflection::object_to_tuple(std::declval<T>()));
   return element_index_helper<0, Condition, Tuple>();
+#endif
 }
 
 template <template <typename...> typename Condition, typename T>
