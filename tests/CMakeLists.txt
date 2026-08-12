@@ -3,8 +3,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests)
 if(ENABLE_CXX26_REFLECTION)
         project(test_ormpp_cxx26)
         add_executable(${PROJECT_NAME} test_cxx26_annotations.cpp)
-        target_compile_options(${PROJECT_NAME} PRIVATE
-                -std=gnu++26 -freflection)
         add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
         target_link_libraries(${PROJECT_NAME} sqlite3)
         return()
