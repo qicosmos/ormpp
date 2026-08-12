@@ -1,9 +1,5 @@
 #pragma once
-#include <iterator>
 #include <string>
-#include <tuple>
-#include <type_traits>
-#include <utility>
 
 #include "async_traits.hpp"
 #include "utility.hpp"
@@ -28,22 +24,6 @@ struct where_condition {
     return sql;
   }
 };
-
-template <typename T, typename = void>
-struct is_in_condition_range : std::false_type {};
-
-template <typename T>
-struct is_in_condition_range<
-    T, std::void_t<decltype(std::begin(std::declval<T&>())),
-                   decltype(std::end(std::declval<T&>()))>>
-    : std::bool_constant<
-          !iguana::string_container_v<T> && !iguana::map_container_v<T> &&
-          !(std::is_array_v<std::remove_cvref_t<T>> &&
-            iguana::char_v<std::remove_extent_t<std::remove_cvref_t<T>>>)> {};
-
-template <typename T>
-inline constexpr bool is_in_condition_range_v =
-    is_in_condition_range<std::remove_cvref_t<T>>::value;
 
 inline std::string qualified_field_name(std::string_view class_name,
                                         std::string_view name) {
@@ -80,13 +60,13 @@ struct col_info {
   }
 
   template <typename... Args>
-  where_condition in(Args&&... args) {
-    return in_impl("", std::forward<Args>(args)...);
+  where_condition in(Args... args) {
+    return in_impl("", args...);
   }
 
   template <typename... Args>
-  where_condition not_in(Args&&... args) {
-    return in_impl("not", std::forward<Args>(args)...);
+  where_condition not_in(Args... args) {
+    return in_impl("not", args...);
   }
 
   where_condition null() {
@@ -128,11 +108,7 @@ struct col_info {
   template <typename value_type>
   std::string to_string(value_type val) {
     static_assert(std::is_constructible_v<M, value_type>, "invalid type");
-    if constexpr (std::is_enum_v<value_type>) {
-      using underlying = std::underlying_type_t<value_type>;
-      return std::to_string(static_cast<underlying>(val));
-    }
-    else if constexpr (std::is_arithmetic_v<value_type>) {
+    if constexpr (std::is_arithmetic_v<value_type>) {
       return std::to_string(val);
     }
     else {
@@ -141,80 +117,40 @@ struct col_info {
   }
 
   template <typename... Args>
-  where_condition in_impl(std::string s, Args&&... args) {
-    static_assert(sizeof...(Args) > 0,
-                  "in() requires at least one value or range");
+  where_condition in_impl(std::string s, Args... args) {
     std::string mid;
-    if constexpr (sizeof...(Args) == 1 &&
-                  (is_in_condition_range_v<Args> && ...)) {
-      (
-          [&](auto&& range) {
-            for (auto&& value : range) {
-              append_in_value(mid, std::forward<decltype(value)>(value));
-            }
-          }(std::forward<Args>(args)),
-          ...);
-    }
-    else {
-      static_assert((!is_in_condition_range_v<Args> && ...),
-                    "in() accepts either scalar values or one range");
-      (append_in_value(mid, std::forward<Args>(args)), ...);
-    }
-
-    if (mid.empty()) {
-      return empty_in_condition(s);
-    }
+    (mid.append(to_string(args)).append(","), ...);
     mid.pop_back();
 
-    return make_in_condition(std::move(s), std::move(mid));
-  }
-
-  template <typename Arg>
-  void append_in_value(std::string& mid, Arg&& arg) {
-    mid.append(in_value_to_string(std::forward<Arg>(arg))).append(",");
-  }
-
-  template <typename Arg>
-  std::string in_value_to_string(Arg&& arg) {
-    using arg_type = std::remove_cvref_t<Arg>;
-    if constexpr (iguana::tuple_v<arg_type>) {
-      static_assert(std::tuple_size_v<arg_type> == 1,
-                    "tuple values passed to in() must have one field");
-      return in_value_to_string(std::get<0>(std::forward<Arg>(arg)));
-    }
-    else {
-      return to_string(std::forward<Arg>(arg));
-    }
-  }
-
-  where_condition empty_in_condition(const std::string& s) const {
-    return s.empty() ? where_condition{"1", "=", "0"}
-                     : where_condition{"1", "=", "1"};
-  }
-
-  where_condition make_in_condition(std::string s, std::string mid) const {
     std::string left = qualified_name();
     if (!s.empty()) {
       left.append(" ").append(s);
     }
     left.append(" in(");
-    return where_condition{std::move(left), std::move(mid), ")"};
+    return where_condition{left, mid, ")"};
   }
 };
+
+template <auto field>
+constexpr std::string_view name() {
+#ifdef YLT_USE_CXX26_REFLECTION
+  using owner_type = typename ylt::reflection::internal::member_tratis<
+      decltype(field)>::owner_type;
+  constexpr auto identifier = ylt::reflection::field_string<field>();
+  return get_reflected_field_name<owner_type>(identifier);
+#else
+  return ylt::reflection::field_string<field>();
+#endif
+}
 
 #define col(c)                                                         \
   col_info<typename ylt::reflection::internal::member_tratis<          \
       decltype(c)>::value_type> {                                      \
-    ylt::reflection::field_string<c>(),                                \
+    ormpp::name<c>(),                                                  \
         std::string(ormpp::get_short_struct_name<                      \
                     typename ylt::reflection::internal::member_tratis< \
                         decltype(c)>::owner_type>())                   \
   }
-
-template <auto field>
-constexpr std::string_view name() {
-  return ylt::reflection::field_string<field>();
-}
 
 template <auto field>
 std::string str_name() {
@@ -1519,6 +1455,8 @@ struct create_table_builder {
   std::string range_partition_field_;
   std::vector<range_partition_desc> range_partitions_;
 
+  explicit create_table_builder(DB db) : db_(db) { apply_schema_annotations(); }
+
   template <typename M>
   create_table_builder& auto_increment(col_info<M> field) {
     auto_increment_field_ = std::string(field.name);
@@ -1652,6 +1590,36 @@ struct create_table_builder {
   }
 
  private:
+  void apply_schema_annotations() {
+    constexpr auto annotations = get_column_schema_annotations<T>();
+    constexpr auto names = ylt::reflection::get_member_names<T>();
+    for (size_t i = 0; i < annotations.size(); ++i) {
+      const auto& annotation = annotations[i];
+      const std::string field_name(names[i]);
+
+      if (annotation.primary_key) {
+        primary_keys_.insert(field_name);
+      }
+      if (annotation.auto_increment) {
+        auto_increment_field_ = field_name;
+        primary_keys_.insert(field_name);
+      }
+      if (annotation.not_null) {
+        not_null_fields_.insert(field_name);
+      }
+      if (annotation.unique &&
+          std::find(unique_constraints_.begin(), unique_constraints_.end(),
+                    field_name) == unique_constraints_.end()) {
+        unique_constraints_.push_back(field_name);
+      }
+      if (annotation.foreign_key) {
+        std::string reference(annotation.referenced_table);
+        reference.append("(").append(annotation.referenced_column).append(")");
+        foreign_keys_.emplace_back(field_name, std::move(reference));
+      }
+    }
+  }
+
   bool validate_partition_config() const {
     if (range_partition_field_.empty()) {
       return range_partitions_.empty();

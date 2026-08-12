@@ -896,36 +896,9 @@ TEST_CASE("optional") {
                   .from<test_optional>()
                   .where(col(&test_optional::name).in("test", "purecpp"))
                   .collect();
-    std::vector<int> ids_vector{1, 2};
-    auto l2_vector = sqlite.select(all)
-                         .from<test_optional>()
-                         .where(col(&test_optional::id).in(ids_vector))
-                         .collect();
-    auto ids_from_sql = sqlite.select(col(&test_optional::id))
-                            .from<test_optional>()
-                            .where(col(&test_optional::name) == "test")
-                            .collect();
-    auto l2_from_sql = sqlite.select(all)
-                           .from<test_optional>()
-                           .where(col(&test_optional::id).in(ids_from_sql))
-                           .collect();
-    std::vector<int> empty_ids;
-    auto empty_in = sqlite.select(all)
-                        .from<test_optional>()
-                        .where(col(&test_optional::id).in(empty_ids))
-                        .collect();
-    auto empty_not_in = sqlite.select(all)
-                            .from<test_optional>()
-                            .where(col(&test_optional::id).not_in(empty_ids))
-                            .collect();
     CHECK(l0.size() == 2);
     CHECK(l1.size() == 2);
     CHECK(l2.size() == 2);
-    CHECK(l2_vector.size() == 2);
-    CHECK(l2_from_sql.size() == 1);
-    CHECK(l2_from_sql.front().id == 2);
-    CHECK(empty_in.empty());
-    CHECK(empty_not_in.size() == 2);
 
     auto l3 = sqlite.select(all)
                   .from<test_optional>()
@@ -980,28 +953,6 @@ TEST_CASE("like condition quotes and escapes string patterns") {
         "(test_optional.name like 'pure%')");
   CHECK(col(&test_optional::name).like("a'b%").to_sql() ==
         "(test_optional.name like 'a''b%')");
-}
-
-TEST_CASE("in condition accepts ranges") {
-  std::vector<int> ids{1, 2, 3};
-  CHECK(col(&test_optional::id).in(ids).to_sql() ==
-        "(test_optional.id in(1,2,3))");
-
-  std::array<int, 2> id_array{1, 2};
-  CHECK(col(&test_optional::id).not_in(id_array).to_sql() ==
-        "(test_optional.id not in(1,2))");
-
-  std::vector<std::string> names{"test", "a'b"};
-  CHECK(col(&test_optional::name).in(names).to_sql() ==
-        "(test_optional.name in('test','a''b'))");
-
-  std::vector<std::tuple<int>> id_rows{{1}, {2}};
-  CHECK(col(&test_optional::id).in(id_rows).to_sql() ==
-        "(test_optional.id in(1,2))");
-
-  std::vector<int> empty_ids;
-  CHECK(col(&test_optional::id).in(empty_ids).to_sql() == "(1=0)");
-  CHECK(col(&test_optional::id).not_in(empty_ids).to_sql() == "(1=1)");
 }
 
 TEST_CASE("issue #269: sqlite select all with inner join") {
