@@ -202,19 +202,26 @@ struct col_info {
   }
 };
 
+template <auto field>
+constexpr std::string_view name() {
+#ifdef YLT_USE_CXX26_REFLECTION
+  using owner_type = typename ylt::reflection::internal::member_tratis<
+      decltype(field)>::owner_type;
+  constexpr auto identifier = ylt::reflection::field_string<field>();
+  return get_reflected_field_name<owner_type>(identifier);
+#else
+  return ylt::reflection::field_string<field>();
+#endif
+}
+
 #define col(c)                                                         \
   col_info<typename ylt::reflection::internal::member_tratis<          \
       decltype(c)>::value_type> {                                      \
-    ylt::reflection::field_string<c>(),                                \
+    ormpp::name<c>(),                                                  \
         std::string(ormpp::get_short_struct_name<                      \
                     typename ylt::reflection::internal::member_tratis< \
                         decltype(c)>::owner_type>())                   \
   }
-
-template <auto field>
-constexpr std::string_view name() {
-  return ylt::reflection::field_string<field>();
-}
 
 template <auto field>
 std::string str_name() {
@@ -1519,6 +1526,8 @@ struct create_table_builder {
   std::string range_partition_field_;
   std::vector<range_partition_desc> range_partitions_;
 
+  explicit create_table_builder(DB db) : db_(db) { apply_schema_annotations(); }
+
   template <typename M>
   create_table_builder& auto_increment(col_info<M> field) {
     auto_increment_field_ = std::string(field.name);
@@ -1652,6 +1661,36 @@ struct create_table_builder {
   }
 
  private:
+  void apply_schema_annotations() {
+    constexpr auto annotations = get_column_schema_annotations<T>();
+    constexpr auto names = ylt::reflection::get_member_names<T>();
+    for (size_t i = 0; i < annotations.size(); ++i) {
+      const auto& annotation = annotations[i];
+      const std::string field_name(names[i]);
+
+      if (annotation.primary_key) {
+        primary_keys_.insert(field_name);
+      }
+      if (annotation.auto_increment) {
+        auto_increment_field_ = field_name;
+        primary_keys_.insert(field_name);
+      }
+      if (annotation.not_null) {
+        not_null_fields_.insert(field_name);
+      }
+      if (annotation.unique &&
+          std::find(unique_constraints_.begin(), unique_constraints_.end(),
+                    field_name) == unique_constraints_.end()) {
+        unique_constraints_.push_back(field_name);
+      }
+      if (annotation.foreign_key) {
+        std::string reference(annotation.referenced_table);
+        reference.append("(").append(annotation.referenced_column).append(")");
+        foreign_keys_.emplace_back(field_name, std::move(reference));
+      }
+    }
+  }
+
   bool validate_partition_config() const {
     if (range_partition_field_.empty()) {
       return range_partitions_.empty();

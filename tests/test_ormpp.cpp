@@ -2578,6 +2578,8 @@ struct test_enum_t {
 REGISTER_AUTO_KEY(test_enum_t, id)
 
 TEST_CASE("test enum") {
+  CHECK(col(&test_enum_t::color).in(Color::BLUE, Color::RED).to_sql() ==
+        "(test_enum_t.color in(10,15))");
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {

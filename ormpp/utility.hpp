@@ -11,6 +11,7 @@
 
 #include "entity.hpp"
 #include "iguana/util.hpp"
+#include "schema.hpp"
 #include "type_mapping.hpp"
 
 namespace ormpp {
@@ -62,14 +63,17 @@ inline std::string_view get_short_struct_name() {
 
 template <typename T>
 inline auto get_auto_key() {
+  constexpr auto annotated_key = get_annotated_auto_key<T>();
+  if constexpr (!annotated_key.empty()) {
+    return annotated_key;
+  }
   auto it = get_auto_key_map().find(get_short_struct_name<T>());
-  return it == get_auto_key_map().end() ? "" : it->second;
+  return it == get_auto_key_map().end() ? std::string_view{} : it->second;
 }
 
 template <typename T>
 inline auto is_auto_key(std::string_view field_name) {
-  auto it = get_auto_key_map().find(get_short_struct_name<T>());
-  return it == get_auto_key_map().end() ? false : it->second == field_name;
+  return get_auto_key<T>() == field_name;
 }
 
 #ifdef _MSC_VER
@@ -98,8 +102,13 @@ inline auto get_conflict_key() {
   std::string_view struct_name = ylt::reflection::get_struct_name<T>();
   auto it = get_conflict_map().find(struct_name);
   if (it == get_conflict_map().end()) {
+    constexpr auto annotated_key = get_annotated_auto_key<T>();
+    if constexpr (!annotated_key.empty()) {
+      return annotated_key;
+    }
     auto auto_key = get_auto_key_map().find(struct_name);
-    return auto_key == get_auto_key_map().end() ? "" : auto_key->second;
+    return auto_key == get_auto_key_map().end() ? std::string_view{}
+                                                : auto_key->second;
   }
   return it->second;
 }
@@ -685,11 +694,34 @@ struct field_attribute<U T::*> {
   using return_type = U;
 };
 
+#ifdef YLT_USE_CXX26_REFLECTION
+template <typename T>
+constexpr std::string_view get_reflected_field_name(
+    std::string_view identifier) {
+  static constexpr auto members =
+      ylt::reflection::reflect26::data_members_array<T>();
+  constexpr auto names = ylt::reflection::get_member_names<T>();
+  std::size_t index = 0;
+  template for (constexpr auto member : members) {
+    if (std::meta::identifier_of(member) == identifier) {
+      return names[index];
+    }
+    ++index;
+  }
+  return {};
+}
+#endif
+
 template <typename U>
 constexpr std::string_view get_field_name(std::string_view full_name) {
   using T = typename field_attribute<U>::type;
+  const auto identifier = full_name.substr(full_name.rfind(":") + 1);
+#ifdef YLT_USE_CXX26_REFLECTION
+  return get_reflected_field_name<T>(identifier);
+#else
   return ylt::reflection::get_member_names<T>()[ylt::reflection::index_of<T>(
-      full_name.substr(full_name.rfind(":") + 1))];
+      identifier)];
+#endif
 }
 
 #define FID(field)                                                       \
