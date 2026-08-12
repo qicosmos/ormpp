@@ -9,13 +9,13 @@
 using namespace ormpp;
 
 struct cxx26_address {
-  [[= ormpp::id]] std::int64_t address_id{};
+  [[= ormpp::auto_key]] std::int64_t address_id{};
 
   [[= ormpp::not_null]] std::string city;
 };
 
 struct cxx26_person {
-  [[= ormpp::id]] std::int64_t id{};
+  [[= ormpp::auto_key]] std::int64_t id{};
 
   [[= ormpp::not_null]][[= ormpp::unique]] std::string name;
 

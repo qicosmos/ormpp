@@ -31,14 +31,14 @@ struct ormpp_unique {
 namespace ormpp {
 
 // C++26 reflection annotations. Expose constexpr values so the common case is
-// concise: [[=ormpp::id]] std::int64_t id{};
-struct id_t {};
+// concise: [[=ormpp::auto_key]] std::int64_t id{};
+struct auto_key_t {};
 struct primary_key_t {};
 struct auto_increment_t {};
 struct not_null_t {};
 struct unique_t {};
 
-inline constexpr id_t id{};
+inline constexpr auto_key_t auto_key{};
 inline constexpr primary_key_t primary_key{};
 inline constexpr auto_increment_t auto_increment{};
 inline constexpr not_null_t not_null{};

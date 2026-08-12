@@ -1188,12 +1188,12 @@ REGISTER_CONFLICT_KEY(student, name);
 
 ```cpp
 struct address {
-  [[=ormpp::id]] std::int64_t address_id{};
+  [[=ormpp::auto_key]] std::int64_t address_id{};
   std::string city;
 };
 
 struct person {
-  [[=ormpp::id]] std::int64_t id{};
+  [[=ormpp::auto_key]] std::int64_t id{};
   std::string name;
   std::int64_t address_id{};
 };
@@ -1203,9 +1203,9 @@ db.create_table<person>().execute();
 ```
 
 默认直接使用结构体名作为表名、成员名作为字段名，所以普通字段不需要任何
-注解。`id` 同时表示自增和主键。当前支持的 ormpp 注解为：
+注解。`auto_key` 同时表示自增和主键。当前支持的 ormpp 注解为：
 
-- `ormpp::id`（自增主键，推荐用于常见的 ID 字段）
+- `ormpp::auto_key`（自增主键）
 - `ormpp::primary_key`
 - `ormpp::auto_increment`（同时隐含主键）
 - `ormpp::not_null`

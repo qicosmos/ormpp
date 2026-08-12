@@ -45,7 +45,7 @@ consteval column_schema_annotations parse_column_annotations() {
   template for (constexpr auto annotation : annotations) {
     using annotation_t =
         ylt::reflection::reflect26::remove_cvref_meta_type_t<annotation>;
-    if constexpr (std::is_same_v<annotation_t, id_t>) {
+    if constexpr (std::is_same_v<annotation_t, auto_key_t>) {
       result.primary_key = true;
       result.auto_increment = true;
     }
