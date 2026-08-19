@@ -3085,6 +3085,97 @@ TEST_CASE("update section filed") {
     CHECK(vec2.front().age == 666);
     CHECK(vec1.front().name == "purecpp_aaaa");
     CHECK(vec2.front().name == "purecpp_bbbb");
+    CHECK(sqlite.update_some<&person::age>(
+              person{"", 777},
+              where(col(&person::name) == std::string("purecpp_aaaa"))) == 1);
+    CHECK(sqlite.update_some<&person::age>(
+              std::vector<person>{{"purecpp_aaaa", 888},
+                                  {"purecpp_bbbb", 999}},
+              by<&person::name>()) == 2);
+    vec1 = sqlite.query_s<person>("name=?", "purecpp_aaaa");
+    vec2 = sqlite.query_s<person>("name=?", "purecpp_bbbb");
+    CHECK(vec1.size() == 1);
+    CHECK(vec2.size() == 1);
+    CHECK(vec1.front().age == 888);
+    CHECK(vec2.front().age == 999);
+
+    uint64_t each_count = 0;
+    int age_sum = 0;
+    each_count = sqlite.query_each<person>("order by id", [&](const person &p) {
+      age_sum += p.age;
+    });
+    CHECK(each_count == 2);
+    CHECK(age_sum == 1887);
+
+    each_count = sqlite.query_each<person>("order by id", [&](const person &) {
+      return false;
+    });
+    CHECK(each_count == 1);
+  }
+}
+#endif
+
+#ifdef ORMPP_ENABLE_MYSQL
+TEST_CASE("mysql query_each edge cases") {
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists person");
+    REQUIRE(mysql.create_datatable<person>(ormpp_auto_key{"id"}));
+    REQUIRE(mysql.insert<person>({"query_each_a", 10}) == 1);
+    REQUIRE(mysql.insert<person>({"query_each_b", 20}) == 1);
+    REQUIRE(mysql.execute(
+        "insert into person(name, age) values('query_each_null', null)"));
+
+    uint64_t each_count = 0;
+    int age_sum = 0;
+    each_count = mysql.query_each<person>("order by id", [&](const person &p) {
+      age_sum += p.age;
+    });
+    CHECK(each_count == 3);
+    CHECK(age_sum == 30);
+
+    each_count = mysql.query_each<person>("name=?", std::string("query_each_b"),
+                                          [](const person &p) {
+                                            CHECK(p.name == "query_each_b");
+                                            CHECK(p.age == 20);
+                                          });
+    CHECK(each_count == 1);
+
+    each_count = mysql.query_each<person>(
+        "name=?", std::string("query_each_missing"), [](const person &) {
+          CHECK(false);
+        });
+    CHECK(each_count == 0);
+    CHECK(!mysql.has_error());
+
+    each_count = mysql.query_each<person>(
+        "name=?", std::string("query_each_null"), [](const person &p) {
+          CHECK(p.age == 0);
+        });
+    CHECK(each_count == 1);
+
+    each_count = mysql.query_each<std::tuple<int, std::string>>(
+        "select age, name from person where name=?",
+        std::string("query_each_a"), [](const auto &row) {
+          CHECK(std::get<0>(row) == 10);
+          CHECK(std::get<1>(row) == "query_each_a");
+        });
+    CHECK(each_count == 1);
+
+    each_count = mysql.query_each<std::tuple<std::string>>(
+        "SELECT REPEAT('A', 65537) AS long_string", [](const auto &row) {
+          CHECK(std::get<0>(row).size() == 65537);
+        });
+    CHECK(each_count == 1);
+
+    each_count = mysql.query_each<person>("order by id", [](const person &) {
+      return false;
+    });
+    CHECK(each_count == 1);
+    CHECK(!mysql.has_error());
+
+    auto rows = mysql.query_s<person>("order by id");
+    CHECK(rows.size() == 3);
   }
 }
 #endif

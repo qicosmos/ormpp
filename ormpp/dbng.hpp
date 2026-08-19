@@ -113,6 +113,19 @@ class dbng {
   }
 
   template <typename T, typename... Args>
+    requires valid_query_each_args_v<T, Args...>
+  decltype(auto) query_each(const std::string &str, Args &&...args) {
+    return db_.template query_each<T>(str, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename F>
+    requires(!std::is_convertible_v<std::decay_t<F>, std::string_view> &&
+             valid_query_each_callback_v<F, const T &>)
+  decltype(auto) query_each(F &&f) {
+    return db_.template query_each<T>("", std::forward<F>(f));
+  }
+
+  template <typename T, typename... Args>
   [[deprecated]] decltype(auto) delete_records(Args &&...where_condition) {
     return db_.template delete_records<T>(
         std::forward<Args>(where_condition)...);

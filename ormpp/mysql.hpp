@@ -20,6 +20,8 @@ namespace ormpp {
 class mysql {
  public:
   static constexpr DBType db_type_v = DBType::mysql;
+  using mysql_null_flag_t =
+      std::remove_pointer_t<decltype(std::declval<MYSQL_BIND>().is_null)>;
 
   ~mysql() { disconnect(); }
 
@@ -161,7 +163,7 @@ class mysql {
     using U = ylt::reflection::remove_cvref_t<T>;
     if constexpr (is_optional_v<U>::value) {
       if (value.has_value()) {
-        return set_param_bind(param_binds, std::move(value.value()));
+        return set_param_bind(param_binds, value.value());
       }
       else {
         param.buffer_type = MYSQL_TYPE_NULL;
@@ -317,7 +319,35 @@ class mysql {
     else {
       static_assert(!sizeof(U), "this type has not supported yet");
     }
-    param_bind.is_null = (B)&is_null;
+    param_bind.is_null = &is_null;
+  }
+
+  template <size_t N>
+  bool fetch_truncated_columns(std::array<MYSQL_BIND, N> &result_binds,
+                               std::array<unsigned long, N> &lengths,
+                               std::map<size_t, std::vector<char>> &mp) {
+    for (size_t i = 0; i < N; ++i) {
+      if (lengths[i] <= result_binds[i].buffer_length) {
+        continue;
+      }
+
+      auto it = mp.find(i);
+      if (it == mp.end()) {
+        set_last_error("query_each mysql_stmt_fetch data truncated");
+        return false;
+      }
+
+      it->second.assign(lengths[i] + 1, 0);
+      result_binds[i].buffer = it->second.data();
+      result_binds[i].buffer_length = lengths[i] + 1;
+      if (mysql_stmt_fetch_column(stmt_, &result_binds[i],
+                                  static_cast<unsigned int>(i), 0)) {
+        set_last_error(mysql_stmt_error(stmt_));
+        return false;
+      }
+    }
+
+    return true;
   }
 
   template <typename T>
@@ -444,7 +474,7 @@ class mysql {
       }
     }
 
-    std::array<decltype(std::declval<MYSQL_BIND>().is_null), SIZE> nulls = {};
+    std::array<mysql_null_flag_t, SIZE> nulls = {};
     std::array<MYSQL_BIND, SIZE> param_binds = {};
     std::map<size_t, std::vector<char>> mp;
 
@@ -540,9 +570,7 @@ class mysql {
       }
     }
 
-    std::array<decltype(std::declval<MYSQL_BIND>().is_null),
-               result_size<T>::value>
-        nulls = {};
+    std::array<mysql_null_flag_t, result_size<T>::value> nulls = {};
     std::array<MYSQL_BIND, result_size<T>::value> param_binds = {};
     std::map<size_t, std::vector<char>> mp;
 
@@ -646,6 +674,313 @@ class mysql {
     return v;
   }
 
+  template <typename T, typename... Args>
+    requires valid_query_each_args_v<T, Args...>
+  std::enable_if_t<iguana::ylt_refletable_v<T>, uint64_t> query_each(
+      const std::string &str, Args &&...args) {
+    reset_error();
+    check_query_each_args<T, Args...>();
+    constexpr auto SIZE = ylt::reflection::members_count_v<T>;
+    std::string sql =
+        contains_select(str) ? str : generate_query_sql<T>(db_type_v, str);
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+
+    stmt_ = mysql_stmt_init(con_);
+    if (!stmt_) {
+      set_last_error(mysql_error(con_));
+      return 0;
+    }
+
+    auto guard = guard_statment(stmt_);
+
+    if (mysql_stmt_prepare(stmt_, sql.c_str(), (unsigned long)sql.size())) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return 0;
+    }
+
+    auto params = std::forward_as_tuple(std::forward<Args>(args)...);
+    constexpr size_t param_count = sizeof...(Args) - 1;
+    auto bind_params =
+        decay_tuple_prefix(params, std::make_index_sequence<param_count>{});
+    std::vector<MYSQL_BIND> input_binds;
+    if constexpr (param_count > 0) {
+      for_each_tuple_prefix(
+          bind_params,
+          [this, &input_binds](auto &&arg) {
+            set_param_bind(input_binds, arg);
+          },
+          std::make_index_sequence<param_count>{});
+      if (mysql_stmt_bind_param(stmt_, input_binds.data())) {
+        set_last_error(mysql_stmt_error(stmt_));
+        return 0;
+      }
+    }
+
+    if (mysql_stmt_execute(stmt_)) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return 0;
+    }
+
+    meta_ = mysql_stmt_result_metadata(stmt_);
+    if (!meta_) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return 0;
+    }
+
+    auto meta_guard = guard_result(meta_);
+    if (mysql_num_fields(meta_) != SIZE) {
+      set_last_error("query_each result column count mismatch");
+      return 0;
+    }
+
+    auto &&callback = std::get<param_count>(params);
+    std::array<mysql_null_flag_t, SIZE> nulls = {};
+    std::array<unsigned long, SIZE> lengths = {};
+    std::array<MYSQL_BIND, SIZE> result_binds = {};
+    std::map<size_t, std::vector<char>> mp;
+    T bind_row{};
+    size_t index = 0;
+    ylt::reflection::for_each(
+        bind_row, [&result_binds, &index, &nulls, &lengths, &mp, this](
+                      auto &field, auto /*name*/, auto /*index*/) {
+          set_param_bind(this->meta_, result_binds[index], field, index, mp,
+                         nulls[index]);
+          result_binds[index].length = &lengths[index];
+          index++;
+        });
+
+    if (index == 0) {
+      set_last_error("query_each result bind count is zero");
+      return 0;
+    }
+
+    if (mysql_stmt_bind_result(stmt_, result_binds.data())) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return 0;
+    }
+
+    uint64_t count = 0;
+    int fetch_ret = 0;
+    bool stopped = false;
+    while (true) {
+      fetch_ret = mysql_stmt_fetch(stmt_);
+      if (fetch_ret == MYSQL_DATA_TRUNCATED) {
+        if (!fetch_truncated_columns(result_binds, lengths, mp)) {
+          return count;
+        }
+      }
+      else if (fetch_ret != 0) {
+        break;
+      }
+      T t{};
+      ylt::reflection::for_each(t, [&result_binds, &mp, &nulls, this](
+                                       auto &field, auto /*name*/, auto index) {
+        if (nulls.at(index) != 0) {
+          using U = ylt::reflection::remove_cvref_t<decltype(field)>;
+          if constexpr (std::is_default_constructible_v<U> &&
+                        std::is_assignable_v<decltype(field), U>) {
+            field = {};
+          }
+          return;
+        }
+        set_value(result_binds.at(index), field, index, mp);
+      });
+
+      ++count;
+      if (!invoke_query_each_callback(callback, t)) {
+        stopped = true;
+        break;
+      }
+    }
+
+    if (!stopped && fetch_ret != MYSQL_NO_DATA) {
+      if (fetch_ret == MYSQL_DATA_TRUNCATED) {
+        set_last_error("query_each mysql_stmt_fetch data truncated");
+      }
+      else {
+        set_last_error(mysql_stmt_error(stmt_));
+      }
+    }
+
+    return count;
+  }
+
+  template <typename T, typename... Args>
+    requires valid_query_each_args_v<T, Args...>
+  std::enable_if_t<iguana::non_ylt_refletable_v<T>, uint64_t> query_each(
+      const std::string &sql, Args &&...args) {
+    reset_error();
+    static_assert(iguana::is_tuple<T>::value);
+    check_query_each_args<T, Args...>();
+    constexpr auto SIZE = std::tuple_size_v<T>;
+    constexpr auto RESULT_SIZE = result_size<T>::value;
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    stmt_ = mysql_stmt_init(con_);
+    if (!stmt_) {
+      set_last_error(mysql_error(con_));
+      return 0;
+    }
+
+    auto guard = guard_statment(stmt_);
+
+    if (mysql_stmt_prepare(stmt_, sql.c_str(),
+                           static_cast<unsigned long>(sql.size()))) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return 0;
+    }
+
+    auto params = std::forward_as_tuple(std::forward<Args>(args)...);
+    constexpr size_t param_count = sizeof...(Args) - 1;
+    auto bind_params =
+        decay_tuple_prefix(params, std::make_index_sequence<param_count>{});
+    std::vector<MYSQL_BIND> input_binds;
+    if constexpr (param_count > 0) {
+      for_each_tuple_prefix(
+          bind_params,
+          [this, &input_binds](auto &&arg) {
+            set_param_bind(input_binds, arg);
+          },
+          std::make_index_sequence<param_count>{});
+      if (mysql_stmt_bind_param(stmt_, input_binds.data())) {
+        set_last_error(mysql_stmt_error(stmt_));
+        return 0;
+      }
+    }
+
+    if (mysql_stmt_execute(stmt_)) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return 0;
+    }
+
+    meta_ = mysql_stmt_result_metadata(stmt_);
+    if (!meta_) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return 0;
+    }
+
+    auto meta_guard = guard_result(meta_);
+    if (mysql_num_fields(meta_) != RESULT_SIZE) {
+      set_last_error("query_each result column count mismatch");
+      return 0;
+    }
+
+    auto &&callback = std::get<param_count>(params);
+    std::array<mysql_null_flag_t, RESULT_SIZE> nulls = {};
+    std::array<unsigned long, RESULT_SIZE> lengths = {};
+    std::array<MYSQL_BIND, RESULT_SIZE> result_binds = {};
+    std::map<size_t, std::vector<char>> mp;
+    T bind_row{};
+    size_t index = 0;
+    ormpp::for_each(
+        bind_row,
+        [&result_binds, &index, &nulls, &lengths, &mp, this](auto &item,
+                                                             auto /*index*/) {
+          using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+          if constexpr (iguana::ylt_refletable_v<U>) {
+            ylt::reflection::for_each(
+                item, [&result_binds, &index, &nulls, &lengths, &mp, this](
+                          auto &field, auto /*name*/, auto /*index*/) {
+                  set_param_bind(this->meta_, result_binds[index], field, index,
+                                 mp, nulls[index]);
+                  result_binds[index].length = &lengths[index];
+                  index++;
+                });
+          }
+          else {
+            set_param_bind(this->meta_, result_binds[index], item, index, mp,
+                           nulls[index]);
+            result_binds[index].length = &lengths[index];
+            index++;
+          }
+        },
+        std::make_index_sequence<SIZE>{});
+
+    if (index == 0) {
+      set_last_error("query_each result bind count is zero");
+      return 0;
+    }
+
+    if (mysql_stmt_bind_result(stmt_, result_binds.data())) {
+      set_last_error(mysql_stmt_error(stmt_));
+      return 0;
+    }
+
+    uint64_t count = 0;
+    int fetch_ret = 0;
+    bool stopped = false;
+    while (true) {
+      fetch_ret = mysql_stmt_fetch(stmt_);
+      if (fetch_ret == MYSQL_DATA_TRUNCATED) {
+        if (!fetch_truncated_columns(result_binds, lengths, mp)) {
+          return count;
+        }
+      }
+      else if (fetch_ret != 0) {
+        break;
+      }
+      T tp{};
+      index = 0;
+      ormpp::for_each(
+          tp,
+          [&result_binds, &index, &mp, &nulls, this](auto &item,
+                                                     auto /*index*/) {
+            using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+            if constexpr (iguana::ylt_refletable_v<U>) {
+              ylt::reflection::for_each(
+                  item, [&result_binds, &index, &mp, &nulls, this](
+                            auto &field, auto /*name*/, auto /*index*/) {
+                    if (nulls.at(index) != 0) {
+                      using W =
+                          ylt::reflection::remove_cvref_t<decltype(field)>;
+                      if constexpr (std::is_default_constructible_v<W> &&
+                                    std::is_assignable_v<decltype(field), W>) {
+                        field = {};
+                      }
+                      ++index;
+                      return;
+                    }
+                    set_value(result_binds.at(index), field, index, mp);
+                    index++;
+                  });
+            }
+            else {
+              if (nulls.at(index) != 0) {
+                if constexpr (std::is_default_constructible_v<U> &&
+                              std::is_assignable_v<decltype(item), U>) {
+                  item = {};
+                }
+                ++index;
+                return;
+              }
+              set_value(result_binds.at(index), item, index, mp);
+              index++;
+            }
+          },
+          std::make_index_sequence<SIZE>{});
+
+      ++count;
+      if (!invoke_query_each_callback(callback, tp)) {
+        stopped = true;
+        break;
+      }
+    }
+
+    if (!stopped && fetch_ret != MYSQL_NO_DATA) {
+      if (fetch_ret == MYSQL_DATA_TRUNCATED) {
+        set_last_error("query_each mysql_stmt_fetch data truncated");
+      }
+      else {
+        set_last_error(mysql_stmt_error(stmt_));
+      }
+    }
+
+    return count;
+  }
+
   template <typename... Args>
   auto select(Args... args) {
     return ormpp::select(this, args...);
@@ -704,7 +1039,7 @@ class mysql {
 
     auto meta_guard = guard_result(meta_);
 
-    std::array<decltype(std::declval<MYSQL_BIND>().is_null), SIZE> nulls = {};
+    std::array<mysql_null_flag_t, SIZE> nulls = {};
     std::array<MYSQL_BIND, SIZE> param_binds = {};
     std::map<size_t, std::vector<char>> mp;
 
@@ -803,9 +1138,7 @@ class mysql {
 
     auto meta_guard = guard_result(meta_);
 
-    std::array<decltype(std::declval<MYSQL_BIND>().is_null),
-               result_size<T>::value>
-        nulls = {};
+    std::array<mysql_null_flag_t, result_size<T>::value> nulls = {};
     std::array<MYSQL_BIND, result_size<T>::value> param_binds = {};
     std::map<size_t, std::vector<char>> mp;
 
@@ -1081,6 +1414,42 @@ class mysql {
     return sql;
   }
 
+  void append_sql_param_bind(std::vector<MYSQL_BIND> &param_binds,
+                             const sql_param_value &value) {
+    std::visit(
+        [&](const auto &item) {
+          using U = std::decay_t<decltype(item)>;
+          if constexpr (std::is_same_v<U, std::nullptr_t>) {
+            MYSQL_BIND param = {};
+            param.buffer_type = MYSQL_TYPE_NULL;
+            param_binds.push_back(param);
+          }
+          else {
+            set_param_bind(param_binds, item);
+          }
+        },
+        value);
+  }
+
+  template <typename T>
+  void bind_update_arg(std::vector<MYSQL_BIND> &param_binds, const T &,
+                       const update_where_condition &where) {
+    for (const auto &param : where.condition.params) {
+      append_sql_param_bind(param_binds, param);
+    }
+  }
+
+  template <typename T, auto... keys>
+  void bind_update_arg(std::vector<MYSQL_BIND> &param_binds, const T &t,
+                       update_by_fields<keys...>) {
+    (set_param_bind(param_binds,
+                    ylt::reflection::get<ylt::reflection::index_of<keys>()>(t)),
+     ...);
+  }
+
+  template <typename T, typename Arg>
+  void bind_update_arg(std::vector<MYSQL_BIND> &, const T &, Arg &&) {}
+
   template <auto... members, typename T, typename... Args>
   int stmt_execute(const T &t, OptType type, Args &&...args) {
     std::vector<MYSQL_BIND> param_binds;
@@ -1110,7 +1479,12 @@ class mysql {
       });
     }
 
-    if constexpr (sizeof...(Args) == 0) {
+    if constexpr (sizeof...(Args) > 0) {
+      if (type == OptType::update) {
+        (bind_update_arg(param_binds, t, args), ...);
+      }
+    }
+    else {
       if (type == OptType::update) {
         ylt::reflection::for_each(
             t, [&param_binds, this](auto &field, auto name, auto /*index*/) {
