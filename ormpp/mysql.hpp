@@ -157,9 +157,11 @@ class mysql {
   int get_last_affect_rows() { return last_affect_rows_; }
 
   template <typename T>
-  constexpr void set_param_bind(std::vector<MYSQL_BIND> &param_binds,
-                                T &&value) {
+  void set_param_bind(std::vector<MYSQL_BIND> &param_binds, T &&value) {
     MYSQL_BIND param = {};
+    if (param_binds.empty()) {
+      input_bind_buffers_.clear();
+    }
     using U = ylt::reflection::remove_cvref_t<T>;
     if constexpr (is_optional_v<U>::value) {
       if (value.has_value()) {
@@ -176,8 +178,12 @@ class mysql {
       }
       param.buffer_type =
           (enum_field_types)ormpp_mysql::type_to_id(identity<enum_type>{});
-      param.buffer = const_cast<void *>(static_cast<const void *>(&value));
       param.buffer_length = sizeof(enum_type);
+      enum_type item = static_cast<enum_type>(value);
+      std::vector<char> tmp(sizeof(enum_type), 0);
+      memcpy(tmp.data(), &item, sizeof(enum_type));
+      input_bind_buffers_.emplace_back(std::move(tmp));
+      param.buffer = input_bind_buffers_.back().data();
     }
     else if constexpr (std::is_arithmetic_v<U>) {
       if constexpr (std::is_same_v<bool, U>) {
@@ -428,7 +434,13 @@ class mysql {
       }
     }
     else if constexpr (std::is_same_v<std::string, U>) {
-      auto &vec = mp[i];
+      auto it = mp.find(i);
+      if (it == mp.end()) {
+        set_last_error("mysql result buffer is missing at column " +
+                       std::to_string(i));
+        return;
+      }
+      auto &vec = it->second;
       auto len = result_length();
       if (len > vec.size()) {
         set_last_error("mysql result length exceeds buffer at column " +
@@ -438,7 +450,13 @@ class mysql {
       value = std::string(vec.data(), len);
     }
     else if constexpr (std::is_same_v<std::string_view, U>) {
-      auto &vec = mp[i];
+      auto it = mp.find(i);
+      if (it == mp.end()) {
+        set_last_error("mysql result buffer is missing at column " +
+                       std::to_string(i));
+        return;
+      }
+      auto &vec = it->second;
       auto len = result_length();
       if (len > vec.size()) {
         set_last_error("mysql result length exceeds buffer at column " +
@@ -449,7 +467,13 @@ class mysql {
       value = sv_;
     }
     else if constexpr (iguana::array_v<U>) {
-      auto &vec = mp[i];
+      auto it = mp.find(i);
+      if (it == mp.end()) {
+        set_last_error("mysql result buffer is missing at column " +
+                       std::to_string(i));
+        return;
+      }
+      auto &vec = it->second;
       if (vec.size() < value.size()) {
         set_last_error("mysql result length exceeds buffer at column " +
                        std::to_string(i));
@@ -458,7 +482,13 @@ class mysql {
       memcpy(value.data(), vec.data(), value.size());
     }
     else if constexpr (std::is_same_v<blob, U>) {
-      auto &vec = mp[i];
+      auto it = mp.find(i);
+      if (it == mp.end()) {
+        set_last_error("mysql result buffer is missing at column " +
+                       std::to_string(i));
+        return;
+      }
+      auto &vec = it->second;
       auto len =
           param_bind.length == nullptr ? get_blob_len(i) : result_length();
       if (len > vec.size()) {
@@ -1762,6 +1792,7 @@ class mysql {
   MYSQL_STMT *stmt_ = nullptr;
   MYSQL_RES *meta_ = nullptr;
   int last_affect_rows_ = 0;
+  std::list<std::vector<char>> input_bind_buffers_;
   inline static std::string sv_;
   inline static std::string last_error_;
   inline static bool has_error_ = false;
