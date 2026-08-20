@@ -298,6 +298,151 @@ class sqlite {
     return v;
   }
 
+  template <typename T, typename... Args>
+    requires valid_query_each_args_v<T, Args...>
+  std::enable_if_t<iguana::ylt_refletable_v<T>, uint64_t> query_each(
+      const std::string &str, Args &&...args) {
+    check_query_each_args<T, Args...>();
+    std::string sql =
+        contains_select(str) ? str : generate_query_sql<T>(db_type_v, str);
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
+                                    &stmt_, nullptr);
+    if (result != SQLITE_OK) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return 0;
+    }
+
+    auto guard = guard_statment(stmt_);
+    auto params = std::forward_as_tuple(args...);
+    constexpr size_t param_count = sizeof...(Args) - 1;
+    bool bind_ok = true;
+    size_t bind_index = 0;
+    for_each_tuple_prefix(
+        params,
+        [this, &bind_ok, &bind_index](auto &&arg) {
+          if (!bind_ok) {
+            return;
+          }
+          bind_ok =
+              set_param_bind(std::forward<decltype(arg)>(arg), ++bind_index);
+        },
+        std::make_index_sequence<param_count>{});
+
+    if (!bind_ok) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return 0;
+    }
+
+    auto &&callback = std::get<param_count>(params);
+    uint64_t count = 0;
+    while (true) {
+      result = sqlite3_step(stmt_);
+      if (result == SQLITE_DONE) {
+        break;
+      }
+      if (result != SQLITE_ROW) {
+        set_last_error(sqlite3_errmsg(handle_));
+        return count;
+      }
+
+      T t = {};
+      ylt::reflection::for_each(t,
+                                [this](auto &field, auto /*name*/, auto index) {
+                                  assign(field, index);
+                                });
+      ++count;
+      if (!invoke_query_each_callback(callback, t)) {
+        break;
+      }
+    }
+
+    return count;
+  }
+
+  template <typename T, typename... Args>
+    requires valid_query_each_args_v<T, Args...>
+  std::enable_if_t<iguana::non_ylt_refletable_v<T>, uint64_t> query_each(
+      const std::string &sql, Args &&...args) {
+    static_assert(iguana::is_tuple<T>::value);
+    check_query_each_args<T, Args...>();
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    int result = sqlite3_prepare_v2(handle_, sql.data(), (int)sql.size(),
+                                    &stmt_, nullptr);
+    if (result != SQLITE_OK) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return 0;
+    }
+
+    auto guard = guard_statment(stmt_);
+    auto params = std::forward_as_tuple(args...);
+    constexpr size_t param_count = sizeof...(Args) - 1;
+    bool bind_ok = true;
+    size_t bind_index = 0;
+    for_each_tuple_prefix(
+        params,
+        [this, &bind_ok, &bind_index](auto &&arg) {
+          if (!bind_ok) {
+            return;
+          }
+          bind_ok =
+              set_param_bind(std::forward<decltype(arg)>(arg), ++bind_index);
+        },
+        std::make_index_sequence<param_count>{});
+
+    if (!bind_ok) {
+      set_last_error(sqlite3_errmsg(handle_));
+      return 0;
+    }
+
+    auto &&callback = std::get<param_count>(params);
+    uint64_t count = 0;
+    while (true) {
+      result = sqlite3_step(stmt_);
+      if (result == SQLITE_DONE) {
+        break;
+      }
+      if (result != SQLITE_ROW) {
+        set_last_error(sqlite3_errmsg(handle_));
+        return count;
+      }
+
+      T tp = {};
+      size_t index = 0;
+      ormpp::for_each(
+          tp,
+          [this, &index](auto &item, auto /*index*/) {
+            using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+            if constexpr (iguana::ylt_refletable_v<U>) {
+              U t = {};
+              ylt::reflection::for_each(
+                  t,
+                  [this, &index](auto &field, auto /*name*/, auto /*index*/) {
+                    assign(field, index++);
+                  });
+              item = std::move(t);
+            }
+            else {
+              assign(item, index++);
+            }
+          },
+          std::make_index_sequence<std::tuple_size_v<T>>{});
+
+      if (index > 0) {
+        ++count;
+        if (!invoke_query_each_callback(callback, tp)) {
+          break;
+        }
+      }
+    }
+
+    return count;
+  }
+
   template <typename... Args>
   auto select(Args... args) {
     return ormpp::select(this, args...);
@@ -579,6 +724,46 @@ class sqlite {
     return sql;
   }
 
+  bool bind_sql_param_value(const sql_param_value &value, int i) {
+    return std::visit(
+        [&](const auto &item) {
+          using U = std::decay_t<decltype(item)>;
+          if constexpr (std::is_same_v<U, std::nullptr_t>) {
+            return SQLITE_OK == sqlite3_bind_null(stmt_, i);
+          }
+          else {
+            return set_param_bind(item, i);
+          }
+        },
+        value);
+  }
+
+  template <typename T>
+  void bind_update_arg(bool &bind_ok, size_t &index, const T &,
+                       const update_where_condition &where) {
+    for (const auto &param : where.condition.params) {
+      if (!bind_ok) {
+        return;
+      }
+      bind_ok = bind_sql_param_value(param, ++index);
+    }
+  }
+
+  template <typename T, auto... keys>
+  void bind_update_arg(bool &bind_ok, size_t &index, const T &t,
+                       update_by_fields<keys...>) {
+    [[maybe_unused]] auto r =
+        ((bind_ok &&
+              (bind_ok = set_param_bind(
+                   ylt::reflection::get<ylt::reflection::index_of<keys>()>(t),
+                   ++index)),
+          true),
+         ...);
+  }
+
+  template <typename T, typename Arg>
+  void bind_update_arg(bool &, size_t &, const T &, Arg &&) {}
+
   template <auto... members, typename T, typename... Args>
   int stmt_execute(const T &t, OptType type, Args &&...args) {
     size_t index = 0;
@@ -603,7 +788,12 @@ class sqlite {
       });
     }
 
-    if constexpr (sizeof...(Args) == 0) {
+    if constexpr (sizeof...(Args) > 0) {
+      if (type == OptType::update) {
+        (bind_update_arg(bind_ok, index, t, args), ...);
+      }
+    }
+    else {
       if (type == OptType::update) {
         ylt::reflection::for_each(
             t,

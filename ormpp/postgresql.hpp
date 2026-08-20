@@ -274,6 +274,139 @@ class postgresql {
     return v;
   }
 
+  template <typename T, typename... Args>
+    requires valid_query_each_args_v<T, Args...>
+  std::enable_if_t<iguana::ylt_refletable_v<T>, uint64_t> query_each(
+      const std::string &str, Args &&...args) {
+    check_query_each_args<T, Args...>();
+    std::string sql =
+        contains_select(str) ? str : generate_query_sql<T>(db_type_v, str);
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    auto params = std::forward_as_tuple(args...);
+    constexpr size_t param_count = sizeof...(Args) - 1;
+    if constexpr (param_count > 0) {
+      if (!prepare<T>(sql)) {
+        return 0;
+      }
+
+      std::vector<const char *> param_values_buf;
+      std::vector<std::vector<char>> param_values;
+      for_each_tuple_prefix(
+          params,
+          [this, &param_values](auto &&arg) {
+            set_param_values(param_values, std::forward<decltype(arg)>(arg));
+          },
+          std::make_index_sequence<param_count>{});
+      for (auto &item : param_values) {
+        param_values_buf.push_back(item.data());
+      }
+      res_ = PQexecPrepared(con_, "", (int)param_values.size(),
+                            param_values_buf.data(), NULL, NULL, 0);
+    }
+    else {
+      res_ = PQexec(con_, sql.data());
+    }
+
+    auto guard = guard_statment(res_);
+    if (PQresultStatus(res_) != PGRES_TUPLES_OK) {
+      return 0;
+    }
+
+    auto &&callback = std::get<param_count>(params);
+    uint64_t count = 0;
+    auto ntuples = PQntuples(res_);
+    for (auto i = 0; i < ntuples; i++) {
+      T t = {};
+      ylt::reflection::for_each(
+          t, [this, i](auto &field, auto /*name*/, auto index) {
+            assign(field, i, index);
+          });
+      ++count;
+      if (!invoke_query_each_callback(callback, t)) {
+        break;
+      }
+    }
+
+    return count;
+  }
+
+  template <typename T, typename... Args>
+    requires valid_query_each_args_v<T, Args...>
+  std::enable_if_t<iguana::non_ylt_refletable_v<T>, uint64_t> query_each(
+      const std::string &sql, Args &&...args) {
+    static_assert(iguana::is_tuple<T>::value);
+    check_query_each_args<T, Args...>();
+#ifdef ORMPP_ENABLE_LOG
+    std::cout << sql << std::endl;
+#endif
+    auto params = std::forward_as_tuple(args...);
+    constexpr size_t param_count = sizeof...(Args) - 1;
+    if constexpr (param_count > 0) {
+      if (!prepare<T>(sql)) {
+        return 0;
+      }
+
+      std::vector<const char *> param_values_buf;
+      std::vector<std::vector<char>> param_values;
+      for_each_tuple_prefix(
+          params,
+          [this, &param_values](auto &&arg) {
+            set_param_values(param_values, std::forward<decltype(arg)>(arg));
+          },
+          std::make_index_sequence<param_count>{});
+      for (auto &item : param_values) {
+        param_values_buf.push_back(item.data());
+      }
+      res_ = PQexecPrepared(con_, "", (int)param_values.size(),
+                            param_values_buf.data(), NULL, NULL, 0);
+    }
+    else {
+      res_ = PQexec(con_, sql.data());
+    }
+
+    auto guard = guard_statment(res_);
+    if (PQresultStatus(res_) != PGRES_TUPLES_OK) {
+      return 0;
+    }
+
+    auto &&callback = std::get<param_count>(params);
+    uint64_t count = 0;
+    auto ntuples = PQntuples(res_);
+    for (auto i = 0; i < ntuples; i++) {
+      T tp = {};
+      size_t index = 0;
+      ormpp::for_each(
+          tp,
+          [this, i, &index](auto &item, auto /*index*/) {
+            using U = ylt::reflection::remove_cvref_t<decltype(item)>;
+            if constexpr (iguana::ylt_refletable_v<U>) {
+              U t = {};
+              ylt::reflection::for_each(
+                  t, [this, &index, &t, i](auto &field, auto /*name*/,
+                                           auto /*index*/) {
+                    assign(field, (int)i, index++);
+                  });
+              item = std::move(t);
+            }
+            else {
+              assign(item, (int)i, index++);
+            }
+          },
+          std::make_index_sequence<std::tuple_size_v<T>>{});
+
+      if (index > 0) {
+        ++count;
+        if (!invoke_query_each_callback(callback, tp)) {
+          break;
+        }
+      }
+    }
+
+    return count;
+  }
+
   template <typename... Args>
   auto select(Args... args) {
     return ormpp::select(this, args...);
@@ -561,6 +694,41 @@ class postgresql {
     return PQresultStatus(res_) == PGRES_COMMAND_OK;
   }
 
+  void append_sql_param_value(std::vector<std::vector<char>> &param_values,
+                              const sql_param_value &value) {
+    std::visit(
+        [&](const auto &item) {
+          using U = std::decay_t<decltype(item)>;
+          if constexpr (std::is_same_v<U, std::nullptr_t>) {
+            param_values.push_back({});
+          }
+          else {
+            set_param_values(param_values, item);
+          }
+        },
+        value);
+  }
+
+  template <typename T>
+  void bind_update_arg(std::vector<std::vector<char>> &param_values, const T &,
+                       const update_where_condition &where) {
+    for (const auto &param : where.condition.params) {
+      append_sql_param_value(param_values, param);
+    }
+  }
+
+  template <typename T, auto... keys>
+  void bind_update_arg(std::vector<std::vector<char>> &param_values, const T &t,
+                       update_by_fields<keys...>) {
+    (set_param_values(
+         param_values,
+         ylt::reflection::get<ylt::reflection::index_of<keys>()>(t)),
+     ...);
+  }
+
+  template <typename T, typename Arg>
+  void bind_update_arg(std::vector<std::vector<char>> &, const T &, Arg &&) {}
+
   template <auto... members, typename T, typename... Args>
   std::optional<uint64_t> stmt_execute(const T &t, OptType type,
                                        Args &&...args) {
@@ -591,7 +759,12 @@ class postgresql {
       });
     }
 
-    if constexpr (sizeof...(Args) == 0) {
+    if constexpr (sizeof...(Args) > 0) {
+      if (type == OptType::update) {
+        (bind_update_arg(param_values, t, args), ...);
+      }
+    }
+    else {
       if (type == OptType::update) {
         ylt::reflection::for_each(
             t, [&param_values, this](auto &field, auto name, auto /*index*/) {

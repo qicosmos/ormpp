@@ -1,19 +1,178 @@
 #pragma once
+#include <cstdint>
+#include <functional>
 #include <iterator>
 #include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
+#include <vector>
 
 #include "async_traits.hpp"
 #include "utility.hpp"
 
 namespace ormpp {
+inline std::size_t find_next_postgresql_placeholder(std::string_view sql,
+                                                    std::size_t start);
+
+using sql_param_value =
+    std::variant<std::nullptr_t, bool, int64_t, uint64_t, double, std::string>;
+
+template <typename T, typename = void>
+struct is_char_array_container : std::false_type {};
+
+template <typename T>
+struct is_char_array_container<
+    T, std::void_t<typename std::remove_cvref_t<T>::value_type>>
+    : std::bool_constant<
+          iguana::array_v<std::remove_cvref_t<T>> &&
+          std::is_same_v<typename std::remove_cvref_t<T>::value_type, char>> {};
+
+template <typename T>
+inline constexpr bool is_char_array_container_v =
+    is_char_array_container<T>::value;
+
+template <typename T>
+sql_param_value make_sql_param_value(T&& value) {
+  using U = ylt::reflection::remove_cvref_t<T>;
+  if constexpr (is_optional_v<U>::value) {
+    if (value.has_value()) {
+      return make_sql_param_value(*value);
+    }
+    return nullptr;
+  }
+  else if constexpr (std::is_enum_v<U>) {
+    using underlying = std::underlying_type_t<U>;
+    return make_sql_param_value(static_cast<underlying>(value));
+  }
+  else if constexpr (std::is_same_v<U, bool>) {
+    return value;
+  }
+  else if constexpr (std::is_integral_v<U> && std::is_signed_v<U>) {
+    return static_cast<int64_t>(value);
+  }
+  else if constexpr (std::is_integral_v<U> && std::is_unsigned_v<U>) {
+    return static_cast<uint64_t>(value);
+  }
+  else if constexpr (std::is_floating_point_v<U>) {
+    return static_cast<double>(value);
+  }
+  else if constexpr (std::is_same_v<U, std::string>) {
+    return value;
+  }
+  else if constexpr (std::is_same_v<U, std::string_view>) {
+    return std::string(value);
+  }
+  else if constexpr (iguana::c_array_v<U> || std::is_same_v<const char*, U> ||
+                     std::is_same_v<char*, U>) {
+    return std::string(value);
+  }
+  else if constexpr (is_char_array_container_v<U>) {
+    return std::string(value.data());
+  }
+  else {
+    return value;
+  }
+}
+
+inline std::string replace_sql_param_placeholders(std::string sql,
+                                                  DBType db_type,
+                                                  size_t& index) {
+  if (db_type != DBType::postgresql) {
+    return sql;
+  }
+
+  std::size_t search_pos = 0;
+  while (true) {
+    auto pos = find_next_postgresql_placeholder(sql, search_pos);
+    if (pos == std::string_view::npos) {
+      break;
+    }
+    std::string replacement = "$" + std::to_string(++index);
+    sql.replace(pos, 1, replacement);
+    search_pos = pos + replacement.size();
+  }
+  return sql;
+}
+
+template <typename Tuple, typename F, std::size_t... I>
+void for_each_tuple_prefix(Tuple&& tuple, F&& f, std::index_sequence<I...>) {
+  (std::invoke(std::forward<F>(f), std::get<I>(std::forward<Tuple>(tuple))),
+   ...);
+}
+
+template <typename Tuple, std::size_t... I>
+auto decay_tuple_prefix(Tuple&& tuple, std::index_sequence<I...>) {
+  return std::tuple<std::decay_t<decltype(std::get<I>(tuple))>...>(
+      std::get<I>(std::forward<Tuple>(tuple))...);
+}
+
+template <typename F, typename Row, bool = std::is_invocable_v<F, Row>>
+struct valid_query_each_callback_impl : std::false_type {};
+
+template <typename F, typename Row>
+struct valid_query_each_callback_impl<F, Row, true>
+    : std::bool_constant<std::is_void_v<std::invoke_result_t<F, Row>> ||
+                         std::is_same_v<std::invoke_result_t<F, Row>, bool>> {};
+
+template <typename F, typename Row>
+inline constexpr bool valid_query_each_callback_v =
+    valid_query_each_callback_impl<F, Row>::value;
+
+template <typename F, typename Row>
+constexpr void check_query_each_callback() {
+  static_assert(valid_query_each_callback_v<F, Row>,
+                "query_each callback must be invocable with the row type and "
+                "return void or bool");
+}
+
+template <typename Tuple>
+using tuple_last_t =
+    std::tuple_element_t<std::tuple_size_v<std::remove_reference_t<Tuple>> - 1,
+                         std::remove_reference_t<Tuple>>;
+
+template <typename T, typename... Args>
+struct valid_query_each_args : std::false_type {};
+
+template <typename T, typename First, typename... Rest>
+struct valid_query_each_args<T, First, Rest...> {
+  using callback_t = tuple_last_t<std::tuple<First, Rest...>>;
+  static constexpr bool value =
+      valid_query_each_callback_v<callback_t, const T&>;
+};
+
+template <typename T, typename... Args>
+inline constexpr bool valid_query_each_args_v =
+    valid_query_each_args<T, Args...>::value;
+
+template <typename T, typename... Args>
+constexpr void check_query_each_args() {
+  static_assert(sizeof...(Args) > 0,
+                "query_each requires a callback as the last argument");
+  static_assert(valid_query_each_args_v<T, Args...>,
+                "query_each callback must be the last argument, invocable with "
+                "the row type, and return void or bool");
+}
+
+template <typename F, typename Row>
+bool invoke_query_each_callback(F&& f, Row&& row) {
+  if constexpr (std::is_same_v<std::invoke_result_t<F, Row>, bool>) {
+    return std::invoke(std::forward<F>(f), std::forward<Row>(row));
+  }
+  else {
+    std::invoke(std::forward<F>(f), std::forward<Row>(row));
+    return true;
+  }
+}
+
 struct where_condition {
   std::string left;
   std::string op;
   std::string right;
   bool need_quote = false;
+  std::string bind_sql;
+  std::vector<sql_param_value> params;
 
   std::string to_sql() const {
     std::string sql;
@@ -26,6 +185,13 @@ struct where_condition {
     }
     sql.append(")");
     return sql;
+  }
+
+  std::string to_bind_sql(DBType db_type, size_t& index) const {
+    if (bind_sql.empty()) {
+      return to_sql();
+    }
+    return replace_sql_param_placeholders(bind_sql, db_type, index);
   }
 };
 
@@ -224,11 +390,27 @@ std::string str_name() {
 #define col_name(c) str_name<c>()
 
 inline where_condition operator||(where_condition lhs, where_condition rhs) {
-  return where_condition{lhs.to_sql(), " OR ", rhs.to_sql()};
+  where_condition condition{lhs.to_sql(), " OR ", rhs.to_sql()};
+  condition.bind_sql =
+      "(" + (lhs.bind_sql.empty() ? lhs.to_sql() : lhs.bind_sql) + " OR " +
+      (rhs.bind_sql.empty() ? rhs.to_sql() : rhs.bind_sql) + ")";
+  condition.params = std::move(lhs.params);
+  condition.params.insert(condition.params.end(),
+                          std::make_move_iterator(rhs.params.begin()),
+                          std::make_move_iterator(rhs.params.end()));
+  return condition;
 }
 
 inline where_condition operator&&(where_condition lhs, where_condition rhs) {
-  return where_condition{lhs.to_sql(), " AND ", rhs.to_sql()};
+  where_condition condition{lhs.to_sql(), " AND ", rhs.to_sql()};
+  condition.bind_sql =
+      "(" + (lhs.bind_sql.empty() ? lhs.to_sql() : lhs.bind_sql) + " AND " +
+      (rhs.bind_sql.empty() ? rhs.to_sql() : rhs.bind_sql) + ")";
+  condition.params = std::move(lhs.params);
+  condition.params.insert(condition.params.end(),
+                          std::make_move_iterator(rhs.params.begin()),
+                          std::make_move_iterator(rhs.params.end()));
+  return condition;
 }
 
 where_condition build_where(auto field, auto val, std::string op) {
@@ -250,20 +432,30 @@ where_condition build_where(auto field, auto val, std::string op) {
     name.append(".").append(field.name);
   }
 
+  where_condition condition;
+  condition.left = name;
+  condition.op = op;
+
   if constexpr (std::is_enum_v<value_type>) {
     using underlying = std::underlying_type_t<value_type>;
-    return where_condition{name, op,
-                           std::to_string(static_cast<underlying>(val))};
+    condition.right = std::to_string(static_cast<underlying>(val));
   }
   else if constexpr (std::is_arithmetic_v<value_type>) {
-    return where_condition{name, op, std::to_string(val)};
+    condition.right = std::to_string(val);
   }
   else {
     if (val == "?  ") {
-      return where_condition{name, op, val};
+      condition.right = val;
+      condition.bind_sql = "(" + name + op + "?)";
+      return condition;
     }
-    return where_condition{name, op, val, true};
+    condition.right = val;
+    condition.need_quote = true;
   }
+
+  condition.bind_sql = "(" + name + op + "?)";
+  condition.params.push_back(make_sql_param_value(val));
+  return condition;
 }
 
 template <typename M>
@@ -331,6 +523,119 @@ auto operator<(aggregate_field<M> field, auto val) {
 template <typename M>
 auto operator<=(aggregate_field<M> field, auto val) {
   return build_where(field, val, "<=");
+}
+
+struct update_where_condition {
+  where_condition condition;
+};
+
+inline update_where_condition where(where_condition condition) {
+  return update_where_condition{std::move(condition)};
+}
+
+template <auto... fields>
+struct update_by_fields {};
+
+template <auto... fields>
+update_by_fields<fields...> by() {
+  static_assert(sizeof...(fields) > 0, "by() requires at least one field");
+  return {};
+}
+
+template <typename T, auto... members>
+void append_update_set_fields(std::string& fields, DBType db_type,
+                              size_t& index) {
+  if constexpr (sizeof...(members) > 0) {
+    (
+        [&] {
+          fields.append(ylt::reflection::name_of<T>(
+              ylt::reflection::index_of<members>()));
+          if (db_type == DBType::postgresql) {
+            fields.append("=$").append(std::to_string(++index)).append(",");
+          }
+          else {
+            fields.append("=?,");
+          }
+        }(),
+        ...);
+  }
+  else {
+    constexpr auto Count = ylt::reflection::members_count_v<T>;
+    for (size_t i = 0; i < Count; ++i) {
+      std::string field_name(ylt::reflection::name_of<T>(i));
+      if (db_type == DBType::mysql) {
+        fields.append("`").append(field_name).append("`");
+      }
+      else {
+        fields.append(field_name);
+      }
+      if (db_type == DBType::postgresql) {
+        fields.append("=$").append(std::to_string(++index)).append(",");
+      }
+      else {
+        fields.append("=?,");
+      }
+    }
+  }
+
+  if (!fields.empty()) {
+    fields.pop_back();
+  }
+}
+
+template <typename T, auto... members>
+std::string generate_update_sql(DBType db_type, update_where_condition where) {
+  std::string sql, fields;
+  append(sql, "update", get_short_struct_name<T>(), "set");
+
+  size_t index = 0;
+  append_update_set_fields<T, members...>(fields, db_type, index);
+  if (fields.empty()) {
+    return {};
+  }
+
+  std::string conflict = "where 1=1 and ";
+  conflict.append(where.condition.to_bind_sql(db_type, index));
+  append(sql, fields, conflict);
+  while (!sql.empty() && sql.back() == ' ') {
+    sql.pop_back();
+  }
+  return sql;
+}
+
+template <typename T, auto... members, auto... keys>
+std::string generate_update_sql(DBType db_type, update_by_fields<keys...>) {
+  std::string sql, fields;
+  append(sql, "update", get_short_struct_name<T>(), "set");
+
+  size_t index = 0;
+  append_update_set_fields<T, members...>(fields, db_type, index);
+  if (fields.empty()) {
+    return {};
+  }
+
+  std::string conflict = "where 1=1";
+  (
+      [&] {
+        std::string key_name(
+            ylt::reflection::name_of<T>(ylt::reflection::index_of<keys>()));
+        if (db_type == DBType::mysql) {
+          key_name = "`" + key_name + "`";
+        }
+        if (db_type == DBType::postgresql) {
+          append(conflict, " and", key_name + "=$" + std::to_string(++index));
+        }
+        else {
+          append(conflict, " and", key_name + "=?");
+        }
+      }(),
+      ...);
+
+  append(sql, fields, conflict);
+  while (!sql.empty() && sql.back() == ' ') {
+    sql.pop_back();
+  }
+  return sql;
 }
 
 struct token_t {};

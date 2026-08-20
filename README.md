@@ -874,6 +874,15 @@ person p = {1, "new_name", 25};
 TEST_CHECK(mysql.update_some<&person::name, &person::age>(p)==1);
 TEST_CHECK(postgres.update_some<&person::name, &person::age>(p)==1);
 TEST_CHECK(sqlite.update_some<&person::name, &person::age>(p)==1);
+
+// 按非主键条件更新指定字段，条件值会走参数绑定
+mysql.update_some<&person::age>(
+    person{0, "", 30},
+    where(col(&person::name) == std::string("tom")));
+
+// 批量更新时，where key 来自每个对象自身字段
+std::vector<person> users{{0, "tom", 31}, {0, "jerry", 32}};
+mysql.update_some<&person::age>(users, by<&person::name>());
 ```
 
 注意：`update_some` 只会更新指定的成员字段，适合部分字段更新的场景，避免不必要的数据传输。
@@ -952,6 +961,55 @@ auto result5 = sqlite.query_s<person>("id=?", 3);
 ```
 
 返回值：std::vector<T>，成功vector不为空，失败则为空.
+
+如果查询结果较大，可以使用 `query_each` 逐行处理，避免把所有结果保存到 `std::vector`。MySQL、PostgreSQL 和 SQLite 同步接口均支持该用法：
+
+```C++
+mysql.query_each<person>("age>?", 18, [](const person& p) {
+    // 处理一行
+});
+
+postgres.query_each<person>("age>$1", 18, [](const person& p) {
+    // 处理一行
+});
+
+sqlite.query_each<person>("age>?", 18, [](const person& p) {
+    // 处理一行
+});
+
+// 回调返回 false 可以提前停止
+mysql.query_each<person>("order by id", [](const person& p) {
+    return false;
+});
+```
+
+返回值：uint64_t，表示实际处理的行数。
+
+注意：回调参数引用只在本次回调内有效；如果需要保存查询结果，请拷贝对象，不要保存引用。
+回调必须作为 `query_each` 的最后一个参数，返回 `void` 或 `bool`。
+回调抛出的异常会透传给调用方。
+返回 `0` 可能表示没有数据，也可能表示查询失败；需要区分时请检查 `has_error()` / `get_last_error()`。
+非 `std::optional` 字段遇到 SQL NULL 时会得到类型默认值；需要区分 NULL 时请使用 `std::optional` 字段。
+不要在回调中使用同一个数据库连接再次发起查询；如需嵌套查询，请使用另一个连接。
+`query_each<T>("order by id", ...)` 和 `query_s<T>()` 一样，字符串可以是完整 `select` 语句，也可以是 where/order 片段；不是完整 `select` 时会自动生成 `select * from T ...`。
+`query_each<person>` 需要查询结果列数和 `person` 字段数一致；部分列查询请使用 tuple，tuple 版本需要传入完整 `select` 语句：
+
+```C++
+auto count = mysql.query_each<person>("age>?", 18, [](const person& p) {
+    // 处理一行
+});
+if (count == 0 && mysql.has_error()) {
+    std::cout << mysql.get_last_error() << std::endl;
+}
+```
+
+```C++
+mysql.query_each<std::tuple<int, std::string>>(
+    "select id, name from person",
+    [](const auto& row) {
+        // 处理部分列
+    });
+```
 
 13. 特定列查询
 
