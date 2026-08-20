@@ -987,11 +987,12 @@ mysql.query_each<person>("order by id", [](const person& p) {
 
 注意：回调参数引用只在本次回调内有效；如果需要保存查询结果，请拷贝对象，不要保存引用。
 回调必须作为 `query_each` 的最后一个参数，返回 `void` 或 `bool`。
+回调抛出的异常会透传给调用方。
 返回 `0` 可能表示没有数据，也可能表示查询失败；需要区分时请检查 `has_error()` / `get_last_error()`。
 非 `std::optional` 字段遇到 SQL NULL 时会得到类型默认值；需要区分 NULL 时请使用 `std::optional` 字段。
 不要在回调中使用同一个数据库连接再次发起查询；如需嵌套查询，请使用另一个连接。
 `query_each<T>("order by id", ...)` 和 `query_s<T>()` 一样，字符串可以是完整 `select` 语句，也可以是 where/order 片段；不是完整 `select` 时会自动生成 `select * from T ...`。
-`query_each<person>` 需要查询结果列数和 `person` 字段数一致；部分列查询请使用 tuple：
+`query_each<person>` 需要查询结果列数和 `person` 字段数一致；部分列查询请使用 tuple，tuple 版本需要传入完整 `select` 语句：
 
 ```C++
 auto count = mysql.query_each<person>("age>?", 18, [](const person& p) {

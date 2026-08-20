@@ -222,10 +222,10 @@ class mysql {
     param_binds.push_back(param);
   }
 
-  template <typename T, typename B>
+  template <typename T>
   void set_param_bind(MYSQL_RES *meta_, MYSQL_BIND &param_bind, T &&value,
-                      int i, std::map<size_t, std::vector<char>> &mp,
-                      B &is_null) {
+                       int i, std::map<size_t, std::vector<char>> &mp,
+                       mysql_null_flag_t &is_null) {
     using U = ylt::reflection::remove_cvref_t<T>;
 
     if constexpr (is_optional_v<U>::value) {
@@ -333,7 +333,8 @@ class mysql {
 
       auto it = mp.find(i);
       if (it == mp.end()) {
-        set_last_error("query_each mysql_stmt_fetch data truncated");
+        set_last_error("query_each mysql_stmt_fetch data truncated at column " +
+                       std::to_string(i));
         return false;
       }
 
@@ -341,8 +342,9 @@ class mysql {
       result_binds[i].buffer = it->second.data();
       result_binds[i].buffer_length = lengths[i] + 1;
       if (mysql_stmt_fetch_column(stmt_, &result_binds[i],
-                                  static_cast<unsigned int>(i), 0)) {
-        set_last_error(mysql_stmt_error(stmt_));
+                                   static_cast<unsigned int>(i), 0)) {
+        set_last_error(std::string(mysql_stmt_error(stmt_)) + " at column " +
+                       std::to_string(i));
         return false;
       }
     }
@@ -366,6 +368,9 @@ class mysql {
         value = std::move(item);
         return set_value(param_bind, *value, i, mp);
       }
+    }
+    else if constexpr (std::is_enum_v<U> || std::is_arithmetic_v<U>) {
+      memcpy(&value, param_bind.buffer, sizeof(U));
     }
     else if constexpr (std::is_same_v<std::string, U>) {
       auto &vec = mp[i];
@@ -701,6 +706,8 @@ class mysql {
     }
 
     auto params = std::forward_as_tuple(std::forward<Args>(args)...);
+    static_assert(sizeof...(Args) >= 1,
+                  "query_each requires a callback as the last argument");
     constexpr size_t param_count = sizeof...(Args) - 1;
     auto bind_params =
         decay_tuple_prefix(params, std::make_index_sequence<param_count>{});
@@ -834,6 +841,8 @@ class mysql {
     }
 
     auto params = std::forward_as_tuple(std::forward<Args>(args)...);
+    static_assert(sizeof...(Args) >= 1,
+                  "query_each requires a callback as the last argument");
     constexpr size_t param_count = sizeof...(Args) - 1;
     auto bind_params =
         decay_tuple_prefix(params, std::make_index_sequence<param_count>{});
