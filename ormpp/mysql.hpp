@@ -238,6 +238,7 @@ class mysql {
     else if constexpr (std::is_enum_v<U>) {
       param_bind.buffer_type = MYSQL_TYPE_LONG;
       param_bind.buffer = const_cast<void *>(static_cast<const void *>(&value));
+      param_bind.buffer_length = sizeof(U);
     }
     else if constexpr (std::is_arithmetic_v<U>) {
       if constexpr (std::is_same_v<bool, U>) {
@@ -251,6 +252,7 @@ class mysql {
             (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
       }
       param_bind.buffer = const_cast<void *>(static_cast<const void *>(&value));
+      param_bind.buffer_length = sizeof(U);
     }
     else if constexpr (std::is_same_v<std::string, U> ||
                        std::is_same_v<std::string_view, U>) {
@@ -356,9 +358,18 @@ class mysql {
   void set_value(MYSQL_BIND &param_bind, T &&value, int i,
                  std::map<size_t, std::vector<char>> &mp) {
     using U = ylt::reflection::remove_cvref_t<T>;
+    auto result_length = [&param_bind](size_t fallback) {
+      return param_bind.length == nullptr ? fallback : *param_bind.length;
+    };
     if constexpr (is_optional_v<U>::value) {
       using value_type = typename U::value_type;
       if constexpr (std::is_arithmetic_v<value_type>) {
+        if (param_bind.buffer == nullptr ||
+            param_bind.buffer_length < sizeof(value_type)) {
+          set_last_error("mysql result buffer is invalid at column " +
+                         std::to_string(i));
+          return;
+        }
         value_type item;
         memcpy(&item, param_bind.buffer, sizeof(value_type));
         value = std::move(item);
@@ -370,15 +381,20 @@ class mysql {
       }
     }
     else if constexpr (std::is_enum_v<U> || std::is_arithmetic_v<U>) {
+      if (param_bind.buffer == nullptr || param_bind.buffer_length < sizeof(U)) {
+        set_last_error("mysql result buffer is invalid at column " +
+                       std::to_string(i));
+        return;
+      }
       memcpy(&value, param_bind.buffer, sizeof(U));
     }
     else if constexpr (std::is_same_v<std::string, U>) {
       auto &vec = mp[i];
-      value = std::string(&vec[0], strlen(vec.data()));
+      value = std::string(vec.data(), result_length(strlen(vec.data())));
     }
     else if constexpr (std::is_same_v<std::string_view, U>) {
       auto &vec = mp[i];
-      sv_ = std::string(&vec[0], strlen(vec.data()));
+      sv_ = std::string(vec.data(), result_length(strlen(vec.data())));
       value = sv_;
     }
     else if constexpr (iguana::array_v<U>) {
@@ -387,7 +403,9 @@ class mysql {
     }
     else if constexpr (std::is_same_v<blob, U>) {
       auto &vec = mp[i];
-      value = blob(vec.data(), vec.data() + get_blob_len(i));
+      auto len = param_bind.length == nullptr ? get_blob_len(i)
+                                              : *param_bind.length;
+      value = blob(vec.data(), vec.data() + len);
     }
 #ifdef ORMPP_WITH_CSTRING
     else if constexpr (std::is_same_v<CString, U>) {
