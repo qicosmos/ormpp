@@ -209,7 +209,9 @@ class mysql {
         tmp.assign(value.data(), value.data() + value.size());
       }
       input_bind_buffers_.emplace_back(std::move(tmp));
-      param.buffer = input_bind_buffers_.back().data();
+      param.buffer = param.buffer_length == 0
+                         ? nullptr
+                         : input_bind_buffers_.back().data();
     }
     else if constexpr (iguana::array_v<U>) {
       param.buffer_type = MYSQL_TYPE_STRING;
@@ -217,15 +219,26 @@ class mysql {
           (std::min)(std::strlen(value.data()), (size_t)value.size());
       std::vector<char> tmp(value.data(), value.data() + param.buffer_length);
       input_bind_buffers_.emplace_back(std::move(tmp));
-      param.buffer = input_bind_buffers_.back().data();
+      param.buffer = param.buffer_length == 0
+                         ? nullptr
+                         : input_bind_buffers_.back().data();
     }
     else if constexpr (iguana::c_array_v<U> ||
                        std::is_same_v<const char *, U>) {
+      if constexpr (std::is_same_v<const char *, U>) {
+        if (value == nullptr) {
+          param.buffer_type = MYSQL_TYPE_NULL;
+          param_binds.push_back(param);
+          return;
+        }
+      }
       param.buffer_type = MYSQL_TYPE_STRING;
       param.buffer_length = (unsigned long)strlen(value);
       std::vector<char> tmp(value, value + param.buffer_length);
       input_bind_buffers_.emplace_back(std::move(tmp));
-      param.buffer = input_bind_buffers_.back().data();
+      param.buffer = param.buffer_length == 0
+                         ? nullptr
+                         : input_bind_buffers_.back().data();
     }
     else if constexpr (std::is_same_v<blob, U>) {
       param.buffer_type = MYSQL_TYPE_BLOB;
@@ -235,7 +248,9 @@ class mysql {
         tmp.assign(value.data(), value.data() + value.size());
       }
       input_bind_buffers_.emplace_back(std::move(tmp));
-      param.buffer = input_bind_buffers_.back().data();
+      param.buffer = param.buffer_length == 0
+                         ? nullptr
+                         : input_bind_buffers_.back().data();
     }
 #ifdef ORMPP_WITH_CSTRING
     else if constexpr (std::is_same_v<CString, U>) {
@@ -247,7 +262,9 @@ class mysql {
         tmp.assign(data, data + param.buffer_length);
       }
       input_bind_buffers_.emplace_back(std::move(tmp));
-      param.buffer = input_bind_buffers_.back().data();
+      param.buffer = param.buffer_length == 0
+                         ? nullptr
+                         : input_bind_buffers_.back().data();
     }
 #endif
     else {
