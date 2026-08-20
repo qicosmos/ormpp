@@ -7,7 +7,9 @@
 #include <iostream>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <sstream>
+#include <unordered_map>
 
 #include "entity.hpp"
 #include "iguana/util.hpp"
@@ -72,6 +74,42 @@ inline auto is_auto_key(std::string_view field_name) {
   return it == get_auto_key_map().end() ? false : it->second == field_name;
 }
 
+inline auto &get_skip_insert_field_map() {
+  static std::unordered_map<std::string_view, std::set<std::string_view>> map;
+  return map;
+}
+
+inline int add_skip_insert_field(std::string_view key, std::string_view value) {
+  get_skip_insert_field_map()[key].insert(value);
+  return 0;
+}
+
+template <typename T>
+inline auto is_skip_insert_field(std::string_view field_name) {
+  auto it = get_skip_insert_field_map().find(get_short_struct_name<T>());
+  return it == get_skip_insert_field_map().end()
+             ? false
+             : it->second.find(field_name) != it->second.end();
+}
+
+inline std::string quote_mysql_identifier(std::string_view name) {
+  if (name.size() >= 2 && name.front() == '`' && name.back() == '`') {
+    return std::string(name);
+  }
+
+  std::string result;
+  result.reserve(name.size() + 2);
+  result.push_back('`');
+  for (char ch : name) {
+    if (ch == '`') {
+      result.push_back('`');
+    }
+    result.push_back(ch);
+  }
+  result.push_back('`');
+  return result;
+}
+
 #ifdef _MSC_VER
 #define ORMPP_UNIQUE_VARIABLE(str) YLT_CONCAT(str, __COUNTER__)
 #else
@@ -81,6 +119,11 @@ inline auto is_auto_key(std::string_view field_name) {
 #define REGISTER_AUTO_KEY(STRUCT_NAME, KEY)                                   \
   inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) = ormpp::add_auto_key_field( \
       ylt::reflection::get_struct_name<STRUCT_NAME>(), #KEY);
+
+#define REGISTER_SKIP_INSERT_FIELD(STRUCT_NAME, FIELD) \
+  inline auto ORMPP_UNIQUE_VARIABLE(STRUCT_NAME) =     \
+      ormpp::add_skip_insert_field(                    \
+          ylt::reflection::get_struct_name<STRUCT_NAME>(), #FIELD);
 
 inline auto &get_conflict_map() {
   static std::unordered_map<std::string_view, std::string_view> map;
@@ -305,7 +348,7 @@ inline std::string get_fields(DBType db_type) {
   std::call_once(flag, [&fields, db_type]() {
     for (const auto &it : ylt::reflection::get_member_names<T>()) {
       if (db_type == DBType::mysql) {
-        fields += "`" + std::string(it) + "`";
+        fields += quote_mysql_identifier(it);
       }
       else {
         fields += std::string(it);
@@ -398,7 +441,7 @@ inline std::vector<std::string> get_conflict_keys(DBType db_type) {
   for (auto sv : v) {
     std::string str;
     if (db_type == DBType::mysql) {
-      str.append("`").append(sv).append("`");
+      str = quote_mysql_identifier(sv);
     }
     else {
       str.append(sv);
@@ -470,7 +513,8 @@ inline std::string generate_insert_sql(DBType db_type, bool insert,
   std::string values = "values(";
   for (size_t i = 0; i < Count; ++i) {
     std::string field_name(ylt::reflection::name_of<T>(i));
-    if (insert && is_auto_key<T>(field_name)) {
+    if (insert &&
+        (is_auto_key<T>(field_name) || is_skip_insert_field<T>(field_name))) {
       continue;
     }
     if (db_type == DBType::postgresql) {
@@ -480,7 +524,7 @@ inline std::string generate_insert_sql(DBType db_type, bool insert,
       values += "?";
     }
     if (db_type == DBType::mysql) {
-      fields += "`" + field_name + "`";
+      fields += quote_mysql_identifier(field_name);
     }
     else {
       fields += field_name;
