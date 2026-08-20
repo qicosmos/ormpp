@@ -381,7 +381,8 @@ class mysql {
       }
     }
     else if constexpr (std::is_enum_v<U> || std::is_arithmetic_v<U>) {
-      if (param_bind.buffer == nullptr || param_bind.buffer_length < sizeof(U)) {
+      if (param_bind.buffer == nullptr ||
+          param_bind.buffer_length < sizeof(U)) {
         set_last_error("mysql result buffer is invalid at column " +
                        std::to_string(i));
         return;
@@ -403,8 +404,8 @@ class mysql {
     }
     else if constexpr (std::is_same_v<blob, U>) {
       auto &vec = mp[i];
-      auto len = param_bind.length == nullptr ? get_blob_len(i)
-                                              : *param_bind.length;
+      auto len =
+          param_bind.length == nullptr ? get_blob_len(i) : *param_bind.length;
       value = blob(vec.data(), vec.data() + len);
     }
 #ifdef ORMPP_WITH_CSTRING
