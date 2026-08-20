@@ -160,9 +160,6 @@ class mysql {
   template <typename T>
   void set_param_bind(std::vector<MYSQL_BIND> &param_binds, T &&value) {
     MYSQL_BIND param = {};
-    if (param_binds.empty()) {
-      input_bind_buffers_.clear();
-    }
     using U = ylt::reflection::remove_cvref_t<T>;
     if constexpr (is_optional_v<U>::value) {
       if (value.has_value()) {
@@ -555,6 +552,7 @@ class mysql {
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
       std::vector<MYSQL_BIND> param_binds;
+      input_bind_buffers_.clear();
       (set_param_bind(param_binds, args), ...);
       if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
         set_last_error(mysql_stmt_error(stmt_));
@@ -602,6 +600,7 @@ class mysql {
 
     if constexpr (sizeof...(Args) > 0) {
       std::vector<MYSQL_BIND> param_binds;
+      input_bind_buffers_.clear();
       (set_param_bind(param_binds, args), ...);
       if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
         set_last_error(mysql_stmt_error(stmt_));
@@ -700,6 +699,7 @@ class mysql {
     if constexpr (sizeof...(Args) > 0) {
       size_t index = 0;
       std::vector<MYSQL_BIND> param_binds;
+      input_bind_buffers_.clear();
       (set_param_bind(param_binds, args), ...);
       if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
         set_last_error(mysql_stmt_error(stmt_));
@@ -849,6 +849,7 @@ class mysql {
         decay_tuple_prefix(params, std::make_index_sequence<param_count>{});
     std::vector<MYSQL_BIND> input_binds;
     if constexpr (param_count > 0) {
+      input_bind_buffers_.clear();
       for_each_tuple_prefix(
           bind_params,
           [this, &input_binds](auto &&arg) {
@@ -984,6 +985,7 @@ class mysql {
         decay_tuple_prefix(params, std::make_index_sequence<param_count>{});
     std::vector<MYSQL_BIND> input_binds;
     if constexpr (param_count > 0) {
+      input_bind_buffers_.clear();
       for_each_tuple_prefix(
           bind_params,
           [this, &input_binds](auto &&arg) {
@@ -1604,6 +1606,7 @@ class mysql {
   template <auto... members, typename T, typename... Args>
   int stmt_execute(const T &t, OptType type, Args &&...args) {
     std::vector<MYSQL_BIND> param_binds;
+    input_bind_buffers_.clear();
     constexpr auto arr = indexs_of<members...>();
     if constexpr (sizeof...(members) > 0) {
       (set_param_bind(
