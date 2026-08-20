@@ -5,6 +5,7 @@
 #ifndef ORM_MYSQL_HPP
 #define ORM_MYSQL_HPP
 
+#include <algorithm>
 #include <climits>
 #include <list>
 #include <map>
@@ -256,8 +257,8 @@ class mysql {
           (enum_field_types)ormpp_mysql::type_to_id(identity<enum_type>{});
       param_bind.buffer_length = sizeof(enum_type);
       std::vector<char> tmp(param_bind.buffer_length, 0);
-      mp.emplace(i, std::move(tmp));
-      param_bind.buffer = mp.rbegin()->second.data();
+      auto [it, _] = mp.emplace(i, std::move(tmp));
+      param_bind.buffer = it->second.data();
     }
     else if constexpr (std::is_arithmetic_v<U>) {
       if constexpr (std::is_same_v<bool, U>) {
@@ -289,15 +290,15 @@ class mysql {
 
       param_bind.buffer_type = buffer_type;
       std::vector<char> tmp(buffer_size, 0);
-      mp.emplace(i, std::move(tmp));
-      param_bind.buffer = &(mp.rbegin()->second[0]);
+      auto [it, _] = mp.emplace(i, std::move(tmp));
+      param_bind.buffer = it->second.data();
       param_bind.buffer_length = buffer_size;
     }
     else if constexpr (iguana::array_v<U>) {
       param_bind.buffer_type = MYSQL_TYPE_VAR_STRING;
       std::vector<char> tmp(sizeof(U), 0);
-      mp.emplace(i, std::move(tmp));
-      param_bind.buffer = &(mp.rbegin()->second[0]);
+      auto [it, _] = mp.emplace(i, std::move(tmp));
+      param_bind.buffer = it->second.data();
       param_bind.buffer_length = (unsigned long)sizeof(U);
     }
     else if constexpr (std::is_same_v<blob, U>) {
@@ -312,8 +313,8 @@ class mysql {
 
       param_bind.buffer_type = buffer_type;
       std::vector<char> tmp(buffer_size, 0);
-      mp.emplace(i, std::move(tmp));
-      param_bind.buffer = &(mp.rbegin()->second[0]);
+      auto [it, _] = mp.emplace(i, std::move(tmp));
+      param_bind.buffer = it->second.data();
       param_bind.buffer_length = buffer_size;
     }
 #ifdef ORMPP_WITH_CSTRING
@@ -332,8 +333,8 @@ class mysql {
 
       param_bind.buffer_type = buffer_type;
       std::vector<char> tmp(buffer_size, 0);
-      mp.emplace(i, std::move(tmp));
-      param_bind.buffer = &(mp.rbegin()->second[0]);
+      auto [it, _] = mp.emplace(i, std::move(tmp));
+      param_bind.buffer = it->second.data();
       param_bind.buffer_length = buffer_size;
     }
 #endif
@@ -421,6 +422,11 @@ class mysql {
                        std::to_string(i));
         return;
       }
+      if (param_bind.length != nullptr && *param_bind.length < value_size) {
+        set_last_error("mysql result length is invalid at column " +
+                       std::to_string(i));
+        return;
+      }
       if constexpr (std::is_enum_v<U>) {
         using enum_type = std::underlying_type_t<U>;
         enum_type item;
@@ -474,12 +480,14 @@ class mysql {
         return;
       }
       auto &vec = it->second;
-      if (vec.size() < value.size()) {
+      auto len = result_length();
+      if (len > value.size() || len > vec.size()) {
         set_last_error("mysql result length exceeds buffer at column " +
                        std::to_string(i));
         return;
       }
-      memcpy(value.data(), vec.data(), value.size());
+      std::fill(value.begin(), value.end(), 0);
+      memcpy(value.data(), vec.data(), len);
     }
     else if constexpr (std::is_same_v<blob, U>) {
       auto it = mp.find(i);
@@ -500,8 +508,21 @@ class mysql {
     }
 #ifdef ORMPP_WITH_CSTRING
     else if constexpr (std::is_same_v<CString, U>) {
-      auto &vec = mp[i];
-      value.SetString(std::string(&vec[0], strlen(vec.data()).c_str()));
+      auto it = mp.find(i);
+      if (it == mp.end()) {
+        set_last_error("mysql result buffer is missing at column " +
+                       std::to_string(i));
+        return;
+      }
+      auto &vec = it->second;
+      auto len = result_length();
+      if (len > vec.size()) {
+        set_last_error("mysql result length exceeds buffer at column " +
+                       std::to_string(i));
+        return;
+      }
+      auto str = std::string(vec.data(), len);
+      value.SetString(str.c_str());
     }
 #endif
   }
