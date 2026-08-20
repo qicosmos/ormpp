@@ -248,8 +248,10 @@ class mysql {
       }
       param_bind.buffer_type =
           (enum_field_types)ormpp_mysql::type_to_id(identity<enum_type>{});
-      param_bind.buffer = const_cast<void *>(static_cast<const void *>(&value));
       param_bind.buffer_length = sizeof(enum_type);
+      std::vector<char> tmp(param_bind.buffer_length, 0);
+      mp.emplace(i, std::move(tmp));
+      param_bind.buffer = mp.rbegin()->second.data();
     }
     else if constexpr (std::is_arithmetic_v<U>) {
       if constexpr (std::is_same_v<bool, U>) {
@@ -346,7 +348,7 @@ class mysql {
 
       auto it = mp.find(i);
       if (it == mp.end()) {
-        set_last_error("query_each mysql_stmt_fetch data truncated at column " +
+        set_last_error("mysql_stmt_fetch data truncated at column " +
                        std::to_string(i));
         return false;
       }
@@ -403,8 +405,12 @@ class mysql {
       }
     }
     else if constexpr (std::is_enum_v<U> || std::is_arithmetic_v<U>) {
+      size_t value_size = sizeof(U);
+      if constexpr (std::is_enum_v<U>) {
+        value_size = sizeof(std::underlying_type_t<U>);
+      }
       if (param_bind.buffer == nullptr ||
-          param_bind.buffer_length < sizeof(U)) {
+          param_bind.buffer_length < value_size) {
         set_last_error("mysql result buffer is invalid at column " +
                        std::to_string(i));
         return;
@@ -423,21 +429,43 @@ class mysql {
     }
     else if constexpr (std::is_same_v<std::string, U>) {
       auto &vec = mp[i];
-      value = std::string(vec.data(), result_length());
+      auto len = result_length();
+      if (len > vec.size()) {
+        set_last_error("mysql result length exceeds buffer at column " +
+                       std::to_string(i));
+        return;
+      }
+      value = std::string(vec.data(), len);
     }
     else if constexpr (std::is_same_v<std::string_view, U>) {
       auto &vec = mp[i];
-      sv_ = std::string(vec.data(), result_length());
+      auto len = result_length();
+      if (len > vec.size()) {
+        set_last_error("mysql result length exceeds buffer at column " +
+                       std::to_string(i));
+        return;
+      }
+      sv_ = std::string(vec.data(), len);
       value = sv_;
     }
     else if constexpr (iguana::array_v<U>) {
       auto &vec = mp[i];
+      if (vec.size() < value.size()) {
+        set_last_error("mysql result length exceeds buffer at column " +
+                       std::to_string(i));
+        return;
+      }
       memcpy(value.data(), vec.data(), value.size());
     }
     else if constexpr (std::is_same_v<blob, U>) {
       auto &vec = mp[i];
       auto len =
           param_bind.length == nullptr ? get_blob_len(i) : result_length();
+      if (len > vec.size()) {
+        set_last_error("mysql result length exceeds buffer at column " +
+                       std::to_string(i));
+        return;
+      }
       value = blob(vec.data(), vec.data() + len);
     }
 #ifdef ORMPP_WITH_CSTRING
