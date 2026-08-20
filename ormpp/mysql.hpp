@@ -194,36 +194,60 @@ class mysql {
         param.buffer_type =
             (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
       }
-      param.buffer = const_cast<void *>(static_cast<const void *>(&value));
+      std::vector<char> tmp(sizeof(U), 0);
+      memcpy(tmp.data(), &value, sizeof(U));
+      input_bind_buffers_.emplace_back(std::move(tmp));
+      param.buffer = input_bind_buffers_.back().data();
+      param.buffer_length = sizeof(U);
     }
     else if constexpr (std::is_same_v<std::string, U> ||
                        std::is_same_v<std::string_view, U>) {
       param.buffer_type = MYSQL_TYPE_STRING;
-      param.buffer = (void *)(value.data());
       param.buffer_length = (unsigned long)value.size();
+      std::vector<char> tmp;
+      if (param.buffer_length > 0) {
+        tmp.assign(value.data(), value.data() + value.size());
+      }
+      input_bind_buffers_.emplace_back(std::move(tmp));
+      param.buffer = input_bind_buffers_.back().data();
     }
     else if constexpr (iguana::array_v<U>) {
       param.buffer_type = MYSQL_TYPE_STRING;
-      param.buffer = (void *)(value.data());
       param.buffer_length =
           (std::min)(std::strlen(value.data()), (size_t)value.size());
+      std::vector<char> tmp(value.data(), value.data() + param.buffer_length);
+      input_bind_buffers_.emplace_back(std::move(tmp));
+      param.buffer = input_bind_buffers_.back().data();
     }
     else if constexpr (iguana::c_array_v<U> ||
                        std::is_same_v<const char *, U>) {
       param.buffer_type = MYSQL_TYPE_STRING;
-      param.buffer = (void *)(value);
       param.buffer_length = (unsigned long)strlen(value);
+      std::vector<char> tmp(value, value + param.buffer_length);
+      input_bind_buffers_.emplace_back(std::move(tmp));
+      param.buffer = input_bind_buffers_.back().data();
     }
     else if constexpr (std::is_same_v<blob, U>) {
       param.buffer_type = MYSQL_TYPE_BLOB;
-      param.buffer = (void *)(value.data());
       param.buffer_length = (unsigned long)value.size();
+      std::vector<char> tmp;
+      if (!value.empty()) {
+        tmp.assign(value.data(), value.data() + value.size());
+      }
+      input_bind_buffers_.emplace_back(std::move(tmp));
+      param.buffer = input_bind_buffers_.back().data();
     }
 #ifdef ORMPP_WITH_CSTRING
     else if constexpr (std::is_same_v<CString, U>) {
       param.buffer_type = MYSQL_TYPE_STRING;
-      param.buffer = (void *)(value.GetString());
       param.buffer_length = (unsigned long)value.GetLength();
+      auto data = value.GetString();
+      std::vector<char> tmp;
+      if (param.buffer_length > 0) {
+        tmp.assign(data, data + param.buffer_length);
+      }
+      input_bind_buffers_.emplace_back(std::move(tmp));
+      param.buffer = input_bind_buffers_.back().data();
     }
 #endif
     else {
@@ -254,7 +278,7 @@ class mysql {
           (enum_field_types)ormpp_mysql::type_to_id(identity<enum_type>{});
       param_bind.buffer_length = sizeof(enum_type);
       std::vector<char> tmp(param_bind.buffer_length, 0);
-      auto [it, _] = mp.emplace(i, std::move(tmp));
+      auto [it, _] = mp.insert_or_assign(i, std::move(tmp));
       param_bind.buffer = it->second.data();
     }
     else if constexpr (std::is_arithmetic_v<U>) {
@@ -287,14 +311,14 @@ class mysql {
 
       param_bind.buffer_type = buffer_type;
       std::vector<char> tmp(buffer_size, 0);
-      auto [it, _] = mp.emplace(i, std::move(tmp));
+      auto [it, _] = mp.insert_or_assign(i, std::move(tmp));
       param_bind.buffer = it->second.data();
       param_bind.buffer_length = buffer_size;
     }
     else if constexpr (iguana::array_v<U>) {
       param_bind.buffer_type = MYSQL_TYPE_VAR_STRING;
       std::vector<char> tmp(sizeof(U), 0);
-      auto [it, _] = mp.emplace(i, std::move(tmp));
+      auto [it, _] = mp.insert_or_assign(i, std::move(tmp));
       param_bind.buffer = it->second.data();
       param_bind.buffer_length = (unsigned long)sizeof(U);
     }
@@ -310,7 +334,7 @@ class mysql {
 
       param_bind.buffer_type = buffer_type;
       std::vector<char> tmp(buffer_size, 0);
-      auto [it, _] = mp.emplace(i, std::move(tmp));
+      auto [it, _] = mp.insert_or_assign(i, std::move(tmp));
       param_bind.buffer = it->second.data();
       param_bind.buffer_length = buffer_size;
     }
@@ -330,7 +354,7 @@ class mysql {
 
       param_bind.buffer_type = buffer_type;
       std::vector<char> tmp(buffer_size, 0);
-      auto [it, _] = mp.emplace(i, std::move(tmp));
+      auto [it, _] = mp.insert_or_assign(i, std::move(tmp));
       param_bind.buffer = it->second.data();
       param_bind.buffer_length = buffer_size;
     }
