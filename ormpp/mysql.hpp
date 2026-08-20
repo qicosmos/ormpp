@@ -409,7 +409,17 @@ class mysql {
                        std::to_string(i));
         return;
       }
-      memcpy(&value, param_bind.buffer, sizeof(U));
+      if constexpr (std::is_enum_v<U>) {
+        using enum_type = std::underlying_type_t<U>;
+        enum_type item;
+        memcpy(&item, param_bind.buffer, sizeof(enum_type));
+        value = static_cast<U>(item);
+      }
+      else {
+        U item;
+        memcpy(&item, param_bind.buffer, sizeof(U));
+        value = item;
+      }
     }
     else if constexpr (std::is_same_v<std::string, U>) {
       auto &vec = mp[i];
