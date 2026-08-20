@@ -292,8 +292,10 @@ class mysql {
         param_bind.buffer_type =
             (enum_field_types)ormpp_mysql::type_to_id(identity<U>{});
       }
-      param_bind.buffer = const_cast<void *>(static_cast<const void *>(&value));
       param_bind.buffer_length = sizeof(U);
+      std::vector<char> tmp(param_bind.buffer_length, 0);
+      auto [it, _] = mp.insert_or_assign(i, std::move(tmp));
+      param_bind.buffer = it->second.data();
     }
     else if constexpr (std::is_same_v<std::string, U> ||
                        std::is_same_v<std::string_view, U>) {
@@ -381,6 +383,11 @@ class mysql {
         return false;
       }
 
+      if (lengths[i] == ULONG_MAX) {
+        set_last_error("mysql result length is too large at column " +
+                       std::to_string(i));
+        return false;
+      }
       it->second.assign(lengths[i] + 1, 0);
       result_binds[i].buffer = it->second.data();
       result_binds[i].buffer_length = lengths[i] + 1;
