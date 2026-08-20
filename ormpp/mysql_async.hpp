@@ -1008,13 +1008,13 @@ std::string generate_create_table_sql(DBType db_type, bool append_mysql_charset,
             if (item.fields.size() > 1) {
               std::string names;
               for (auto& name : item.fields) {
-                names.append(name).append(",");
+                names.append(quote_mysql_identifier(name)).append(",");
               }
               names.pop_back();
               unique.insert(std::move(names));
             }
             else if (!item.fields.empty()) {
-              unique.insert(*item.fields.begin());
+              unique.insert(quote_mysql_identifier(*item.fields.begin()));
             }
           }
         },
@@ -1030,7 +1030,9 @@ std::string generate_create_table_sql(DBType db_type, bool append_mysql_charset,
   T sample{};
   ylt::reflection::for_each(sample, [&](auto& /*field*/, auto name,
                                         size_t index) {
-    sql.append(name).append(" ").append(type_name_arr[index]);
+    sql.append(quote_mysql_identifier(name))
+        .append(" ")
+        .append(type_name_arr[index]);
     std::string str_name(name);
 
     if (!auto_primary_key.empty() &&
@@ -1047,12 +1049,14 @@ std::string generate_create_table_sql(DBType db_type, bool append_mysql_charset,
   });
 
   if (!auto_key.empty()) {
-    sql.append("PRIMARY KEY (").append(auto_key).append("),");
+    sql.append("PRIMARY KEY (")
+        .append(quote_mysql_identifier(auto_key))
+        .append("),");
   }
   else if (!primary_keys.empty()) {
     sql.append("PRIMARY KEY (");
     for (const auto& key : primary_keys) {
-      sql.append(key).append(",");
+      sql.append(quote_mysql_identifier(key)).append(",");
     }
     sql.back() = ')';
     sql.push_back(',');
@@ -1849,7 +1853,8 @@ class mysql_async {
 
     ylt::reflection::for_each(
         value, [&](auto& field, auto name, auto /*index*/) {
-          if (type == OptType::insert && is_auto_key<T>(name)) {
+          if (type == OptType::insert &&
+              (is_auto_key<T>(name) || is_skip_insert_field<T>(name))) {
             return;
           }
           values.push_back(detail::mysql_async::to_query_arg_impl(

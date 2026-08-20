@@ -81,6 +81,22 @@ struct person {
 REGISTER_AUTO_KEY(person, id)
 ```
 
+## 跳过插入字段
+
+使用REGISTER_SKIP_INSERT_FIELD注册插入时需要跳过的字段，适用于让数据库默认值生效的列，例如 MySQL 的 `timestamp NOT NULL DEFAULT current_timestamp()`。
+
+```C++
+struct material {
+  int id;
+  std::string datetime;
+  std::string company;
+};
+REGISTER_AUTO_KEY(material, id)
+REGISTER_SKIP_INSERT_FIELD(material, datetime)
+```
+
+上例在执行 `insert` 时会省略 `datetime` 字段，数据库会使用表定义中的默认值。`replace` 和 `update` 不受影响。
+
 ## 冲突主键
 
 使用REGISTER_CONFLICT_KEY注册冲突主键来进行update，如果未注册冲突主键则会采用自增主键

@@ -1022,13 +1022,13 @@ class mysql {
           if (item.fields.size() > 1) {
             std::string str;
             for (auto &name : item.fields) {
-              str.append(name).append(",");
+              str.append(quote_mysql_identifier(name)).append(",");
             }
             str.pop_back();
             unique.insert(str);
           }
           else {
-            unique.insert(*item.fields.begin());
+            unique.insert(quote_mysql_identifier(*item.fields.begin()));
           }
         }
       });
@@ -1042,7 +1042,9 @@ class mysql {
     T t;
     ylt::reflection::for_each(t, [&](auto &field, auto name, size_t index) {
       using item_type = std::decay_t<decltype(field)>;
-      sql.append(name).append(" ").append(type_name_arr[index]);
+      sql.append(quote_mysql_identifier(name))
+          .append(" ")
+          .append(type_name_arr[index]);
 
       std::string str_name(name);
 
@@ -1061,12 +1063,14 @@ class mysql {
     });
 
     if (!auto_key.empty()) {
-      sql.append("PRIMARY KEY (").append(auto_key).append("),");
+      sql.append("PRIMARY KEY (")
+          .append(quote_mysql_identifier(auto_key))
+          .append("),");
     }
     else if (!primary_keys.empty()) {
       sql.append("PRIMARY KEY (");
       for (auto key : primary_keys) {
-        sql.append(key).append(",");
+        sql.append(quote_mysql_identifier(key)).append(",");
       }
       sql.pop_back();
       sql.append("),");
@@ -1094,7 +1098,8 @@ class mysql {
     else {
       ylt::reflection::for_each(t, [arr, &param_binds, type, this](
                                        auto &field, auto name, auto index) {
-        if (type == OptType::insert && is_auto_key<T>(name)) {
+        if (type == OptType::insert &&
+            (is_auto_key<T>(name) || is_skip_insert_field<T>(name))) {
           return;
         }
         if constexpr (sizeof...(members) > 0) {
@@ -1124,7 +1129,8 @@ class mysql {
       }
     }
 
-    if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
+    if (!param_binds.empty() &&
+        mysql_stmt_bind_param(stmt_, param_binds.data())) {
       set_last_error(mysql_stmt_error(stmt_));
       return INT_MIN;
     }
