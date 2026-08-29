@@ -1180,6 +1180,55 @@ REGISTER_AUTO_KEY(student, code);
 REGISTER_CONFLICT_KEY(student, name);
 ```
 
+### C++26 静态反射注解（实验性）
+
+使用支持 P2996 静态反射的 GCC 16+ 时，ormpp 可以直接从字段上的
+`[[= ...]]` 注解读取建表元数据，不需要 `YLT_REFL` 或
+`REGISTER_AUTO_KEY`：
+
+```cpp
+struct address {
+  [[=ormpp::auto_key]] std::int64_t address_id{};
+  std::string city;
+};
+
+struct person {
+  [[=ormpp::auto_key]] std::int64_t id{};
+  std::string name;
+  std::int64_t address_id{};
+};
+
+db.create_table<address>().execute();
+db.create_table<person>().execute();
+```
+
+默认直接使用结构体名作为表名、成员名作为字段名，所以普通字段不需要任何
+注解。`auto_key` 同时表示自增和主键。当前支持的 ormpp 注解为：
+
+- `ormpp::auto_key`（自增主键）
+- `ormpp::primary_key`
+- `ormpp::auto_increment`（同时隐含主键）
+- `ormpp::not_null`
+- `ormpp::unique`（单列唯一约束）
+- `ormpp::references<^^Entity::field>`（仅标量外键）
+
+注解直接写 constexpr 对象，不需要在每个注解后添加 `{}`。它们会作为
+`create_table<T>()` 的默认 schema，仍可继续链式设置数据库特有选项。
+`create_table<T>()` 不会递归创建外键引用的表，调用方需要按依赖顺序显式建表。
+
+配置和验证：
+
+```bash
+cmake -S . -B build_cpp26 \
+  -DENABLE_CXX26_REFLECTION=ON \
+  -DBUILD_EXAMPLES=OFF
+cmake --build build_cpp26 -j 2
+ctest --test-dir build_cpp26 --output-on-failure
+```
+
+该路径目前使用 `-std=gnu++26 -freflection`，MSVC、Clang 和旧版 GCC
+继续使用原有宏、建表参数和链式 API。本阶段不支持嵌套实体或级联 CRUD。
+
 ### 类型映射表
 
 ormpp 自动将 C++ 类型映射为对应数据库的 SQL 类型：

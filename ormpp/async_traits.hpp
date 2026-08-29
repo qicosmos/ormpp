@@ -1,5 +1,6 @@
 #pragma once
 
+#include <coroutine>
 #include <type_traits>
 
 namespace ormpp {
