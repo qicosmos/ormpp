@@ -329,8 +329,8 @@ class async_connection_pool
     for (;;) {
       // Wait in small slices, re-checking liveness each slice so
       // close_all()/destruction is noticed promptly instead of blocking on
-      // a full-interval timer. The pool is only held while a slice check
-      // runs, so it can be destroyed during the wait.
+      // a full-interval timer. The pool reference is released at the end
+      // of each round, so it can be destroyed while waiting.
       auto remaining = wait_time;
       while (remaining > std::chrono::milliseconds::zero()) {
         auto slice = std::min(remaining, std::chrono::milliseconds(100));
@@ -350,7 +350,8 @@ class async_connection_pool
       }
 
       // Take every idle connection out of the pool so nobody can check it
-      // out while it is being pinged.
+      // out while it is being pinged. Dead connections are disconnected and
+      // destroyed inside ping_connections; alive ones are returned here.
       std::vector<std::unique_ptr<DB>> idle;
       idle.reserve(self->available_connections_.size());
       while (!self->available_connections_.empty()) {
@@ -358,17 +359,7 @@ class async_connection_pool
         self->available_connections_.pop_front();
       }
 
-      auto alive_flags = co_await self->ping_connections(idle);
-      std::vector<std::unique_ptr<DB>> alive_conns;
-      alive_conns.reserve(idle.size());
-      for (size_t i = 0; i < idle.size(); ++i) {
-        if (alive_flags[i]) {
-          alive_conns.push_back(std::move(idle[i]));
-        }
-        else {
-          co_await idle[i]->disconnect();
-        }
-      }
+      auto alive_conns = co_await self->ping_connections(std::move(idle));
 
       co_await asio::post(self->strand_, asio::use_awaitable);
       if (!self->initialized_ || self->closing_ ||
@@ -428,17 +419,27 @@ class async_connection_pool
     }
   }
 
-  // Ping a batch of connections concurrently. Returns one flag per
-  // connection; a ping still pending after ping_timeout is cancelled and
-  // reported as dead.
-  awaitable<std::vector<bool>> ping_connections(
-      const std::vector<std::unique_ptr<DB>>& conns) {
+  // Ping a batch of connections concurrently. Takes ownership of the
+  // connections and returns the alive ones; dead connections are
+  // disconnected and destroyed. Every ping coroutine catches all
+  // exceptions, so pending always reaches zero.
+  //
+  // After ping_timeout the stragglers are cancelled and given a short grace
+  // period. A ping that ignores cancellation keeps its connection (the
+  // coroutine owns it and destroys it whenever it finishes) and is reported
+  // dead, so the pool rebuilds capacity instead of waiting forever.
+  awaitable<std::vector<std::unique_ptr<DB>>> ping_connections(
+      std::vector<std::unique_ptr<DB>> conns) {
     const size_t n = conns.size();
-    std::vector<bool> alive(n, false);
     if (n == 0) {
-      co_return alive;
+      co_return conns;
     }
 
+    // Shared holders: a connection is destroyed by whoever drops the last
+    // reference to its slot - the round for completed pings, or the ping
+    // coroutine itself for pings that hang past the grace period.
+    auto holders =
+        std::make_shared<std::vector<std::unique_ptr<DB>>>(std::move(conns));
     auto results = std::make_shared<std::vector<std::optional<bool>>>(n);
     auto pending = std::make_shared<std::atomic_size_t>(n);
     asio::cancellation_signal signal;
@@ -446,8 +447,14 @@ class async_connection_pool
     for (size_t i = 0; i < n; ++i) {
       asio::co_spawn(
           executor_,
-          [conn = conns[i].get(), results, pending, i]() -> awaitable<void> {
-            (*results)[i] = co_await conn->ping();
+          [holder = holders, results, pending, i]() -> awaitable<void> {
+            bool ok = false;
+            try {
+              ok = co_await (*holder)[i]->ping();
+            } catch (...) {
+              ok = false;
+            }
+            (*results)[i] = ok;
             pending->fetch_sub(1, std::memory_order_release);
           },
           asio::bind_cancellation_slot(signal.slot(), asio::detached));
@@ -462,19 +469,32 @@ class async_connection_pool
     }
 
     if (pending->load(std::memory_order_acquire) > 0) {
-      // Ping timeout: cancel the stragglers and wait for them to finish so
-      // the connections are safe to destroy afterwards.
       signal.emit(asio::cancellation_type::all);
-      while (pending->load(std::memory_order_acquire) > 0) {
+      auto grace =
+          std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+      while (pending->load(std::memory_order_acquire) > 0 &&
+             std::chrono::steady_clock::now() < grace) {
         poll_timer.expires_after(std::chrono::milliseconds(1));
         co_await poll_timer.async_wait(asio::use_awaitable);
       }
     }
 
+    // Reclaim connections whose ping completed; a slot with no result
+    // belongs to a still-running ping coroutine and must be left alone.
+    std::vector<std::unique_ptr<DB>> alive_conns;
+    alive_conns.reserve(n);
     for (size_t i = 0; i < n; ++i) {
-      alive[i] = (*results)[i].value_or(false);
+      if (!(*results)[i].has_value()) {
+        continue;
+      }
+      if ((*results)[i].value()) {
+        alive_conns.push_back(std::move((*holders)[i]));
+      }
+      else {
+        (*holders)[i].reset();  // dead: disconnect and destroy
+      }
     }
-    co_return alive;
+    co_return alive_conns;
   }
 
   // Create up to `count` connections sequentially; stop at the first
