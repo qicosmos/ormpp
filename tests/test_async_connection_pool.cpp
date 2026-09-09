@@ -932,6 +932,17 @@ TEST_CASE("async_connection_pool: edge cases") {
       CHECK(conn == nullptr);
     }
 
+    SUBCASE("init fails when pool is not shared_ptr-managed") {
+      pool_options options;
+      options.log_pool_exhaustion = false;
+
+      async_connection_pool<mysql_async> stack_pool(executor, options);
+      auto [host, user, password, db, timeout, port] = get_db_config();
+      bool success =
+          co_await stack_pool.init(1, host, user, password, db, timeout, port);
+      CHECK_FALSE(success);
+    }
+
     SUBCASE("multiple close_all calls") {
       auto pool = co_await create_test_pool(executor, 2);
       REQUIRE(pool != nullptr);
