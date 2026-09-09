@@ -247,8 +247,7 @@ class async_connection_pool
   awaitable<std::tuple<size_t, size_t, size_t, size_t>> get_stats() {
     co_await asio::post(strand_, asio::use_awaitable);
     co_return std::make_tuple(pool_size_, available_connections_.size(),
-                              in_use_count_.load(),
-                              dynamic_connection_count_);
+                              in_use_count_.load(), dynamic_connection_count_);
   }
 
   // Get detailed pool status
@@ -337,7 +336,19 @@ class async_connection_pool
     asio::co_spawn(
         executor_,
         [weak = this->weak_from_this(), generation]() -> awaitable<void> {
-          co_await heartbeat_loop(weak, generation);
+          // Never let an exception escape to asio::detached: it would
+          // silently kill the maintenance loop with no trace.
+          try {
+            co_await heartbeat_loop(weak, generation);
+          } catch (const std::exception& e) {
+            std::cerr << "[Connection Pool] Heartbeat loop stopped by "
+                         "exception: "
+                      << e.what() << std::endl;
+          } catch (...) {
+            std::cerr << "[Connection Pool] Heartbeat loop stopped by an "
+                         "unknown exception."
+                      << std::endl;
+          }
         },
         asio::detached);
   }
