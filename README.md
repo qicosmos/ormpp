@@ -1322,7 +1322,8 @@ int main() {
 - **空闲连接检测**：每 `heartbeat_interval`（默认 30 秒）并发 `ping()` 池中的空闲连接；连接失效立即销毁。若 ping 挂起（如网络分区），最多等待 `ping_timeout`（默认 2 秒）后取消并判定失效。
 - **容量补建**：失效连接销毁后记为容量缺口，维护协程立即尝试补建；数据库尚未恢复时按 `reconnect_initial_delay`（默认 500ms）指数退避，上限 `reconnect_max_delay`（默认 30 秒），恢复后自动重建全部容量。
 - **正在使用的连接**：不参与心跳，由业务 SQL 网络错误即时发现；取出连接时仍会 `ping()` 一次，失效则立即重连。
-- **生命周期**：心跳协程通过 `weak_ptr` 持有连接池，用户释放连接池后池正常析构、协程自动退出。连接池必须由 `std::shared_ptr` 管理（如上例所示），栈对象或 `unique_ptr` 持有的连接池不会启动心跳。
+- **分批检测**：空闲连接按 `heartbeat_ping_batch`（默认 8，0 表示不限）分批并发 ping，大连接池下不会瞬间压垮数据库，且 ping 期间池中大部分连接保持可用。
+- **生命周期**：心跳协程通过 `weak_ptr` 持有连接池。用户释放最后一个引用后，协程完成当前轮（受 `ping_timeout` 与连接超时约束，最长数秒）即自动退出，池随之析构。连接池必须由 `std::shared_ptr` 管理（如上例所示），栈对象或 `unique_ptr` 持有的连接池不会启动心跳（`init()` 会输出警告）。
 
 默认开启，可按需调整：
 
@@ -1332,6 +1333,7 @@ options.heartbeat_interval = std::chrono::seconds(30);  // 心跳周期（默认
 options.ping_timeout = std::chrono::seconds(2);         // 单次 ping 超时（默认 2s）
 options.reconnect_initial_delay = std::chrono::milliseconds(500);  // 补建退避起点
 options.reconnect_max_delay = std::chrono::seconds(30);            // 补建退避上限
+options.heartbeat_ping_batch = 8;                       // 每轮并发 ping 上限（默认 8，0 不限）
 
 auto pool = std::make_shared<ormpp::async_connection_pool<ormpp::mysql_async>>(
     executor, options);

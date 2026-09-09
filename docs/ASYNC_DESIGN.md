@@ -1448,6 +1448,7 @@ struct pool_options {
   std::chrono::milliseconds ping_timeout{2000};
   std::chrono::milliseconds reconnect_initial_delay{500};
   std::chrono::milliseconds reconnect_max_delay{30000};
+  size_t heartbeat_ping_batch = 8;  // 每轮并发 ping 上限（0 = 不限）
 };
 
 template <typename DB>
@@ -1686,7 +1687,7 @@ void return_connection(std::unique_ptr<DB> connection, bool dynamic) {
 
 5. **等待退避**：池满时按 50ms → 100ms → 200ms → 500ms 指数退避，直到超时返回 `nullptr`
 
-6. **心跳维护**：`init()` 成功后在 executor 上启动维护协程，每轮心跳（默认 30s）只取出空闲连接并发 `ping()`（并发完成或 `ping_timeout` 超时取消），失效连接立即销毁；按容量缺口补建连接，补建失败按 `reconnect_initial_delay`（500ms）指数退避至 `reconnect_max_delay`（30s），数据库恢复后无需业务请求即可自愈。正在使用的连接不参与心跳，由业务 SQL 错误即时发现。连接池析构或 `close_all()` 后心跳协程在下一轮检查时退出
+6. **心跳维护**：`init()` 成功后在 executor 上启动维护协程，每轮心跳（默认 30s）把空闲连接按 `heartbeat_ping_batch`（默认 8）分批移出并并发 `ping()`（每批并发完成或 `ping_timeout` 超时取消；无视取消的 ping 由协程持有连接直到自然结束），失效连接立即销毁；按容量缺口补建连接，补建失败按 `reconnect_initial_delay`（500ms）指数退避至 `reconnect_max_delay`（30s），数据库恢复后无需业务请求即可自愈。正在使用的连接不参与心跳，由业务 SQL 错误即时发现。连接池析构或 `close_all()` 后心跳协程在下一轮检查时退出；释放最后一个 `shared_ptr` 引用后，协程完成当前轮（有界）即退出，池随之析构
 
 ### 使用示例
 

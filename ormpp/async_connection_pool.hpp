@@ -35,6 +35,8 @@ struct pool_options {
   std::chrono::milliseconds ping_timeout{2000};
   std::chrono::milliseconds reconnect_initial_delay{500};
   std::chrono::milliseconds reconnect_max_delay{30000};
+  size_t heartbeat_ping_batch =
+      8;  // Max concurrent pings per round (0 = unlimited)
 };
 
 // Async connection pool for databases that support async operations
@@ -83,6 +85,15 @@ class async_connection_pool
     }
     if (closing_) {
       co_return false;
+    }
+
+    // The pool must be owned by std::shared_ptr: the heartbeat loop and the
+    // connection-return deleter both go through weak_from_this().
+    if (this->weak_from_this().expired() && options_.log_pool_exhaustion) {
+      std::cerr << "[Connection Pool] Warning: pool must be owned by "
+                   "std::shared_ptr; otherwise heartbeat is disabled and "
+                   "connections cannot be returned to the pool."
+                << std::endl;
     }
 
     pool_size_ = pool_size;
@@ -349,17 +360,43 @@ class async_connection_pool
         }
       }
 
-      // Take every idle connection out of the pool so nobody can check it
-      // out while it is being pinged. Dead connections are disconnected and
-      // destroyed inside ping_connections; alive ones are returned here.
-      std::vector<std::unique_ptr<DB>> idle;
-      idle.reserve(self->available_connections_.size());
-      while (!self->available_connections_.empty()) {
-        idle.push_back(std::move(self->available_connections_.front()));
-        self->available_connections_.pop_front();
-      }
+      // Ping idle connections in batches so the pool keeps most connections
+      // available during a round and pings stay bounded. Dead connections
+      // are disconnected and destroyed inside ping_connections; alive ones
+      // are collected and pushed back after the round.
+      std::vector<std::unique_ptr<DB>> alive_conns;
+      size_t drained = 0;
+      for (;;) {
+        co_await asio::post(self->strand_, asio::use_awaitable);
+        if (!self->initialized_ || self->closing_ ||
+            self->generation_ != generation) {
+          co_return;
+        }
 
-      auto alive_conns = co_await self->ping_connections(std::move(idle));
+        size_t batch = self->options_.heartbeat_ping_batch;
+        if (batch == 0) {
+          batch = self->available_connections_.size();  // 0 = unlimited
+        }
+        std::vector<std::unique_ptr<DB>> idle;
+        idle.reserve(std::min(batch, self->available_connections_.size()));
+        while (idle.size() < batch && !self->available_connections_.empty()) {
+          idle.push_back(std::move(self->available_connections_.front()));
+          self->available_connections_.pop_front();
+        }
+        if (idle.empty()) {
+          break;
+        }
+        drained += idle.size();
+
+        auto batch_alive = co_await self->ping_connections(std::move(idle));
+        for (auto& conn : batch_alive) {
+          alive_conns.push_back(std::move(conn));
+        }
+
+        if (drained >= self->pool_size_) {
+          break;  // one round checks each fixed connection at most once
+        }
+      }
 
       co_await asio::post(self->strand_, asio::use_awaitable);
       if (!self->initialized_ || self->closing_ ||
@@ -381,8 +418,10 @@ class async_connection_pool
       if (gap > 0) {
         auto replacements = co_await self->create_replacement_connections(gap);
         if (replacements.size() < gap) {
-          reconnect_delay =
-              std::min(reconnect_delay * 2, self->options_.reconnect_max_delay);
+          auto max_delay = self->options_.reconnect_max_delay;
+          reconnect_delay = (reconnect_delay >= max_delay / 2)
+                                ? max_delay
+                                : reconnect_delay * 2;
         }
         if (!replacements.empty()) {
           co_await asio::post(self->strand_, asio::use_awaitable);
