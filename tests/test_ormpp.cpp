@@ -84,7 +84,7 @@ REGISTER_AUTO_KEY(builder_person, id)
 struct mysql_keyword_material_index {
   int id;
   std::string company;
-  std::string group;
+  int group;
   int MaterialNumber;
 };
 REGISTER_AUTO_KEY(mysql_keyword_material_index, id)
@@ -1771,17 +1771,17 @@ TEST_CASE("create mysql table with keyword field") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists mysql_keyword_material_index");
     REQUIRE(mysql.create_datatable<mysql_keyword_material_index>(
-        ormpp_auto_key{"id"}, ormpp_unique{{"group", "company"}}));
+        ormpp_auto_key{"id"}, ormpp_unique{{"group", "MaterialNumber"}}));
     REQUIRE(mysql.insert<mysql_keyword_material_index>(
-                {0, "purecpp", "first", 42}) == 1);
-    auto rows = mysql.query_s<mysql_keyword_material_index>("`group`='first'");
+                {0, "purecpp", 1, 42}) == 1);
+    auto rows = mysql.query_s<mysql_keyword_material_index>("`group`=1");
     REQUIRE(rows.size() == 1);
     CHECK(rows.front().MaterialNumber == 42);
-    rows.front().group = "second";
+    rows.front().group = 2;
     REQUIRE(mysql.update_some<&mysql_keyword_material_index::group>(
                 rows.front()) == 1);
     auto updated =
-        mysql.query_s<mysql_keyword_material_index>("`group`='second'");
+        mysql.query_s<mysql_keyword_material_index>("`group`=2");
     REQUIRE(updated.size() == 1);
     CHECK(updated.front().company == "purecpp");
   }
