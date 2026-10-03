@@ -96,6 +96,7 @@ REGISTER_SKIP_INSERT_FIELD(material, datetime)
 ```
 
 上例在执行 `insert` 时会始终省略 `datetime` 字段，数据库会使用表定义中的默认值。如果某次插入需要显式提供该字段，请使用自定义 SQL；`replace` 和 `update` 不受影响。
+请在启动并发数据库操作前完成字段注册；`REGISTER_SKIP_INSERT_FIELD` 与 `REGISTER_AUTO_KEY` 一样，面向静态初始化期使用。
 
 ## 冲突主键
 
@@ -548,7 +549,7 @@ target_include_directories(ormpp INTERFACE ormpp ormpp/ormpp ${PGSQL_INCLUDE_DIR
 
 ### 编译器支持
 
-需要支持C++17的编译器, 要求的编译器版本：linux gcc7.2, clang4.0; windows >vs2017 update5
+当前 CMake 构建要求 C++20；请使用支持 C++20 协程的编译器，例如 GCC 10+、Clang 13+ 或 MSVC 2019 16.8+。
 
 ### 数据库的安装
 

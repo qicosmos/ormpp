@@ -1771,7 +1771,7 @@ TEST_CASE("create mysql table with keyword field") {
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists mysql_keyword_material_index");
     REQUIRE(mysql.create_datatable<mysql_keyword_material_index>(
-        ormpp_auto_key{"id"}));
+        ormpp_auto_key{"id"}, ormpp_unique{{"group", "company"}}));
     REQUIRE(mysql.insert<mysql_keyword_material_index>(
                 {0, "purecpp", "first", 42}) == 1);
     auto rows = mysql.query_s<mysql_keyword_material_index>("`group`='first'");
@@ -1795,6 +1795,13 @@ TEST_CASE("skip insert field") {
   CHECK(mysql_sql.find("`datetime`") == std::string::npos);
   CHECK(mysql_sql.find("`company`") != std::string::npos);
   CHECK(mysql_sql.find("values(?)") != std::string::npos);
+  auto pg_sql =
+      generate_insert_sql<insert_default_field>(DBType::postgresql, true);
+  CHECK(pg_sql.find("datetime") == std::string::npos);
+  CHECK(pg_sql.find("$1") != std::string::npos);
+  CHECK(pg_sql.find("$2") == std::string::npos);
+  CHECK(quote_postgresql_identifier("group") == "\"group\"");
+  CHECK(quote_postgresql_identifier("a\"b") == "\"a\"\"b\"");
 
   dbng<sqlite> sqlite;
 #ifdef SQLITE_HAS_CODEC

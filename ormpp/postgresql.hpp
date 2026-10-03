@@ -549,12 +549,13 @@ class postgresql {
   }
 
   template <typename T>
-  bool prepare(const std::string &sql,
-               int parameter_count = ylt::reflection::members_count_v<T>) {
+  bool prepare(const std::string &sql) {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    res_ = PQprepare(con_, "", sql.data(), parameter_count, nullptr);
+    // Parameter types are inferred by PostgreSQL, so the count must not be
+    // based on reflected members: inserts can omit auto and default fields.
+    res_ = PQprepare(con_, "", sql.data(), 0, nullptr);
     auto guard = guard_statment(res_);
     return PQresultStatus(res_) == PGRES_COMMAND_OK;
   }
@@ -671,13 +672,10 @@ class postgresql {
                                                 OptType type,
                                                 bool get_insert_id = false,
                                                 Args &&...args) {
-    const int parameter_count =
-        type == OptType::insert && sql.ends_with("default values ")
-            ? 0
-            : ylt::reflection::members_count_v<T>;
-    if (!prepare<T>(
-            get_insert_id ? sql + "returning " + get_auto_key<T>().data() : sql,
-            parameter_count)) {
+    if (!prepare<T>(get_insert_id
+                        ? sql + "returning " +
+                              quote_postgresql_identifier(get_auto_key<T>())
+                        : sql)) {
       return std::nullopt;
     }
 
@@ -694,13 +692,10 @@ class postgresql {
       return std::nullopt;
     }
 
-    const int parameter_count =
-        type == OptType::insert && sql.ends_with("default values ")
-            ? 0
-            : ylt::reflection::members_count_v<T>;
-    if (!prepare<T>(
-            get_insert_id ? sql + "returning " + get_auto_key<T>().data() : sql,
-            parameter_count)) {
+    if (!prepare<T>(get_insert_id
+                        ? sql + "returning " +
+                              quote_postgresql_identifier(get_auto_key<T>())
+                        : sql)) {
       return std::nullopt;
     }
 

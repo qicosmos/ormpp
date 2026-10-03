@@ -118,6 +118,20 @@ inline std::string quote_mysql_identifier(std::string_view name) {
   return result;
 }
 
+inline std::string quote_postgresql_identifier(std::string_view name) {
+  std::string result;
+  result.reserve(name.size() + 2);
+  result.push_back('"');
+  for (char ch : name) {
+    if (ch == '"') {
+      result.push_back('"');
+    }
+    result.push_back(ch);
+  }
+  result.push_back('"');
+  return result;
+}
+
 #ifdef _MSC_VER
 #define ORMPP_UNIQUE_VARIABLE(str) YLT_CONCAT(str, __COUNTER__)
 #else
