@@ -1772,16 +1772,15 @@ TEST_CASE("create mysql table with keyword field") {
     mysql.execute("drop table if exists mysql_keyword_material_index");
     REQUIRE(mysql.create_datatable<mysql_keyword_material_index>(
         ormpp_auto_key{"id"}, ormpp_unique{{"group", "MaterialNumber"}}));
-    REQUIRE(mysql.insert<mysql_keyword_material_index>(
-                {0, "purecpp", 1, 42}) == 1);
+    REQUIRE(mysql.insert<mysql_keyword_material_index>({0, "purecpp", 1, 42}) ==
+            1);
     auto rows = mysql.query_s<mysql_keyword_material_index>("`group`=1");
     REQUIRE(rows.size() == 1);
     CHECK(rows.front().MaterialNumber == 42);
     rows.front().group = 2;
     REQUIRE(mysql.update_some<&mysql_keyword_material_index::group>(
                 rows.front()) == 1);
-    auto updated =
-        mysql.query_s<mysql_keyword_material_index>("`group`=2");
+    auto updated = mysql.query_s<mysql_keyword_material_index>("`group`=2");
     REQUIRE(updated.size() == 1);
     CHECK(updated.front().company == "purecpp");
   }
