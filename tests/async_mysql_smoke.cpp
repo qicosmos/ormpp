@@ -629,6 +629,13 @@ TEST_CASE("mysql async formats placeholders with question marks in values") {
   CHECK(find_next_placeholder(insert_sql, search_pos, false) ==
         std::string_view::npos);
 
+  CHECK(to_query_arg_impl(ormpp::datetime{"2026-08-23 16:30:45"}, false) ==
+        "'2026-08-23 16:30:45'");
+  auto db_type_row = map_row<std::tuple<ormpp::date, ormpp::decimal<10, 2>>>(
+      {std::string("2026-08-23"), std::string("123.45")});
+  CHECK(std::get<0>(db_type_row).value == "2026-08-23");
+  CHECK(std::get<1>(db_type_row).value == "123.45");
+
   using nested_tuple = std::tuple<async_person, std::string>;
   CHECK_THROWS_WITH_AS(
       map_row<nested_tuple>({std::string("1"), std::string("name")}),

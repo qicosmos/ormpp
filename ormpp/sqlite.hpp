@@ -7,6 +7,7 @@
 #include <sqlite3.h>
 
 #include <climits>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -200,6 +201,7 @@ class sqlite {
   template <typename T, typename... Args>
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &str, Args &&...args) {
+    string_view_storage_.clear();
     std::string sql =
         contains_select(str) ? str : generate_query_sql<T>(db_type_v, str);
 #ifdef ORMPP_ENABLE_LOG
@@ -243,6 +245,7 @@ class sqlite {
   template <typename T, typename... Args>
   std::enable_if_t<iguana::non_ylt_refletable_v<T>, std::vector<T>> query_s(
       const std::string &sql, Args &&...args) {
+    string_view_storage_.clear();
     static_assert(iguana::is_tuple<T>::value);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -329,6 +332,7 @@ class sqlite {
   template <typename T, typename... Args>
   std::enable_if_t<iguana::ylt_refletable_v<T>, std::vector<T>> query(
       Args &&...args) {
+    string_view_storage_.clear();
     std::string sql = generate_query_sql<T>(db_type_v, args...);
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
@@ -365,6 +369,7 @@ class sqlite {
   template <typename T, typename Arg, typename... Args>
   std::enable_if_t<iguana::non_ylt_refletable_v<T>, std::vector<T>> query(
       const Arg &s, Args &&...args) {
+    string_view_storage_.clear();
     static_assert(iguana::is_tuple<T>::value);
     constexpr auto SIZE = std::tuple_size_v<T>;
     std::string sql = s;
@@ -665,6 +670,10 @@ class sqlite {
       return SQLITE_OK ==
              sqlite3_bind_text(stmt_, i, value.data(), len, nullptr);
     }
+    else if constexpr (is_db_text_type_v<U>) {
+      return SQLITE_OK ==
+             sqlite3_bind_text(stmt_, i, value.data(), value.size(), nullptr);
+    }
     else if constexpr (iguana::c_array_v<U> ||
                        std::is_same_v<char,
                                       std::remove_pointer_t<std::decay_t<U>>>) {
@@ -724,10 +733,44 @@ class sqlite {
                    (size_t)sqlite3_column_bytes(stmt_, i));
     }
     else if constexpr (std::is_same_v<std::string_view, U>) {
-      sv_.reserve(sqlite3_column_bytes(stmt_, i));
-      sv_.assign((const char *)sqlite3_column_text(stmt_, i),
-                 (size_t)sqlite3_column_bytes(stmt_, i));
-      value = sv_;
+      string_view_storage_.emplace_back(
+          (const char *)sqlite3_column_text(stmt_, i),
+          (size_t)sqlite3_column_bytes(stmt_, i));
+      value = string_view_storage_.back();
+    }
+    else if constexpr (is_decimal_type_v<U>) {
+      auto text = reinterpret_cast<const char *>(sqlite3_column_text(stmt_, i));
+      if (text == nullptr) {
+        value.value.clear();
+      }
+      else {
+        value.value.assign(text, (size_t)sqlite3_column_bytes(stmt_, i));
+        auto column_type = sqlite3_column_type(stmt_, i);
+        auto exponent_pos = value.value.find_first_of("eE");
+        if (column_type != SQLITE_TEXT && exponent_pos == std::string::npos) {
+          auto decimal_pos = value.value.find('.');
+          if constexpr (U::scale > 0) {
+            if (decimal_pos == std::string::npos) {
+              value.value.append(".").append(U::scale, '0');
+            }
+            else {
+              auto current_scale = value.value.size() - decimal_pos - 1;
+              if (current_scale < U::scale) {
+                value.value.append(U::scale - current_scale, '0');
+              }
+            }
+          }
+        }
+      }
+    }
+    else if constexpr (is_db_text_type_v<U>) {
+      auto text = reinterpret_cast<const char *>(sqlite3_column_text(stmt_, i));
+      if (text == nullptr) {
+        value.value.clear();
+      }
+      else {
+        value.value.assign(text, (size_t)sqlite3_column_bytes(stmt_, i));
+      }
     }
     else if constexpr (iguana::array_v<U>) {
       memcpy(value.data(), sqlite3_column_text(stmt_, i), sizeof(U));
@@ -879,7 +922,7 @@ class sqlite {
  private:
   sqlite3 *handle_ = nullptr;
   sqlite3_stmt *stmt_ = nullptr;
-  inline static std::string sv_;
+  std::deque<std::string> string_view_storage_;
   inline static std::string last_error_;
   inline static bool has_error_ = false;
   inline static bool transaction_ = true;

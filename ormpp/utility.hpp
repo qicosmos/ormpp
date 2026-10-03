@@ -7,9 +7,9 @@
 #include <iostream>
 #include <mutex>
 #include <optional>
-#include <set>
 #include <sstream>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "entity.hpp"
 #include "iguana/util.hpp"
@@ -75,7 +75,9 @@ inline auto is_auto_key(std::string_view field_name) {
 }
 
 inline auto &get_skip_insert_field_map() {
-  static std::unordered_map<std::string_view, std::set<std::string_view>> map;
+  static std::unordered_map<std::string_view,
+                            std::unordered_set<std::string_view>>
+      map;
   return map;
 }
 
@@ -93,16 +95,22 @@ inline auto is_skip_insert_field(std::string_view field_name) {
 }
 
 inline std::string quote_mysql_identifier(std::string_view name) {
-  if (name.size() >= 2 && name.front() == '`' && name.back() == '`') {
-    return std::string(name);
+  bool quoted = name.size() >= 2 && name.front() == '`' && name.back() == '`';
+  if (quoted) {
+    name.remove_prefix(1);
+    name.remove_suffix(1);
   }
 
   std::string result;
   result.reserve(name.size() + 2);
   result.push_back('`');
-  for (char ch : name) {
+  for (size_t i = 0; i < name.size(); ++i) {
+    char ch = name[i];
     if (ch == '`') {
       result.push_back('`');
+      if (quoted && i + 1 < name.size() && name[i + 1] == '`') {
+        ++i;
+      }
     }
     result.push_back(ch);
   }
@@ -263,7 +271,12 @@ inline constexpr auto get_type_names(DBType type) {
         s = "INTEGER"sv;
       }
       else if constexpr (is_optional_v<U>::value) {
-        s = ormpp_mysql::type_to_name(identity<typename U::value_type>{});
+        if constexpr (std::is_enum_v<typename U::value_type>) {
+          s = "INTEGER"sv;
+        }
+        else {
+          s = ormpp_mysql::type_to_name(identity<typename U::value_type>{});
+        }
       }
 #ifdef ORMPP_WITH_CSTRING
       else if constexpr (std::is_same_v<CString, U>) {
@@ -279,7 +292,12 @@ inline constexpr auto get_type_names(DBType type) {
         s = "INTEGER"sv;
       }
       else if constexpr (is_optional_v<U>::value) {
-        s = ormpp_sqlite::type_to_name(identity<typename U::value_type>{});
+        if constexpr (std::is_enum_v<typename U::value_type>) {
+          s = "INTEGER"sv;
+        }
+        else {
+          s = ormpp_sqlite::type_to_name(identity<typename U::value_type>{});
+        }
       }
 #ifdef ORMPP_WITH_CSTRING
       else if constexpr (std::is_same_v<CString, U>) {
@@ -295,7 +313,13 @@ inline constexpr auto get_type_names(DBType type) {
         s = "integer"sv;
       }
       else if constexpr (is_optional_v<U>::value) {
-        s = ormpp_postgresql::type_to_name(identity<typename U::value_type>{});
+        if constexpr (std::is_enum_v<typename U::value_type>) {
+          s = "integer"sv;
+        }
+        else {
+          s = ormpp_postgresql::type_to_name(
+              identity<typename U::value_type>{});
+        }
       }
 #ifdef ORMPP_WITH_CSTRING
       else if constexpr (std::is_same_v<CString, U>) {
@@ -511,11 +535,16 @@ inline std::string generate_insert_sql(DBType db_type, bool insert,
   int index = 0;
   std::string fields = "(";
   std::string values = "values(";
+  size_t selected_count = 0;
   for (size_t i = 0; i < Count; ++i) {
     std::string field_name(ylt::reflection::name_of<T>(i));
     if (insert &&
         (is_auto_key<T>(field_name) || is_skip_insert_field<T>(field_name))) {
       continue;
+    }
+    if (selected_count++ != 0) {
+      fields += ",";
+      values += ",";
     }
     if (db_type == DBType::postgresql) {
       values += "$" + std::to_string(++index);
@@ -529,21 +558,13 @@ inline std::string generate_insert_sql(DBType db_type, bool insert,
     else {
       fields += field_name;
     }
-    if (i < Count - 1) {
-      fields += ",";
-      values += ",";
-    }
-    else {
-      fields += ")";
-      values += ")";
-    }
   }
-  if (fields.back() != ')') {
-    fields.back() = ')';
+  if (selected_count == 0 && db_type != DBType::mysql) {
+    append(sql, "default values");
+    return sql;
   }
-  if (values.back() != ')') {
-    values.back() = ')';
-  }
+  fields += ")";
+  values += ")";
   append(sql, fields, values);
   return sql;
 }
@@ -565,8 +586,11 @@ inline std::string generate_update_sql(DBType db_type, Args &&...args) {
     }
     else {
       (fields
-           .append(ylt::reflection::name_of<T>(
-               ylt::reflection::index_of<members>()))
+           .append(db_type == DBType::mysql
+                       ? quote_mysql_identifier(ylt::reflection::name_of<T>(
+                             ylt::reflection::index_of<members>()))
+                       : std::string(ylt::reflection::name_of<T>(
+                             ylt::reflection::index_of<members>())))
            .append("=?,"),
        ...);
     }
@@ -576,7 +600,7 @@ inline std::string generate_update_sql(DBType db_type, Args &&...args) {
     for (size_t i = 0; i < Count; ++i) {
       std::string field_name(ylt::reflection::name_of<T>(i));
       if (db_type == DBType::mysql) {
-        fields.append("`").append(field_name).append("`");
+        fields.append(quote_mysql_identifier(field_name));
       }
       else {
         fields.append(field_name);

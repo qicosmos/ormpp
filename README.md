@@ -95,7 +95,7 @@ REGISTER_AUTO_KEY(material, id)
 REGISTER_SKIP_INSERT_FIELD(material, datetime)
 ```
 
-上例在执行 `insert` 时会省略 `datetime` 字段，数据库会使用表定义中的默认值。`replace` 和 `update` 不受影响。
+上例在执行 `insert` 时会始终省略 `datetime` 字段，数据库会使用表定义中的默认值。如果某次插入需要显式提供该字段，请使用自定义 SQL；`replace` 和 `update` 不受影响。
 
 ## 冲突主键
 
@@ -1214,8 +1214,123 @@ ormpp 自动将 C++ 类型映射为对应数据库的 SQL 类型：
 | `std::string_view` | TEXT | text | TEXT |
 | `std::array<char, N>` | VARCHAR(N) | varchar(N) | VARCHAR(N) |
 | `blob` (std::vector<char>) | BLOB | bytea | BLOB |
+| `ormpp::date` | DATE | date | TEXT |
+| `ormpp::time` | TIME | time | TEXT |
+| `ormpp::datetime` | DATETIME | timestamp | TEXT |
+| `ormpp::timestamp` | TIMESTAMP | timestamp | TEXT |
+| `ormpp::decimal<P, S>` | DECIMAL(P,S) | numeric(P,S) | DECIMAL(P,S) |
 | `enum` / `enum class` | INTEGER | integer | INTEGER |
 | `std::optional<T>` | 同 T 类型 | 同 T 类型 | 同 T 类型 |
+
+### 日期、时间和定点数类型
+
+下面五种类型用于明确表达字段的数据库语义，避免把日期、时间和金额全部声明成普通
+`std::string`：
+
+| C++ 类型 | 含义 | 推荐文本形式 | 说明 |
+|---------|------|-------------|------|
+| `ormpp::date` | 不带时间的日历日期 | `2026-08-29` | 适合生日、账期、营业日期等字段 |
+| `ormpp::time` | 不带日期的时刻 | `14:30:05`、`14:30:05.123456` | 是否支持小数秒及其精度由数据库决定 |
+| `ormpp::datetime` | 不带时区的日期和时间 | `2026-08-29 14:30:05` | MySQL 映射为 `DATETIME`，PostgreSQL 映射为 `timestamp` |
+| `ormpp::timestamp` | 数据库的 TIMESTAMP 字段 | `2026-08-29 14:30:05` | 不是 Unix 整数时间戳；时区转换遵循数据库自身规则 |
+| `ormpp::decimal<P, S>` | 定点十进制数 | `12345.67` | `P` 是总位数，`S` 是小数位数，例如 `decimal<12, 2>` |
+
+这些类型都是轻量文本包装，内部通过公开的 `value` 成员保存 `std::string`，可以从
+字符串字面量或 `std::string` 构造：
+
+```cpp
+ormpp::date business_date{"2026-08-29"};
+ormpp::time created_time{"14:30:05"};
+ormpp::datetime paid_at{"2026-08-29 14:30:05"};
+ormpp::timestamp synced_at{"2026-08-29 14:30:05"};
+ormpp::decimal<12, 2> amount{"12345.67"};
+
+std::cout << amount.value;  // 12345.67
+```
+
+它们的作用是生成合适的列类型，并通过各数据库驱动按文本绑定和读取。ormpp 不解析日期，
+不校验日期/时间范围，也不检查传入值是否满足 decimal 的 `P`、`S`；非法值是被数据库拒绝、
+转换还是保留，取决于具体后端。应用需要日期运算、时区换算或精确十进制运算时，应先使用
+专门的日期/decimal 库完成计算，再把最终文本写入包装类型。
+
+`std::optional<T>` 可以与这些类型组合。空的 optional 写入 SQL `NULL`，非空值按内部类型
+映射，例如 `std::optional<ormpp::datetime>` 在 MySQL 中仍是可空的 `DATETIME` 列。
+
+下面的示例完全使用 ormpp 的实体和链式接口建表、写入、更新与查询：
+
+```cpp
+#include <iostream>
+#include <optional>
+
+#include "dbng.hpp"
+#include "sqlite.hpp"
+
+struct billing_record {
+  int id;
+  ormpp::date business_date;
+  ormpp::time created_time;
+  ormpp::datetime paid_at;
+  std::optional<ormpp::timestamp> synced_at;
+  ormpp::decimal<12, 2> amount;
+  std::optional<ormpp::decimal<5, 2>> discount_rate;
+};
+REGISTER_AUTO_KEY(billing_record, id)
+
+ormpp::dbng<ormpp::sqlite> database;
+database.connect(":memory:");
+
+database.create_table<billing_record>()
+    .auto_increment(ormpp::col(&billing_record::id))
+    .execute();
+
+billing_record item{
+    0,
+    {"2026-08-29"},
+    {"14:30:05"},
+    {"2026-08-29 14:30:05"},
+    std::nullopt,
+    {"12345.67"},
+    ormpp::decimal<5, 2>{"12.50"},
+};
+database.insert(item);
+
+database.update<billing_record>()
+    .set(ormpp::col(&billing_record::synced_at),
+         ormpp::timestamp{"2026-08-29 14:35:00"})
+    .where(ormpp::col(&billing_record::id) == 1)
+    .execute();
+
+auto rows =
+    database.select(ormpp::all)
+        .from<billing_record>()
+        .where(ormpp::col(&billing_record::business_date) >=
+                   ormpp::date{"2026-08-01"} &&
+               ormpp::col(&billing_record::amount) >
+                   ormpp::decimal<12, 2>{"1000.00"})
+        .order_by(ormpp::col(&billing_record::amount).desc())
+        .collect();
+
+if (!rows.empty()) {
+  std::cout << rows.front().amount.value;  // 12345.67
+}
+```
+
+MySQL 和 PostgreSQL 会使用各自的原生日期、时间及 decimal/numeric 类型，因此格式、范围、
+精度和时区行为最终由服务器定义。特别是 MySQL `TIMESTAMP` 可能根据连接时区进行转换，而
+`DATETIME` 不表达时区；ormpp 不在两者之间做隐式转换。
+
+SQLite 将日期和时间类型保存为 `TEXT`。使用统一的、固定宽度且从高位到低位排列的 ISO 风格
+文本（例如 `YYYY-MM-DD HH:MM:SS`），才能让字符串比较和排序与时间先后一致。SQLite 的
+`DECIMAL(P,S)` 使用 NUMERIC affinity，使常规比较和排序遵循数值语义；但 SQLite 不强制
+`P`/`S`，超出其原生整数/浮点表示能力的高精度 decimal 也不会获得额外精度保证。
+
+MySQL 读取超出初始缓冲区的长文本或 blob 字段时，单列补取缓冲区默认上限为 64MB，可通过
+`mysql::set_max_mysql_result_buffer_size()` 调整；超过
+`mysql::mysql_result_buffer_size_hard_limit`（1GB）的设置会被截断到该上限。
+查询结果中的 `std::string_view` 指向连接内部存储，在同一次查询的多行、多列结果中保持有效；
+该连接发起下一次查询或被销毁后视图会失效，需要长期保存时请使用 `std::string`。
+`std::array<char, N>` 和 C 字符数组按 C 字符串语义绑定，遇到 `\0` 会结束；需要保存含零字节的数据时请使用
+`blob`。
 
 ## 连接池
 

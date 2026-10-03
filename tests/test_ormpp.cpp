@@ -11,6 +11,7 @@
 #include <atomic>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
 #include <thread>
 
@@ -96,6 +97,11 @@ struct insert_default_field {
 REGISTER_AUTO_KEY(insert_default_field, id)
 REGISTER_SKIP_INSERT_FIELD(insert_default_field, datetime)
 
+struct only_default_field {
+  int id;
+};
+REGISTER_AUTO_KEY(only_default_field, id)
+
 struct fake_postgresql_db {
   static constexpr DBType db_type_v = DBType::postgresql;
 };
@@ -106,14 +112,385 @@ struct ormpp_partition_log {
   std::string payload;
 };
 
+struct db_field_type_entity {
+  int id;
+  ormpp::date birthday;
+  ormpp::time start_time;
+  ormpp::datetime created_at;
+  ormpp::timestamp updated_at;
+  ormpp::decimal<10, 2> amount;
+  std::optional<ormpp::datetime> deleted_at;
+  std::optional<ormpp::decimal<12, 4>> ratio;
+  std::optional<ormpp::date> renewal_date;
+  std::optional<ormpp::time> reminder_time;
+};
+REGISTER_AUTO_KEY(db_field_type_entity, id)
+
+struct decimal_order_entity {
+  int id;
+  ormpp::decimal<10, 2> amount;
+};
+REGISTER_AUTO_KEY(decimal_order_entity, id)
+
+enum class mysql_optional_state { ready = 7 };
+
+struct optional_scalar_result {
+  int id;
+  std::optional<int> scalar_value;
+  std::optional<mysql_optional_state> enum_value;
+};
+
+struct text_result_entity {
+  int id;
+  std::string first_text;
+  std::string second_text;
+  std::optional<std::string> nullable_text;
+};
+REGISTER_AUTO_KEY(text_result_entity, id)
+
+inline db_field_type_entity make_db_field_type_entity(
+    bool include_optional_values = false) {
+  db_field_type_entity item{};
+  item.birthday = "2026-08-23";
+  item.start_time = "16:30:45";
+  item.created_at = "2026-08-23 16:30:45";
+  item.updated_at = "2026-08-23 16:31:00";
+  item.amount = "12345678.90";
+  if (include_optional_values) {
+    item.deleted_at = ormpp::datetime{"2026-08-24 00:00:00"};
+    item.ratio = ormpp::decimal<12, 4>{"12.3456"};
+    item.renewal_date = ormpp::date{"2026-08-24"};
+    item.reminder_time = ormpp::time{"18:30:45"};
+  }
+  else {
+    item.deleted_at = std::nullopt;
+    item.ratio = std::nullopt;
+    item.renewal_date = std::nullopt;
+    item.reminder_time = std::nullopt;
+  }
+  return item;
+}
+
+inline db_field_type_entity make_updated_db_field_type_entity(
+    db_field_type_entity item) {
+  item.birthday = "2026-08-24";
+  item.start_time = "17:31:46";
+  item.created_at = "2026-08-24 17:31:46";
+  item.updated_at = "2026-08-24 17:32:00";
+  item.amount = "87654321.09";
+  item.deleted_at = ormpp::datetime{"2026-08-25 00:00:00"};
+  item.ratio = ormpp::decimal<12, 4>{"98.7654"};
+  item.renewal_date = ormpp::date{"2026-08-25"};
+  item.reminder_time = ormpp::time{"19:31:46"};
+  return item;
+}
+
+inline void check_db_field_type_entity(const db_field_type_entity &actual,
+                                       const db_field_type_entity &expected) {
+  CHECK(actual.birthday.value == expected.birthday.value);
+  CHECK(actual.start_time.value == expected.start_time.value);
+  CHECK(actual.created_at.value == expected.created_at.value);
+  CHECK(actual.updated_at.value == expected.updated_at.value);
+  CHECK(actual.amount.value == expected.amount.value);
+  CHECK(actual.deleted_at.has_value() == expected.deleted_at.has_value());
+  if (expected.deleted_at.has_value()) {
+    CHECK(actual.deleted_at->value == expected.deleted_at->value);
+  }
+  CHECK(actual.ratio.has_value() == expected.ratio.has_value());
+  if (expected.ratio.has_value()) {
+    CHECK(actual.ratio->value == expected.ratio->value);
+  }
+  CHECK(actual.renewal_date.has_value() == expected.renewal_date.has_value());
+  if (expected.renewal_date.has_value()) {
+    CHECK(actual.renewal_date->value == expected.renewal_date->value);
+  }
+  CHECK(actual.reminder_time.has_value() == expected.reminder_time.has_value());
+  if (expected.reminder_time.has_value()) {
+    CHECK(actual.reminder_time->value == expected.reminder_time->value);
+  }
+}
+
+template <typename DB>
+inline void check_db_field_type_crud(DB &database) {
+  auto item = make_db_field_type_entity(true);
+  CHECK(database.insert(item) == 1);
+
+  auto rows = database.select(ormpp::all)
+                  .template from<db_field_type_entity>()
+                  .collect();
+  REQUIRE(rows.size() == 1);
+  check_db_field_type_entity(rows.front(), item);
+
+  auto updated = make_updated_db_field_type_entity(rows.front());
+  CHECK(
+      database.template update<db_field_type_entity>()
+          .set(col(&db_field_type_entity::birthday), updated.birthday)
+          .set(col(&db_field_type_entity::start_time), updated.start_time)
+          .set(col(&db_field_type_entity::created_at), updated.created_at)
+          .set(col(&db_field_type_entity::updated_at), updated.updated_at)
+          .set(col(&db_field_type_entity::amount), updated.amount)
+          .set(col(&db_field_type_entity::deleted_at), *updated.deleted_at)
+          .set(col(&db_field_type_entity::ratio), *updated.ratio)
+          .set(col(&db_field_type_entity::renewal_date), *updated.renewal_date)
+          .set(col(&db_field_type_entity::reminder_time),
+               *updated.reminder_time)
+          .where(col(&db_field_type_entity::id) == updated.id)
+          .execute() == 1);
+
+  auto updated_rows =
+      database.select(ormpp::all)
+          .template from<db_field_type_entity>()
+          .where(col(&db_field_type_entity::id) == updated.id &&
+                 col(&db_field_type_entity::birthday) == updated.birthday &&
+                 col(&db_field_type_entity::start_time) == updated.start_time &&
+                 col(&db_field_type_entity::created_at) == updated.created_at &&
+                 col(&db_field_type_entity::updated_at) == updated.updated_at &&
+                 col(&db_field_type_entity::amount) == updated.amount &&
+                 col(&db_field_type_entity::deleted_at) ==
+                     *updated.deleted_at &&
+                 col(&db_field_type_entity::ratio) == *updated.ratio &&
+                 col(&db_field_type_entity::renewal_date) ==
+                     *updated.renewal_date &&
+                 col(&db_field_type_entity::reminder_time) ==
+                     *updated.reminder_time)
+          .collect();
+  REQUIRE(updated_rows.size() == 1);
+  check_db_field_type_entity(updated_rows.front(), updated);
+
+  CHECK(database.template remove<db_field_type_entity>()
+            .where(col(&db_field_type_entity::id) == updated.id)
+            .execute() == 1);
+  CHECK(database.select(ormpp::all)
+            .template from<db_field_type_entity>()
+            .collect()
+            .empty());
+}
+
+template <typename DB>
+inline void check_db_field_type_optional_null(DB &database) {
+  auto item = make_db_field_type_entity(false);
+  CHECK(database.insert(item) == 1);
+
+  auto rows = database.select(ormpp::all)
+                  .template from<db_field_type_entity>()
+                  .where(col(&db_field_type_entity::deleted_at).null() &&
+                         col(&db_field_type_entity::ratio).null() &&
+                         col(&db_field_type_entity::renewal_date).null() &&
+                         col(&db_field_type_entity::reminder_time).null())
+                  .collect();
+  REQUIRE(rows.size() == 1);
+  check_db_field_type_entity(rows.front(), item);
+
+  CHECK(database.template remove<db_field_type_entity>()
+            .where(col(&db_field_type_entity::id) == rows.front().id)
+            .execute() == 1);
+  CHECK(database.select(ormpp::all)
+            .template from<db_field_type_entity>()
+            .collect()
+            .empty());
+}
+
+template <DBType DbType, typename DB>
+inline void check_text_result_buffers(DB &database) {
+  REQUIRE(database.template create_table<text_result_entity>()
+              .primary_key(col(&text_result_entity::id))
+              .auto_increment(col(&text_result_entity::id))
+              .execute());
+  if constexpr (DbType == DBType::mysql) {
+    REQUIRE(
+        database.template alter_table<text_result_entity>()
+            .modify_column(col(&text_result_entity::first_text), "MEDIUMTEXT")
+            .execute());
+  }
+  CHECK(database.template remove<text_result_entity>().execute_all() >= 0);
+
+  const std::string long_text(65537, 'A');
+  CHECK(database.insert(text_result_entity{0, long_text, "row-1-col-2",
+                                           std::nullopt}) == 1);
+  CHECK(database.insert(text_result_entity{
+            0, "", "row-2-col-2", std::optional<std::string>{""}}) == 1);
+
+  auto text_rows = database.select(ormpp::all)
+                       .template from<text_result_entity>()
+                       .order_by(col(&text_result_entity::id))
+                       .collect();
+  REQUIRE(text_rows.size() == 2);
+  CHECK(text_rows[0].first_text == long_text);
+  CHECK(!text_rows[0].nullable_text.has_value());
+  CHECK(text_rows[1].first_text.empty());
+  REQUIRE(text_rows[1].nullable_text.has_value());
+  CHECK(text_rows[1].nullable_text->empty());
+
+  auto null_param_rows =
+      database.select(ormpp::all)
+          .template from<text_result_entity>()
+          .where(col(&text_result_entity::nullable_text).param())
+          .collect(std::optional<std::string>{});
+  CHECK(null_param_rows.empty());
+
+  using view_row = std::tuple<std::string_view, std::string_view>;
+  auto view_rows = database
+                       .select(col(&text_result_entity::first_text),
+                               col(&text_result_entity::second_text))
+                       .template from<text_result_entity>()
+                       .order_by(col(&text_result_entity::id))
+                       .template collect<view_row>();
+  REQUIRE(view_rows.size() == 2);
+  CHECK(std::get<0>(view_rows[0]) == long_text);
+  CHECK(std::get<1>(view_rows[0]) == "row-1-col-2");
+  CHECK(std::get<0>(view_rows[1]).empty());
+  CHECK(std::get<1>(view_rows[1]) == "row-2-col-2");
+}
+
+TEST_CASE("database field type mappings") {
+  auto mysql_types = get_type_names<db_field_type_entity>(DBType::mysql);
+  CHECK(mysql_types[1] == "DATE");
+  CHECK(mysql_types[2] == "TIME");
+  CHECK(mysql_types[3] == "DATETIME");
+  CHECK(mysql_types[4] == "TIMESTAMP");
+  CHECK(mysql_types[5] == "DECIMAL(10,2)");
+  CHECK(mysql_types[6] == "DATETIME");
+  CHECK(mysql_types[7] == "DECIMAL(12,4)");
+  CHECK(mysql_types[8] == "DATE");
+  CHECK(mysql_types[9] == "TIME");
+
+  auto pg_types = get_type_names<db_field_type_entity>(DBType::postgresql);
+  CHECK(pg_types[1] == "date");
+  CHECK(pg_types[2] == "time");
+  CHECK(pg_types[3] == "timestamp");
+  CHECK(pg_types[4] == "timestamp");
+  CHECK(pg_types[5] == "numeric(10,2)");
+  CHECK(pg_types[6] == "timestamp");
+  CHECK(pg_types[7] == "numeric(12,4)");
+  CHECK(pg_types[8] == "date");
+  CHECK(pg_types[9] == "time");
+
+  auto sqlite_types = get_type_names<db_field_type_entity>(DBType::sqlite);
+  CHECK(sqlite_types[1] == "TEXT");
+  CHECK(sqlite_types[2] == "TEXT");
+  CHECK(sqlite_types[3] == "TEXT");
+  CHECK(sqlite_types[4] == "TEXT");
+  CHECK(sqlite_types[5] == "DECIMAL(10,2)");
+  CHECK(sqlite_types[6] == "TEXT");
+  CHECK(sqlite_types[7] == "DECIMAL(12,4)");
+  CHECK(sqlite_types[8] == "TEXT");
+  CHECK(sqlite_types[9] == "TEXT");
+
+  CHECK(get_type_names<optional_scalar_result>(DBType::mysql)[2] == "INTEGER");
+  CHECK(get_type_names<optional_scalar_result>(DBType::sqlite)[2] == "INTEGER");
+  CHECK(get_type_names<optional_scalar_result>(DBType::postgresql)[2] ==
+        "integer");
+
+  auto optional_datetime_condition = col(&db_field_type_entity::deleted_at) >=
+                                     ormpp::datetime{"2026-08-24 00:00:00"};
+  CHECK(optional_datetime_condition.right == "2026-08-24 00:00:00");
+  CHECK(optional_datetime_condition.need_quote);
+}
+
+TEST_CASE("sqlite database field types CRUD") {
+  dbng<sqlite> sqlite;
+  REQUIRE(sqlite.connect(":memory:"));
+  REQUIRE(sqlite.create_datatable<db_field_type_entity>(ormpp_auto_key{"id"}));
+
+  check_db_field_type_crud(sqlite);
+  check_db_field_type_optional_null(sqlite);
+}
+
+TEST_CASE("sqlite decimal comparisons and ordering use numeric affinity") {
+  dbng<sqlite> sqlite;
+  REQUIRE(sqlite.connect(":memory:"));
+  REQUIRE(sqlite.create_datatable<decimal_order_entity>(ormpp_auto_key{"id"}));
+  CHECK(sqlite.insert(std::vector<decimal_order_entity>{
+            {0, {"2.00"}}, {0, {"10.00"}}, {0, {"-3.00"}}}) == 3);
+
+  auto greater = sqlite.select(ormpp::all)
+                     .from<decimal_order_entity>()
+                     .where(col(&decimal_order_entity::amount) >
+                            ormpp::decimal<10, 2>{"2.00"})
+                     .collect();
+  REQUIRE(greater.size() == 1);
+  CHECK(greater.front().amount.value == "10.00");
+
+  auto ordered = sqlite.select(ormpp::all)
+                     .from<decimal_order_entity>()
+                     .order_by(col(&decimal_order_entity::amount))
+                     .collect();
+  REQUIRE(ordered.size() == 3);
+  CHECK(ordered[0].amount.value == "-3.00");
+  CHECK(ordered[1].amount.value == "2.00");
+  CHECK(ordered[2].amount.value == "10.00");
+}
+
+TEST_CASE("sqlite string view results keep per-query storage") {
+  dbng<sqlite> sqlite;
+  REQUIRE(sqlite.connect(":memory:"));
+  check_text_result_buffers<DBType::sqlite>(sqlite);
+}
+
+TEST_CASE("mysql database field types CRUD as text values") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists db_field_type_entity");
+    REQUIRE(mysql.create_datatable<db_field_type_entity>(ormpp_auto_key{"id"}));
+
+    check_db_field_type_crud(mysql);
+    check_db_field_type_optional_null(mysql);
+  }
+#endif
+}
+
+TEST_CASE("mysql optional scalar result buffers survive null rows") {
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    REQUIRE(mysql.create_table<optional_scalar_result>()
+                .primary_key(col(&optional_scalar_result::id))
+                .auto_increment(col(&optional_scalar_result::id))
+                .execute());
+    CHECK(mysql.remove<optional_scalar_result>().execute_all() >= 0);
+    CHECK(mysql.insert(optional_scalar_result{0, std::nullopt, std::nullopt}) ==
+          1);
+    CHECK(mysql.insert(
+              optional_scalar_result{0, 7, mysql_optional_state::ready}) == 1);
+
+    auto rows = mysql.select(ormpp::all)
+                    .from<optional_scalar_result>()
+                    .order_by(col(&optional_scalar_result::id))
+                    .collect();
+    REQUIRE(rows.size() == 2);
+    CHECK_FALSE(rows[0].scalar_value.has_value());
+    CHECK_FALSE(rows[0].enum_value.has_value());
+    REQUIRE(rows[1].scalar_value.has_value());
+    REQUIRE(rows[1].enum_value.has_value());
+    CHECK(*rows[1].scalar_value == 7);
+    CHECK(*rows[1].enum_value == mysql_optional_state::ready);
+
+    CHECK(mysql.remove<optional_scalar_result>().execute_all() == 2);
+  }
+#endif
+}
+
+TEST_CASE("postgresql database field types CRUD as text values") {
+#ifdef ORMPP_ENABLE_PG
+  dbng<postgresql> postgres;
+  if (postgres.connect(ip, username, password, db, 5)) {
+    postgres.execute("drop table if exists db_field_type_entity");
+    REQUIRE(
+        postgres.create_datatable<db_field_type_entity>(ormpp_auto_key{"id"}));
+
+    check_db_field_type_crud(postgres);
+    check_db_field_type_optional_null(postgres);
+    check_text_result_buffers<DBType::postgresql>(postgres);
+  }
+#endif
+}
+
 TEST_CASE("test mysql long string") {
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
-    auto vec = mysql.query_s<std::tuple<std::string>>(
-        "SELECT REPEAT('A', 65537) AS long_string");
-    CHECK(vec.size() == 1);
-    CHECK(std::get<0>(vec[0]).length() == 65537);
+    check_text_result_buffers<DBType::mysql>(mysql);
   }
 #endif
 }
@@ -1366,12 +1743,47 @@ TEST_CASE("create table") {
 }
 
 TEST_CASE("create mysql table with keyword field") {
+  CHECK(quote_mysql_identifier("group") == "`group`");
+  CHECK(quote_mysql_identifier("a`b") == "`a``b`");
+  CHECK(quote_mysql_identifier("a``b") == "`a````b`");
+  CHECK(quote_mysql_identifier("`a``b`") == "`a``b`");
+  CHECK(quote_mysql_identifier("`a`b`") == "`a``b`");
+
+  auto insert_sql =
+      generate_insert_sql<mysql_keyword_material_index>(DBType::mysql, true);
+  CHECK(insert_sql.find("`group`") != std::string::npos);
+  auto select_sql =
+      generate_query_sql<mysql_keyword_material_index>(DBType::mysql);
+  CHECK(select_sql.find("`group`") != std::string::npos);
+  auto sqlite_select_sql =
+      generate_query_sql<mysql_keyword_material_index>(DBType::sqlite);
+  CHECK(sqlite_select_sql.find("`group`") == std::string::npos);
+  CHECK(generate_query_sql<mysql_keyword_material_index>(DBType::mysql)
+            .find("`group`") != std::string::npos);
+  auto update_sql =
+      generate_update_sql<mysql_keyword_material_index,
+                          &mysql_keyword_material_index::group>(DBType::mysql);
+  CHECK(update_sql.find("`group`=?") != std::string::npos);
+  CHECK(update_sql.find("`id`=?") != std::string::npos);
+
 #ifdef ORMPP_ENABLE_MYSQL
   dbng<mysql> mysql;
   if (mysql.connect(ip, username, password, db)) {
     mysql.execute("drop table if exists mysql_keyword_material_index");
     REQUIRE(mysql.create_datatable<mysql_keyword_material_index>(
         ormpp_auto_key{"id"}));
+    REQUIRE(mysql.insert<mysql_keyword_material_index>(
+                {0, "purecpp", "first", 42}) == 1);
+    auto rows = mysql.query_s<mysql_keyword_material_index>("`group`='first'");
+    REQUIRE(rows.size() == 1);
+    CHECK(rows.front().MaterialNumber == 42);
+    rows.front().group = "second";
+    REQUIRE(mysql.update_some<&mysql_keyword_material_index::group>(
+                rows.front()) == 1);
+    auto updated =
+        mysql.query_s<mysql_keyword_material_index>("`group`='second'");
+    REQUIRE(updated.size() == 1);
+    CHECK(updated.front().company == "purecpp");
   }
 #endif
 }
@@ -1400,6 +1812,30 @@ TEST_CASE("skip insert field") {
   REQUIRE(rows.size() == 1);
   CHECK(rows[0].datetime == "db_default");
   CHECK(rows[0].company == "purecpp");
+}
+
+TEST_CASE("insert with only database default fields") {
+  CHECK(generate_insert_sql<only_default_field>(DBType::mysql, true) ==
+        "insert into only_default_field () values() ");
+  CHECK(generate_insert_sql<only_default_field>(DBType::sqlite, true) ==
+        "insert into only_default_field default values ");
+  CHECK(generate_insert_sql<only_default_field>(DBType::postgresql, true) ==
+        "insert into only_default_field default values ");
+
+  dbng<sqlite> sqlite;
+#ifdef SQLITE_HAS_CODEC
+  REQUIRE(sqlite.connect(db, password));
+#else
+  REQUIRE(sqlite.connect(db));
+#endif
+  sqlite.execute("drop table if exists only_default_field");
+  REQUIRE(
+      sqlite.execute("create table only_default_field(id integer primary "
+                     "key autoincrement)"));
+  REQUIRE(sqlite.insert(only_default_field{0}) == 1);
+  auto rows = sqlite.query_s<only_default_field>();
+  REQUIRE(rows.size() == 1);
+  CHECK(rows.front().id > 0);
 }
 
 TEST_CASE("insert query") {

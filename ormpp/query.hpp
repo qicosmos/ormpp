@@ -55,6 +55,24 @@ inline std::string qualified_field_name(std::string_view class_name,
   return str;
 }
 
+template <typename T>
+inline std::string_view sql_text_view(const T& val) {
+  using U = std::decay_t<T>;
+  if constexpr (is_db_text_type_v<U>) {
+    return std::string_view(val.data(), val.size());
+  }
+  else {
+    return std::string_view(val);
+  }
+}
+
+template <typename T>
+inline std::string quoted_sql_text(const T& val) {
+  std::string s = "'";
+  s.append(escape_sql_string(sql_text_view(val))).append("'");
+  return s;
+}
+
 template <typename M>
 struct col_info {
   using value_type = M;
@@ -119,10 +137,9 @@ struct col_info {
     return qualified_field_name(class_name, name);
   }
 
-  static std::string format_string(std::string_view s) {
-    std::string str = "'";
-    str.append(escape_sql_string(s)).append("'");
-    return str;
+  template <typename V>
+  static std::string format_string(const V& s) {
+    return quoted_sql_text(s);
   }
 
   template <typename value_type>
@@ -259,10 +276,16 @@ where_condition build_where(auto field, auto val, std::string op) {
     return where_condition{name, op, std::to_string(val)};
   }
   else {
-    if (val == "?  ") {
-      return where_condition{name, op, val};
+    if constexpr (is_db_text_type_v<std::decay_t<value_type>>) {
+      return where_condition{name, op, std::string(sql_text_view(val)), true};
     }
-    return where_condition{name, op, val, true};
+    else {
+      auto right = sql_text_view(val);
+      if (right == "?  ") {
+        return where_condition{name, op, std::string(right)};
+      }
+      return where_condition{name, op, std::string(right), true};
+    }
   }
 }
 
@@ -272,27 +295,27 @@ auto operator==(col_info<M> field, auto val) {
 }
 
 template <typename M>
-auto operator>=(col_info<M> field, M val) {
+auto operator>=(col_info<M> field, auto val) {
   return build_where(field, val, ">=");
 }
 
 template <typename M>
-auto operator<=(col_info<M> field, M val) {
+auto operator<=(col_info<M> field, auto val) {
   return build_where(field, val, "<=");
 }
 
 template <typename M>
-auto operator!=(col_info<M> field, M val) {
+auto operator!=(col_info<M> field, auto val) {
   return build_where(field, val, "!=");
 }
 
 template <typename M>
-auto operator>(col_info<M> field, M val) {
+auto operator>(col_info<M> field, auto val) {
   return build_where(field, val, ">");
 }
 
 template <typename M>
-auto operator<(col_info<M> field, M val) {
+auto operator<(col_info<M> field, auto val) {
   return build_where(field, val, "<");
 }
 
@@ -367,9 +390,7 @@ inline std::string partition_sql_literal(T&& val) {
     return std::to_string(val);
   }
   else {
-    std::string s = "'";
-    s.append(escape_sql_string(std::string_view(val))).append("'");
-    return s;
+    return quoted_sql_text(val);
   }
 }
 
@@ -1301,8 +1322,11 @@ void append_set(std::string& sql, col_info<M> field, V val) {
   else if constexpr (std::is_arithmetic_v<V>) {
     sql.append(std::to_string(val));
   }
+  else if constexpr (is_db_text_type_v<std::decay_t<V>>) {
+    sql.append(quoted_sql_text(val));
+  }
   else {
-    sql.append("'").append(escape_sql_string(val)).append("'");
+    sql.append(quoted_sql_text(val));
   }
 }
 
@@ -1562,9 +1586,7 @@ struct create_table_builder {
       default_values_[std::string(field.name)] = std::to_string(val);
     }
     else {
-      std::string s = "'";
-      s.append(escape_sql_string(val)).append("'");
-      default_values_[std::string(field.name)] = std::move(s);
+      default_values_[std::string(field.name)] = quoted_sql_text(val);
     }
     return *this;
   }

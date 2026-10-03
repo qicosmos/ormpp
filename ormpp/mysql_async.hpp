@@ -680,6 +680,10 @@ inline std::string to_query_arg_impl(const T& value,
                      std::is_same_v<U, std::string_view>) {
     return escape_mysql_string(value, no_backslash_escapes);
   }
+  else if constexpr (is_db_text_type_v<U>) {
+    return escape_mysql_string(std::string_view(value.data(), value.size()),
+                               no_backslash_escapes);
+  }
   else if constexpr (iguana::array_v<U>) {
     return escape_mysql_string(
         std::string_view(
@@ -877,6 +881,9 @@ inline void assign_text_value(T& value,
   }
   else if constexpr (std::is_same_v<U, std::string_view>) {
     value = store_string_view(text);
+  }
+  else if constexpr (is_db_text_type_v<U>) {
+    value.value = text;
   }
   else if constexpr (iguana::array_v<U>) {
     std::memset(value.data(), 0, value.size());

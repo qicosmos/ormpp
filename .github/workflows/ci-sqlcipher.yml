@@ -29,10 +29,20 @@ jobs:
 
       - name: Install OpenSSL on Windows
         if: runner.os == 'Windows'
-        run: choco install openssl -y
+        run: vcpkg install openssl:x64-windows
 
       - name: Configure CMake
+        if: runner.os != 'Windows'
         run: cmake -B${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_SQLITE3_CODEC=ON
+
+      - name: Configure CMake on Windows
+        if: runner.os == 'Windows'
+        run: >
+          cmake -B${{ github.workspace }}/build
+          -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
+          -DENABLE_SQLITE3_CODEC=ON
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DVCPKG_TARGET_TRIPLET=x64-windows
 
       - name: Build
         run: cmake --build ${{ github.workspace }}/build --config ${{ matrix.configuration }}
