@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 #include "dbng.hpp"
@@ -29,6 +30,14 @@ struct async_person {
 };
 REGISTER_AUTO_KEY(async_person, id)
 YLT_REFL(async_person, id, name, age)
+
+struct async_keyword_unique_row {
+  int id;
+  std::string group;
+  std::string company;
+};
+REGISTER_AUTO_KEY(async_keyword_unique_row, id)
+YLT_REFL(async_keyword_unique_row, id, group, company)
 
 enum class async_color { blue = 10, red = 15 };
 enum async_fruit { apple, banana };
@@ -640,6 +649,20 @@ TEST_CASE("mysql async formats placeholders with question marks in values") {
   CHECK_THROWS_WITH_AS(
       map_row<nested_tuple>({std::string("1"), std::string("name")}),
       "mysql_async: tuple column count mismatch", std::runtime_error);
+}
+
+TEST_CASE("mysql async quotes composite unique keys") {
+  auto sql =
+      detail::mysql_async::generate_create_table_sql<async_keyword_unique_row>(
+          DBType::mysql, true,
+          std::make_tuple(ormpp_unique{{"group", "company"}}));
+  CHECK(sql.find("`group` ") != std::string::npos);
+  CHECK(sql.find("UNIQUE (`company`,`group`)") != std::string::npos);
+
+  auto quoted_sql =
+      detail::mysql_async::generate_create_table_sql<async_keyword_unique_row>(
+          DBType::mysql, true, std::make_tuple(ormpp_unique{{"`group`"}}));
+  CHECK(quoted_sql.find("UNIQUE (`group`)") != std::string::npos);
 }
 
 TEST_CASE("mysql async smoke") {

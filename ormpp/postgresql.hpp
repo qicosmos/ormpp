@@ -553,8 +553,9 @@ class postgresql {
 #ifdef ORMPP_ENABLE_LOG
     std::cout << sql << std::endl;
 #endif
-    res_ = PQprepare(con_, "", sql.data(), ylt::reflection::members_count_v<T>,
-                     nullptr);
+    // Parameter types are inferred by PostgreSQL, so the count must not be
+    // based on reflected members: inserts can omit auto and default fields.
+    res_ = PQprepare(con_, "", sql.data(), 0, nullptr);
     auto guard = guard_statment(res_);
     return PQresultStatus(res_) == PGRES_COMMAND_OK;
   }
@@ -573,7 +574,7 @@ class postgresql {
     else {
       ylt::reflection::for_each(t, [arr, &param_values, type, this](
                                        auto &field, auto name, auto index) {
-        if (type == OptType::insert && is_auto_key<T>(name)) {
+        if (type == OptType::insert && is_insert_skipped<T>(name)) {
           return;
         }
         if constexpr (sizeof...(members) > 0) {
@@ -598,10 +599,6 @@ class postgresql {
               }
             });
       }
-    }
-
-    if (param_values.empty()) {
-      return std::nullopt;
     }
 
     auto param_values_buf = make_param_value_buffers(param_values);
@@ -675,7 +672,8 @@ class postgresql {
                                                 bool get_insert_id = false,
                                                 Args &&...args) {
     if (!prepare<T>(get_insert_id
-                        ? sql + "returning " + get_auto_key<T>().data()
+                        ? sql + "returning " +
+                              quote_postgresql_identifier(get_auto_key<T>())
                         : sql)) {
       return std::nullopt;
     }
@@ -694,7 +692,8 @@ class postgresql {
     }
 
     if (!prepare<T>(get_insert_id
-                        ? sql + "returning " + get_auto_key<T>().data()
+                        ? sql + "returning " +
+                              quote_postgresql_identifier(get_auto_key<T>())
                         : sql)) {
       return std::nullopt;
     }
