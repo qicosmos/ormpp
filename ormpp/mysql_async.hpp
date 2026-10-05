@@ -1860,8 +1860,7 @@ class mysql_async {
 
     ylt::reflection::for_each(
         value, [&](auto& field, auto name, auto /*index*/) {
-          if (type == OptType::insert &&
-              (is_auto_key<T>(name) || is_skip_insert_field<T>(name))) {
+          if (type == OptType::insert && is_insert_skipped<T>(name)) {
             return;
           }
           values.push_back(detail::mysql_async::to_query_arg_impl(

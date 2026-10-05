@@ -89,9 +89,13 @@ inline int add_skip_insert_field(std::string_view key, std::string_view value) {
 template <typename T>
 inline auto is_skip_insert_field(std::string_view field_name) {
   auto it = get_skip_insert_field_map().find(get_short_struct_name<T>());
-  return it == get_skip_insert_field_map().end()
-             ? false
-             : it->second.find(field_name) != it->second.end();
+  return it != get_skip_insert_field_map().end() &&
+         it->second.find(field_name) != it->second.end();
+}
+
+template <typename T>
+inline bool is_insert_skipped(std::string_view field_name) {
+  return is_auto_key<T>(field_name) || is_skip_insert_field<T>(field_name);
 }
 
 inline std::string quote_mysql_identifier(std::string_view name) {
@@ -552,8 +556,7 @@ inline std::string generate_insert_sql(DBType db_type, bool insert,
   size_t selected_count = 0;
   for (size_t i = 0; i < Count; ++i) {
     std::string field_name(ylt::reflection::name_of<T>(i));
-    if (insert &&
-        (is_auto_key<T>(field_name) || is_skip_insert_field<T>(field_name))) {
+    if (insert && is_insert_skipped<T>(field_name)) {
       continue;
     }
     if (selected_count++ != 0) {

@@ -601,8 +601,7 @@ class sqlite {
     else {
       ylt::reflection::for_each(t, [&bind_ok, &index, type, this](
                                        auto &field, auto name, auto /*index*/) {
-        if ((type == OptType::insert &&
-             (is_auto_key<T>(name) || is_skip_insert_field<T>(name))) ||
+        if ((type == OptType::insert && is_insert_skipped<T>(name)) ||
             !bind_ok) {
           return;
         }

@@ -99,8 +99,10 @@ REGISTER_SKIP_INSERT_FIELD(insert_default_field, datetime)
 
 struct only_default_field {
   int id;
+  std::string datetime;
 };
 REGISTER_AUTO_KEY(only_default_field, id)
+REGISTER_SKIP_INSERT_FIELD(only_default_field, datetime)
 
 struct fake_postgresql_db {
   static constexpr DBType db_type_v = DBType::postgresql;
@@ -1835,13 +1837,28 @@ TEST_CASE("insert with only database default fields") {
   REQUIRE(sqlite.connect(db));
 #endif
   sqlite.execute("drop table if exists only_default_field");
-  REQUIRE(
-      sqlite.execute("create table only_default_field(id integer primary "
-                     "key autoincrement)"));
-  REQUIRE(sqlite.insert(only_default_field{0}) == 1);
+  REQUIRE(sqlite.execute(
+      "create table only_default_field(id integer primary key autoincrement, "
+      "datetime text default 'db_default')"));
+  REQUIRE(sqlite.insert(only_default_field{0, "ignored"}) == 1);
   auto rows = sqlite.query_s<only_default_field>();
   REQUIRE(rows.size() == 1);
   CHECK(rows.front().id > 0);
+  CHECK(rows.front().datetime == "db_default");
+
+#ifdef ORMPP_ENABLE_MYSQL
+  dbng<mysql> mysql;
+  if (mysql.connect(ip, username, password, db)) {
+    mysql.execute("drop table if exists only_default_field");
+    REQUIRE(mysql.execute(
+        "create table only_default_field(id int auto_increment primary key, "
+        "datetime varchar(20) default 'db_default')"));
+    REQUIRE(mysql.insert(only_default_field{0, "ignored"}) == 1);
+    auto mysql_rows = mysql.query_s<only_default_field>();
+    REQUIRE(mysql_rows.size() == 1);
+    CHECK(mysql_rows.front().datetime == "db_default");
+  }
+#endif
 }
 
 TEST_CASE("insert query") {
