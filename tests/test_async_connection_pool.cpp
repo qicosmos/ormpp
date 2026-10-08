@@ -207,6 +207,7 @@ asio::awaitable<void> run_pooled_select_stress() {
   options.enable_dynamic_expansion = stress.dynamic_expansion;
   options.max_dynamic_connections = stress.dynamic_connections;
   options.log_pool_exhaustion = false;
+  options.enable_heartbeat = false;  // benchmark pure checkout latency
 
   auto pool = co_await create_test_pool(executor, stress.pool_size, options);
   REQUIRE(pool != nullptr);
@@ -575,7 +576,7 @@ TEST_CASE("async_connection_pool: connection health check") {
 
   auto test = [&]() -> asio::awaitable<void> {
     auto executor = co_await asio::this_coro::executor;
-    auto pool = co_await create_test_pool(executor, 2);
+    auto pool = co_await create_test_pool(executor, 1);
     REQUIRE(pool != nullptr);
 
     SUBCASE("ping check on get") {
@@ -587,8 +588,125 @@ TEST_CASE("async_connection_pool: connection health check") {
       CHECK(alive);
     }
 
-    // 注意：测试连接失效后的重连比较困难，需要模拟网络断开
-    // 这里只测试基本的 ping 功能
+    SUBCASE("reconnect after server closes pooled connection") {
+      auto conn = co_await pool->get();
+      REQUIRE(conn != nullptr);
+
+      auto old_id_rows = co_await conn->query_s<std::tuple<std::uint64_t>>(
+          "SELECT CONNECTION_ID()");
+      REQUIRE(old_id_rows.size() == 1);
+      auto old_id = std::get<0>(old_id_rows.front());
+
+      conn.reset();
+      auto [total, available, in_use, dynamic] = co_await pool->get_stats();
+      REQUIRE(available == 1);
+      REQUIRE(in_use == 0);
+
+      auto [host, user, password, db, timeout, port] = get_db_config();
+      mysql_async admin(executor);
+      bool admin_connected =
+          co_await admin.connect(host, user, password, db, timeout, port);
+      REQUIRE(admin_connected);
+
+      bool killed =
+          co_await admin.execute("KILL CONNECTION " + std::to_string(old_id));
+      REQUIRE(killed);
+      co_await admin.disconnect();
+
+      auto reconnected = co_await pool->get(std::chrono::seconds(5));
+      REQUIRE(reconnected != nullptr);
+
+      bool query_ok = co_await reconnected->execute("SELECT 1");
+      CHECK(query_ok);
+
+      auto new_id_rows =
+          co_await reconnected->query_s<std::tuple<std::uint64_t>>(
+              "SELECT CONNECTION_ID()");
+      REQUIRE(new_id_rows.size() == 1);
+      CHECK(std::get<0>(new_id_rows.front()) != old_id);
+    }
+
+    co_await pool->close_all();
+  };
+
+  asio::co_spawn(ctx, test(), asio::detached);
+  ctx.run();
+}
+
+TEST_CASE("async_connection_pool: heartbeat replaces dead idle connections") {
+  asio::io_context ctx;
+
+  auto test = [&]() -> asio::awaitable<void> {
+    auto executor = co_await asio::this_coro::executor;
+
+    pool_options options;
+    options.log_pool_exhaustion = false;
+    options.heartbeat_interval = std::chrono::milliseconds(200);
+    options.ping_timeout = std::chrono::milliseconds(2000);
+    options.reconnect_initial_delay = std::chrono::milliseconds(100);
+    options.reconnect_max_delay = std::chrono::milliseconds(2000);
+
+    auto pool = co_await create_test_pool(executor, 2, options);
+    REQUIRE(pool != nullptr);
+
+    // 取出两个连接记录 ID 后归还，使其成为空闲连接
+    auto conn1 = co_await pool->get();
+    auto conn2 = co_await pool->get();
+    REQUIRE(conn1 != nullptr);
+    REQUIRE(conn2 != nullptr);
+
+    auto id1_rows = co_await conn1->query_s<std::tuple<std::uint64_t>>(
+        "SELECT CONNECTION_ID()");
+    auto id2_rows = co_await conn2->query_s<std::tuple<std::uint64_t>>(
+        "SELECT CONNECTION_ID()");
+    REQUIRE(id1_rows.size() == 1);
+    REQUIRE(id2_rows.size() == 1);
+    auto id1 = std::get<0>(id1_rows.front());
+    auto id2 = std::get<0>(id2_rows.front());
+
+    conn1.reset();
+    conn2.reset();
+    auto [total, available, in_use, dynamic] = co_await pool->get_stats();
+    REQUIRE(available == 2);
+    REQUIRE(in_use == 0);
+
+    // 从管理连接杀掉池中的两个空闲连接
+    auto [host, user, password, db, timeout, port] = get_db_config();
+    mysql_async admin(executor);
+    bool admin_connected =
+        co_await admin.connect(host, user, password, db, timeout, port);
+    REQUIRE(admin_connected);
+    bool killed1 =
+        co_await admin.execute("KILL CONNECTION " + std::to_string(id1));
+    bool killed2 =
+        co_await admin.execute("KILL CONNECTION " + std::to_string(id2));
+    REQUIRE(killed1);
+    REQUIRE(killed2);
+    co_await admin.disconnect();
+
+    // 等待心跳检测到失效连接并自动补建，无需业务请求
+    bool recovered = false;
+    for (int i = 0; i < 100; ++i) {  // 最多等待 5 秒
+      asio::steady_timer timer(executor);
+      timer.expires_after(std::chrono::milliseconds(50));
+      co_await timer.async_wait(asio::use_awaitable);
+      auto [t, a, u, d] = co_await pool->get_stats();
+      if (a == 2) {
+        recovered = true;
+        break;
+      }
+    }
+    REQUIRE(recovered);
+
+    // 取出的连接应该是重建的新连接
+    auto new_conn = co_await pool->get(std::chrono::seconds(2));
+    REQUIRE(new_conn != nullptr);
+    auto new_id_rows = co_await new_conn->query_s<std::tuple<std::uint64_t>>(
+        "SELECT CONNECTION_ID()");
+    REQUIRE(new_id_rows.size() == 1);
+    auto new_id = std::get<0>(new_id_rows.front());
+    CHECK(new_id != id1);
+    CHECK(new_id != id2);
 
     co_await pool->close_all();
   };
@@ -812,6 +930,17 @@ TEST_CASE("async_connection_pool: edge cases") {
       // 未初始化就获取连接
       auto conn = co_await pool->get(std::chrono::seconds(1));
       CHECK(conn == nullptr);
+    }
+
+    SUBCASE("init fails when pool is not shared_ptr-managed") {
+      pool_options options;
+      options.log_pool_exhaustion = false;
+
+      async_connection_pool<mysql_async> stack_pool(executor, options);
+      auto [host, user, password, db, timeout, port] = get_db_config();
+      bool success =
+          co_await stack_pool.init(1, host, user, password, db, timeout, port);
+      CHECK_FALSE(success);
     }
 
     SUBCASE("multiple close_all calls") {
