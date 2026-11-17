@@ -4,6 +4,7 @@ add_executable(${PROJECT_NAME}
         test_ormpp.cpp
         async_mysql_smoke.cpp
         test_async_connection_pool.cpp
+        async_pool_recovery.cpp
         test_adapter_timing.cpp
         main.cpp
         )

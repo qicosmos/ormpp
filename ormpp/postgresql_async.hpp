@@ -11,6 +11,7 @@
 #include <cstring>
 #include <deque>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
@@ -282,6 +283,21 @@ class postgresql_async {
 
   executor_type get_executor() const { return state_->executor; }
 
+  // Nonblocking idle-connection probe; consume EOF/TLS close notifications
+  // without issuing SQL. Call on the owning worker, outside an active
+  // operation.
+  bool is_open() const {
+    auto* connection = state_->connection.get();
+    if (!connection || state_->in_progress ||
+        PQstatus(connection) != CONNECTION_OK || !PQconsumeInput(connection)) {
+      return false;
+    }
+    // An idle FATAL message can be buffered while PQstatus still says OK.
+    // Parse the notification, then consume its trailing EOF/TLS shutdown.
+    return !PQisBusy(connection) && PQconsumeInput(connection) != 0 &&
+           PQstatus(connection) == CONNECTION_OK;
+  }
+
   bool has_error() const { return !state_->error.empty(); }
   void reset_error() { state_->set_error({}); }
   void set_last_error(std::string error) {
@@ -409,42 +425,15 @@ class postgresql_async {
   template <typename T, typename... Args>
   awaitable<std::vector<T>> query_s(const std::string& condition = "",
                                     Args&&... args) {
-    std::string sql = condition;
-    if constexpr (iguana::ylt_refletable_v<T>) {
-      if (!contains_select(sql)) {
-        sql = generate_query_sql<T>(db_type_v, condition);
-      }
-    }
-    else {
-      static_assert(iguana::is_tuple<T>::value,
-                    "query_s requires a reflected struct or tuple");
-    }
-    return launch(
-        [sql = std::move(sql),
-         params = detail::postgresql_async::make_parameters(args...)](
-            state& s) -> awaitable<std::vector<T>> {
-          s.string_storage.clear();
-          auto result = co_await s.command(sql, params);
-          if (!result || PQresultStatus(result.get()) != PGRES_TUPLES_OK) {
-            throw std::runtime_error(
-                "postgresql_async: query returned no rows");
-          }
-          std::vector<T> rows;
-          rows.reserve(PQntuples(result.get()));
-          for (int row = 0; row < PQntuples(result.get()); ++row) {
-            T value{};
-            int col = 0;
-            detail::postgresql_async::map_columns(value, result.get(), row, col,
-                                                  s.string_storage);
-            if (col != PQnfields(result.get())) {
-              throw std::runtime_error(
-                  "postgresql_async: row column count mismatch");
-            }
-            rows.push_back(std::move(value));
-          }
-          co_return rows;
-        },
-        std::vector<T>{});
+    return query_rows<T>(false, condition, std::forward<Args>(args)...);
+  }
+
+  // Explicit single-statement query path. Cached statements belong to this
+  // connection and never retain parameter values or result rows.
+  template <typename T, typename... Args>
+  awaitable<std::vector<T>> query_prepared_s(const std::string& condition = "",
+                                             Args&&... args) {
+    return query_rows<T>(true, condition, std::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args>
@@ -505,10 +494,18 @@ class postgresql_async {
     int affected = 0;
     bool transaction = true;
     bool in_progress = false;
+    using statement_key = std::pair<std::string, std::vector<Oid>>;
+    std::map<statement_key, std::string> prepared_statements;
+    std::size_t next_statement = 0;
+    static constexpr std::size_t max_prepared_statements = 128;
 
     explicit state(executor_type ex) : executor(std::move(ex)) {}
     void set_error(std::string message) { error = std::move(message); }
-    void close() { connection.reset(); }
+    void close() {
+      connection.reset();
+      prepared_statements.clear();
+      next_statement = 0;
+    }
     std::runtime_error connection_error() const {
       return std::runtime_error(connection ? PQerrorMessage(connection.get())
                                            : "postgresql_async: not connected");
@@ -607,8 +604,55 @@ class postgresql_async {
       }
     }
 
+    // Complete and drain one libpq exchange before another send. SQL errors
+    // are returned separately so a drained server error keeps the connection.
+    awaitable<result_ptr> read_response(std::string& sql_error) {
+      for (;;) {
+        int pending = PQflush(connection.get());
+        if (pending < 0) {
+          throw connection_error();
+        }
+        if (!pending) {
+          break;
+        }
+        co_await wait(asio::socket_base::wait_write, true);
+        if (!PQconsumeInput(connection.get())) {
+          throw connection_error();
+        }
+      }
+      result_ptr last(nullptr, &PQclear);
+      for (;;) {
+        if (!PQconsumeInput(connection.get())) {
+          throw connection_error();
+        }
+        if (PQisBusy(connection.get())) {
+          co_await wait(asio::socket_base::wait_read);
+          continue;
+        }
+        result_ptr result(PQgetResult(connection.get()), &PQclear);
+        if (!result) {
+          break;
+        }
+        auto status = PQresultStatus(result.get());
+        if (status == PGRES_COPY_IN || status == PGRES_COPY_OUT ||
+            status == PGRES_COPY_BOTH) {
+          throw std::runtime_error("postgresql_async: COPY is not supported");
+        }
+        if (status != PGRES_COMMAND_OK && status != PGRES_TUPLES_OK &&
+            sql_error.empty()) {
+          sql_error = PQresultErrorMessage(result.get());
+          if (sql_error.empty()) {
+            sql_error = "postgresql_async: empty or unsupported command result";
+          }
+        }
+        last = std::move(result);
+      }
+      co_return last;
+    }
+
     awaitable<result_ptr> command(const std::string& sql,
-                                  const parameters& params = {}) {
+                                  const parameters& params = {},
+                                  bool use_prepared = false) {
       affected = 0;
       if (!connection || PQstatus(connection.get()) != CONNECTION_OK) {
         throw connection_error();
@@ -632,7 +676,7 @@ class postgresql_async {
       result_ptr last(nullptr, &PQclear);
       try {
         int sent;
-        if (params.empty()) {
+        if (params.empty() && !use_prepared) {
           sent = PQsendQuery(connection.get(), sql.c_str());
         }
         else {
@@ -646,52 +690,48 @@ class postgresql_async {
                 param.value ? static_cast<int>(param.value->size()) : 0);
             formats.push_back(param.format);
           }
-          sent = PQsendQueryParams(connection.get(), sql.c_str(), params.size(),
-                                   types.data(), values.data(), lengths.data(),
-                                   formats.data(), 0);
+          auto cached = prepared_statements.end();
+          if (use_prepared) {
+            statement_key key{sql, types};
+            cached = prepared_statements.find(key);
+            if (cached == prepared_statements.end() &&
+                prepared_statements.size() < max_prepared_statements) {
+              auto name = "ormpp_ps_" + std::to_string(++next_statement);
+              cached = prepared_statements.emplace(std::move(key), name).first;
+              if (!PQsendPrepare(connection.get(), name.c_str(), sql.c_str(),
+                                 params.size(), types.data())) {
+                throw connection_error();
+              }
+              co_await read_response(sql_error);
+              if (!sql_error.empty()) {
+                prepared_statements.erase(cached);
+                cached = prepared_statements.end();
+              }
+            }
+          }
+          if (!sql_error.empty()) {
+            // Preparation failed, and its error has already been drained.
+            // Do not execute the query again or retain a failed cache entry.
+            sent = 1;
+          }
+          else if (cached != prepared_statements.end()) {
+            sent = PQsendQueryPrepared(connection.get(), cached->second.c_str(),
+                                       params.size(), values.data(),
+                                       lengths.data(), formats.data(), 0);
+          }
+          else {
+            // Bound client/server cache growth. New statements beyond the
+            // limit still use a single parameterized protocol exchange.
+            sent = PQsendQueryParams(connection.get(), sql.c_str(),
+                                     params.size(), types.data(), values.data(),
+                                     lengths.data(), formats.data(), 0);
+          }
         }
         if (!sent) {
           throw connection_error();
         }
-        for (;;) {
-          int pending = PQflush(connection.get());
-          if (pending < 0) {
-            throw connection_error();
-          }
-          if (!pending) {
-            break;
-          }
-          co_await wait(asio::socket_base::wait_write, true);
-          if (!PQconsumeInput(connection.get())) {
-            throw connection_error();
-          }
-        }
-        for (;;) {
-          if (!PQconsumeInput(connection.get())) {
-            throw connection_error();
-          }
-          if (PQisBusy(connection.get())) {
-            co_await wait(asio::socket_base::wait_read);
-            continue;
-          }
-          result_ptr result(PQgetResult(connection.get()), &PQclear);
-          if (!result) {
-            break;
-          }
-          auto status = PQresultStatus(result.get());
-          if (status == PGRES_COPY_IN || status == PGRES_COPY_OUT ||
-              status == PGRES_COPY_BOTH) {
-            throw std::runtime_error("postgresql_async: COPY is not supported");
-          }
-          if (status != PGRES_COMMAND_OK && status != PGRES_TUPLES_OK &&
-              sql_error.empty()) {
-            sql_error = PQresultErrorMessage(result.get());
-            if (sql_error.empty()) {
-              sql_error =
-                  "postgresql_async: empty or unsupported command result";
-            }
-          }
-          last = std::move(result);
+        if (sql_error.empty()) {
+          last = co_await read_response(sql_error);
         }
       } catch (...) {
         // A cancelled/failed exchange must never leave unread protocol data for
@@ -739,6 +779,48 @@ class postgresql_async {
   template <typename F, typename R>
   awaitable<R> launch(F operation, R failure) {
     return invoke(state_, std::move(operation), std::move(failure));
+  }
+
+  template <typename T, typename... Args>
+  awaitable<std::vector<T>> query_rows(bool use_prepared,
+                                       const std::string& condition,
+                                       Args&&... args) {
+    std::string sql = condition;
+    if constexpr (iguana::ylt_refletable_v<T>) {
+      if (!contains_select(sql)) {
+        sql = generate_query_sql<T>(db_type_v, condition);
+      }
+    }
+    else {
+      static_assert(iguana::is_tuple<T>::value,
+                    "query_s requires a reflected struct or tuple");
+    }
+    return launch(
+        [sql = std::move(sql), use_prepared,
+         params = detail::postgresql_async::make_parameters(args...)](
+            state& s) -> awaitable<std::vector<T>> {
+          s.string_storage.clear();
+          auto result = co_await s.command(sql, params, use_prepared);
+          if (!result || PQresultStatus(result.get()) != PGRES_TUPLES_OK) {
+            throw std::runtime_error(
+                "postgresql_async: query returned no rows");
+          }
+          std::vector<T> rows;
+          rows.reserve(PQntuples(result.get()));
+          for (int row = 0; row < PQntuples(result.get()); ++row) {
+            T value{};
+            int col = 0;
+            detail::postgresql_async::map_columns(value, result.get(), row, col,
+                                                  s.string_storage);
+            if (col != PQnfields(result.get())) {
+              throw std::runtime_error(
+                  "postgresql_async: row column count mismatch");
+            }
+            rows.push_back(std::move(value));
+          }
+          co_return rows;
+        },
+        std::vector<T>{});
   }
 
   template <typename T, auto... Members, typename... Args>

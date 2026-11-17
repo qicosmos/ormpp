@@ -85,6 +85,11 @@ jobs:
         env:
           PGSSLMODE: disable
         run: ctest --test-dir build-pg-async -R '^test_postgresql_async$' -V
+      - name: Test shared-executor pool regressions
+        working-directory: build-pg-async/tests
+        env:
+          ORMPP_POOL_TEST_THREADS: 4
+        run: ./test_ormpp '--test-case=async_connection_pool:*'
       - name: Test synchronous backends
         if: matrix.sanitizer != 'thread'
         env:

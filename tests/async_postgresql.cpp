@@ -344,7 +344,7 @@ asio::awaitable<void> wait_for_lock(postgresql_async& observer, int pid) {
   throw std::runtime_error("target did not reach advisory lock wait");
 }
 
-asio::awaitable<void> ownership_and_overlap() {
+asio::awaitable<void> ownership_and_overlap(bool prepared = false) {
   auto ex = co_await asio::this_coro::executor;
   postgresql_async blocker(ex), observer(ex);
   co_await connect(blocker);
@@ -355,10 +355,21 @@ asio::awaitable<void> ownership_and_overlap() {
   const int pid = co_await scalar<int>(*target, "SELECT pg_backend_pid()");
   require(co_await blocker.execute("SELECT pg_advisory_lock(8530242)"),
           "take lock");
-  asio::co_spawn(ex, target->execute("SELECT pg_advisory_lock(8530242)"),
-                 [&](std::exception_ptr error, bool ok) {
-                   done.try_send(asio::error_code{}, !error && ok ? 1 : -1);
-                 });
+  if (prepared) {
+    asio::co_spawn(ex,
+                   target->query_prepared_s<std::tuple<std::string>>(
+                       "SELECT pg_advisory_lock($1)::text", 8530242),
+                   [&](std::exception_ptr error, auto rows) {
+                     done.try_send(asio::error_code{},
+                                   !error && rows.size() == 1 ? 1 : -1);
+                   });
+  }
+  else {
+    asio::co_spawn(ex, target->execute("SELECT pg_advisory_lock(8530242)"),
+                   [&](std::exception_ptr error, bool ok) {
+                     done.try_send(asio::error_code{}, !error && ok ? 1 : -1);
+                   });
+  }
   co_await wait_for_lock(observer, pid);
 
   bool ping_finished = false, close_finished = false;
@@ -396,8 +407,11 @@ asio::awaitable<void> ownership_and_overlap() {
 
   postgresql_async owner(ex);
   co_await connect(owner);
-  auto owned = owner.query_s<std::tuple<std::string>>(
-      "SELECT $1::text", std::string(2 * 1024 * 1024, 'z'));
+  auto owned = prepared
+                   ? owner.query_prepared_s<std::tuple<std::string>>(
+                         "SELECT $1::text", std::string(2 * 1024 * 1024, 'z'))
+                   : owner.query_s<std::tuple<std::string>>(
+                         "SELECT $1::text", std::string(2 * 1024 * 1024, 'z'));
   auto data = co_await std::move(owned);
   require(data.size() == 1 &&
               std::get<0>(data[0]) == std::string(2 * 1024 * 1024, 'z'),
@@ -414,7 +428,7 @@ asio::awaitable<void> connection_per_thread(int& pid) {
   pid = co_await scalar<int>(db, "SELECT pg_backend_pid()");
   for (int n = 0; n < 8; ++n) {
     auto value = std::to_string(pid) + ":" + std::to_string(n);
-    auto rows = co_await db.query_s<std::tuple<std::string>>(
+    auto rows = co_await db.query_prepared_s<std::tuple<std::string>>(
         "SELECT repeat($1::text, 100)", value);
     std::string expected;
     for (int i = 0; i < 100; ++i) expected += value;
@@ -422,6 +436,131 @@ asio::awaitable<void> connection_per_thread(int& pid) {
             "per-thread executor result ownership");
   }
   require(co_await db.disconnect(), "per-thread disconnect");
+}
+
+asio::awaitable<void> prepared_cache() {
+  auto ex = co_await asio::this_coro::executor;
+  postgresql_async db(ex);
+  co_await connect(db);
+  const std::string count_sql =
+      "SELECT count(*) FROM pg_prepared_statements WHERE name LIKE "
+      "'ormpp_ps_%'";
+  auto pending = db.query_prepared_s<std::tuple<std::string>>(
+      std::string("SELECT $1::text"), std::string(128 * 1024, 'q'));
+  auto first = co_await std::move(pending);
+  require(first.size() == 1 &&
+              std::get<0>(first[0]) == std::string(128 * 1024, 'q'),
+          "prepared query owns SQL and parameter buffers");
+  auto second = co_await db.query_prepared_s<std::tuple<std::string>>(
+      "SELECT $1::text", "second");
+  require(second.size() == 1 && std::get<0>(second[0]) == "second" &&
+              co_await scalar(db, count_sql) == 1,
+          "same statement reused with fresh parameter values");
+  require(co_await scalar(db,
+                          "SELECT sum(generic_plans + custom_plans)::bigint "
+                          "FROM pg_prepared_statements WHERE name LIKE "
+                          "'ormpp_ps_%'") == 2,
+          "server executed the same prepared statement twice");
+  auto text = co_await db.query_prepared_s<std::tuple<int>>(
+      "SELECT octet_length($1)", "abc");
+  auto binary = co_await db.query_prepared_s<std::tuple<int>>(
+      "SELECT octet_length($1)", blob{'a', 0, 'b', 'c'});
+  require(text.size() == 1 && std::get<0>(text[0]) == 3 && binary.size() == 1 &&
+              std::get<0>(binary[0]) == 4 &&
+              co_await scalar(db, count_sql) == 3,
+          "cache key separates inferred text and explicit binary OIDs");
+  auto null = co_await db.query_prepared_s<std::tuple<std::optional<int>>>(
+      "SELECT $1::int", std::optional<int>{});
+  require(null.size() == 1 && !std::get<0>(null[0]), "prepared NULL parameter");
+  for (int n = 0; n < 2; ++n) {
+    auto rows = co_await db.query_prepared_s<std::tuple<int>>("SELECT 42");
+    require(rows.size() == 1 && std::get<0>(rows[0]) == 42,
+            "prepared query with no parameters");
+  }
+  auto bad =
+      co_await db.query_prepared_s<std::tuple<int>>("SELECT 10 / $1::int", 0);
+  require(bad.empty() && db.has_error(), "execution error reported");
+  auto recovered =
+      co_await db.query_prepared_s<std::tuple<int>>("SELECT 10 / $1::int", 2);
+  require(recovered.size() == 1 && std::get<0>(recovered[0]) == 5,
+          "drained execution error permits cached statement reuse");
+  const auto before = co_await scalar(db, count_sql);
+  for (int n = 0; n < 2; ++n) {
+    auto invalid = co_await db.query_prepared_s<std::tuple<int>>(
+        "SELECT * FROM ormpp_prepared_missing_table");
+    require(invalid.empty() && db.has_error(), "prepare failure reported");
+    require(co_await db.ping() && co_await scalar(db, count_sql) == before,
+            "failed preparation leaves no cache entry or unread response");
+  }
+  auto multiple =
+      co_await db.query_prepared_s<std::tuple<int>>("SELECT 1; SELECT 2");
+  require(multiple.empty() && db.has_error(),
+          "prepared queries reject multiple statements");
+  require(co_await db.ping(), "multi-statement prepare error drained");
+  require(co_await scalar<int>(db, "SELECT 1; SELECT 2") == 2,
+          "ordinary query path retains multi-statement behavior");
+  require(co_await db.disconnect(), "disconnect cached statements");
+  co_await connect(db);
+  require(co_await scalar(db, count_sql) == 0, "reconnect clears cache");
+  for (int n = 0; n < 130; ++n) {
+    auto rows = co_await db.query_prepared_s<std::tuple<int>>(
+        "SELECT " + std::to_string(n) + "::int");
+    require(rows.size() == 1 && std::get<0>(rows[0]) == n,
+            "bounded cache falls back for new statements");
+  }
+  require(co_await scalar(db, count_sql) == 128,
+          "server and client statement cache bounded to 128 entries");
+  require(co_await db.disconnect(), "bounded cache cleanup");
+
+  dbng<postgresql_async> wrapper(ex);
+  require(co_await wrapper.connect(config()), "prepared dbng connect");
+  auto rows =
+      co_await wrapper.query_prepared_s<std::tuple<int>>("SELECT $1::int", 7);
+  require(rows.size() == 1 && std::get<0>(rows[0]) == 7,
+          "dbng prepared query forwarding");
+  require(co_await wrapper.disconnect(), "prepared dbng cleanup");
+}
+
+asio::awaitable<void> prepared_cancellation() {
+  auto ex = co_await asio::this_coro::executor;
+  postgresql_async blocker(ex), observer(ex), target(ex);
+  co_await connect(blocker);
+  co_await connect(observer);
+  co_await connect(target);
+  int pid = co_await scalar<int>(target, "SELECT pg_backend_pid()");
+  require(co_await blocker.execute("SELECT pg_advisory_lock(8530244)"),
+          "prepared cancellation lock");
+  asio::experimental::channel<void(asio::error_code, bool)> done(ex, 1);
+  asio::cancellation_signal signal;
+  asio::co_spawn(ex,
+                 target.query_prepared_s<std::tuple<std::string>>(
+                     "SELECT pg_advisory_lock($1)::text", 8530244),
+                 asio::bind_cancellation_slot(
+                     signal.slot(), [&](std::exception_ptr error, auto rows) {
+                       done.try_send(asio::error_code{},
+                                     !error && rows.empty());
+                     }));
+  co_await wait_for_lock(observer, pid);
+  auto overlap = co_await target.query_prepared_s<std::tuple<int>>("SELECT 1");
+  require(overlap.empty() && target.get_last_error().find(
+                                 "already in progress") != std::string::npos,
+          "cached query still rejects overlapping operations");
+  signal.emit(asio::cancellation_type::terminal);
+  require(co_await done.async_receive(asio::use_awaitable) &&
+              !(co_await target.ping()),
+          "cancel prepared execution closes undrained connection");
+  require(co_await target.connect(config()), "prepared cancellation reconnect");
+  auto rows = co_await target.query_prepared_s<std::tuple<int>>("SELECT 9");
+  require(rows.size() == 1 && std::get<0>(rows[0]) == 9 &&
+              co_await scalar(target,
+                              "SELECT count(*) FROM pg_prepared_statements "
+                              "WHERE name LIKE 'ormpp_ps_%'") == 1,
+          "reconnect prepares on the new session");
+  require(co_await blocker.execute("SELECT pg_advisory_unlock(8530244)"),
+          "prepared cancellation unlock");
+  require(co_await target.disconnect() && co_await observer.disconnect() &&
+              co_await blocker.disconnect(),
+          "prepared cancellation cleanup");
 }
 
 void separate_contexts() {
@@ -560,6 +699,18 @@ TEST_CASE("postgresql async one context per thread") {
 TEST_CASE("postgresql async cancellation") {
   asio::io_context ctx;
   CHECK_NOTHROW(run(cancellation(), ctx));
+}
+TEST_CASE("postgresql async prepared statement cache") {
+  asio::io_context ctx;
+  CHECK_NOTHROW(run(prepared_cache(), ctx));
+}
+TEST_CASE("postgresql async prepared cancellation and overlap") {
+  asio::io_context ctx;
+  CHECK_NOTHROW(run(prepared_cancellation(), ctx));
+}
+TEST_CASE("postgresql async prepared handle lifetime") {
+  asio::io_context ctx;
+  CHECK_NOTHROW(run(ownership_and_overlap(true), ctx));
 }
 TEST_CASE("postgresql async pool") {
   asio::io_context ctx;

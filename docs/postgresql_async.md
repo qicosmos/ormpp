@@ -72,7 +72,20 @@ vector 重载返回最后一个插入 ID。批量写入默认在一次事务中�
 原始错误；`set_enable_transaction(false)` 可关闭自动批量事务。
 
 普通结果拥有自己的数据。`std::string_view` 指向连接保存的结果存储，只在该连接
-下一次 `query_s` 或销毁前有效；需要长期保存或并发消费时使用 `std::string`。
+下一次 `query_s` / `query_prepared_s` 或销毁前有效；需要长期保存或并发消费时使用
+`std::string`。
+
+`query_prepared_s<T>(sql, args...)` 显式启用按连接保存的 prepared statement 缓存，
+`dbng<postgresql_async>` 同样提供该接口。SQL 与参数类型 OID 共同构成缓存键；首次
+使用通过非阻塞 `PQsendPrepare` 准备，后续使用 `PQsendQueryPrepared` 绑定当次参数。
+它只接受单条可准备的 SQL，不缓存参数值或查询结果，结果类型与错误规则同 `query_s`。
+普通 `query_s`、查询构造器和 CRUD 的执行方式保持不变。
+
+每个连接最多缓存 128 条；达到上限后，新 SQL 使用普通单条参数化查询，已有条目
+继续复用。断开、取消导致关闭或重新连接时清空缓存，服务端条目随会话销毁。
+`ormpp_ps_` 前缀保留给驱动；不要在同一会话手工 `DEALLOCATE` 这些条目或执行
+`DISCARD ALL`，需要重置会话时重新连接。数据库负责计划失效后的重新规划；执行
+错误直接返回，不自动重试 SQL。
 
 ## 调度、取消和连接池
 
@@ -118,7 +131,14 @@ strand。`async_simple::coro::Lazy` 可通过现有的
 `ormpp::adapter::from_asio(operation, executor)` 桥接，约束见
 [协程适配器说明](async_simple_ormpp_coroutine.md)。
 
-暂不提供 COPY、pipeline、流式逐行结果或服务端 prepared statement 管理。
+连接池默认在每次借连接时异步执行 `ping()`。需要避免逐请求额外 SQL 往返时，
+可设置 `pool_options::ping_on_checkout = false`：支持 `is_open()` 的后端改用
+非阻塞检查，不支持该接口的后端仍执行原来的 ping。PostgreSQL 的 `is_open()`
+在空闲连接上检查 libpq 状态并读取已到达的断连/TLS 关闭通知，不发送 SQL；
+它同样必须在连接所属线程调用。业务查询期间的网络错误会关闭连接，后续借用
+会重新连接；SQL 级错误仍先排空协议结果再复用连接。
+
+暂不提供 COPY、pipeline、流式逐行结果或手工命名的 prepared statement 管理。
 COPY 请求会关闭连接并返回错误，避免残留协议数据影响后续查询。
 
 实现遵循 PostgreSQL 官方的[异步命令接口](https://www.postgresql.org/docs/current/libpq-async.html)
