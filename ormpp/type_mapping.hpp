@@ -211,6 +211,10 @@ inline int type_to_id(identity<std::string_view>) noexcept {
   return MYSQL_TYPE_VAR_STRING;
 }
 #endif  // ORMPP_ENABLE_MYSQL
+template <size_t N>
+inline auto type_to_name(identity<char[N]>) noexcept {
+  return type_to_name(identity<std::array<char, N>>{});
+}
 }  // namespace ormpp_mysql
 
 namespace ormpp_sqlite {
@@ -273,6 +277,10 @@ inline auto type_to_name(identity<std::array<char, N>>) noexcept {
   std::string s = "varchar(" + std::to_string(N) + ")";
   return s;
 }
+template <size_t N>
+inline auto type_to_name(identity<char[N]>) noexcept {
+  return type_to_name(identity<std::array<char, N>>{});
+}
 }  // namespace ormpp_sqlite
 
 namespace ormpp_postgresql {
@@ -334,6 +342,10 @@ template <size_t N>
 inline auto type_to_name(identity<std::array<char, N>>) noexcept {
   std::string s = "varchar(" + std::to_string(N) + ")";
   return s;
+}
+template <size_t N>
+inline auto type_to_name(identity<char[N]>) noexcept {
+  return type_to_name(identity<std::array<char, N>>{});
 }
 }  // namespace ormpp_postgresql
 

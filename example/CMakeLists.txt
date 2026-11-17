@@ -25,3 +25,8 @@ if(ENABLE_MYSQL_ASYNC)
 endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+if(ENABLE_PG_ASYNC)
+        add_executable(ormpp_pg_async_example postgresql_async.cpp)
+        target_link_libraries(ormpp_pg_async_example PRIVATE ${PGSQL_LIBRARY})
+endif()

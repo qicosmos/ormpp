@@ -1449,6 +1449,21 @@ int main() {
 
 注意：异步接口需要 C++20 协程支持，编译器要求 GCC 10+、Clang 13+ 或 MSVC 2019 16.8+。
 
+## 异步 PostgreSQL
+
+`postgresql_async` 基于 standalone Asio 和 libpq 的非阻塞接口，使用方式与
+`mysql_async` 一致，支持 `dbng<postgresql_async>`、查询构造器和异步连接池。
+手写参数化 SQL 使用 PostgreSQL 的 `$1`、`$2` 占位符。
+
+```bash
+cmake -B build -DENABLE_PG_ASYNC=ON
+cmake --build build --target ormpp_pg_async_example test_postgresql_async
+```
+
+需要 C++20、Asio 和 libpq。连接、CRUD、批量事务、`RETURNING`、TLS 和取消的
+完整说明见 [异步 PostgreSQL](docs/postgresql_async.md)，可运行示例见
+[example/postgresql_async.cpp](example/postgresql_async.cpp)。
+
 ## 线程安全
 
 ### 问题背景
