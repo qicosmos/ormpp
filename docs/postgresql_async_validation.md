@@ -2,7 +2,9 @@
 
 Local validation date: 2026-11-17. Base: `c5a63f5bb5ccae8740754d4c744815876ff7656f`.
 Tested C++ implementation: `5ed42b6a583af1804d7cca40708c054ceb295677`.
-Subsequent validation/workflow documentation commits do not change the C++ sources.
+The driver C++ sources remain unchanged in follow-ups. CI also required adding
+`<coroutine>` to the shared traits header for GCC 15; this include-only change
+was rebuilt and rechecked under ASan and TSan.
 GitHub Actions results are separate from the local results below; see the PR checks
 for the latest published commit.
 
@@ -146,3 +148,17 @@ PGPORT=55432 PGSSLMODE=disable TSAN_OPTIONS=halt_on_error=1 \
 
 The PostgreSQL async TSan executable has no exclusions. ASan and the other
 configurations continue to run the synchronous suite without this exclusion.
+
+## First published CI and corrections
+
+At head `47ddbc8`, GitHub's Ubuntu 26.04 / GCC 15.2 runner diagnosed the missing
+`<coroutine>` include in shared async traits while parsing the query-builder
+coroutine, including synchronous configurations. The failure is recorded in
+[job 133714325856](https://github.com/qicosmos/ormpp/actions/runs/43986043833/job/133714325856).
+The shared header now includes its required standard dependency directly.
+
+The initial TSan workflow also exposed YAML plain-scalar parsing of the ` #238`
+text in its test filter. The step now uses a block scalar; every parsed `run`
+script was checked with `bash -n`. Neither failure is a sanitizer report from
+the PostgreSQL backend. Replacement CI checks on the updated head are tracked
+on the PR.

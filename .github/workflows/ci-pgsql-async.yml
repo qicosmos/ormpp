@@ -97,7 +97,8 @@ jobs:
           PGSSLMODE: disable
         # The unchanged issue #238 test races in sqlite::reset_error() on the
         # base revision too. See docs/postgresql_async_validation.md.
-        run: ./test_ormpp '--test-case-exclude=issue #238: multi-thread concurrent first query'
+        run: |
+          ./test_ormpp '--test-case-exclude=issue #238: multi-thread concurrent first query'
       - name: Test TLS
         env:
           PGSSLMODE: require
