@@ -285,6 +285,11 @@ The automatically upgraded Ubuntu 26.04 / GCC 15.2 runner had crashed the unchan
 legacy Release smoke test ([failure](https://github.com/qicosmos/ormpp/actions/runs/43987259770/job/133718508939)).
 This is a CI compatibility pin, not a claimed fix of that client's GCC 15 behavior.
 PostgreSQL CI remains on `ubuntu-latest`, including GCC 15 and separate ASan/TSan.
+The coverage workflow also pins Ubuntu 24.04: on head `799fee4`, its Ubuntu
+26.04.1 runner failed while starting MySQL in `ankane/setup-mysql`, before CMake
+or application tests ran ([setup failure](https://github.com/qicosmos/ormpp/actions/runs/44102694055/job/134106644109)).
+This environment adjustment does not change or suppress a C++ test. The
+replacement head's coverage and remaining CI results are checked separately.
 Before the single-thread correction, head `b6b484a` completed all 70 checks / 18
 push/PR workflows successfully; those results are historical, not results for the
 current correction.
