@@ -19,6 +19,10 @@ jobs:
         mysql-version: 8.0
         database: test_ormppdb
 
+    - name: Configure TCP test account
+      run: |
+        sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY '';"
+
     - name: Verify MySQL
       run : mysql -uroot -e'show databases;'
 

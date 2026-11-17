@@ -162,3 +162,11 @@ text in its test filter. The step now uses a block scalar; every parsed `run`
 script was checked with `bash -n`. Neither failure is a sanitizer report from
 the PostgreSQL backend. Replacement CI checks on the updated head are tracked
 on the PR.
+
+The coverage runner additionally failed before configuration with MySQL error
+1698: its setup action used `sudo mysql` and left root's Unix-socket
+authentication enabled, while verification/tests connected as an ordinary user.
+The coverage workflow now explicitly configures its temporary root test account
+with `caching_sha2_password` and an empty test password, matching the existing
+test configuration. This change affects only the CI database. The original
+failure is recorded in [job 133714325429](https://github.com/qicosmos/ormpp/actions/runs/43986043705/job/133714325429).
