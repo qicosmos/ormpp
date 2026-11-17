@@ -129,3 +129,6 @@ ORMPP_ASYNC_PG_PORT=5432 PGSSLMODE=disable \
 CI 分别运行 GCC/Clang 的 Debug/Release、Clang ASan 和 Clang TSan，并在每种配置下
 覆盖明文、TLS 和证书校验连接。并发测试通过观察 `pg_locks` 中未获准的 advisory lock
 确认查询已挂起，再执行关闭、销毁或取消，覆盖单线程与四线程共享 executor。
+
+本次本地配置、基线复现和明确的 TSan 旧测试排除项见
+[验证记录](postgresql_async_validation.md)。
