@@ -1,12 +1,127 @@
 # PostgreSQL async validation record
 
-Local validation date: 2026-11-17. Current implementation:
-`73cf0dc2e9adbfd7db6678ae03f903f9f222be91`. The correction starts from
-`b6b484ae50510dc17c799ccc1dbb1101b3415eaf`, whose published checks completed
-successfully before the execution model was narrowed to the user's requirement.
-Later validation documentation commits do not change the implementation.
+Local validation date: 2026-11-17. The prepared-query and connection-pool update
+was tested at `ee310b0e850e2b2d6ad455cf12058d3c78e6a344`, starting from published
+head `e9719dacebcfa1ab46c347bfd56b5aadc80a9dd8`. The earlier single-thread
+correction was tested at `73cf0dc2e9adbfd7db6678ae03f903f9f222be91`, starting from
+`b6b484ae50510dc17c799ccc1dbb1101b3415eaf`. Documentation-only commits do not
+change those tested implementations.
 GitHub Actions results for the latest published head are recorded on PR #288,
 separately from the local results below.
+
+## Prepared-query and pool update
+
+`query_prepared_s` is opt-in, including its `dbng` forwarding method. Each
+connection keeps at most 128 entries keyed by SQL and parameter OIDs. Preparation
+uses `PQsendPrepare`, subsequent execution uses `PQsendQueryPrepared`, and
+parameters remain owned across both exchanges. No parameter values or result
+rows are cached. New statements beyond the limit use an uncached parameterized
+exchange. Closing/reconnecting clears the cache; ordinary SQL errors are drained
+without retrying the statement. This adds no mutex, strand or executor migration
+to the PostgreSQL connection.
+
+The generic pool retains its existing strand. Failed reconnects now preserve
+fixed-pool capacity; returned connections notify existing waiters in order.
+Queued cancellation and close release those waiters. The new
+`pool_options::ping_on_checkout` defaults to the existing SQL ping; opting out
+uses a backend's local `is_open()` probe, falling back to ping when unsupported.
+The PostgreSQL probe consumes buffered FATAL/EOF/TLS shutdown notifications
+without sending SQL.
+
+Local validation of `ee310b0`:
+
+- GCC 13 and Clang 18 Debug/Release, separate Clang 18 ASan and TSan: **six
+  configurations x three transports = 18 passing runs**, all 9 PostgreSQL cases
+  enabled. Each run covers `disable`, `require` or `verify-full`, with actual
+  transport checked through `pg_stat_ssl`. The verified-TLS example also passes.
+- Prepared-query checks cover statement reuse with fresh values, text/binary OID
+  separation, NULLs, no-parameter queries, both preparation and execution errors,
+  the 128-entry bound, reconnection, large owned buffers, overlapping calls and
+  handle destruction/cancellation while a server-side advisory lock proves the
+  query is suspended. Independent contexts run on two barrier-synchronized
+  threads. PostgreSQL async tests have no exclusions.
+- All 5 pool regressions pass under independently built Clang 18 ASan and TSan,
+  with both 1 worker and 4 workers sharing one executor. A compile of the
+  affected regressions against the exact `e9719da` pool header fails: reconnects
+  lose both capacity slots, and a new checkout overtakes an existing waiter.
+  Backend gates, completion channels and an executor barrier establish the
+  interleavings; sleeps are not used to establish correctness.
+- The optional probe regression verifies that the default still calls ping,
+  opting out skips SQL and a disconnected slot is reconnected. Real database
+  consumers below also cover peer termination with buffered TLS close data.
+- The CI matrix now runs the shared-executor pool regressions with 4 workers in
+  every GCC/Clang and sanitizer configuration. New-head CI is recorded separately
+  from these completed local checks; a prior successful head is not evidence for
+  the update.
+
+The current local server is PostgreSQL 18.7 on port 55418; libpq is 16.15,
+standalone Asio is 1.36.0. The test account is the public Arena `bench` account in
+database `benchmark`. Exact commands and compiler/CMake flags are retained in
+`/tmp/ormpp-pg-async-validation/pr-prepared-update/{commands,configurations}.json`.
+For example:
+
+```sh
+cmake --build /tmp/ormpp-pg-async-validation/build-clang-asan \
+  --target test_postgresql_async -j1
+ORMPP_ASYNC_PG_HOST=localhost ORMPP_ASYNC_PG_PORT=55418 \
+  ORMPP_ASYNC_PG_USER=bench ORMPP_ASYNC_PG_PASSWORD=bench \
+  ORMPP_ASYNC_PG_DB=benchmark PGSSLMODE=verify-full \
+  PGSSLROOTCERT=/data/code/cinatra/build-httparena-review/postgresql-cases/pg-server.crt \
+  ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
+  /tmp/ormpp-pg-async-validation/build-clang-asan/tests/test_postgresql_async
+ORMPP_POOL_TEST_THREADS=4 TSAN_OPTIONS=halt_on_error=1 \
+  setarch x86_64 -R \
+  /tmp/ormpp-pg-async-validation/pr-prepared-update/pool-tsan
+```
+
+Use the separate `build-clang-tsan` executable with `setarch x86_64 -R` and
+`TSAN_OPTIONS=halt_on_error=1` for TSan; do not combine ASan and TSan. Repeat the
+database run with `PGSSLMODE=disable` and `require`. The unsanitized GCC/Clang
+Debug and Release directories are listed in `configurations.json`.
+
+One GCC 13 test assertion originally combined inspection of an error with
+`co_await ping()`, which clears diagnostics. An isolated reproducer produced
+different combined-expression results with GCC 13 and Clang 18. The final test
+observes the error first, then awaits and checks ping separately; all final
+compiler and sanitizer runs pass. This test change does not modify the driver.
+
+### Local HttpArena consumer
+
+A local cinatra consumer, based on `389776e05c7a25f9fbbc367ab607cd7cf6b0ae5e`
+plus its local PostgreSQL cases, exercises this exact ormpp implementation.
+Those cinatra changes are outside this PR. Separate Clang 17 ASan and TSan
+consumer builds pass six checks: plain database transport and verified TLS,
+including both HTTP TLS response-buffer modes. Checks include concurrent cold
+initialization, fresh database edits, peer termination/reconnect, connection
+budgets and shutdown while an observed database lock holds a query suspended.
+
+The prepared-cache A/B uses the same GCC 14.2 Release/O3/LTO/x86-64-v3 binary,
+switching only `CINATRA_PG_PREPARED=0/1`. The SQL ping stays off in both variants.
+Server CPUs 0,1 run two HTTP workers, each with its own single-thread context;
+two generator threads share CPU 2, and PostgreSQL uses CPU 3. Both cases use
+1024 HTTP connections, a total 256-connection database pool, pipeline 1, three
+10-second samples with 3-second warmups, and alternating implementation order.
+`async-db` rotates limits 5/10/20/35/50 with min=10, max=50 and 25 requests per
+connection. The dataset has 100000 items without a price index and 200 fortunes.
+
+| Case | Cache off RPS (three runs) | Cache on RPS (three runs) | On/off median gain | Dusty RPS (three runs) |
+| --- | --- | --- | --- | --- |
+| async-db | 6955.43 / 6799.24 / 6797.44 | 8101.10 / 7975.97 / 8050.33 | 18.4% | 7922.31 / 8025.59 / 7710.70 |
+| fortunes | 9371.22 / 9176.96 / 9565.13 | 10437.16 / 10628.15 / 10572.34 | 12.8% | 10984.04 / 10757.73 / 10911.97 |
+
+All 18 samples have only 2xx responses and no generator connect/read/timeout
+errors. Response body hashes and complete HTTP lengths match across all three
+variants for the five limits and fortunes. The corrected generator binary SHA256
+is `0687ed2a08a0c916eb8fbdc6b8e03e153869bdd75a9afe354ce2db29b91a3849`.
+Manifest, image IDs, commands, raw results and byte audits are retained under
+`/data/code/cinatra/build-httparena-review/postgresql-cases/prepared-cache-20261117-215659`.
+
+These are local four-logical-CPU results with PostgreSQL near one CPU of usage,
+not an official Arena score or a 64-logical-CPU scalability result. Full local
+synchronous/MySQL/platform suites were not rerun for this update; their latest
+CI results must be checked after publishing. The known synchronous SQLite TSan
+exclusion below remains separate from PostgreSQL and pool sanitizer results.
+The user-owned `tests/benchmark_adapter.cpp` is excluded from the PR.
 
 ## Supported execution model
 
@@ -22,8 +137,8 @@ Owned parameters and retained connection state still survive suspension and
 public-handle destruction on the owning thread. Socket readiness wrappers release
 the borrowed descriptor before libpq calls/close. Resolver completions, libpq,
 result mapping and cleanup stay on the owning context; no executor migration is
-performed by the backend. The generic pool's existing strand implementation is
-unchanged, as is `mysql_async` itself.
+performed by the backend. The generic pool retains its existing strand while
+adding the recovery/waiter changes above. `mysql_async` itself is unchanged.
 
 ## Deterministic before/after regression
 
@@ -51,7 +166,7 @@ Before/after artifacts are retained under
 `pre-fix-regression.log`, `build-pre-fix.log`, configuration/build/test logs and
 `matrix.json`.
 
-## Current local results
+## Earlier local results for the single-thread correction
 
 All six configurations below passed with each of the three transports, for
 18 successful PostgreSQL async runs. Each run passed all 6 cases without
