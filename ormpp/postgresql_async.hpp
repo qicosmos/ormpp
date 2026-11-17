@@ -7,14 +7,11 @@
 #include <algorithm>
 #include <asio.hpp>
 #include <asio/experimental/awaitable_operators.hpp>
-#include <asio/experimental/channel.hpp>
-#include <atomic>
 #include <charconv>
 #include <cstring>
 #include <deque>
 #include <limits>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <set>
 #include <stdexcept>
@@ -272,16 +269,10 @@ class postgresql_async {
   using awaitable = asio::awaitable<T, executor_type>;
   static constexpr DBType db_type_v = DBType::postgresql;
 
-  explicit postgresql_async(executor_type executor) {
-    executor_type strand = asio::make_strand(std::move(executor));
-    state_ = std::shared_ptr<state>(new state(strand), [strand](state* ptr) {
-      // The last owner may be a caller on a different executor. Schedule libpq
-      // cleanup on the connection's executor; operations retain their own
-      // owner.
-      asio::dispatch(strand, [owner = std::unique_ptr<state>(ptr)] {
-      });
-    });
-  }
+  // One io_context worker per thread. Construct, use and destroy the connection
+  // on that worker; callers keep explicit transactions on an exclusive lease.
+  explicit postgresql_async(executor_type executor)
+      : state_(std::make_shared<state>(std::move(executor))) {}
   explicit postgresql_async(asio::io_context& ctx)
       : postgresql_async(ctx.get_executor()) {}
   postgresql_async(const postgresql_async&) = delete;
@@ -291,19 +282,13 @@ class postgresql_async {
 
   executor_type get_executor() const { return state_->executor; }
 
-  bool has_error() const {
-    std::lock_guard lock(state_->error_mutex);
-    return !state_->error.empty();
-  }
+  bool has_error() const { return !state_->error.empty(); }
   void reset_error() { state_->set_error({}); }
   void set_last_error(std::string error) {
     state_->set_error(std::move(error));
   }
-  std::string get_last_error() const {
-    std::lock_guard lock(state_->error_mutex);
-    return state_->error;
-  }
-  int get_last_affect_rows() const { return state_->affected.load(); }
+  std::string get_last_error() const { return state_->error; }
+  int get_last_affect_rows() const { return state_->affected; }
   void set_enable_transaction(bool enable) { state_->transaction = enable; }
 
   awaitable<bool> connect(
@@ -416,7 +401,7 @@ class postgresql_async {
          params = detail::postgresql_async::make_parameters(args...)](
             state& s) -> awaitable<std::uint64_t> {
           co_await s.command(sql, params);
-          co_return s.affected.load();
+          co_return s.affected;
         },
         std::uint64_t{0});
   }
@@ -514,22 +499,15 @@ class postgresql_async {
 
   struct state {
     executor_type executor;
-    asio::experimental::channel<executor_type, void(asio::error_code, int)>
-        gate;
     std::unique_ptr<PGconn, decltype(&PQfinish)> connection{nullptr, &PQfinish};
     std::deque<std::string> string_storage;
-    std::mutex error_mutex;
     std::string error;
-    std::atomic<int> affected{0};
-    std::atomic<bool> transaction{true};
+    int affected = 0;
+    bool transaction = true;
+    bool in_progress = false;
 
-    explicit state(executor_type ex) : executor(ex), gate(ex, 1) {
-      gate.try_send(asio::error_code{}, 0);
-    }
-    void set_error(std::string message) {
-      std::lock_guard lock(error_mutex);
-      error = std::move(message);
-    }
+    explicit state(executor_type ex) : executor(std::move(ex)) {}
+    void set_error(std::string message) { error = std::move(message); }
     void close() { connection.reset(); }
     std::runtime_error connection_error() const {
       return std::runtime_error(connection ? PQerrorMessage(connection.get())
@@ -735,10 +713,17 @@ class postgresql_async {
 
   template <typename F, typename R>
   static awaitable<R> invoke(std::shared_ptr<state> s, F operation, R failure) {
-    co_await s->gate.async_receive(asio::use_awaitable);
-    struct unlock {
+    // A single worker prevents data races, but separate coroutines can still
+    // overlap while I/O is suspended. Reject that misuse without queueing,
+    // locking, executor migration or touching the active exchange's socket.
+    if (s->in_progress) {
+      s->set_error("postgresql_async: operation already in progress");
+      co_return failure;
+    }
+    s->in_progress = true;
+    struct finish_operation {
       state& s;
-      ~unlock() { s.gate.try_send(asio::error_code{}, 0); }
+      ~finish_operation() { s.in_progress = false; }
     } guard{*s};
     s->set_error({});
     s->affected = 0;
@@ -753,10 +738,7 @@ class postgresql_async {
 
   template <typename F, typename R>
   awaitable<R> launch(F operation, R failure) {
-    return asio::co_spawn(
-        state_->executor,
-        invoke(state_, std::move(operation), std::move(failure)),
-        asio::use_awaitable);
+    return invoke(state_, std::move(operation), std::move(failure));
   }
 
   template <typename T, auto... Members, typename... Args>
@@ -836,7 +818,7 @@ class postgresql_async {
           try {
             for (const auto& params : batches) {
               auto result = co_await s.command(sql, params);
-              affected += s.affected.load();
+              affected += s.affected;
               if (returning && result && PQntuples(result.get()) > 0) {
                 int col = 0;
                 detail::postgresql_async::map_columns(id, result.get(), 0, col,

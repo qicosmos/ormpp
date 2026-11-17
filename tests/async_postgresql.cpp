@@ -1,8 +1,8 @@
 #ifdef ORMPP_ENABLE_PG_ASYNC
 
 #include <asio.hpp>
-#include <asio/experimental/concurrent_channel.hpp>
-#include <atomic>
+#include <asio/experimental/channel.hpp>
+#include <barrier>
 #include <cstdlib>
 #include <future>
 #include <limits>
@@ -99,17 +99,9 @@ asio::awaitable<T> scalar(postgresql_async& db, std::string sql) {
   co_return std::get<0>(rows.front());
 }
 
-void run(asio::awaitable<void> operation, asio::io_context& ctx,
-         int threads = 1) {
-  auto future = asio::co_spawn(asio::make_strand(ctx), std::move(operation),
-                               asio::use_future);
-  std::vector<std::thread> workers;
-  for (int n = 1; n < threads; ++n)
-    workers.emplace_back([&] {
-      ctx.run();
-    });
+void run(asio::awaitable<void> operation, asio::io_context& ctx) {
+  auto future = asio::co_spawn(ctx, std::move(operation), asio::use_future);
   ctx.run();
-  for (auto& worker : workers) worker.join();
   future.get();
 }
 
@@ -352,43 +344,57 @@ asio::awaitable<void> wait_for_lock(postgresql_async& observer, int pid) {
   throw std::runtime_error("target did not reach advisory lock wait");
 }
 
-asio::awaitable<void> concurrency(asio::any_io_executor io_executor) {
+asio::awaitable<void> ownership_and_overlap() {
   auto ex = co_await asio::this_coro::executor;
-  postgresql_async blocker(io_executor), observer(io_executor);
+  postgresql_async blocker(ex), observer(ex);
   co_await connect(blocker);
   co_await connect(observer);
-  using completion_queue =
-      asio::experimental::concurrent_channel<void(asio::error_code, int)>;
-  completion_queue done(ex, 8);
-  std::atomic<int> sequence{0};
-  auto completion = [&](int expected) {
-    return [&, expected](std::exception_ptr error, bool result) {
-      bool valid = !error && result && ++sequence == expected;
-      done.try_send(asio::error_code{}, valid ? expected : -expected);
-    };
-  };
-  auto target = std::make_unique<postgresql_async>(io_executor);
+  asio::experimental::channel<void(asio::error_code, int)> done(ex, 4);
+  auto target = std::make_unique<postgresql_async>(ex);
   co_await connect(*target);
   const int pid = co_await scalar<int>(*target, "SELECT pg_backend_pid()");
   require(co_await blocker.execute("SELECT pg_advisory_lock(8530242)"),
           "take lock");
   asio::co_spawn(ex, target->execute("SELECT pg_advisory_lock(8530242)"),
-                 completion(1));
+                 [&](std::exception_ptr error, bool ok) {
+                   done.try_send(asio::error_code{}, !error && ok ? 1 : -1);
+                 });
   co_await wait_for_lock(observer, pid);
-  // Queue disconnect while a query owns the socket, then drop the public
-  // handle. Both lazy operations must retain state and close only after the
-  // query drains.
-  asio::co_spawn(ex, target->disconnect(), completion(2));
+
+  bool ping_finished = false, close_finished = false;
+  bool ping_rejected = false, close_rejected = false;
+  asio::co_spawn(ex, target->ping(), [&](std::exception_ptr error, bool ok) {
+    ping_finished = true;
+    ping_rejected = !error && !ok;
+    done.try_send(asio::error_code{}, ping_rejected ? -2 : 2);
+  });
+  asio::co_spawn(ex, target->disconnect(),
+                 [&](std::exception_ptr error, bool ok) {
+                   close_finished = true;
+                   close_rejected = !error && !ok;
+                   done.try_send(asio::error_code{}, close_rejected ? -3 : 3);
+                 });
+  // Both co_spawn completions are posted before this handler on the same
+  // single-worker executor. Rejected operations must finish before unlock;
+  // an operation queue would leave them pending. No elapsed-time assumption.
+  co_await asio::post(ex, asio::use_awaitable);
+  const bool rejected_before_unlock =
+      ping_finished && close_finished && ping_rejected && close_rejected &&
+      target->get_last_error().find("already in progress") != std::string::npos;
+
+  // The active query owns its state after the public handle is destroyed.
+  // It may close its connection only after releasing the borrowed socket.
   target.reset();
   require(co_await blocker.execute("SELECT pg_advisory_unlock(8530242)"),
           "release lock");
   auto first = co_await done.async_receive(asio::use_awaitable);
   auto second = co_await done.async_receive(asio::use_awaitable);
-  require(first == 1 && second == 2,
-          "serialized disconnect and handle lifetime");
-  // Reuse the descriptor after destruction and execute a large parameter while
-  // temporary inputs are already gone before the first suspension.
-  postgresql_async owner(io_executor);
+  auto third = co_await done.async_receive(asio::use_awaitable);
+  require(rejected_before_unlock && first == -2 && second == -3 && third == 1,
+          "overlapping operations must fail immediately without queueing or "
+          "closing active I/O");
+
+  postgresql_async owner(ex);
   co_await connect(owner);
   auto owned = owner.query_s<std::tuple<std::string>>(
       "SELECT $1::text", std::string(2 * 1024 * 1024, 'z'));
@@ -401,18 +407,58 @@ asio::awaitable<void> concurrency(asio::any_io_executor io_executor) {
           "helper disconnect");
 }
 
-asio::awaitable<void> cancellation(asio::any_io_executor io_executor) {
+asio::awaitable<void> connection_per_thread(int& pid) {
   auto ex = co_await asio::this_coro::executor;
-  postgresql_async blocker(io_executor), observer(io_executor),
-      target(io_executor);
+  postgresql_async db(ex);
+  co_await connect(db);
+  pid = co_await scalar<int>(db, "SELECT pg_backend_pid()");
+  for (int n = 0; n < 8; ++n) {
+    auto value = std::to_string(pid) + ":" + std::to_string(n);
+    auto rows = co_await db.query_s<std::tuple<std::string>>(
+        "SELECT repeat($1::text, 100)", value);
+    std::string expected;
+    for (int i = 0; i < 100; ++i) expected += value;
+    require(rows.size() == 1 && std::get<0>(rows[0]) == expected,
+            "per-thread executor result ownership");
+  }
+  require(co_await db.disconnect(), "per-thread disconnect");
+}
+
+void separate_contexts() {
+  std::barrier start(2);
+  std::array<int, 2> pids{};
+  std::array<std::exception_ptr, 2> errors{};
+  std::vector<std::thread> threads;
+  for (int n = 0; n < 2; ++n) {
+    threads.emplace_back([&, n] {
+      asio::io_context ctx;
+      start.arrive_and_wait();
+      try {
+        run(connection_per_thread(pids[n]), ctx);
+      } catch (...) {
+        errors[n] = std::current_exception();
+      }
+    });
+  }
+  for (auto& thread : threads) thread.join();
+  for (const auto& error : errors) {
+    if (error)
+      std::rethrow_exception(error);
+  }
+  require(pids[0] != 0 && pids[0] != pids[1],
+          "independent connections per context/thread");
+}
+
+asio::awaitable<void> cancellation() {
+  auto ex = co_await asio::this_coro::executor;
+  postgresql_async blocker(ex), observer(ex), target(ex);
   co_await connect(blocker);
   co_await connect(observer);
   co_await connect(target);
   int pid = co_await scalar<int>(target, "SELECT pg_backend_pid()");
   require(co_await blocker.execute("SELECT pg_advisory_lock(8530243)"),
           "cancel blocker lock");
-  asio::experimental::concurrent_channel<void(asio::error_code, bool)> done(ex,
-                                                                            1);
+  asio::experimental::channel<void(asio::error_code, bool)> done(ex, 1);
   asio::cancellation_signal signal;
   asio::co_spawn(ex, target.execute("SELECT pg_advisory_lock(8530243)"),
                  asio::bind_cancellation_slot(
@@ -420,13 +466,7 @@ asio::awaitable<void> cancellation(asio::any_io_executor io_executor) {
                        done.try_send(asio::error_code{}, !error && !ok);
                      }));
   co_await wait_for_lock(observer, pid);
-  co_await asio::co_spawn(
-      target.get_executor(),
-      [&]() -> asio::awaitable<void> {
-        signal.emit(asio::cancellation_type::terminal);
-        co_return;
-      },
-      asio::use_awaitable);
+  signal.emit(asio::cancellation_type::terminal);
   require(co_await done.async_receive(asio::use_awaitable),
           "cancelled query failure");
   require(!(co_await target.ping()), "cancel closes undrained socket");
@@ -486,8 +526,7 @@ asio::awaitable<void> connect_failures() {
                                            acceptor.local_endpoint().port()),
                                 asio::use_awaitable);
   // Start connect before awaiting accept, using a completion queue.
-  asio::experimental::concurrent_channel<void(asio::error_code, bool)> done(ex,
-                                                                            1);
+  asio::experimental::channel<void(asio::error_code, bool)> done(ex, 1);
   asio::co_spawn(ex, std::move(attempt),
                  [&](std::exception_ptr error, bool ok) {
                    done.try_send(asio::error_code{}, !error && !ok);
@@ -511,19 +550,16 @@ TEST_CASE("postgresql async CRUD and builders") {
   asio::io_context ctx;
   CHECK_NOTHROW(run(crud(), ctx));
 }
-TEST_CASE("postgresql async shared executor and lifetime") {
-  for (int threads : {1, 4}) {
-    INFO("io_context workers: " << threads);
-    asio::io_context ctx;
-    CHECK_NOTHROW(run(concurrency(ctx.get_executor()), ctx, threads));
-  }
+TEST_CASE("postgresql async single-thread ownership and overlap") {
+  asio::io_context ctx;
+  CHECK_NOTHROW(run(ownership_and_overlap(), ctx));
+}
+TEST_CASE("postgresql async one context per thread") {
+  CHECK_NOTHROW(separate_contexts());
 }
 TEST_CASE("postgresql async cancellation") {
-  for (int threads : {1, 4}) {
-    INFO("io_context workers: " << threads);
-    asio::io_context ctx;
-    CHECK_NOTHROW(run(cancellation(ctx.get_executor()), ctx, threads));
-  }
+  asio::io_context ctx;
+  CHECK_NOTHROW(run(cancellation(), ctx));
 }
 TEST_CASE("postgresql async pool") {
   asio::io_context ctx;

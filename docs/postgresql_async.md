@@ -65,7 +65,7 @@ PostgreSQL 转为小写；避免使用保留字）。值通过 `PQsendQueryParam
 `insert`、`replace`、`update` 返回受影响行数，失败返回 `std::numeric_limits<int>::min()`。
 `delete_records_s` 返回删除行数，失败返回 0；`execute`、连接和事务接口返回 bool；
 `query_s` 失败返回空 vector。用 `has_error()` 和 `get_last_error()` 区分错误与空结果。
-每次操作开始时清空上一条错误。
+每次接受新操作时清空上一条错误。
 
 `get_insert_id_after_insert` 通过注册自增字段的 `RETURNING` 获取 ID，失败返回 0。
 vector 重载返回最后一个插入 ID。批量写入默认在一次事务中完成，失败时回滚并保留
@@ -76,18 +76,25 @@ vector 重载返回最后一个插入 ID。批量写入默认在一次事务中�
 
 ## 调度、取消和连接池
 
-每个连接都有独立的 Asio strand，并将整个操作（包括批量事务）串行执行。
-同一连接的操作可以从共享 `io_context` 的多个线程提交。参数在返回 awaitable 前
-复制；已创建的操作持有连接状态，操作执行期间销毁公开的连接对象不会关闭正在使用
-的 socket。executor 和 `io_context` 必须活到操作及清理完成；推荐显式等待 `disconnect()`。
+采用一个 `io_context` 对应一个运行线程的模型。连接的构造、调用、取消、诊断读取和
+销毁均在所属线程上进行；不同线程使用各自的 `io_context` 和连接。客户端不创建
+mutex、strand、操作队列或每次调用的 `co_spawn`，协程直接在调用方 executor 上运行。
 
-`disconnect()` 等待前面的操作结束。需要中止正在等待的 I/O 时，使用 Asio 的取消
-机制；取消会关闭当前连接，下一次查询前需重新 `connect()`。取消信号应在
-`get_executor()` 返回的连接 strand 上发出。等待串行队列时取消不会中止前面的操作。
-SQL 错误会先读完协议结果，因此普通 SQL 错误后可以继续使用连接。
+单线程的协程仍会在 `co_await` 处交替执行。同一个连接只允许一个未完成操作：普通
+`bool` 状态检查会立即拒绝重叠调用，按对应接口返回失败值，并记录
+`operation already in progress`，不会等待或改动正在使用的 socket。需要并行查询时，
+为各个协程分别获取连接池租约。
 
-显式 `begin()` / `commit()` 之间需要由调用方独占连接；逐个操作的串行化不提供
-跨调用的事务隔离。可以用池租约持有整个事务：
+直接数据库调用在返回 awaitable 前复制输入；操作持有连接状态。所属线程上销毁
+公开的连接对象时，已创建的操作仍保留所需状态和缓冲区。executor 和 `io_context`
+必须活到操作及清理完成；推荐在空闲时显式等待 `disconnect()`。
+
+`disconnect()` 在连接有未完成操作时返回失败。需要中止正在等待的 I/O 时，使用
+Asio 取消机制；取消会关闭当前连接，下一次查询前需重新 `connect()`。取消信号在
+连接所属线程上发出。SQL 错误会先读完协议结果，普通 SQL 错误后可以继续使用连接。
+
+显式 `begin()` / `commit()` 之间由调用方独占连接；同一线程上的其他协程也应使用
+不同连接。可以用池租约持有整个事务：
 
 ```cpp
 auto executor = co_await asio::this_coro::executor;
@@ -105,8 +112,9 @@ if (co_await pool->init(4, "127.0.0.1", "root", "123456", "test_ormppdb", 5, 543
 }
 ```
 
-沿用现有池的使用方式：在同一串行 executor 上管理池和租约；每个数据库连接内部
-仍使用自己的 strand。`async_simple::coro::Lazy` 可通过现有的
+沿用现有池的使用方式：在同一单线程 `io_context` 上管理池和租约。通用
+`async_connection_pool` 自身已有的 strand 实现保持不变，PostgreSQL 客户端不会额外创建
+strand。`async_simple::coro::Lazy` 可通过现有的
 `ormpp::adapter::from_asio(operation, executor)` 桥接，约束见
 [协程适配器说明](async_simple_ormpp_coroutine.md)。
 
@@ -128,7 +136,8 @@ ORMPP_ASYNC_PG_PORT=5432 PGSSLMODE=disable \
 测试需要可连接且允许创建测试表的数据库；连接失败会令测试失败。
 CI 分别运行 GCC/Clang 的 Debug/Release、Clang ASan 和 Clang TSan，并在每种配置下
 覆盖明文、TLS 和证书校验连接。并发测试通过观察 `pg_locks` 中未获准的 advisory lock
-确认查询已挂起，再执行关闭、销毁或取消，覆盖单线程与四线程共享 executor。
+确认查询已挂起，再检查重叠操作被立即拒绝、对象销毁和取消。另用 barrier 同步
+两个线程，每个线程运行自己的单线程 `io_context` 和独立连接。
 
 本次本地配置、基线复现和明确的 TSan 旧测试排除项见
 [验证记录](postgresql_async_validation.md)。
