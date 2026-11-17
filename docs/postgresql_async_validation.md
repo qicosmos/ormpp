@@ -1,27 +1,70 @@
 # PostgreSQL async validation record
 
-Local validation date: 2026-11-17. Base: `c5a63f5bb5ccae8740754d4c744815876ff7656f`.
-Tested C++ implementation: `5ed42b6a583af1804d7cca40708c054ceb295677`.
-The driver C++ sources remain unchanged in follow-ups. CI also required adding
-`<coroutine>` to the shared traits header for GCC 15; this include-only change
-was rebuilt and rechecked under ASan and TSan.
-GitHub Actions results are separate from the local results below; see the PR checks
-for the latest published commit.
+Local validation date: 2026-11-17. Current implementation:
+`73cf0dc2e9adbfd7db6678ae03f903f9f222be91`. The correction starts from
+`b6b484ae50510dc17c799ccc1dbb1101b3415eaf`, whose published checks completed
+successfully before the execution model was narrowed to the user's requirement.
+Later validation documentation commits do not change the implementation.
+GitHub Actions results for the latest published head are recorded on PR #288,
+separately from the local results below.
 
-## Environment and configurations
+## Supported execution model
 
-Ubuntu 24.04, GCC 13.3, Clang 18.1.3, standalone Asio 1.36.0,
-libpq/PostgreSQL 16.15. A dedicated PostgreSQL server listened on
-`127.0.0.1:55432`; TLS used a local CA certificate valid for `localhost` and
-`127.0.0.1`. Authentication over TCP used a password.
+One `io_context` is run by one thread. Connections, diagnostics and cancellation
+stay on that owning thread. Different threads use independent contexts and
+connections. Multiple connections can share the same single-worker context.
+The backend has no connection mutex, atomic state fields, strand, operation
+channel or per-operation `co_spawn`. Awaitables execute directly on the caller's
+executor. Ordinary `bool` state rejects overlapping operations on one connection
+without queueing; explicit transactions require an exclusive connection lease.
 
-Every row below built and ran the complete `test_postgresql_async` executable
-(5 cases, including separate 1-worker and 4-worker runs). Each configuration
-passed independently with `PGSSLMODE=disable`, `require`, and `verify-full`, for
-18 successful configuration/transport combinations. The tests also inspect
-`pg_stat_ssl` to check the actual transport.
+Owned parameters and retained connection state still survive suspension and
+public-handle destruction on the owning thread. Socket readiness wrappers release
+the borrowed descriptor before libpq calls/close. Resolver completions, libpq,
+result mapping and cleanup stay on the owning context; no executor migration is
+performed by the backend. The generic pool's existing strand implementation is
+unchanged, as is `mysql_async` itself.
 
-| Build directory suffix | Compiler / build | Sanitizer | Synchronous PG enabled |
+## Deterministic before/after regression
+
+The new `postgresql async single-thread ownership and overlap` test was compiled
+against an archive of pre-correction `b6b484a`. It **failed** because the old
+operation channel queued a second ping/disconnect instead of rejecting them.
+The same test passes on `73cf0dc`.
+
+The test uses a blocker connection holding an advisory lock. An observer queries
+`pg_locks` until it sees the target PID waiting on an ungranted lock, proving the
+target query has suspended. It then submits overlapping ping/disconnect calls.
+A FIFO executor post observes their completions before the blocker is released;
+no sleeps or elapsed-time assumptions establish that ordering. The public target
+handle is destroyed while its original query is still pending. Finally the lock
+is released and all operations are joined before assertions are reported.
+
+Separate cancellation/reconnect and large-temporary-buffer tests remain in the
+suite. Another test synchronizes two threads with `std::barrier`; each thread
+creates and runs its own context and database connection. The previous test that
+ran one context with four worker threads is intentionally replaced: that model
+is outside the supported contract. PostgreSQL async tests have no exclusions.
+
+Before/after artifacts are retained under
+`/tmp/ormpp-pg-async-validation/single-thread` (a directory on the data disk):
+`pre-fix-regression.log`, `build-pre-fix.log`, configuration/build/test logs and
+`matrix.json`.
+
+## Current local results
+
+All six configurations below passed with each of the three transports, for
+18 successful PostgreSQL async runs. Each run passed all 6 cases without
+exclusions. The example also built and ran successfully with verified TLS.
+ASan and TSan results are separate, including both single-worker coroutine
+interleaving and simultaneous independent contexts on different threads.
+
+Environment: Ubuntu 24.04, GCC 13.3, Clang 18.1.3, standalone Asio 1.36.0,
+libpq/PostgreSQL 16.15. A dedicated server listens on `127.0.0.1:55432`, with
+password authentication and a local TLS certificate valid for `localhost` and
+`127.0.0.1`.
+
+| Build suffix | Compiler / build | Sanitizer | Synchronous PG enabled |
 | --- | --- | --- | --- |
 | gcc-release | GCC / Release | off | no |
 | gcc-debug | GCC / Debug | off | no |
@@ -30,35 +73,12 @@ passed independently with `PGSSLMODE=disable`, `require`, and `verify-full`, for
 | clang-asan | Clang / Debug | AddressSanitizer | yes |
 | clang-tsan | Clang / Debug | ThreadSanitizer | yes |
 
-ASan and TSan were configured and run separately. TSan executed the instrumented
-binary successfully; the ASan results are not used as evidence of race freedom.
+Each matrix entry runs the full PostgreSQL async target with `disable`, `require`
+and `verify-full`. Tests inspect `pg_stat_ssl` to check the actual transport.
+The ASan and TSan executables are built separately; an ASan pass is not used as
+evidence of race freedom.
 
-Additional local results:
-
-- Existing SQLite suite, GCC Release: 63 cases / 482 assertions passed.
-- Existing SQLite + synchronous PostgreSQL suite, Clang ASan: 64 cases /
-  799 assertions passed, with no exclusions.
-- Existing SQLite + synchronous PostgreSQL suite, Clang TSan: the initial
-  **unfiltered run failed** in the unchanged SQLite diagnostic state. After
-  excluding exactly the test described below, 63 cases / 796 assertions passed,
-  with 1 case excluded. This is not a full-suite TSan pass.
-- The new example built and ran successfully with `verify-full`.
-- Both async backend headers compiled together with both feature macros defined.
-- `git-clang-format-18 --diff HEAD` and `git diff --check` passed before publication.
-
-Local integration runs did not enable MySQL, MariaDB, SQLCipher, Windows or macOS.
-The new PostgreSQL workflow runs on Linux. Existing platform/backend workflows
-remain enabled. Existing synchronous tests were not built in every local matrix
-entry; the explicit results above identify the configurations actually checked.
-
-## Commands
-
-Artifacts and exact command/result JSON are retained locally in
-`/tmp/ormpp-pg-async-validation`, including `final-matrix.json`, build/configure
-logs, and `final-test-<configuration>-<sslmode>.log`.
-
-All configurations used the following common arguments (replace the suffix and
-compiler/sanitizer flags according to the table):
+Example commands (substitute the compiler/build/sanitizer flags from the table):
 
 ```sh
 cmake -S /data/code/ormpp -B /tmp/ormpp-pg-async-validation/build-clang-asan \
@@ -67,7 +87,7 @@ cmake -S /data/code/ormpp -B /tmp/ormpp-pg-async-validation/build-clang-asan \
   -DORMPP_ASIO_INCLUDE_DIR=/data/code/cinatra/include -DBUILD_EXAMPLES=OFF \
   -DENABLE_SANITIZER=ON -DENABLE_THREAD_SANITIZER=OFF
 cmake --build /tmp/ormpp-pg-async-validation/build-clang-asan \
-  --target test_postgresql_async test_ormpp -j2
+  --target test_postgresql_async -j2
 ORMPP_ASYNC_PG_HOST=localhost ORMPP_ASYNC_PG_PORT=55432 PGPORT=55432 \
   PGSSLMODE=verify-full PGSSLROOTCERT=/tmp/ormpp-pg-async-data/server.crt \
   ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 TSAN_OPTIONS=halt_on_error=1 \
@@ -76,53 +96,33 @@ ORMPP_ASYNC_PG_HOST=localhost ORMPP_ASYNC_PG_PORT=55432 PGPORT=55432 \
 ```
 
 For TSan, use `-DENABLE_SANITIZER=OFF -DENABLE_THREAD_SANITIZER=ON` in a separate
-build directory. For unsanitized builds, set both options OFF. Repeat the test
-command for `disable` and `require`. The test credentials default to the dedicated
-`root` / `123456` / `test_ormppdb` setup and can be overridden through
-`ORMPP_ASYNC_PG_USER`, `ORMPP_ASYNC_PG_PASSWORD`, and `ORMPP_ASYNC_PG_DB`.
+build directory. Unsanitized builds set both flags OFF. GCC configurations use
+`cc`/`c++`, and Release uses `-DCMAKE_BUILD_TYPE=Release`. Test credentials default
+to `root` / `123456` / `test_ormppdb`; override them through `ORMPP_ASYNC_PG_USER`,
+`ORMPP_ASYNC_PG_PASSWORD` and `ORMPP_ASYNC_PG_DB`. Repeat the test with
+`PGSSLMODE=disable` and `require`.
 
-Existing-suite checks use `ctest -R '^test_ormpp$' -V`, with `PGPORT=55432` and
-`PGSSLMODE=disable`. The filtered TSan command is given below. GCC configurations
-use `cc`/`c++`; Release configurations use `-DCMAKE_BUILD_TYPE=Release`.
-The example build enabled `BUILD_EXAMPLES=ON` and ran
-`build-clang-release/example/ormpp_pg_async_example` with `PGHOST=localhost`,
+The script `single-thread/run_matrix.py` records exact build/test commands and
+results in `single-thread/matrix.json`. The example is built in the Clang Release
+configuration with `BUILD_EXAMPLES=ON` and executed with `PGHOST=localhost`,
 `PGPORT=55432`, `PGUSER=root`, `PGDATABASE=test_ormppdb`, password authentication,
-`PGSSLMODE=verify-full`, and the same `PGSSLROOTCERT`.
+`PGSSLMODE=verify-full` and the same `PGSSLROOTCERT`.
 
-## Baseline and deterministic interleavings
+The current change affects only the PostgreSQL backend, its tests and docs;
+unchanged synchronous suites are checked by CI. They were not rerun locally for
+this correction. MySQL/MariaDB, SQLCipher and non-Linux configurations are not
+claimed as locally validated here.
 
-At base `c5a63f5`, the feature probe including `ormpp/postgresql_async.hpp` fails
-because that backend does not exist. The same probe compiles on the implementation
-commit. This establishes feature absence, not a claim of an old runtime regression.
-A separate reflected `char name[8]` DDL probe fails to compile on the base and
-passes on the implementation, confirming the character-array mapping correction.
+## Existing synchronous SQLite TSan exclusion
 
-The runtime concurrency tests use three real database connections: a blocker owns
-an advisory lock, the target requests that lock, and an observer queries
-`pg_locks` until it sees the target PID waiting on an ungranted lock. Only then do
-tests queue a disconnect and destroy the handle, or issue cancellation. The
-blocker releases the lock explicitly. The tests check completion results, closed
-connection behavior and reconnection, on both one and four `io_context` workers.
-Sleeps and repeated successful runs are not used to establish these interleavings.
-Large temporary parameters are destroyed before their lazy operation is awaited.
+The unfiltered synchronous TSan suite reports a race in the unchanged test
+`issue #238: multi-thread concurrent first query`. Its workers initialize
+independent SQLite connections, whose `sqlite::reset_error()` writes shared
+static `has_error_` and diagnostic storage. No PostgreSQL async code is involved.
 
-The lifetime/executor audit checked that input buffers and the operation closure
-are owned across suspension, each operation retains connection state, libpq and
-socket readiness operations run on the connection strand, borrowed socket wrappers
-release the descriptor before libpq calls/close, and cancellation closes an
-undrained connection before subsequent reuse. Asio DNS resolution resumes on that
-same strand before libpq receives `hostaddr`.
-
-## Existing SQLite TSan exclusion
-
-The test `issue #238: multi-thread concurrent first query` races while its workers
-initialize independent SQLite connections: `sqlite::reset_error()` writes the
-shared static `has_error_` (and diagnostic string). No async PostgreSQL code is
-present in that test or in the baseline reproduction.
-
-The unchanged original test was built and run under Clang TSan from an archive of
-base `c5a63f5`, using `ENABLE_PG=ON`, `ENABLE_SANITIZER=OFF`, and
-`ENABLE_THREAD_SANITIZER=ON`. It failed with exit 66 and the same report:
+The original test was built from base `c5a63f5bb5ccae8740754d4c744815876ff7656f`
+under Clang TSan (`ENABLE_PG=ON`, `ENABLE_SANITIZER=OFF`,
+`ENABLE_THREAD_SANITIZER=ON`). It failed with exit 66 and this report:
 
 ```text
 WARNING: ThreadSanitizer: data race
@@ -131,14 +131,13 @@ ormpp::sqlite::connect(...) .../baseline/ormpp/sqlite.hpp:41:5
 Location is global 'ormpp::sqlite::has_error_'
 ```
 
-A second baseline probe uses `std::barrier(2)` immediately before two calls to
-`sqlite::reset_error()` and reproduces the same race without a database or sleeps.
-Baseline logs: `baseline-existing-clang-tsan-238.log` and
-`baseline-sqlite-error-race.log`. The complete unfiltered final-suite failure is
-retained as `final-existing-clang-tsan.log`.
+A second baseline probe used `std::barrier(2)` immediately before two calls to
+`sqlite::reset_error()` and reproduced the same race without sleeps or a database.
+Logs remain in the parent validation directory:
+`baseline-existing-clang-tsan-238.log`, `baseline-sqlite-error-race.log` and the
+unfiltered implementation run `final-existing-clang-tsan.log`.
 
-To keep the new CI job scoped without hiding this existing failure, only this
-exact synchronous SQLite case is excluded in its TSan step:
+The synchronous CI TSan step excludes exactly that case:
 
 ```sh
 PGPORT=55432 PGSSLMODE=disable TSAN_OPTIONS=halt_on_error=1 \
@@ -146,44 +145,31 @@ PGPORT=55432 PGSSLMODE=disable TSAN_OPTIONS=halt_on_error=1 \
   '--test-case-exclude=issue #238: multi-thread concurrent first query'
 ```
 
-The PostgreSQL async TSan executable has no exclusions. ASan and the other
-configurations continue to run the synchronous suite without this exclusion.
+The previous implementation validated 63 cases / 796 assertions with this
+exclusion, and 64 / 799 under ASan without exclusions. This is not an unfiltered
+synchronous-suite TSan pass. PostgreSQL async TSan has no excluded cases.
 
-## First published CI and corrections
+## Earlier feature and CI evidence
 
-At head `47ddbc8`, GitHub's Ubuntu 26.04 / GCC 15.2 runner diagnosed the missing
-`<coroutine>` include in shared async traits while parsing the query-builder
-coroutine, including synchronous configurations. The failure is recorded in
-[job 133714325856](https://github.com/qicosmos/ormpp/actions/runs/43986043833/job/133714325856).
-The shared header now includes its required standard dependency directly.
+The feature and character-array probes failed to compile at original base
+`c5a63f5`, and passed after implementation. The feature probe proves the backend
+was previously absent; it is not evidence of a previous concurrency bug.
+Historical local results for `5ed42b6` and `957d2fe` remain in the parent directory;
+their shared-context/multiple-worker claims are superseded by the model above.
 
-The initial TSan workflow also exposed YAML plain-scalar parsing of the ` #238`
-text in its test filter. The step now uses a block scalar; every parsed `run`
-script was checked with `bash -n`. Neither failure is a sanitizer report from
-the PostgreSQL backend. Replacement CI checks on the updated head are tracked
-on the PR.
+CI exposed a required `<coroutine>` dependency in shared async traits on GCC 15
+([original failure](https://github.com/qicosmos/ormpp/actions/runs/43986043833/job/133714325856)).
+The header now includes it directly. YAML block-scalar quoting preserves the
+`#238` test filter. The coverage/native MySQL workflows explicitly configure
+temporary TCP test accounts after root Unix-socket authentication caused failures
+([original coverage failure](https://github.com/qicosmos/ormpp/actions/runs/43986043705/job/133714325429)).
 
-The coverage runner additionally failed before configuration with MySQL error
-1698: its setup action used `sudo mysql` and left root's Unix-socket
-authentication enabled, while verification/tests connected as an ordinary user.
-The coverage workflow now explicitly configures its temporary root test account
-with `caching_sha2_password` and an empty test password, matching the existing
-test configuration. This change affects only the CI database. The original
-failure is recorded in [job 133714325429](https://github.com/qicosmos/ormpp/actions/runs/43986043705/job/133714325429).
-
-## Legacy MySQL runner compatibility
-
-The base's successful MySQL async Release run used Ubuntu 24.04 / GCC 13.3
-([baseline job](https://github.com/qicosmos/ormpp/actions/runs/37261003253/job/111608021742)).
-At head `2a27ba1`, the automatically upgraded Ubuntu 26.04 / GCC 15.2 runner
-passed the PostgreSQL matrix, but the unchanged legacy MySQL Release smoke test
-crashed ([job](https://github.com/qicosmos/ormpp/actions/runs/43987259770/job/133718508939)).
-The native MySQL job also failed to authenticate as root and one setup action
-failed to initialize the server against the new Ubuntu package repositories.
-
-The legacy MySQL Linux workflows are therefore kept on their previously
-validated Ubuntu 24.04 environment, with an explicit TCP test account in the
-native workflow. This is a CI compatibility pin, not a claimed fix of the
-legacy client's GCC 15 Release behavior. The new PostgreSQL workflow remains
-on `ubuntu-latest`, including GCC 15, ASan and TSan. No MySQL client C++ source
-is changed by this PR. Replacement results are recorded on the PR's latest head.
+Legacy MySQL Linux workflows remain on Ubuntu 24.04 / GCC 13.3, matching their
+[successful baseline](https://github.com/qicosmos/ormpp/actions/runs/37261003253/job/111608021742).
+The automatically upgraded Ubuntu 26.04 / GCC 15.2 runner had crashed the unchanged
+legacy Release smoke test ([failure](https://github.com/qicosmos/ormpp/actions/runs/43987259770/job/133718508939)).
+This is a CI compatibility pin, not a claimed fix of that client's GCC 15 behavior.
+PostgreSQL CI remains on `ubuntu-latest`, including GCC 15 and separate ASan/TSan.
+Before the single-thread correction, head `b6b484a` completed all 70 checks / 18
+push/PR workflows successfully; those results are historical, not results for the
+current correction.
