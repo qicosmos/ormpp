@@ -170,3 +170,20 @@ The coverage workflow now explicitly configures its temporary root test account
 with `caching_sha2_password` and an empty test password, matching the existing
 test configuration. This change affects only the CI database. The original
 failure is recorded in [job 133714325429](https://github.com/qicosmos/ormpp/actions/runs/43986043705/job/133714325429).
+
+## Legacy MySQL runner compatibility
+
+The base's successful MySQL async Release run used Ubuntu 24.04 / GCC 13.3
+([baseline job](https://github.com/qicosmos/ormpp/actions/runs/37261003253/job/111608021742)).
+At head `2a27ba1`, the automatically upgraded Ubuntu 26.04 / GCC 15.2 runner
+passed the PostgreSQL matrix, but the unchanged legacy MySQL Release smoke test
+crashed ([job](https://github.com/qicosmos/ormpp/actions/runs/43987259770/job/133718508939)).
+The native MySQL job also failed to authenticate as root and one setup action
+failed to initialize the server against the new Ubuntu package repositories.
+
+The legacy MySQL Linux workflows are therefore kept on their previously
+validated Ubuntu 24.04 environment, with an explicit TCP test account in the
+native workflow. This is a CI compatibility pin, not a claimed fix of the
+legacy client's GCC 15 Release behavior. The new PostgreSQL workflow remains
+on `ubuntu-latest`, including GCC 15, ASan and TSan. No MySQL client C++ source
+is changed by this PR. Replacement results are recorded on the PR's latest head.
