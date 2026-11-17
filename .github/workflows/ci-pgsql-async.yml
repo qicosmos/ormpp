@@ -1,0 +1,115 @@
+name: CI-PostgreSQL-Async
+
+on: [push, pull_request]
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.compiler }} (${{ matrix.configuration }}, ${{ matrix.sanitizer }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        configuration: [Debug, Release]
+        sanitizer: [none]
+        include:
+          - compiler: clang
+            configuration: Debug
+            sanitizer: address
+          - compiler: clang
+            configuration: Debug
+            sanitizer: thread
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: 123456
+          POSTGRES_DB: test_ormppdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      ORMPP_ASYNC_PG_HOST: localhost
+      ORMPP_ASYNC_PG_USER: root
+      ORMPP_ASYNC_PG_PASSWORD: 123456
+      ORMPP_ASYNC_PG_DB: test_ormppdb
+      ORMPP_ASYNC_PG_PORT: 5432
+      CTEST_OUTPUT_ON_FAILURE: 1
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      TSAN_OPTIONS: halt_on_error=1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libpq-dev
+          curl -fsSL -o /tmp/asio.tar.gz \
+            "https://downloads.sourceforge.net/project/asio/asio/1.36.0%20%28Stable%29/asio-1.36.0.tar.gz"
+          tar -xzf /tmp/asio.tar.gz -C /tmp
+      - name: Enable PostgreSQL TLS
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          openssl req -new -x509 -nodes -days 2 -newkey rsa:2048 \
+            -keyout /tmp/server.key -out /tmp/server.crt -subj '/CN=localhost' \
+            -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1'
+          docker cp /tmp/server.key "$POSTGRES_CONTAINER:/var/lib/postgresql/data/server.key"
+          docker cp /tmp/server.crt "$POSTGRES_CONTAINER:/var/lib/postgresql/data/server.crt"
+          docker exec -u root "$POSTGRES_CONTAINER" sh -c \
+            'chown postgres:postgres "$PGDATA/server.key" "$PGDATA/server.crt"; chmod 600 "$PGDATA/server.key"'
+          docker exec -u postgres "$POSTGRES_CONTAINER" psql -U root -d test_ormppdb \
+            -c "ALTER SYSTEM SET ssl = 'on'"
+          docker exec -u postgres "$POSTGRES_CONTAINER" psql -U root -d test_ormppdb \
+            -c 'SELECT pg_reload_conf()'
+      - name: Configure
+        run: |
+          if [ '${{ matrix.compiler }}' = clang ]; then
+            export CC=clang CXX=clang++
+          else
+            export CC=gcc CXX=g++
+          fi
+          cmake -S . -B build-pg-async \
+            -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} \
+            -DENABLE_PG_ASYNC=ON -DENABLE_PG=ON -DBUILD_EXAMPLES=OFF \
+            -DORMPP_ASIO_INCLUDE_DIR=/tmp/asio-1.36.0/include \
+            -DENABLE_SANITIZER=${{ matrix.sanitizer == 'address' && 'ON' || 'OFF' }} \
+            -DENABLE_THREAD_SANITIZER=${{ matrix.sanitizer == 'thread' && 'ON' || 'OFF' }}
+      - name: Build
+        run: cmake --build build-pg-async -j2 --target test_postgresql_async test_ormpp
+      - name: Test plaintext
+        env:
+          PGSSLMODE: disable
+        run: ctest --test-dir build-pg-async -R '^test_postgresql_async$' -V
+      - name: Test shared-executor pool regressions
+        working-directory: build-pg-async/tests
+        env:
+          ORMPP_POOL_TEST_THREADS: 4
+        run: ./test_ormpp '--test-case=async_connection_pool:*'
+      - name: Test synchronous backends
+        if: matrix.sanitizer != 'thread'
+        env:
+          PGSSLMODE: disable
+        run: ctest --test-dir build-pg-async -R '^test_ormpp$' -V
+      - name: Test synchronous backends under TSan (known SQLite race excluded)
+        if: matrix.sanitizer == 'thread'
+        working-directory: build-pg-async/tests
+        env:
+          PGSSLMODE: disable
+        # The unchanged issue #238 test races in sqlite::reset_error() on the
+        # base revision too. See docs/postgresql_async_validation.md.
+        run: |
+          ./test_ormpp '--test-case-exclude=issue #238: multi-thread concurrent first query'
+      - name: Test TLS
+        env:
+          PGSSLMODE: require
+        run: ctest --test-dir build-pg-async -R '^test_postgresql_async$' -V
+      - name: Test verified TLS and asynchronous DNS
+        env:
+          PGSSLMODE: verify-full
+          PGSSLROOTCERT: /tmp/server.crt
+        run: ctest --test-dir build-pg-async -R '^test_postgresql_async$' -V

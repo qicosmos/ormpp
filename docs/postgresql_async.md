@@ -1,0 +1,163 @@
+# 异步 PostgreSQL
+
+`ormpp::postgresql_async` 使用 libpq 的非阻塞连接、发送和结果读取接口，返回
+`asio::awaitable<T>`。接口与 `mysql_async` 一致，支持 `dbng`、查询构造器和
+`async_connection_pool`，需要 C++20、standalone Asio（CI 使用 1.36）和 libpq。
+
+## 编译和运行
+
+```sh
+sudo apt-get install libpq-dev libasio-dev
+cmake -S . -B build -DENABLE_PG_ASYNC=ON
+cmake --build build --target ormpp_pg_async_example test_postgresql_async
+PGHOST=127.0.0.1 PGUSER=root PGPASSWORD=123456 PGDATABASE=test_ormppdb \
+  ./build/example/ormpp_pg_async_example
+```
+
+Asio 安装在其他位置时，添加 `-DORMPP_ASIO_INCLUDE_DIR=/path/to/asio/include`。
+直接包含头文件的项目需要定义 `ORMPP_ENABLE_PG_ASYNC`，添加 ormpp、Asio 和
+libpq 的头文件路径，并链接 `pq` 和平台线程库。`ENABLE_PG` 与 `ENABLE_PG_ASYNC`
+独立，可同时启用。
+
+完整示例位于 [example/postgresql_async.cpp](../example/postgresql_async.cpp)。
+
+```cpp
+#include <asio.hpp>
+#include "dbng.hpp"
+#include "postgresql_async.hpp"
+
+struct async_employee {
+  int id;
+  std::string name;
+  int age;
+};
+REGISTER_AUTO_KEY(async_employee, id)
+YLT_REFL(async_employee, id, name, age)
+
+asio::awaitable<void> work() {
+  ormpp::dbng<ormpp::postgresql_async> db(co_await asio::this_coro::executor);
+  if (!(co_await db.connect("localhost", "root", "123456", "test_ormppdb", 5, 5432))) {
+    throw std::runtime_error(db.get_last_error());
+  }
+  co_await db.create_datatable<async_employee>();
+  auto id = co_await db.get_insert_id_after_insert(async_employee{0, "alice", 20});
+  auto rows = co_await db.query_s<async_employee>("id=$1", id);
+  auto selected = co_await db.select(ormpp::all).from<async_employee>()
+      .where(ormpp::col(&async_employee::name).param()).collect("alice");
+  co_await db.disconnect();
+}
+```
+
+`connect` 的参数顺序为 host、user、password、database、超时秒数、port，也接受
+同顺序的 tuple。host 必须是单个非空的主机名、IP 或 Unix socket 目录；TCP 主机名
+由 Asio 异步解析后通过 `hostaddr` 交给 libpq，保留原主机名用于 TLS 验证。
+默认端口为 5432。TLS 由 libpq 管理，可通过 `PGSSLMODE=require` 或
+`PGSSLMODE=verify-full PGSSLROOTCERT=/path/to/ca.crt` 配置。
+
+## 参数和结果
+
+手写 SQL 使用 PostgreSQL 的 `$1`、`$2` 占位符；查询构造器会自动生成它们。
+实体和字段名沿用现有 PostgreSQL SQL 生成器的普通标识符规则（不加双引号，名称由
+PostgreSQL 转为小写；避免使用保留字）。值通过 `PQsendQueryParams` 绑定，不会拼接进 SQL。文本中的 NUL 会报告错误，二进制
+数据使用 `ormpp::blob`，映射为 `bytea`。支持可空字段、枚举、布尔值、定长字符数组、
+日期时间和 decimal，以及 tuple 和包含反射实体的 tuple 查询结果。
+
+`insert`、`replace`、`update` 返回受影响行数，失败返回 `std::numeric_limits<int>::min()`。
+`delete_records_s` 返回删除行数，失败返回 0；`execute`、连接和事务接口返回 bool；
+`query_s` 失败返回空 vector。用 `has_error()` 和 `get_last_error()` 区分错误与空结果。
+每次接受新操作时清空上一条错误。
+
+`get_insert_id_after_insert` 通过注册自增字段的 `RETURNING` 获取 ID，失败返回 0。
+vector 重载返回最后一个插入 ID。批量写入默认在一次事务中完成，失败时回滚并保留
+原始错误；`set_enable_transaction(false)` 可关闭自动批量事务。
+
+普通结果拥有自己的数据。`std::string_view` 指向连接保存的结果存储，只在该连接
+下一次 `query_s` / `query_prepared_s` 或销毁前有效；需要长期保存或并发消费时使用
+`std::string`。
+
+`query_prepared_s<T>(sql, args...)` 显式启用按连接保存的 prepared statement 缓存，
+`dbng<postgresql_async>` 同样提供该接口。SQL 与参数类型 OID 共同构成缓存键；首次
+使用通过非阻塞 `PQsendPrepare` 准备，后续使用 `PQsendQueryPrepared` 绑定当次参数。
+它只接受单条可准备的 SQL，不缓存参数值或查询结果，结果类型与错误规则同 `query_s`。
+普通 `query_s`、查询构造器和 CRUD 的执行方式保持不变。
+
+每个连接最多缓存 128 条；达到上限后，新 SQL 使用普通单条参数化查询，已有条目
+继续复用。断开、取消导致关闭或重新连接时清空缓存，服务端条目随会话销毁。
+`ormpp_ps_` 前缀保留给驱动；不要在同一会话手工 `DEALLOCATE` 这些条目或执行
+`DISCARD ALL`，需要重置会话时重新连接。数据库负责计划失效后的重新规划；执行
+错误直接返回，不自动重试 SQL。
+
+## 调度、取消和连接池
+
+采用一个 `io_context` 对应一个运行线程的模型。连接的构造、调用、取消、诊断读取和
+销毁均在所属线程上进行；不同线程使用各自的 `io_context` 和连接。客户端不创建
+mutex、strand、操作队列或每次调用的 `co_spawn`，协程直接在调用方 executor 上运行。
+
+单线程的协程仍会在 `co_await` 处交替执行。同一个连接只允许一个未完成操作：普通
+`bool` 状态检查会立即拒绝重叠调用，按对应接口返回失败值，并记录
+`operation already in progress`，不会等待或改动正在使用的 socket。需要并行查询时，
+为各个协程分别获取连接池租约。
+
+直接数据库调用在返回 awaitable 前复制输入；操作持有连接状态。所属线程上销毁
+公开的连接对象时，已创建的操作仍保留所需状态和缓冲区。executor 和 `io_context`
+必须活到操作及清理完成；推荐在空闲时显式等待 `disconnect()`。
+
+`disconnect()` 在连接有未完成操作时返回失败。需要中止正在等待的 I/O 时，使用
+Asio 取消机制；取消会关闭当前连接，下一次查询前需重新 `connect()`。取消信号在
+连接所属线程上发出。SQL 错误会先读完协议结果，普通 SQL 错误后可以继续使用连接。
+
+显式 `begin()` / `commit()` 之间由调用方独占连接；同一线程上的其他协程也应使用
+不同连接。可以用池租约持有整个事务：
+
+```cpp
+auto executor = co_await asio::this_coro::executor;
+auto pool = std::make_shared<ormpp::async_connection_pool<ormpp::postgresql_async>>(executor);
+if (co_await pool->init(4, "127.0.0.1", "root", "123456", "test_ormppdb", 5, 5432)) {
+  {
+    auto connection = co_await pool->get();
+    if (connection) {
+      co_await connection->begin();
+      // 在此使用 connection 完成事务。
+      co_await connection->commit();
+    } // 租约归还连接。
+  }
+  co_await pool->close_all();
+}
+```
+
+沿用现有池的使用方式：在同一单线程 `io_context` 上管理池和租约。通用
+`async_connection_pool` 自身已有的 strand 实现保持不变，PostgreSQL 客户端不会额外创建
+strand。`async_simple::coro::Lazy` 可通过现有的
+`ormpp::adapter::from_asio(operation, executor)` 桥接，约束见
+[协程适配器说明](async_simple_ormpp_coroutine.md)。
+
+连接池默认在每次借连接时异步执行 `ping()`。需要避免逐请求额外 SQL 往返时，
+可设置 `pool_options::ping_on_checkout = false`：支持 `is_open()` 的后端改用
+非阻塞检查，不支持该接口的后端仍执行原来的 ping。PostgreSQL 的 `is_open()`
+在空闲连接上检查 libpq 状态并读取已到达的断连/TLS 关闭通知，不发送 SQL；
+它同样必须在连接所属线程调用。业务查询期间的网络错误会关闭连接，后续借用
+会重新连接；SQL 级错误仍先排空协议结果再复用连接。
+
+暂不提供 COPY、pipeline、流式逐行结果或手工命名的 prepared statement 管理。
+COPY 请求会关闭连接并返回错误，避免残留协议数据影响后续查询。
+
+实现遵循 PostgreSQL 官方的[异步命令接口](https://www.postgresql.org/docs/current/libpq-async.html)
+和[非阻塞连接接口](https://www.postgresql.org/docs/current/libpq-connect.html)。
+
+## 测试
+
+```sh
+ORMPP_ASYNC_PG_HOST=localhost ORMPP_ASYNC_PG_USER=root \
+ORMPP_ASYNC_PG_PASSWORD=123456 ORMPP_ASYNC_PG_DB=test_ormppdb \
+ORMPP_ASYNC_PG_PORT=5432 PGSSLMODE=disable \
+  ctest --test-dir build -R '^test_postgresql_async$' -V
+```
+
+测试需要可连接且允许创建测试表的数据库；连接失败会令测试失败。
+CI 分别运行 GCC/Clang 的 Debug/Release、Clang ASan 和 Clang TSan，并在每种配置下
+覆盖明文、TLS 和证书校验连接。并发测试通过观察 `pg_locks` 中未获准的 advisory lock
+确认查询已挂起，再检查重叠操作被立即拒绝、对象销毁和取消。另用 barrier 同步
+两个线程，每个线程运行自己的单线程 `io_context` 和独立连接。
+
+本次本地配置、基线复现和明确的 TSan 旧测试排除项见
+[验证记录](postgresql_async_validation.md)。

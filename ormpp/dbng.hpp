@@ -113,6 +113,11 @@ class dbng {
   }
 
   template <typename T, typename... Args>
+  decltype(auto) query_prepared_s(const std::string &str = "", Args &&...args) {
+    return db_.template query_prepared_s<T>(str, std::forward<Args>(args)...);
+  }
+
+  template <typename T, typename... Args>
   [[deprecated]] decltype(auto) delete_records(Args &&...where_condition) {
     return db_.template delete_records<T>(
         std::forward<Args>(where_condition)...);

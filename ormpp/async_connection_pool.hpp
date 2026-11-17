@@ -3,7 +3,9 @@
 
 #include <algorithm>
 #include <asio.hpp>
+#include <atomic>
 #include <chrono>
+#include <concepts>
 #include <cstddef>
 #include <deque>
 #include <functional>
@@ -24,6 +26,7 @@ struct pool_options {
       false;  // Allow temporary connections when pool is full
   size_t max_dynamic_connections = 10;  // Max temporary connections
   bool log_pool_exhaustion = true;      // Log when pool is exhausted
+  bool ping_on_checkout = true;  // Use a local probe when false, if supported
 };
 
 // Async connection pool for databases that support async operations
@@ -106,6 +109,7 @@ class async_connection_pool
       std::chrono::seconds timeout = std::chrono::seconds(10)) {
     auto deadline = std::chrono::steady_clock::now() + timeout;
     size_t wait_count = 0;
+    waiter_guard waiting{this, {}};
 
     while (std::chrono::steady_clock::now() < deadline) {
       // Try to get an available connection (thread-safe via strand)
@@ -115,23 +119,52 @@ class async_connection_pool
         co_return nullptr;
       }
 
-      if (!available_connections_.empty()) {
+      wake_waiter();
+      if (!available_connections_.empty() &&
+          (waiters_.empty() || waiters_.front() == waiting.node)) {
         auto connection = std::move(available_connections_.front());
         available_connections_.pop_front();
         in_use_count_++;
+        if (waiting.node) {
+          waiting.node->active = false;
+          waiting.node.reset();
+          wake_waiter();
+        }
 
         // Verify connection is still alive
-        bool alive = co_await connection->ping();
+        bool alive = true;
+        bool need_ping = options_.ping_on_checkout;
+        if constexpr (requires(DB& db) {
+                        { db.is_open() } -> std::convertible_to<bool>;
+                      }) {
+          if (!need_ping) {
+            alive = connection->is_open();
+          }
+        }
+        else {
+          need_ping = true;
+        }
+        if (alive && need_ping) {
+          alive = co_await connection->ping();
+        }
         if (!alive) {
           // Reconnect
           alive = co_await connection->connect(host_, user_, passwd_, database_,
                                                timeout_, port_);
           if (!alive) {
-            co_await asio::post(strand_, asio::use_awaitable);
-            if (in_use_count_ > 0) {
-              --in_use_count_;
-            }
             co_await connection->disconnect();
+            co_await asio::post(strand_, asio::use_awaitable);
+            // Keep the slot so a later checkout can reconnect after recovery.
+            // return_connection also respects a concurrent close_all().
+            return_connection(std::move(connection), false);
+            if (!initialized_ || closing_) {
+              co_return nullptr;
+            }
+            asio::steady_timer retry_timer(executor_);
+            retry_timer.expires_at(
+                std::min(deadline, std::chrono::steady_clock::now() +
+                                       std::chrono::milliseconds(50)));
+            co_await retry_timer.async_wait(asio::use_awaitable);
             continue;
           }
         }
@@ -163,6 +196,21 @@ class async_connection_pool
       // Log pool exhaustion (only once per get_connection call)
       if (wait_count == 1 && options_.log_pool_exhaustion) {
         log_pool_exhausted();
+      }
+
+      if (!options_.enable_dynamic_expansion) {
+        if (!waiting.node) {
+          waiting.node = std::make_shared<waiter>(executor_, deadline);
+          waiters_.push_back(waiting.node);
+        }
+        waiting.node->notified = false;
+        asio::error_code error;
+        co_await waiting.node->timer.async_wait(
+            asio::redirect_error(asio::use_awaitable, error));
+        if (error && !waiting.node->notified) {
+          throw asio::system_error(error);
+        }
+        continue;
       }
 
       // Wait for a connection to be returned
@@ -227,6 +275,11 @@ class async_connection_pool
     }
 
     closing_ = true;
+    for (auto& waiting : waiters_) {
+      waiting->notified = true;
+      waiting->timer.cancel();
+    }
+    waiters_.clear();
 
     if (wait_for_return && in_use_count_ > 0) {
       auto deadline = std::chrono::steady_clock::now() + max_wait;
@@ -281,6 +334,46 @@ class async_connection_pool
   }
 
  private:
+  struct waiter {
+    waiter(executor_type executor,
+           std::chrono::steady_clock::time_point deadline)
+        : timer(executor, deadline) {}
+    asio::steady_timer timer;
+    std::atomic<bool> active = true;
+    std::atomic<bool> notified = false;
+  };
+
+  struct waiter_guard {
+    async_connection_pool* pool;
+    std::shared_ptr<waiter> node;
+    ~waiter_guard() {
+      if (node) {
+        node->active = false;
+        try {
+          if (auto owner = pool->weak_from_this().lock()) {
+            auto strand = owner->strand_;
+            asio::post(strand, [owner = std::move(owner)] {
+              owner->wake_waiter();
+            });
+          }
+        } catch (...) {
+          // A later pool operation also removes inactive waiters.
+        }
+      }
+    }
+  };
+
+  void wake_waiter() {
+    while (!waiters_.empty() && !waiters_.front()->active) {
+      waiters_.pop_front();
+    }
+    if (initialized_ && !closing_ && !available_connections_.empty() &&
+        !waiters_.empty() && !waiters_.front()->notified) {
+      waiters_.front()->notified = true;
+      waiters_.front()->timer.cancel();
+    }
+  }
+
   std::shared_ptr<DB> make_connection_handle(std::unique_ptr<DB> connection,
                                              bool dynamic) {
     auto raw = connection.release();
@@ -325,6 +418,7 @@ class async_connection_pool
 
     if (initialized_ && !closing_) {
       available_connections_.push_back(std::move(connection));
+      wake_waiter();
     }
   }
 
@@ -404,6 +498,7 @@ class async_connection_pool
   std::optional<int> port_;
 
   std::deque<std::unique_ptr<DB>> available_connections_;
+  std::deque<std::shared_ptr<waiter>> waiters_;
 };
 
 }  // namespace ormpp
