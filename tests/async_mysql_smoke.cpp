@@ -645,8 +645,7 @@ asio::awaitable<void> run_async_mysql_smoke() {
                     .drop_partition(added)
                     .execute(),
                 "drop list partition failed");
-  auto list_orders =
-      co_await db.select(all).from<async_list_order>().collect();
+  auto list_orders = co_await db.select(all).from<async_list_order>().collect();
   require_async(list_orders.size() == 1 && list_orders.front().order_id == 1003,
                 "list partition operations affected other orders");
   require_async(co_await db.execute("DROP TABLE async_list_order"),

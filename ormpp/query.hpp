@@ -445,7 +445,7 @@ template <typename Value>
 inline list_partition_desc list_partition(std::string name,
                                           std::initializer_list<Value> values) {
   return list_partition<std::initializer_list<Value>>(std::move(name),
-                                                     std::move(values));
+                                                      std::move(values));
 }
 
 inline bool is_sql_identifier_char(char c) {
@@ -491,13 +491,19 @@ inline bool is_valid_partition(const list_partition_desc& partition) {
 }
 
 inline bool is_valid_partition(const partition_desc& partition) {
-  return std::visit([](const auto& p) { return is_valid_partition(p); },
-                    partition);
+  return std::visit(
+      [](const auto& p) {
+        return is_valid_partition(p);
+      },
+      partition);
 }
 
 inline const std::string& partition_name(const partition_desc& partition) {
-  return std::visit([](const auto& p) -> const std::string& { return p.name; },
-                    partition);
+  return std::visit(
+      [](const auto& p) -> const std::string& {
+        return p.name;
+      },
+      partition);
 }
 
 inline std::string partition_list_values(const list_partition_desc& partition) {
@@ -567,7 +573,9 @@ inline std::string partition_predicate(std::string_view field_name,
 inline std::string partition_predicate(std::string_view field_name,
                                        const partition_desc& partition) {
   return std::visit(
-      [&](const auto& p) { return partition_predicate(field_name, p); },
+      [&](const auto& p) {
+        return partition_predicate(field_name, p);
+      },
       partition);
 }
 
@@ -594,8 +602,11 @@ inline std::string mysql_partition_definition(
 }
 
 inline std::string mysql_partition_definition(const partition_desc& partition) {
-  return std::visit([](const auto& p) { return mysql_partition_definition(p); },
-                    partition);
+  return std::visit(
+      [](const auto& p) {
+        return mysql_partition_definition(p);
+      },
+      partition);
 }
 
 inline std::string postgresql_partition_definition_sql(
@@ -1792,8 +1803,8 @@ struct create_table_builder {
 
   template <typename... Values>
   create_table_builder& list_partition(std::string name, Values&&... values) {
-    return partition(ormpp::list_partition(
-        std::move(name), std::forward<Values>(values)...));
+    return partition(ormpp::list_partition(std::move(name),
+                                           std::forward<Values>(values)...));
   }
 
   template <typename Value>
