@@ -85,7 +85,9 @@ jobs:
           ORMPP_ASYNC_MYSQL_PASSWORD: 123456
           ORMPP_ASYNC_MYSQL_DB: test_ormppdb
           ORMPP_ASYNC_MYSQL_PORT: 3306
-        run: gdb --batch -ex run -ex 'thread apply all bt' --args tests/test_ormpp '--test-case=mysql async smoke'
+        run: |
+          sudo apt-get -qq install -y gdb
+          gdb --batch -ex run -ex 'thread apply all bt' --args tests/test_ormpp '--test-case=mysql async smoke'
 
       - name: Test async connection pool
         working-directory: ${{ github.workspace }}/build
