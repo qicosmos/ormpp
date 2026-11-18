@@ -160,7 +160,12 @@ inline bool load_config_file(ormpp_cfg& cfg) {
 
 inline ormpp_cfg get_async_mysql_config() {
   ormpp_cfg cfg{};
-  if (!load_config_file(cfg)) {
+  const bool has_env_config = std::getenv("ORMPP_ASYNC_MYSQL_HOST") &&
+                              std::getenv("ORMPP_ASYNC_MYSQL_USER") &&
+                              std::getenv("ORMPP_ASYNC_MYSQL_PASSWORD") &&
+                              std::getenv("ORMPP_ASYNC_MYSQL_DB") &&
+                              std::getenv("ORMPP_ASYNC_MYSQL_PORT");
+  if (has_env_config || !load_config_file(cfg)) {
     cfg.db_ip = "127.0.0.1";
     cfg.user_name = "root";
     cfg.pwd = "";
