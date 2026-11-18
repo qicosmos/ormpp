@@ -65,6 +65,7 @@ jobs:
         run: ctest -C ${{ matrix.configuration }} -R "^test_ormpp_async_mysql_format$" -j 1 -V
 
       - name: Test async MySQL smoke
+        id: async_mysql_smoke
         working-directory: ${{ github.workspace }}/build
         env:
           ORMPP_ASYNC_MYSQL_HOST: 127.0.0.1
@@ -74,6 +75,17 @@ jobs:
           ORMPP_ASYNC_MYSQL_PORT: 3306
           CTEST_OUTPUT_ON_FAILURE: 1
         run: ctest -C ${{ matrix.configuration }} -R "^test_ormpp_async_mysql_smoke$" -j 1 -V
+
+      - name: Print async MySQL smoke backtrace on failure
+        if: failure() && steps.async_mysql_smoke.outcome == 'failure'
+        working-directory: ${{ github.workspace }}/build
+        env:
+          ORMPP_ASYNC_MYSQL_HOST: 127.0.0.1
+          ORMPP_ASYNC_MYSQL_USER: root
+          ORMPP_ASYNC_MYSQL_PASSWORD: 123456
+          ORMPP_ASYNC_MYSQL_DB: test_ormppdb
+          ORMPP_ASYNC_MYSQL_PORT: 3306
+        run: gdb --batch -ex run -ex 'thread apply all bt' --args tests/test_ormpp '--test-case=mysql async smoke'
 
       - name: Test async connection pool
         working-directory: ${{ github.workspace }}/build
