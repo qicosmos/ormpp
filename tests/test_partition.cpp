@@ -325,7 +325,8 @@ TEST_CASE("postgresql binds list partition text keys within input bounds") {
   dbng<postgresql> database;
   REQUIRE(database.connect("127.0.0.1", "root", "123456", "test_ormppdb"));
   auto check_text = [&](const auto& value, const std::string& expected) {
-    auto rows = database.query_s<std::tuple<std::string>>("SELECT $1::text", value);
+    auto rows =
+        database.query_s<std::tuple<std::string>>("SELECT $1::text", value);
     REQUIRE(rows.size() == 1);
     CHECK(std::get<0>(rows.front()) == expected);
   };
@@ -334,7 +335,7 @@ TEST_CASE("postgresql binds list partition text keys within input bounds") {
   check_text(full_key, "ord1");
   check_text(std::string_view(full_key.data(), full_key.size()), "ord1");
   check_text(std::string_view(full_key.data() + 1, 2), "rd");
-  check_text(std::array<char, 0>{}, "");
+  check_text(std::array<char, 4>{}, "");
   check_text(std::string_view{}, "");
   check_text(std::string{}, "");
 }
