@@ -2,6 +2,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests)
 project(test_ormpp)
 add_executable(${PROJECT_NAME}
         test_ormpp.cpp
+        test_partition.cpp
         async_mysql_smoke.cpp
         test_async_connection_pool.cpp
         test_adapter_timing.cpp

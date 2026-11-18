@@ -9,6 +9,7 @@
 * [motiviations](#motiviations)
 * [features](#features)
 * [example](#example)
+* [list partition builders](#list-partition-builders)
 * [compile](#compile)
 * [interface](#interface)
 * [roadmap](#roadmap)
@@ -85,6 +86,58 @@ This example demonstrates how to use ormpp to add, delete, update datatable and 
 		}
 		mysql.commit();
 	}
+
+## List partition builders
+
+Use a list partition to group discrete order IDs and clear each group separately:
+
+```cpp
+struct order_detail {
+  int id;
+  int order_id;
+  std::string payload;
+};
+
+auto orders = ormpp::list_partition("p_orders", 1001, 1003);
+db.create_table<order_detail>()
+    .primary_key(col(&order_detail::id), col(&order_detail::order_id))
+    .partition_by_list(col(&order_detail::order_id))
+    .partition(orders)
+    .list_partition("p_other", {1002, 1004})
+    .execute();
+
+db.remove<order_detail>()
+    .partition(col(&order_detail::order_id), orders)
+    .where(col(&order_detail::id) > 10)
+    .execute();
+db.alter_table<order_detail>()
+    .clear_partition(col(&order_detail::order_id), orders)
+    .execute();
+db.alter_table<order_detail>()
+    .add_partition(col(&order_detail::order_id),
+                   ormpp::list_partition("p_next", 2001, 2005))
+    .execute();
+db.alter_table<order_detail>().drop_partition(orders).execute();
+```
+
+MySQL uses native `PARTITION BY LIST COLUMNS` partitions. PostgreSQL creates a
+`PARTITION BY LIST` parent and `FOR VALUES IN (...)` child tables. SQLite creates
+an index and emulates partition deletion with an `IN (...)` predicate; it does not
+restrict inserted values or route rows. On SQLite, `drop_partition` returns
+`false` without deleting data or the index.
+
+The API supports one partition column. `list_partition` accepts individual
+values, an initializer list, or a container. Strings are quoted and escaped;
+`nullptr` and `std::nullopt` represent SQL `NULL`. For MySQL string partition keys,
+use `std::array<char, N>` (mapped to `VARCHAR`): `std::string` maps to `TEXT`, which
+MySQL cannot use as a partition column. Primary and unique keys on native
+partitioned tables must include the partition column.
+
+Partition names must contain only letters, digits, and underscores and cannot
+start with a digit. Empty value lists, duplicate names or SQL literals, and mixed
+RANGE/LIST configurations are rejected before creating the table. Other type,
+collation, and partition restrictions are checked by the database. Async MySQL
+uses the same builders with `co_await` on execution.
 
 ## compile
 

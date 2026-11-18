@@ -36,6 +36,7 @@ https://github.com/qicosmos/iguana.git
   * [链式调用](#链式调用)
   * [新增链式调用接口](#新增了4个链式调用接口)
   * [范围分区链式调用](#范围分区链式调用接口)
+  * [列表分区链式调用](#列表分区链式调用接口)
 * [如何编译](#如何编译)
 * [作为第三方库引入](#作为第三方库引入)
 * [接口介绍](#接口介绍)
@@ -453,6 +454,52 @@ db.alter_table<order_log>()
 ```
 
 注意：分区名会按 SQL 标识符校验，只允许字母、数字和下划线，且不能以数字开头。MySQL 分区表的主键/唯一键需要满足 MySQL 自身限制，通常应包含分区字段。
+
+#### 列表分区链式调用接口
+
+按订单号等离散值分区时，可以使用 `partition_by_list`。每个分区可以包含一个或多个值，并复用范围分区的删除、清空、新增和删除分区接口：
+
+```cpp
+struct order_detail {
+  int id;
+  int order_id;
+  std::string payload;
+};
+
+auto orders = ormpp::list_partition("p_orders", 1001, 1003);
+auto next_orders = ormpp::list_partition("p_next", {2001, 2005});
+
+db.create_table<order_detail>()
+    .primary_key(col(&order_detail::id), col(&order_detail::order_id))
+    .partition_by_list(col(&order_detail::order_id))
+    .partition(orders)
+    .list_partition("p_other", 1002, 1004)
+    .execute();
+
+// 仅删除指定分区中符合条件的数据。
+db.remove<order_detail>()
+    .partition(col(&order_detail::order_id), orders)
+    .where(col(&order_detail::id) > 10)
+    .execute();
+
+// 清空指定订单分区，保留分区结构。
+db.alter_table<order_detail>()
+    .clear_partition(col(&order_detail::order_id), orders)
+    .execute();
+
+db.alter_table<order_detail>()
+    .add_partition(col(&order_detail::order_id), next_orders)
+    .execute();
+db.alter_table<order_detail>().drop_partition(orders).execute();
+```
+
+- MySQL：生成 `PARTITION BY LIST COLUMNS` 和 `VALUES IN (...)`，清空分区使用 `ALTER TABLE ... TRUNCATE PARTITION`。
+- PostgreSQL：生成 `PARTITION BY LIST` 父表和 `FOR VALUES IN (...)` 子表，清空分区使用 `TRUNCATE TABLE`。
+- SQLite：创建分区字段索引，通过 `IN (...)` 条件模拟分区删除；不会限制插入值或自动路由数据。`drop_partition` 返回 `false`，不会删除数据或索引。
+
+当前支持单列列表分区。`list_partition` 接受变参、初始化列表或容器；字符串自动转义并加引号，`nullptr` 或 `std::nullopt` 表示 SQL `NULL`。MySQL 的字符串分区字段应使用可映射为 `VARCHAR` 的 `std::array<char, N>`，因为 `std::string` 映射的 `TEXT` 不能用作分区字段。MySQL/PostgreSQL 的主键和唯一键必须包含分区字段。
+
+分区名沿用范围分区的标识符规则。空值列表、重复分区名、重复的 SQL 字面值，以及同一建表调用中混用 RANGE/LIST 配置会使 `execute()` 返回 `false`。数据库的类型转换、排序规则和其他分区限制仍由数据库检查。异步 MySQL 使用相同接口，在执行时加上 `co_await`。
 
 ## 如何编译
 
@@ -1533,7 +1580,7 @@ ormpp 内部对 SQL 字段列表缓存（`get_fields<T>()`）已使用 `std::cal
 | 连接池 | v1.0+ | 单例连接池，自动回收 |
 | 异步 MySQL | v1.0+ | ASIO/async_simple 协程支持 |
 | AOP 切面 | v1.0+ | `warper_connect` 日志/校验切面 |
-| 范围分区 | v1.0+ | MySQL/PostgreSQL/SQLite 统一分区 API |
+| 范围/列表分区 | v1.0+ | MySQL/PostgreSQL/SQLite 统一分区 API |
 | 线程安全 | master | `init_reflection<T>()` 预初始化 + `call_once` 保护 |
 
 
