@@ -7,22 +7,29 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_ROOT_HOST: '%'
+          MYSQL_DATABASE: test_ormppdb
+        options: >-
+          --health-cmd "mysqladmin ping -h127.0.0.1 -uroot --silent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 3306:3306
+
     steps:
     - name: Checkout Code
       uses: actions/checkout@v2
       with:
         fetch-depth: 2
 
-    - name: Setup MySQL
-      uses: ankane/setup-mysql@v1
-      with:
-        mysql-version: 8.0
-        database: test_ormppdb
-
     - name: Verify MySQL
-      run: |
-        sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY '';"
-        mysql --protocol=TCP -h127.0.0.1 -uroot -e 'SHOW DATABASES;'
+      run: mysql --protocol=TCP -h127.0.0.1 -uroot -e 'SHOW DATABASES;'
 
     - name: Configure cmake
       run : cmake -B${{ github.workspace }}/build -DCOVERAGE_TEST=ON -DENABLE_MYSQL=ON -DCMAKE_BUILD_TYPE=Debug
