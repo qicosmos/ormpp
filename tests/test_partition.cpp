@@ -228,6 +228,16 @@ TEST_CASE("builder list partition dialects") {
         "list_order_log FOR VALUES IN (3001)");
   CHECK(postgres.sqls[4] == "DROP TABLE IF EXISTS list_order_log_p_orders");
 
+  const auto condition = col(&list_order_log::payload) == "remove" ||
+                         col(&list_order_log::id) == 4;
+  CHECK(make_delete_builder<list_order_log>(&postgres)
+            .partition(col(&list_order_log::order_id), partition)
+            .where(condition)
+            .execute() == 0);
+  CHECK(postgres.sqls.back() ==
+        "DELETE FROM list_order_log_p_orders AS list_order_log WHERE " +
+            condition.to_sql());
+
   partition_sql_recorder<DBType::sqlite> sqlite_db;
   REQUIRE(make_alter_table_builder<list_order_code>(&sqlite_db)
               .clear_partition(col(&list_order_code::order_code),
@@ -309,3 +319,23 @@ TEST_CASE("builder rejects invalid list partitions before executing SQL") {
                   .execute());
   CHECK(database.sqls.empty());
 }
+
+#ifdef ORMPP_ENABLE_PG
+TEST_CASE("postgresql binds list partition text keys within input bounds") {
+  dbng<postgresql> database;
+  REQUIRE(database.connect("127.0.0.1", "root", "123456", "test_ormppdb"));
+  auto check_text = [&](const auto& value, const std::string& expected) {
+    auto rows = database.query_s<std::tuple<std::string>>("SELECT $1::text", value);
+    REQUIRE(rows.size() == 1);
+    CHECK(std::get<0>(rows.front()) == expected);
+  };
+
+  const std::array<char, 4> full_key{'o', 'r', 'd', '1'};
+  check_text(full_key, "ord1");
+  check_text(std::string_view(full_key.data(), full_key.size()), "ord1");
+  check_text(std::string_view(full_key.data() + 1, 2), "rd");
+  check_text(std::array<char, 0>{}, "");
+  check_text(std::string_view{}, "");
+  check_text(std::string{}, "");
+}
+#endif

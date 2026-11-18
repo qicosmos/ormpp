@@ -20,9 +20,13 @@ jobs:
 
       - name: Setup MySQL
         uses: ankane/setup-mysql@v1
-        with: 
+        with:
           mysql-version: 8.0
           database: test_ormppdb
+
+      - name: Configure MySQL test authentication
+        if: runner.os == 'Linux'
+        run: sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY '';"
 
       - name: Configure cmake
         run : cmake -B${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} -DENABLE_MYSQL=ON

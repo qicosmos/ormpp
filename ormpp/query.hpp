@@ -1,4 +1,5 @@
 #pragma once
+#include <coroutine>
 #include <initializer_list>
 #include <iterator>
 #include <optional>
@@ -1574,7 +1575,9 @@ struct delete_context {
       else if constexpr (db_type == DBType::postgresql) {
         sql.append("DELETE FROM ")
             .append(partition_child_table_name(table_name,
-                                               partition_name(partition_)));
+                                               partition_name(partition_)))
+            .append(" AS ")
+            .append(table_name);
       }
       else {
         sql.append("DELETE FROM ").append(table_name);
