@@ -1,5 +1,18 @@
 # Compile Standard
-set(CMAKE_CXX_STANDARD 20)
+option(ENABLE_CXX26_REFLECTION
+       "Build ormpp with experimental C++26 static reflection" OFF)
+if(ENABLE_CXX26_REFLECTION)
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR
+       CMAKE_CXX_COMPILER_VERSION VERSION_LESS 16)
+        message(FATAL_ERROR
+                "ENABLE_CXX26_REFLECTION currently requires GCC 16 or newer")
+    endif()
+    set(CMAKE_CXX_STANDARD 26)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-freflection>)
+    message(STATUS "Experimental C++26 reflection tests: enabled")
+else()
+    set(CMAKE_CXX_STANDARD 20)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 message(STATUS "CXX Standard: ${CMAKE_CXX_STANDARD}")
 

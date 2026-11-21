@@ -1,0 +1,44 @@
+name: C++26 reflection
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  gcc16-cxx26:
+    runs-on: ubuntu-22.04
+    container: gcc:16.1.0-trixie
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends cmake make
+
+      - name: Check reflection support
+        run: |
+          g++ --version
+          g++ -std=gnu++26 -freflection -x c++ -c -o /tmp/reflection.o - <<'CPP'
+          #include <meta>
+          struct probe { int value; };
+          static_assert(std::meta::identifier_of(^^probe) == "probe");
+          CPP
+
+      - name: Configure
+        run: >-
+          CXX=g++ CC=gcc cmake -S "$GITHUB_WORKSPACE"
+          -B "$GITHUB_WORKSPACE/build_cpp26"
+          -DCMAKE_BUILD_TYPE=Release
+          -DENABLE_CXX26_REFLECTION=ON
+          -DBUILD_EXAMPLES=OFF
+
+      - name: Build
+        run: cmake --build "$GITHUB_WORKSPACE/build_cpp26" -j 2
+
+      - name: Test
+        run: ctest --test-dir "$GITHUB_WORKSPACE/build_cpp26" --output-on-failure
