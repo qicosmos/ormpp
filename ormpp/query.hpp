@@ -1,9 +1,16 @@
 #pragma once
+#include <coroutine>
+#include <initializer_list>
 #include <iterator>
+#include <optional>
+#include <set>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
+#include <vector>
 
 #include "async_traits.hpp"
 #include "utility.hpp"
@@ -376,11 +383,23 @@ struct range_partition_desc {
   bool maxvalue = false;
 };
 
+struct list_partition_desc {
+  std::string name;
+  // Trusted SQL literals; use list_partition() to quote typed string values.
+  std::vector<std::string> values;
+};
+
+using partition_desc = std::variant<range_partition_desc, list_partition_desc>;
+
 template <typename T>
 inline std::string partition_sql_literal(T&& val) {
   using U = std::decay_t<T>;
   if constexpr (std::is_same_v<U, raw_sql_value>) {
     return std::forward<T>(val).sql;
+  }
+  else if constexpr (std::is_same_v<U, std::nullptr_t> ||
+                     std::is_same_v<U, std::nullopt_t>) {
+    return "NULL";
   }
   else if constexpr (std::is_enum_v<U>) {
     using underlying = std::underlying_type_t<U>;
@@ -407,6 +426,34 @@ inline range_partition_desc maxvalue_partition(std::string name, From&& from) {
   return range_partition_desc{std::move(name),
                               partition_sql_literal(std::forward<From>(from)),
                               "MAXVALUE", true};
+}
+
+template <typename... Values>
+  requires((!is_in_condition_range_v<Values> && ...))
+inline list_partition_desc list_partition(std::string name,
+                                          Values&&... values) {
+  return {std::move(name),
+          {partition_sql_literal(std::forward<Values>(values))...}};
+}
+
+template <typename Range>
+  requires(is_in_condition_range_v<Range>)
+inline list_partition_desc list_partition(std::string name, Range&& values) {
+  list_partition_desc partition{std::move(name), {}};
+  if constexpr (requires { std::size(values); }) {
+    partition.values.reserve(std::size(values));
+  }
+  for (auto&& value : values) {
+    partition.values.push_back(partition_sql_literal(value));
+  }
+  return partition;
+}
+
+template <typename Value>
+inline list_partition_desc list_partition(std::string name,
+                                          std::initializer_list<Value> values) {
+  return list_partition<std::initializer_list<Value>>(std::move(name),
+                                                      std::move(values));
 }
 
 inline bool is_sql_identifier_char(char c) {
@@ -438,6 +485,46 @@ inline bool is_valid_partition(const range_partition_desc& partition) {
          (!partition.to.empty() || partition.maxvalue);
 }
 
+inline bool is_valid_partition(const list_partition_desc& partition) {
+  if (!is_valid_sql_identifier(partition.name) || partition.values.empty()) {
+    return false;
+  }
+  std::set<std::string_view> values;
+  for (const auto& value : partition.values) {
+    if (value.empty() || !values.insert(value).second) {
+      return false;
+    }
+  }
+  return true;
+}
+
+inline bool is_valid_partition(const partition_desc& partition) {
+  return std::visit(
+      [](const auto& p) {
+        return is_valid_partition(p);
+      },
+      partition);
+}
+
+inline const std::string& partition_name(const partition_desc& partition) {
+  return std::visit(
+      [](const auto& p) -> const std::string& {
+        return p.name;
+      },
+      partition);
+}
+
+inline std::string partition_list_values(const list_partition_desc& partition) {
+  std::string sql;
+  for (const auto& value : partition.values) {
+    if (!sql.empty()) {
+      sql.append(",");
+    }
+    sql.append(value);
+  }
+  return sql;
+}
+
 inline std::string partition_child_table_name(std::string_view table_name,
                                               std::string_view partition_name) {
   std::string name(table_name);
@@ -455,6 +542,65 @@ inline std::string partition_range_predicate(std::string_view field_name,
   return sql;
 }
 
+inline std::string partition_predicate(std::string_view field_name,
+                                       const range_partition_desc& partition) {
+  return partition_range_predicate(field_name, partition);
+}
+
+inline bool is_sql_null_literal(std::string_view value) {
+  constexpr std::string_view whitespace = " \t\n\r\f\v";
+  const auto begin = value.find_first_not_of(whitespace);
+  if (begin == std::string_view::npos) {
+    return false;
+  }
+  const auto end = value.find_last_not_of(whitespace);
+  value = value.substr(begin, end - begin + 1);
+  return value.size() == 4 && (value[0] == 'N' || value[0] == 'n') &&
+         (value[1] == 'U' || value[1] == 'u') &&
+         (value[2] == 'L' || value[2] == 'l') &&
+         (value[3] == 'L' || value[3] == 'l');
+}
+
+inline std::string partition_predicate(std::string_view field_name,
+                                       const list_partition_desc& partition) {
+  std::string values;
+  bool has_null = false;
+  for (const auto& value : partition.values) {
+    if (is_sql_null_literal(value)) {
+      has_null = true;
+    }
+    else {
+      if (!values.empty()) {
+        values.append(",");
+      }
+      values.append(value);
+    }
+  }
+  std::string sql;
+  if (!values.empty()) {
+    sql.append(field_name).append(" IN (").append(values).append(")");
+  }
+  if (has_null) {
+    if (!sql.empty()) {
+      sql.insert(0, "(");
+      sql.append(" OR ").append(field_name).append(" IS NULL)");
+    }
+    else {
+      sql.append(field_name).append(" IS NULL");
+    }
+  }
+  return sql;
+}
+
+inline std::string partition_predicate(std::string_view field_name,
+                                       const partition_desc& partition) {
+  return std::visit(
+      [&](const auto& p) {
+        return partition_predicate(field_name, p);
+      },
+      partition);
+}
+
 inline std::string mysql_partition_definition(
     const range_partition_desc& partition) {
   std::string sql;
@@ -464,6 +610,25 @@ inline std::string mysql_partition_definition(
       .append(partition.maxvalue ? "MAXVALUE" : partition.to)
       .append(")");
   return sql;
+}
+
+inline std::string mysql_partition_definition(
+    const list_partition_desc& partition) {
+  std::string sql;
+  sql.append("PARTITION ")
+      .append(partition.name)
+      .append(" VALUES IN (")
+      .append(partition_list_values(partition))
+      .append(")");
+  return sql;
+}
+
+inline std::string mysql_partition_definition(const partition_desc& partition) {
+  return std::visit(
+      [](const auto& p) {
+        return mysql_partition_definition(p);
+      },
+      partition);
 }
 
 inline std::string postgresql_partition_definition_sql(
@@ -479,6 +644,28 @@ inline std::string postgresql_partition_definition_sql(
       .append(partition.maxvalue ? "MAXVALUE" : partition.to)
       .append(")");
   return sql;
+}
+
+inline std::string postgresql_partition_definition_sql(
+    std::string_view table_name, const list_partition_desc& partition) {
+  std::string sql;
+  sql.append("CREATE TABLE IF NOT EXISTS ")
+      .append(partition_child_table_name(table_name, partition.name))
+      .append(" PARTITION OF ")
+      .append(table_name)
+      .append(" FOR VALUES IN (")
+      .append(partition_list_values(partition))
+      .append(")");
+  return sql;
+}
+
+inline std::string postgresql_partition_definition_sql(
+    std::string_view table_name, const partition_desc& partition) {
+  return std::visit(
+      [&](const auto& p) {
+        return postgresql_partition_definition_sql(table_name, p);
+      },
+      partition);
 }
 
 inline std::string sqlite_partition_index_sql(std::string_view table_name,
@@ -1392,7 +1579,7 @@ struct delete_context {
   DB db_;
   std::string where_clause_;
   std::string partition_field_;
-  range_partition_desc partition_;
+  partition_desc partition_;
   bool use_partition_ = false;
 
   std::string build_sql() const {
@@ -1403,12 +1590,15 @@ struct delete_context {
         sql.append("DELETE FROM ")
             .append(table_name)
             .append(" PARTITION (")
-            .append(partition_.name)
+            .append(partition_name(partition_))
             .append(")");
       }
       else if constexpr (db_type == DBType::postgresql) {
         sql.append("DELETE FROM ")
-            .append(partition_child_table_name(table_name, partition_.name));
+            .append(partition_child_table_name(table_name,
+                                               partition_name(partition_)))
+            .append(" AS ")
+            .append(table_name);
       }
       else {
         sql.append("DELETE FROM ").append(table_name);
@@ -1422,7 +1612,7 @@ struct delete_context {
     if (use_partition_) {
       if constexpr (db_type == DBType::sqlite) {
         auto partition_where =
-            partition_range_predicate(partition_field_, partition_);
+            partition_predicate(partition_field_, partition_);
         if (where.empty()) {
           where = std::move(partition_where);
         }
@@ -1504,9 +1694,9 @@ struct delete_builder {
     return stage_delete_where{ctx};
   }
 
-  template <typename M>
-  stage_delete_partition partition(col_info<M> field,
-                                   range_partition_desc partition) {
+  template <typename M, typename Partition = range_partition_desc>
+    requires(std::is_convertible_v<Partition, partition_desc>)
+  stage_delete_partition partition(col_info<M> field, Partition partition) {
     auto ctx = std::make_shared<delete_context<T, DB>>();
     ctx->db_ = db_;
     ctx->partition_field_ = std::string(field.name);
@@ -1542,6 +1732,8 @@ struct create_table_builder {
   std::string engine_;
   std::string range_partition_field_;
   std::vector<range_partition_desc> range_partitions_;
+  std::string list_partition_field_;
+  std::vector<list_partition_desc> list_partitions_;
 
   template <typename M>
   create_table_builder& auto_increment(col_info<M> field) {
@@ -1622,6 +1814,29 @@ struct create_table_builder {
     return *this;
   }
 
+  template <typename M>
+  create_table_builder& partition_by_list(col_info<M> field) {
+    list_partition_field_ = std::string(field.name);
+    return *this;
+  }
+
+  create_table_builder& partition(list_partition_desc partition) {
+    list_partitions_.push_back(std::move(partition));
+    return *this;
+  }
+
+  template <typename... Values>
+  create_table_builder& list_partition(std::string name, Values&&... values) {
+    return partition(ormpp::list_partition(std::move(name),
+                                           std::forward<Values>(values)...));
+  }
+
+  template <typename Value>
+  create_table_builder& list_partition(std::string name,
+                                       std::initializer_list<Value> values) {
+    return partition(ormpp::list_partition(std::move(name), values));
+  }
+
   template <typename From, typename To>
   create_table_builder& range_partition(std::string name, From&& from,
                                         To&& to) {
@@ -1675,6 +1890,35 @@ struct create_table_builder {
 
  private:
   bool validate_partition_config() const {
+    if (!list_partition_field_.empty()) {
+      if (!range_partition_field_.empty() || !range_partitions_.empty() ||
+          !is_valid_sql_identifier(list_partition_field_)) {
+        return false;
+      }
+      if constexpr (db_type == DBType::mysql) {
+        if (list_partitions_.empty()) {
+          return false;
+        }
+      }
+      std::set<std::string> names;
+      std::set<std::string> values;
+      for (const auto& p : list_partitions_) {
+        if (!is_valid_partition(p) || !names.insert(p.name).second) {
+          return false;
+        }
+        for (const auto& value : p.values) {
+          if (!values.insert(value).second) {
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+
+    if (!list_partitions_.empty()) {
+      return false;
+    }
+
     if (range_partition_field_.empty()) {
       return range_partitions_.empty();
     }
@@ -1725,6 +1969,17 @@ struct create_table_builder {
       else if constexpr (db_type == DBType::sqlite) {
         sqls.push_back(
             sqlite_partition_index_sql(table_name, range_partition_field_));
+      }
+    }
+    else if (!list_partition_field_.empty()) {
+      if constexpr (db_type == DBType::postgresql) {
+        for (const auto& p : list_partitions_) {
+          sqls.push_back(postgresql_partition_definition_sql(table_name, p));
+        }
+      }
+      else if constexpr (db_type == DBType::sqlite) {
+        sqls.push_back(
+            sqlite_partition_index_sql(table_name, list_partition_field_));
       }
     }
 
@@ -1838,11 +2093,30 @@ struct create_table_builder {
         }
         sql.append(")");
       }
+      else if (!list_partition_field_.empty()) {
+        sql.append(" PARTITION BY LIST COLUMNS(")
+            .append(list_partition_field_)
+            .append(") (");
+        bool first = true;
+        for (const auto& p : list_partitions_) {
+          if (!first) {
+            sql.append(",");
+          }
+          sql.append(mysql_partition_definition(p));
+          first = false;
+        }
+        sql.append(")");
+      }
     }
     else if constexpr (db_type == DBType::postgresql) {
       if (!range_partition_field_.empty()) {
         sql.append(" PARTITION BY RANGE (")
             .append(range_partition_field_)
+            .append(")");
+      }
+      else if (!list_partition_field_.empty()) {
+        sql.append(" PARTITION BY LIST (")
+            .append(list_partition_field_)
             .append(")");
       }
     }
@@ -1876,11 +2150,11 @@ struct alter_table_builder {
     alter_op_kind kind = alter_op_kind::alter_clause;
     std::string sql;
     std::string partition_field;
-    range_partition_desc partition;
+    partition_desc partition;
 
     alter_op() = default;
     alter_op(std::string s) : sql(std::move(s)) {}
-    alter_op(alter_op_kind op_kind, std::string field, range_partition_desc p)
+    alter_op(alter_op_kind op_kind, std::string field, partition_desc p)
         : kind(op_kind),
           partition_field(std::move(field)),
           partition(std::move(p)) {}
@@ -2071,23 +2345,25 @@ struct alter_table_builder {
     return *this;
   }
 
-  template <typename M>
-  alter_table_builder& clear_partition(col_info<M> field,
-                                       range_partition_desc partition) {
+  template <typename M, typename Partition = range_partition_desc>
+    requires(std::is_convertible_v<Partition, partition_desc>)
+  alter_table_builder& clear_partition(col_info<M> field, Partition partition) {
     ops_.push_back({alter_op_kind::clear_partition, std::string(field.name),
                     std::move(partition)});
     return *this;
   }
 
-  template <typename M>
-  alter_table_builder& add_partition(col_info<M> field,
-                                     range_partition_desc partition) {
+  template <typename M, typename Partition = range_partition_desc>
+    requires(std::is_convertible_v<Partition, partition_desc>)
+  alter_table_builder& add_partition(col_info<M> field, Partition partition) {
     ops_.push_back({alter_op_kind::add_partition, std::string(field.name),
                     std::move(partition)});
     return *this;
   }
 
-  alter_table_builder& drop_partition(range_partition_desc partition) {
+  template <typename Partition = range_partition_desc>
+    requires(std::is_convertible_v<Partition, partition_desc>)
+  alter_table_builder& drop_partition(Partition partition) {
     ops_.push_back({alter_op_kind::drop_partition, {}, std::move(partition)});
     return *this;
   }
@@ -2114,19 +2390,18 @@ struct alter_table_builder {
           sql.append("ALTER TABLE ")
               .append(table_name)
               .append(" TRUNCATE PARTITION ")
-              .append(op.partition.name);
+              .append(partition_name(op.partition));
         }
         else if constexpr (db_type == DBType::postgresql) {
           sql.append("TRUNCATE TABLE ")
-              .append(
-                  partition_child_table_name(table_name, op.partition.name));
+              .append(partition_child_table_name(table_name,
+                                                 partition_name(op.partition)));
         }
         else {
           sql.append("DELETE FROM ")
               .append(table_name)
               .append(" WHERE ")
-              .append(
-                  partition_range_predicate(op.partition_field, op.partition));
+              .append(partition_predicate(op.partition_field, op.partition));
         }
         return true;
       }
@@ -2152,12 +2427,13 @@ struct alter_table_builder {
         sql.append("ALTER TABLE ")
             .append(table_name)
             .append(" DROP PARTITION ")
-            .append(op.partition.name);
+            .append(partition_name(op.partition));
         return true;
       }
       else if constexpr (db_type == DBType::postgresql) {
         sql.append("DROP TABLE IF EXISTS ")
-            .append(partition_child_table_name(table_name, op.partition.name));
+            .append(partition_child_table_name(table_name,
+                                               partition_name(op.partition)));
         return true;
       }
       else {

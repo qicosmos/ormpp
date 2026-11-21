@@ -4,35 +4,44 @@ on: [ push, pull_request ]
 
 jobs:
   build:
-  
+
     runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_ROOT_HOST: '%'
+          MYSQL_DATABASE: test_ormppdb
+        options: >-
+          --health-cmd "mysqladmin ping -h127.0.0.1 -uroot --silent"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 3306:3306
 
     steps:
     - name: Checkout Code
       uses: actions/checkout@v2
       with:
         fetch-depth: 2
-    
-    - name: Setup MySQL
-      uses: ankane/setup-mysql@v1
-      with: 
-        mysql-version: 8.0
-        database: test_ormppdb
 
     - name: Verify MySQL
-      run : mysql -uroot -e'show databases;'
+      run: mysql --protocol=TCP -h127.0.0.1 -uroot -e 'SHOW DATABASES;'
 
     - name: Configure cmake
       run : cmake -B${{ github.workspace }}/build -DCOVERAGE_TEST=ON -DENABLE_MYSQL=ON -DCMAKE_BUILD_TYPE=Debug
 
     - name: Build
       run : cmake --build ${{ github.workspace }}/build --config Debug
-      
+
     - name: Test
       working-directory: ${{ github.workspace }}/build
       env :
         CTEST_OUTPUT_ON_FAILURE: 1
       run : ctest -C Debug -j `nproc` -V
-    
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1

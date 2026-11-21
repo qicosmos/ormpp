@@ -39,6 +39,12 @@ struct async_keyword_unique_row {
 REGISTER_AUTO_KEY(async_keyword_unique_row, id)
 YLT_REFL(async_keyword_unique_row, id, group, company)
 
+struct async_list_order {
+  int id;
+  int order_id;
+};
+YLT_REFL(async_list_order, id, order_id)
+
 enum class async_color { blue = 10, red = 15 };
 enum async_fruit { apple, banana };
 
@@ -154,7 +160,12 @@ inline bool load_config_file(ormpp_cfg& cfg) {
 
 inline ormpp_cfg get_async_mysql_config() {
   ormpp_cfg cfg{};
-  if (!load_config_file(cfg)) {
+  const bool has_env_config = std::getenv("ORMPP_ASYNC_MYSQL_HOST") &&
+                              std::getenv("ORMPP_ASYNC_MYSQL_USER") &&
+                              std::getenv("ORMPP_ASYNC_MYSQL_PASSWORD") &&
+                              std::getenv("ORMPP_ASYNC_MYSQL_DB") &&
+                              std::getenv("ORMPP_ASYNC_MYSQL_PORT");
+  if (has_env_config || !load_config_file(cfg)) {
     cfg.db_ip = "127.0.0.1";
     cfg.user_name = "root";
     cfg.pwd = "";
@@ -172,6 +183,54 @@ inline ormpp_cfg get_async_mysql_config() {
     cfg.db_port = std::stoi(port_str);
   }
   return cfg;
+}
+
+asio::awaitable<void> check_async_list_partitions(dbng<mysql_async>& db) {
+  auto orders = list_partition("p_orders", 1001, 1003);
+  auto other = list_partition("p_other", 2001);
+  auto added = list_partition("p_added", 3001, 3005);
+  require_async(co_await db.execute("DROP TABLE IF EXISTS async_list_order"),
+                "drop list partition table failed");
+  require_async(co_await db.create_table<async_list_order>()
+                    .primary_key(col(&async_list_order::id),
+                                 col(&async_list_order::order_id))
+                    .partition_by_list(col(&async_list_order::order_id))
+                    .partition(orders)
+                    .partition(other)
+                    .execute(),
+                "create list partitions failed");
+  require_async(co_await db.insert(async_list_order{1, 1001}) == 1,
+                "insert list partition order failed");
+  require_async(co_await db.insert(async_list_order{2, 1003}) == 1,
+                "insert second list partition order failed");
+  require_async(co_await db.insert(async_list_order{3, 2001}) == 1,
+                "insert other list partition order failed");
+  require_async(co_await db.remove<async_list_order>()
+                        .partition(col(&async_list_order::order_id), orders)
+                        .where(col(&async_list_order::id) == 1 ||
+                               col(&async_list_order::id) == 3)
+                        .execute() == 1,
+                "remove from list partition affected other partitions");
+  require_async(co_await db.alter_table<async_list_order>()
+                    .clear_partition(col(&async_list_order::order_id), other)
+                    .add_partition(col(&async_list_order::order_id), added)
+                    .execute(),
+                "clear or add list partition failed");
+  require_async(co_await db.insert(async_list_order{4, 3005}) == 1,
+                "insert added list partition order failed");
+  require_async(co_await db.remove<async_list_order>()
+                        .partition(col(&async_list_order::order_id), added)
+                        .execute_all() == 1,
+                "remove all rows from list partition failed");
+  require_async(co_await db.alter_table<async_list_order>()
+                    .drop_partition(added)
+                    .execute(),
+                "drop list partition failed");
+  auto list_orders = co_await db.select(all).from<async_list_order>().collect();
+  require_async(list_orders.size() == 1 && list_orders.front().order_id == 1003,
+                "list partition operations affected other orders");
+  require_async(co_await db.execute("DROP TABLE async_list_order"),
+                "drop list partition table failed");
 }
 
 asio::awaitable<void> run_async_mysql_smoke() {
@@ -599,6 +658,7 @@ asio::awaitable<void> run_async_mysql_smoke() {
           .collect();
   require_async(join_rows.size() == 3, "namespaced join row count mismatch");
 
+  co_await check_async_list_partitions(db);
   require_async(co_await db.disconnect(), "disconnect failed");
 }
 

@@ -769,9 +769,10 @@ class postgresql {
     }
     else if constexpr (iguana::array_v<U> || std::is_same_v<std::string, U> ||
                        std::is_same_v<std::string_view, U>) {
-      std::vector<char> temp = {};
-      std::copy(value.data(), value.data() + value.size() + 1,
-                std::back_inserter(temp));
+      std::vector<char> temp(value.size() + 1, '\0');
+      if (!value.empty()) {
+        std::copy_n(value.data(), value.size(), temp.data());
+      }
       param_values.push_back(std::move(temp));
     }
     else if constexpr (is_db_text_type_v<U>) {
