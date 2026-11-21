@@ -3,11 +3,14 @@
 #include <initializer_list>
 #include <iterator>
 #include <optional>
+#include <set>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "async_traits.hpp"
 #include "utility.hpp"
@@ -382,6 +385,7 @@ struct range_partition_desc {
 
 struct list_partition_desc {
   std::string name;
+  // Trusted SQL literals; use list_partition() to quote typed string values.
   std::vector<std::string> values;
 };
 
@@ -436,6 +440,9 @@ template <typename Range>
   requires(is_in_condition_range_v<Range>)
 inline list_partition_desc list_partition(std::string name, Range&& values) {
   list_partition_desc partition{std::move(name), {}};
+  if constexpr (requires { std::size(values); }) {
+    partition.values.reserve(std::size(values));
+  }
   for (auto&& value : values) {
     partition.values.push_back(partition_sql_literal(value));
   }
@@ -540,12 +547,26 @@ inline std::string partition_predicate(std::string_view field_name,
   return partition_range_predicate(field_name, partition);
 }
 
+inline bool is_sql_null_literal(std::string_view value) {
+  constexpr std::string_view whitespace = " \t\n\r\f\v";
+  const auto begin = value.find_first_not_of(whitespace);
+  if (begin == std::string_view::npos) {
+    return false;
+  }
+  const auto end = value.find_last_not_of(whitespace);
+  value = value.substr(begin, end - begin + 1);
+  return value.size() == 4 && (value[0] == 'N' || value[0] == 'n') &&
+         (value[1] == 'U' || value[1] == 'u') &&
+         (value[2] == 'L' || value[2] == 'l') &&
+         (value[3] == 'L' || value[3] == 'l');
+}
+
 inline std::string partition_predicate(std::string_view field_name,
                                        const list_partition_desc& partition) {
   std::string values;
   bool has_null = false;
   for (const auto& value : partition.values) {
-    if (value == "NULL") {
+    if (is_sql_null_literal(value)) {
       has_null = true;
     }
     else {

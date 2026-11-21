@@ -133,6 +133,11 @@ use `std::array<char, N>` (mapped to `VARCHAR`): `std::string` maps to `TEXT`, w
 MySQL cannot use as a partition column. Primary and unique keys on native
 partitioned tables must include the partition column.
 
+`raw_sql()` and directly populated `list_partition_desc::values` are inserted
+into SQL verbatim. Use only trusted SQL in these entries, never user input.
+Partition configuration validation does not protect against SQL injection;
+pass ordinary values through `list_partition()` instead.
+
 Partition names must contain only letters, digits, and underscores and cannot
 start with a digit. Empty value lists, duplicate names or SQL literals, and mixed
 RANGE/LIST configurations are rejected before creating the table. Other type,

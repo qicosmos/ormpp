@@ -499,6 +499,8 @@ db.alter_table<order_detail>().drop_partition(orders).execute();
 
 当前支持单列列表分区。`list_partition` 接受变参、初始化列表或容器；字符串自动转义并加引号，`nullptr` 或 `std::nullopt` 表示 SQL `NULL`。MySQL 的字符串分区字段应使用可映射为 `VARCHAR` 的 `std::array<char, N>`，因为 `std::string` 映射的 `TEXT` 不能用作分区字段。MySQL/PostgreSQL 的主键和唯一键必须包含分区字段。
 
+`raw_sql()` 的内容和直接填写的 `list_partition_desc::values` 会原样拼接到 SQL 中，只能使用可信 SQL，不能传入用户输入。分区配置校验不提供 SQL 注入防护；普通值应通过 `list_partition()` 传入。
+
 分区名沿用范围分区的标识符规则。空值列表、重复分区名、重复的 SQL 字面值，以及同一建表调用中混用 RANGE/LIST 配置会使 `execute()` 返回 `false`。数据库的类型转换、排序规则和其他分区限制仍由数据库检查。异步 MySQL 使用相同接口，在执行时加上 `co_await`。
 
 ## 如何编译
