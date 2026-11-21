@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <asio.hpp>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <deque>
@@ -13,6 +14,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #include "async_traits.hpp"
 
@@ -24,6 +26,17 @@ struct pool_options {
       false;  // Allow temporary connections when pool is full
   size_t max_dynamic_connections = 10;  // Max temporary connections
   bool log_pool_exhaustion = true;      // Log when pool is exhausted
+
+  // Heartbeat: periodically ping idle connections, drop dead ones and
+  // rebuild capacity so the pool heals without waiting for a business
+  // request.
+  bool enable_heartbeat = true;
+  std::chrono::milliseconds heartbeat_interval{30000};
+  std::chrono::milliseconds ping_timeout{2000};
+  std::chrono::milliseconds reconnect_initial_delay{500};
+  std::chrono::milliseconds reconnect_max_delay{30000};
+  size_t heartbeat_ping_batch =
+      8;  // Max concurrent pings per round (0 = unlimited)
 };
 
 // Async connection pool for databases that support async operations
@@ -42,7 +55,8 @@ class async_connection_pool
 
   // Destructor - automatically cleanup connections
   ~async_connection_pool() {
-    if (initialized_ || !available_connections_.empty()) {
+    initialized_ = false;  // stop the heartbeat loop if it is still running
+    if (!available_connections_.empty() || in_use_count_ > 0) {
       if (in_use_count_ > 0 && options_.log_pool_exhaustion) {
         std::cerr << "[Connection Pool] Warning: Pool destroyed with "
                   << in_use_count_ << " connections still in use. "
@@ -73,6 +87,40 @@ class async_connection_pool
       co_return false;
     }
 
+    // The pool must be owned by std::shared_ptr: the heartbeat loop and the
+    // connection-return deleter both go through weak_from_this().
+    if (this->weak_from_this().expired()) {
+      if (options_.log_pool_exhaustion) {
+        std::cerr << "[Connection Pool] Error: pool must be owned by "
+                     "std::shared_ptr; init() failed because connections "
+                     "cannot be returned to the pool without it."
+                  << std::endl;
+      }
+      co_return false;
+    }
+
+    // Normalize heartbeat options so misconfigured values cannot cause
+    // busy loops or broken backoff.
+    bool normalized = false;
+    auto clamp_min = [&](auto& value, auto minimum) {
+      if (value < minimum) {
+        value = minimum;
+        normalized = true;
+      }
+    };
+    clamp_min(options_.heartbeat_interval, std::chrono::milliseconds(1));
+    clamp_min(options_.ping_timeout, std::chrono::milliseconds(1));
+    clamp_min(options_.reconnect_initial_delay, std::chrono::milliseconds(1));
+    if (options_.reconnect_max_delay < options_.reconnect_initial_delay) {
+      options_.reconnect_max_delay = options_.reconnect_initial_delay;
+      normalized = true;
+    }
+    if (normalized && options_.log_pool_exhaustion) {
+      std::cerr << "[Connection Pool] Warning: heartbeat options were "
+                   "normalized to valid ranges."
+                << std::endl;
+    }
+
     pool_size_ = pool_size;
     host_ = host;
     user_ = user;
@@ -96,6 +144,9 @@ class async_connection_pool
     }
 
     initialized_ = true;
+    if (options_.enable_heartbeat) {
+      start_heartbeat(++generation_);
+    }
     co_return true;
   }
 
@@ -196,7 +247,7 @@ class async_connection_pool
   awaitable<std::tuple<size_t, size_t, size_t, size_t>> get_stats() {
     co_await asio::post(strand_, asio::use_awaitable);
     co_return std::make_tuple(pool_size_, available_connections_.size(),
-                              in_use_count_, dynamic_connection_count_);
+                              in_use_count_.load(), dynamic_connection_count_);
   }
 
   // Get detailed pool status
@@ -281,6 +332,268 @@ class async_connection_pool
   }
 
  private:
+  void start_heartbeat(uint64_t generation) {
+    asio::co_spawn(
+        executor_,
+        [weak = this->weak_from_this(), generation]() -> awaitable<void> {
+          // Never let an exception escape to asio::detached: it would
+          // silently kill the maintenance loop with no trace.
+          try {
+            co_await heartbeat_loop(weak, generation);
+          } catch (const std::exception& e) {
+            std::cerr << "[Connection Pool] Heartbeat loop stopped by "
+                         "exception: "
+                      << e.what() << std::endl;
+          } catch (...) {
+            std::cerr << "[Connection Pool] Heartbeat loop stopped by an "
+                         "unknown exception."
+                      << std::endl;
+          }
+        },
+        asio::detached);
+  }
+
+  // Periodic maintenance: ping idle connections, drop dead ones and rebuild
+  // capacity. Only idle connections are touched; in-use connections are left
+  // to the business code. While capacity is short the loop retries with
+  // exponential backoff so the pool recovers as soon as the database is
+  // back, without waiting for a business request.
+  //
+  // The pool is locked via weak_ptr only while the loop touches it (per
+  // slice check and per round), so dropping the last user reference
+  // destroys the pool promptly and stops the loop.
+  static awaitable<void> heartbeat_loop(
+      std::weak_ptr<async_connection_pool> weak, uint64_t generation) {
+    auto self = weak.lock();
+    if (!self) {
+      co_return;
+    }
+    auto reconnect_delay = self->options_.reconnect_initial_delay;
+    std::chrono::milliseconds wait_time = std::max(
+        self->options_.heartbeat_interval, std::chrono::milliseconds(1));
+    asio::steady_timer wait_timer(self->executor_);
+    self.reset();
+
+    for (;;) {
+      // Wait in small slices, re-checking liveness each slice so
+      // close_all()/destruction is noticed promptly instead of blocking on
+      // a full-interval timer. The pool is not held while waiting, so it is
+      // destroyed promptly after the last user reference is dropped.
+      auto remaining = wait_time;
+      while (remaining > std::chrono::milliseconds::zero()) {
+        auto slice = std::min(remaining, std::chrono::milliseconds(100));
+        wait_timer.expires_after(slice);
+        co_await wait_timer.async_wait(asio::use_awaitable);
+        remaining -= slice;
+
+        self = weak.lock();
+        if (!self) {
+          co_return;
+        }
+        co_await asio::post(self->strand_, asio::use_awaitable);
+        if (!self->initialized_ || self->closing_ ||
+            self->generation_ != generation) {
+          co_return;
+        }
+        self.reset();
+      }
+
+      // Hold the pool through the round.
+      self = weak.lock();
+      if (!self) {
+        co_return;
+      }
+      co_await asio::post(self->strand_, asio::use_awaitable);
+      if (!self->initialized_ || self->closing_ ||
+          self->generation_ != generation) {
+        co_return;
+      }
+
+      // Ping idle connections in batches and return each batch immediately
+      // after pinging, so a round keeps all but heartbeat_ping_batch
+      // connections available and pings stay bounded. Dead connections are
+      // disconnected and destroyed inside ping_connections.
+      size_t drained = 0;
+      for (;;) {
+        size_t batch = self->options_.heartbeat_ping_batch;
+        if (batch == 0) {
+          batch = self->available_connections_.size();  // 0 = unlimited
+        }
+        std::vector<std::unique_ptr<DB>> idle;
+        idle.reserve(std::min(batch, self->available_connections_.size()));
+        while (idle.size() < batch && !self->available_connections_.empty()) {
+          idle.push_back(std::move(self->available_connections_.front()));
+          self->available_connections_.pop_front();
+        }
+        if (idle.empty()) {
+          break;
+        }
+        drained += idle.size();
+
+        auto batch_alive = co_await self->ping_connections(std::move(idle));
+
+        co_await asio::post(self->strand_, asio::use_awaitable);
+        if (!self->initialized_ || self->closing_ ||
+            self->generation_ != generation) {
+          co_return;  // alive connections are destroyed here
+        }
+        for (auto& conn : batch_alive) {
+          self->available_connections_.push_back(std::move(conn));
+        }
+
+        if (drained >= self->pool_size_) {
+          break;  // one round checks each fixed connection at most once
+        }
+      }
+
+      // Rebuild the capacity lost to dead connections.
+      size_t gap = 0;
+      if (self->available_connections_.size() + self->in_use_count_ <
+          self->pool_size_) {
+        gap = self->pool_size_ - self->available_connections_.size() -
+              self->in_use_count_;
+      }
+
+      if (gap > 0) {
+        auto replacements = co_await self->create_replacement_connections(gap);
+        if (replacements.size() < gap) {
+          auto max_delay = self->options_.reconnect_max_delay;
+          reconnect_delay = (reconnect_delay >= max_delay / 2)
+                                ? max_delay
+                                : reconnect_delay * 2;
+        }
+        if (!replacements.empty()) {
+          co_await asio::post(self->strand_, asio::use_awaitable);
+          if (!self->initialized_ || self->closing_ ||
+              self->generation_ != generation) {
+            for (auto& conn : replacements) {
+              co_await conn->disconnect();
+            }
+            co_return;
+          }
+          for (auto& conn : replacements) {
+            self->available_connections_.push_back(std::move(conn));
+          }
+        }
+      }
+
+      co_await asio::post(self->strand_, asio::use_awaitable);
+      if (!self->initialized_ || self->closing_ ||
+          self->generation_ != generation) {
+        co_return;
+      }
+      if (self->available_connections_.size() + self->in_use_count_ <
+          self->pool_size_) {
+        wait_time = std::max(
+            std::min(reconnect_delay, self->options_.heartbeat_interval),
+            std::chrono::milliseconds(1));
+      }
+      else {
+        reconnect_delay = self->options_.reconnect_initial_delay;
+        wait_time = self->options_.heartbeat_interval;
+      }
+
+      self.reset();  // allow the pool to be destroyed while waiting
+    }
+  }
+
+  // Ping a batch of connections concurrently. Takes ownership of the
+  // connections and returns the alive ones; dead connections are
+  // disconnected and destroyed. Every ping coroutine catches all
+  // exceptions, so pending always reaches zero.
+  //
+  // After ping_timeout the stragglers are cancelled and given a short grace
+  // period. A ping that ignores cancellation keeps its connection (the
+  // coroutine owns it and destroys it whenever it finishes) and is reported
+  // dead, so the pool rebuilds capacity instead of waiting forever.
+  awaitable<std::vector<std::unique_ptr<DB>>> ping_connections(
+      std::vector<std::unique_ptr<DB>> conns) {
+    const size_t n = conns.size();
+    if (n == 0) {
+      co_return conns;
+    }
+
+    // Shared holders: a connection is destroyed by whoever drops the last
+    // reference to its slot - the round for completed pings, or the ping
+    // coroutine itself for pings that hang past the grace period.
+    auto holders =
+        std::make_shared<std::vector<std::unique_ptr<DB>>>(std::move(conns));
+    auto results = std::make_shared<std::vector<std::optional<bool>>>(n);
+    auto pending = std::make_shared<std::atomic_size_t>(n);
+    asio::cancellation_signal signal;
+
+    for (size_t i = 0; i < n; ++i) {
+      asio::co_spawn(
+          executor_,
+          [holder = holders, results, pending, i]() -> awaitable<void> {
+            bool ok = false;
+            try {
+              ok = co_await (*holder)[i]->ping();
+            } catch (...) {
+              ok = false;
+            }
+            (*results)[i] = ok;
+            pending->fetch_sub(1, std::memory_order_release);
+          },
+          asio::bind_cancellation_slot(signal.slot(), asio::detached));
+    }
+
+    asio::steady_timer poll_timer(executor_);
+    auto deadline = std::chrono::steady_clock::now() + options_.ping_timeout;
+    while (pending->load(std::memory_order_acquire) > 0 &&
+           std::chrono::steady_clock::now() < deadline) {
+      poll_timer.expires_after(std::chrono::milliseconds(10));
+      co_await poll_timer.async_wait(asio::use_awaitable);
+    }
+
+    if (pending->load(std::memory_order_acquire) > 0) {
+      signal.emit(asio::cancellation_type::all);
+      auto grace =
+          std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+      while (pending->load(std::memory_order_acquire) > 0 &&
+             std::chrono::steady_clock::now() < grace) {
+        poll_timer.expires_after(std::chrono::milliseconds(1));
+        co_await poll_timer.async_wait(asio::use_awaitable);
+      }
+    }
+
+    // Reclaim connections whose ping completed; a slot with no result
+    // belongs to a still-running ping coroutine and must be left alone.
+    std::vector<std::unique_ptr<DB>> alive_conns;
+    alive_conns.reserve(n);
+    for (size_t i = 0; i < n; ++i) {
+      if (!(*results)[i].has_value()) {
+        continue;
+      }
+      if ((*results)[i].value()) {
+        alive_conns.push_back(std::move((*holders)[i]));
+      }
+      else {
+        (*holders)[i].reset();  // dead: disconnect and destroy
+      }
+    }
+    co_return alive_conns;
+  }
+
+  // Create up to `count` connections sequentially; stop at the first
+  // failure, since the database is likely down.
+  awaitable<std::vector<std::unique_ptr<DB>>> create_replacement_connections(
+      size_t count) {
+    std::vector<std::unique_ptr<DB>> conns;
+    conns.reserve(count);
+    for (size_t i = 0; i < count; ++i) {
+      auto conn = std::make_unique<DB>(executor_);
+      bool connected = co_await conn->connect(host_, user_, passwd_, database_,
+                                              timeout_, port_);
+      if (!connected) {
+        co_await conn->disconnect();
+        break;
+      }
+      conns.push_back(std::move(conn));
+    }
+    co_return conns;
+  }
+
   std::shared_ptr<DB> make_connection_handle(std::unique_ptr<DB> connection,
                                              bool dynamic) {
     auto raw = connection.release();
@@ -390,10 +703,14 @@ class async_connection_pool
   asio::strand<executor_type> strand_;
   pool_options options_;
 
-  bool initialized_ = false;
-  bool closing_ = false;
+  // Flag/counter state is atomic because the destructor may write it from
+  // any thread while the executor thread runs the heartbeat loop.
+  std::atomic_bool initialized_ = false;
+  std::atomic_bool closing_ = false;
+  std::atomic_size_t in_use_count_ = 0;
+  std::atomic_uint64_t generation_ = 0;  // bumped on init to invalidate
+                                         // old heartbeats
   size_t pool_size_ = 0;
-  size_t in_use_count_ = 0;
   size_t dynamic_connection_count_ = 0;
 
   std::string host_;
